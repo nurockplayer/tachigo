@@ -8,7 +8,6 @@ export function injectTwitchExtMock() {
   if (window.Twitch?.ext) return
 
   let onTransactionComplete: ((tx: BitsTransaction) => void) | null = null
-  let onTransactionCancelled: (() => void) | null = null
 
   window.Twitch = {
     ext: {
@@ -60,7 +59,7 @@ export function injectTwitchExtMock() {
         },
 
         onTransactionComplete(cb) { onTransactionComplete = cb },
-        onTransactionCancelled(cb) { onTransactionCancelled = cb },
+        onTransactionCancelled(_cb) {},
       },
     },
   }
