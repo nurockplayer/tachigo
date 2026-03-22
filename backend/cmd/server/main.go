@@ -1,0 +1,71 @@
+// @title           tachigo API
+// @version         1.0
+// @description     Backend API for tachigo — Twitch extension + Web3 rewards platform
+// @host            localhost:8080
+// @BasePath        /api/v1
+// @securityDefinitions.apikey BearerAuth
+// @in              header
+// @name            Authorization
+// @description     Enter: Bearer {access_token}
+
+package main
+
+import (
+	"log"
+	"os"
+	"strings"
+
+	"github.com/joho/godotenv"
+
+	_ "github.com/tachigo/tachigo/docs"
+	"github.com/tachigo/tachigo/internal/config"
+	"github.com/tachigo/tachigo/internal/database"
+	"github.com/tachigo/tachigo/internal/models"
+	"github.com/tachigo/tachigo/internal/router"
+	"github.com/tachigo/tachigo/internal/services"
+)
+
+func main() {
+	// Load .env (ignore error in production where env is set externally)
+	_ = godotenv.Load()
+
+	cfg := config.Load()
+
+	db := database.Connect(cfg.Database.DSN)
+
+	// Auto-migrate all models
+	if err := db.AutoMigrate(
+		&models.User{},
+		&models.AuthProvider{},
+		&models.ShippingAddress{},
+		&models.RefreshToken{},
+		&models.Web3Nonce{},
+		&models.EmailVerification{},
+		&models.PasswordReset{},
+	); err != nil {
+		log.Fatalf("migration failed: %v", err)
+	}
+
+	// Wire services
+	authSvc := services.NewAuthService(db, cfg)
+	userSvc := services.NewUserService(db)
+	addrSvc := services.NewAddressService(db)
+	extSvc := services.NewExtensionService(db, cfg, authSvc)
+	mailer := services.NewMailer(cfg.SMTP.Host, cfg.SMTP.Port, cfg.SMTP.Username, cfg.SMTP.Password, cfg.SMTP.From)
+	emailAuthSvc := services.NewEmailAuthService(db, cfg, mailer)
+
+	// CORS origins from env, default to localhost for dev
+	originsEnv := os.Getenv("ALLOWED_ORIGINS")
+	allowedOrigins := []string{"http://localhost:3000", "http://localhost:5173"}
+	if originsEnv != "" {
+		allowedOrigins = strings.Split(originsEnv, ",")
+	}
+
+	r := router.New(authSvc, userSvc, addrSvc, extSvc, emailAuthSvc, allowedOrigins)
+
+	addr := ":" + cfg.Server.Port
+	log.Printf("server starting on %s (env=%s)", addr, cfg.Server.Env)
+	if err := r.Run(addr); err != nil {
+		log.Fatalf("server error: %v", err)
+	}
+}

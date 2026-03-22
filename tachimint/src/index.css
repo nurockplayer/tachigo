@@ -1,0 +1,222 @@
+/* ── Variables ──────────────────────────────────────────────────────────────── */
+:root {
+  --bg: #0e0e10;
+  --surface: #18181b;
+  --border: #2d2d35;
+  --text: #adadb8;
+  --text-h: #efeff1;
+  --accent: #a970ff;
+  --accent-hover: #bf93ff;
+  --success: #00c853;
+  --error: #ff5252;
+  --bits: #f5a623;
+
+  --radius: 8px;
+  --sans: system-ui, 'Segoe UI', Roboto, sans-serif;
+
+  font: 13px/1.5 var(--sans);
+  color: var(--text);
+  background: var(--bg);
+  -webkit-font-smoothing: antialiased;
+}
+
+/* ── Reset ──────────────────────────────────────────────────────────────────── */
+*, *::before, *::after { box-sizing: border-box; }
+body { margin: 0; }
+ul { list-style: none; margin: 0; padding: 0; }
+p  { margin: 0; }
+
+/* ── Shell ──────────────────────────────────────────────────────────────────── */
+#root {
+  min-height: 100svh;
+  display: flex;
+  flex-direction: column;
+}
+
+/* ── Loading ────────────────────────────────────────────────────────────────── */
+.ext-loading {
+  display: flex;
+  flex-direction: column;
+  align-items: center;
+  justify-content: center;
+  gap: 12px;
+  min-height: 120px;
+  color: var(--text);
+  font-size: 12px;
+}
+
+.ext-loading__spinner {
+  width: 20px;
+  height: 20px;
+  border: 2px solid var(--border);
+  border-top-color: var(--accent);
+  border-radius: 50%;
+  animation: spin 0.8s linear infinite;
+}
+
+@keyframes spin { to { transform: rotate(360deg); } }
+
+/* ── Panel ──────────────────────────────────────────────────────────────────── */
+.ext-panel {
+  display: flex;
+  flex-direction: column;
+  min-height: 100svh;
+}
+
+.ext-header {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  padding: 10px 14px;
+  border-bottom: 1px solid var(--border);
+}
+
+.ext-logo {
+  font-weight: 700;
+  font-size: 14px;
+  color: var(--text-h);
+  letter-spacing: -0.3px;
+}
+
+.ext-offline {
+  font-size: 8px;
+  color: var(--error);
+  opacity: 0.7;
+}
+
+.ext-body {
+  padding: 12px 14px;
+  flex: 1;
+}
+
+/* ── Products ───────────────────────────────────────────────────────────────── */
+.ext-products {
+  display: flex;
+  flex-direction: column;
+  gap: 8px;
+}
+
+.ext-product {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  gap: 8px;
+  padding: 10px 12px;
+  background: var(--surface);
+  border: 1px solid var(--border);
+  border-radius: var(--radius);
+}
+
+.ext-product__info {
+  display: flex;
+  align-items: center;
+  gap: 6px;
+  min-width: 0;
+}
+
+.ext-product__name {
+  font-size: 13px;
+  color: var(--text-h);
+  white-space: nowrap;
+  overflow: hidden;
+  text-overflow: ellipsis;
+}
+
+.ext-badge {
+  font-size: 10px;
+  padding: 1px 5px;
+  border-radius: 3px;
+  background: rgba(165, 112, 255, 0.15);
+  color: var(--accent);
+  border: 1px solid rgba(165, 112, 255, 0.3);
+  white-space: nowrap;
+}
+
+/* ── Bits button ────────────────────────────────────────────────────────────── */
+.ext-btn {
+  display: inline-flex;
+  align-items: center;
+  gap: 5px;
+  border: none;
+  border-radius: 4px;
+  font: inherit;
+  cursor: pointer;
+  transition: background 0.15s, opacity 0.15s;
+  white-space: nowrap;
+}
+
+.ext-btn:disabled {
+  opacity: 0.5;
+  cursor: not-allowed;
+}
+
+.ext-btn--bits {
+  padding: 5px 10px;
+  background: var(--accent);
+  color: #fff;
+  font-size: 13px;
+  font-weight: 600;
+  flex-shrink: 0;
+}
+
+.ext-btn--bits:hover:not(:disabled) { background: var(--accent-hover); }
+
+.ext-btn--ghost {
+  padding: 6px 14px;
+  background: var(--border);
+  color: var(--text-h);
+  font-size: 13px;
+}
+
+.ext-btn--ghost:hover:not(:disabled) { background: #3a3a45; }
+
+.ext-bits-icon {
+  width: 16px;
+  height: 16px;
+  vertical-align: middle;
+}
+
+/* ── Success ────────────────────────────────────────────────────────────────── */
+.ext-success {
+  display: flex;
+  flex-direction: column;
+  align-items: center;
+  gap: 8px;
+  padding: 20px 0;
+  text-align: center;
+}
+
+.ext-success__icon {
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  width: 36px;
+  height: 36px;
+  border-radius: 50%;
+  background: rgba(0, 200, 83, 0.15);
+  color: var(--success);
+  font-size: 18px;
+}
+
+.ext-success p {
+  color: var(--text-h);
+  font-size: 14px;
+  font-weight: 600;
+}
+
+/* ── Broadcaster ────────────────────────────────────────────────────────────── */
+.ext-broadcaster {
+  padding: 16px 0;
+  display: flex;
+  flex-direction: column;
+  gap: 4px;
+}
+
+.ext-broadcaster p:first-child {
+  color: var(--text-h);
+  font-weight: 600;
+}
+
+/* ── Misc ───────────────────────────────────────────────────────────────────── */
+.ext-hint  { font-size: 12px; color: var(--text); }
+.ext-error { font-size: 12px; color: var(--error); margin-top: 8px; }

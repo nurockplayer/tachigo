@@ -1,0 +1,48 @@
+services:
+  app:
+    build: ./backend
+    ports:
+      - "8080:8080"
+    env_file:
+      - ./backend/.env
+    environment:
+      DATABASE_URL: host=postgres user=postgres password=postgres dbname=tachigo port=5432 sslmode=disable
+    depends_on:
+      postgres:
+        condition: service_healthy
+    restart: unless-stopped
+
+  postgres:
+    image: postgres:16-alpine
+    environment:
+      POSTGRES_USER: postgres
+      POSTGRES_PASSWORD: postgres
+      POSTGRES_DB: tachigo
+    ports:
+      - "5433:5432"
+    volumes:
+      - postgres_data:/var/lib/postgresql/data
+    healthcheck:
+      test: ["CMD-SHELL", "pg_isready -U postgres"]
+      interval: 5s
+      timeout: 5s
+      retries: 5
+    restart: unless-stopped
+
+  frontend:
+    build: ./tachimint
+    ports:
+      - "5173:5173"
+    env_file:
+      - ./tachimint/.env
+    volumes:
+      - ./tachimint/src:/app/src
+      - ./tachimint/public:/app/public
+      - ./tachimint/index.html:/app/index.html
+      - /app/node_modules
+    depends_on:
+      - app
+    restart: unless-stopped
+
+volumes:
+  postgres_data:

@@ -1,0 +1,18 @@
+services:
+  app:
+    build:
+      context: ./backend
+      target: dev
+    volumes:
+      - ./backend:/app
+      - go_mod_cache:/go/pkg/mod
+    restart: "no"
+
+  frontend:
+    restart: "no"
+
+  postgres:
+    restart: "no"
+
+volumes:
+  go_mod_cache:

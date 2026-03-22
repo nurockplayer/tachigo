@@ -1,0 +1,9 @@
+[build]
+  pre_cmd = ["swag init -g cmd/server/main.go --output docs --quiet"]
+  cmd = "go build -o ./tmp/main ./cmd/server"
+  bin = "./tmp/main"
+  include_ext = ["go"]
+  exclude_dir = ["tmp", "bin", "migrations", "docs"]
+
+[log]
+  time = false

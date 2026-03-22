@@ -1,0 +1,24 @@
+# Backend
+backend/*.env
+backend/.env.*
+!backend/.env.example
+backend/tmp/
+backend/bin/
+
+# Claude Code (personal settings)
+.claude/
+
+# Frontend
+tachimint/node_modules/
+tachimint/dist/
+tachimint/.env
+tachimint/.env.local
+tachimint/*.local
+
+# IDE
+.vscode/
+.idea/
+*.code-workspace
+
+# OS
+.DS_Store

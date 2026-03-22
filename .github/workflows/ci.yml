@@ -1,0 +1,38 @@
+name: CI
+
+on:
+  push:
+    branches: [main]
+  pull_request:
+    branches: [main]
+
+jobs:
+  backend:
+    name: Backend tests
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+
+      - name: Setup env files
+        run: make setup
+
+      - name: Build image
+        run: docker compose build app
+
+      - name: Run tests
+        run: docker compose run --no-deps --rm app go test ./...
+
+  frontend:
+    name: Frontend build
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+
+      - name: Setup env files
+        run: make setup
+
+      - name: Build image
+        run: docker compose build frontend
+
+      - name: Build
+        run: docker compose run --no-deps --rm frontend npm run build
