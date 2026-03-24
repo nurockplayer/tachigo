@@ -38,18 +38,44 @@
 
 ---
 
-## PR 慣例
+## 開發流程
 
-- 所有 PR 目標分支：`develop`（不直接推 `main`）
-- branch 命名：`<type>/<short-description>`，例如 `feat/points-service`、`fix/bits-receipt`、`docs/architecture`
+1. 從 `develop` 拉新的 feature branch：
+
+   ```bash
+   git checkout develop
+   git pull
+   git checkout -b feat/points-service
+   ```
+
+2. 開發完成後推上 remote：
+
+   ```bash
+   git push -u origin feat/points-service
+   ```
+
+3. 在 GitHub 發 PR，目標分支：`develop`（不直接推 `main`）
+
+## Branch 命名
+
+`<type>/<short-description>`
+
+例：`feat/points-service`、`fix/bits-receipt`、`docs/architecture`
 
 ## Commit 訊息格式
+
+每個 commit 必須用 `refs #<issue號碼>` 標記相關 issue，方便日後追溯當初的規格與討論。
 
 ```
 <type>: <short description>
 
+refs #27
+
 Co-Authored-By: Claude Sonnet 4.6 <noreply@anthropic.com>
 ```
+
+- 實作過程中的 commit 用 `refs #號碼`
+- PR 的最後一個 commit 或 PR 描述用 `closes #號碼`（merge 後自動關閉 issue）
 
 Type：`feat` / `fix` / `docs` / `chore` / `refactor` / `test`
 

@@ -38,16 +38,29 @@ alwaysApply: true
 - **參考** — 現有的範本檔案路徑
 - **完成條件** — PR merge 前必須達成的條件（checklist）
 
-## PR 慣例
+## 開發流程
 
-- 所有 PR 目標分支：`develop`
-- Branch 命名：`<type>/<short-description>`
-  - 例：`feat/points-service`、`fix/bits-receipt`、`docs/architecture`
+1. 從 `develop` 拉新的 feature branch
+2. 開發完成後推上 remote
+3. 發 PR，目標分支：`develop`（不直接推 `main`）
+
+## Branch 命名
+
+`<type>/<short-description>`
+
+例：`feat/points-service`、`fix/bits-receipt`、`docs/architecture`
 
 ## Commit 格式
 
+每個 commit 必須用 `refs #<issue號碼>` 標記相關 issue，方便日後追溯規格與討論。
+
 ```
 <type>: <short description>
+
+refs #27
 ```
+
+- 實作過程中的 commit 用 `refs #號碼`
+- PR 的最後一個 commit 或 PR 描述用 `closes #號碼`（merge 後自動關閉 issue）
 
 Type：`feat` / `fix` / `docs` / `chore` / `refactor` / `test`
