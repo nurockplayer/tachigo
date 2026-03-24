@@ -59,6 +59,7 @@ export function injectTwitchExtMock() {
         },
 
         onTransactionComplete(cb) { onTransactionComplete = cb },
+        // eslint-disable-next-line @typescript-eslint/no-unused-vars
         onTransactionCancelled(_cb) {},
       },
     },

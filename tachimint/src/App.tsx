@@ -3,7 +3,7 @@ import { useBits } from './hooks/useBits'
 
 export default function App() {
   const { context, jwt, products, bitsEnabled, authError } = useTwitch()
-  const { useBitsProduct, status, error } = useBits(jwt)
+  const { buyWithBits, status, error } = useBits(jwt)
 
   if (!context) {
     return (
@@ -61,7 +61,7 @@ export default function App() {
                     <button
                       className="ext-btn ext-btn--bits"
                       disabled={status === 'pending'}
-                      onClick={() => useBitsProduct(product.sku)}
+                      onClick={() => buyWithBits(product.sku)}
                     >
                       <img
                         src="https://static-cdn.jtvnw.net/bits/dark/animated/purple/1"

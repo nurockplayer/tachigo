@@ -37,6 +37,7 @@ export function useTwitch() {
       try {
         const result = await loginWithTwitchExtension(auth.token)
         // result.data.tokens.access_token
+        // eslint-disable-next-line @typescript-eslint/no-explicit-any
         const tokens = (result as any)?.data?.tokens ?? (result as any)?.tokens
         if (tokens?.access_token) {
           setAuthToken(tokens.access_token)

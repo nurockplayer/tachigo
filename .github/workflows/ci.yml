@@ -2,9 +2,9 @@ name: CI
 
 on:
   push:
-    branches: [main]
+    branches: [main, develop]
   pull_request:
-    branches: [main]
+    branches: [main, develop]
 
 env:
   FORCE_JAVASCRIPT_ACTIONS_TO_NODE24: true
@@ -36,6 +36,9 @@ jobs:
 
       - name: Build image
         run: docker compose build frontend
+
+      - name: Lint
+        run: docker compose run --no-deps --rm frontend npm run lint
 
       - name: Build
         run: docker compose run --no-deps --rm frontend npm run build
