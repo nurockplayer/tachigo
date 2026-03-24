@@ -81,6 +81,10 @@ Key backend variables:
 | `JWT_ACCESS_SECRET`       | Random string ≥ 32 chars               |
 | `JWT_REFRESH_SECRET`      | Random string ≥ 32 chars               |
 
+## Architecture
+
+See [docs/architecture.md](docs/architecture.md) for the full system diagram.
+
 ## CI
 
 GitHub Actions runs on every push/PR to `main`:
