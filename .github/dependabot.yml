@@ -4,6 +4,7 @@ updates:
     directory: /backend
     schedule:
       interval: weekly
+    target-branch: develop
     labels:
       - chore
 
@@ -11,5 +12,6 @@ updates:
     directory: /tachimint
     schedule:
       interval: weekly
+    target-branch: develop
     labels:
       - chore
