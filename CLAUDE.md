@@ -101,6 +101,12 @@ make down   # 停止所有服務
 docker compose run --no-deps --rm app go test ./...
 ```
 
+## Claude Code 設定
+
+`.claude/settings.json` 是共享設定，已 commit 進 repo，**請勿直接修改**。
+
+個人設定請放在 `.claude/settings.local.json`（已 gitignore，不會影響其他人）。
+
 ## 文件放置規範
 
 | 位置 | 對象 | 內容 |
