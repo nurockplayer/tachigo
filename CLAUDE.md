@@ -101,6 +101,14 @@ make down   # 停止所有服務
 docker compose run --no-deps --rm app go test ./...
 ```
 
+## 文件放置規範
+
+| 位置 | 對象 | 內容 |
+|---|---|---|
+| `README.md` | 所有人 | 開發環境建置（快速上手） |
+| `docs/` | 工程師 | 架構設計、API 規格、技術決策 |
+| GitHub Wiki | 全體人員 | 產品說明、功能介紹、非技術文件 |
+
 ## 架構參考
 
 見 [docs/architecture.md](docs/architecture.md)
