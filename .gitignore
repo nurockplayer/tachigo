@@ -5,8 +5,8 @@ backend/.env.*
 backend/tmp/
 backend/bin/
 
-# Claude Code (personal settings)
-.claude/
+# Claude Code
+.claude/settings.local.json
 
 # Frontend
 tachimint/node_modules/
