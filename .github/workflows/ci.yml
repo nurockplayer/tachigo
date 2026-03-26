@@ -38,7 +38,7 @@ jobs:
         run: docker compose build frontend
 
       - name: Lint
-        run: docker compose run --no-deps --rm frontend npm run lint
+        run: docker compose run --no-deps --rm frontend pnpm lint
 
       - name: Build
-        run: docker compose run --no-deps --rm frontend npm run build
+        run: docker compose run --no-deps --rm frontend pnpm build
