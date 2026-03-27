@@ -5,6 +5,13 @@ import type { BitsTransaction } from '../types/twitch'
  * Only active in dev mode and only if Twitch.ext is not already present.
  */
 export function injectTwitchExtMock() {
+  // In real Twitch Extension environment, the app runs inside an iframe and the helper
+  // script provides a working `window.Twitch.ext` that fires callbacks.
+  // When running locally (top-level window), the helper script may still define
+  // `window.Twitch.ext` but callbacks won't fire, causing the app to hang on "Connecting…".
+  // In that case, we force-inject the mock to make localhost development usable.
+  const isInIFrame = window.self !== window.top
+  if (window.Twitch?.ext && isInIFrame) return
   let onTransactionComplete: ((tx: BitsTransaction) => void) | null = null
 
   window.Twitch = {
