@@ -8,7 +8,7 @@
 
 ## 1. 專案概述
 
-tachigo 是一個整合 Twitch Extension 的 Web3 忠誠點數平台，讓觀眾透過觀看直播（定時 Heartbeat 回報）累積鏈上忠誠代幣，並可用於tachiya商城折扣、虛擬頭像客製化、投票/賭博等消費場景。
+tachigo 是一個整合 Twitch Extension 的 Web3 忠誠點數平台，讓觀眾透過花費 Bits 累積鏈上忠誠代幣，並可用於tachiya商城折扣、虛擬頭像客製化、投票/賭博等消費場景。
 
 ---
 
@@ -16,7 +16,7 @@ tachigo 是一個整合 Twitch Extension 的 Web3 忠誠點數平台，讓觀眾
 
 | # | 功能名稱 | 簡短描述 | 優先級（高/中/低） | 負責人 |
 |---|---------|---------|-------------------|--------|
-| 1 | 點數系統 | 觀眾觀看直播（Heartbeat）累積點數，雙帳本記帳 | 高 | 5lime |
+| 1 | 點數系統 | 觀眾花 Bits 累積點數，雙帳本記帳 | 高 | 5lime |
 | 2 | Agency / Streamer 管理 | 建立 Agency 與 Streamer 關聯，管理各自的代幣設定 | 高 | 5lime |
 | 3 | 商城折扣 | 觀眾用持有代幣換取商城折扣，消耗 spendable_balance | 高 | Erick / YUAN |
 | 4 | 虛擬頭像客製化 | 消耗平台代幣解鎖頭像外觀，提供屬性加成 | 中 | 新理解 / YUAN |
@@ -32,7 +32,7 @@ tachigo 是一個整合 Twitch Extension 的 Web3 忠誠點數平台，讓觀眾
 ### 功能 1：點數系統
 
 **這個功能在幹嘛？**
-> 觀眾在 Twitch Extension 上觀看直播時，定時回報 Heartbeat → 後端驗證在線狀態 → 更新雙帳本（cumulative_total 增加、spendable_balance 增加）。
+> 觀眾在 Twitch Extension 上花 Bits → 後端驗證 receipt → 更新雙帳本（cumulative_total 增加、spendable_balance 增加）。
 
 **這筆資料需要上鏈嗎？**
 > MVP 階段不需要，存在後端 PostgreSQL 即可。Phase 2 才將鏈下累積結果 mint 成 Soulbound ERC-20。
@@ -41,12 +41,12 @@ tachigo 是一個整合 Twitch Extension 的 Web3 忠誠點數平台，讓觀眾
 
 - [ ] Extension 畫面顯示目前點數餘額（spendable_balance）
 - [ ] 顯示累積總點數（cumulative_total）
-- [ ] Heartbeat 回報後即時更新顯示
+- [ ] 花 Bits 後即時更新顯示
 
 #### 後端
 
 - [ ] `points_ledger` 資料表（user_id, agency_id, cumulative_total, spendable_balance）
-- [ ] API：`POST /watch/heartbeat` — 驗證在線狀態，更新雙帳本
+- [ ] API：`POST /bits/spend` — 驗證 Bits receipt，更新雙帳本
 - [ ] API：`GET /points/balance` — 回傳目前餘額
 
 #### 鏈上（智能合約）
@@ -57,9 +57,10 @@ tachigo 是一個整合 Twitch Extension 的 Web3 忠誠點數平台，讓觀眾
 #### 資料怎麼流動？
 
 ```
-觀眾在 Extension 觀看直播
-  → 前端定時送 Heartbeat 給後端 POST /watch/heartbeat
-  → 後端驗證在線狀態（JWT + 防重放）
+觀眾在 Extension 花 Bits
+  → Twitch 回傳 Bits receipt
+  → 前端送 receipt 給後端 POST /bits/spend
+  → 後端驗證 receipt（防重放）
   → 更新 points_ledger：cumulative_total ↑、spendable_balance ↑
   → 回傳最新餘額給前端顯示
 ```
@@ -67,7 +68,7 @@ tachigo 是一個整合 Twitch Extension 的 Web3 忠誠點數平台，讓觀眾
 #### 備註
 
 - 依賴：需要 Agency / Streamer 管理先建立，才能知道點數屬於哪個 Agency
-- 風險：Heartbeat 頻率與點數發放速率需定義（例：每 N 秒發 M 點）
+- 風險：Bits receipt 驗證需要對接 Twitch API，需確認格式
 
 ---
 
