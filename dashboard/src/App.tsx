@@ -17,16 +17,19 @@ function App() {
       <section>
         <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center' }}>
           <h2>Agency 列表 (功能 2)</h2>
-          <button style={{ 
-            padding: '8px 16px', 
-            backgroundColor: '#646cff', 
-            color: 'white', 
-            border: 'none', 
-            borderRadius: '4px',
-            cursor: 'pointer'
-          }}>
-            + 新增 Agency
-          </button>
+          <button 
+  onClick={() => alert('你點擊了新增按鈕！之後我們會在這裡跳出輸入視窗。')}
+  style={{ 
+    padding: '8px 16px', 
+    backgroundColor: '#646cff', 
+    color: 'white', 
+    border: 'none', 
+    borderRadius: '4px',
+    cursor: 'pointer'
+  }}
+>
+  + 新增 Agency
+</button>
         </div>
 
         <table style={{ width: '100%', borderCollapse: 'collapse', marginTop: '20px', boxShadow: '0 2px 5px rgba(0,0,0,0.1)' }}>
