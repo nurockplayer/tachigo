@@ -42,8 +42,23 @@ func main() {
 		&models.Web3Nonce{},
 		&models.EmailVerification{},
 		&models.PasswordReset{},
+		// Points & watch-time
+		&models.PointsLedger{},
+		&models.PointsTransaction{},
+		&models.WatchSession{},
 	); err != nil {
 		log.Fatalf("migration failed: %v", err)
+	}
+
+	// Partial unique index: only one active session per (opaque_user_id, channel_id).
+	// GORM AutoMigrate does not support partial indexes via struct tags, so we
+	// create it manually with CREATE INDEX IF NOT EXISTS (idempotent).
+	if err := db.Exec(`
+		CREATE UNIQUE INDEX IF NOT EXISTS idx_watch_sessions_active_user_channel
+		ON watch_sessions (opaque_user_id, channel_id)
+		WHERE is_active = true
+	`).Error; err != nil {
+		log.Fatalf("failed to create partial index: %v", err)
 	}
 
 	// Wire services
