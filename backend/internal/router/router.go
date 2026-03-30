@@ -16,6 +16,7 @@ func New(
 	addrSvc *services.AddressService,
 	extSvc *services.ExtensionService,
 	emailAuthSvc *services.EmailAuthService,
+	watchSvc *services.WatchService,
 	allowedOrigins []string,
 ) *gin.Engine {
 	r := gin.New()
@@ -27,6 +28,7 @@ func New(
 	addrH := handlers.NewAddressHandler(addrSvc)
 	extH := handlers.NewExtensionHandler(extSvc)
 	emailH := handlers.NewEmailAuthHandler(emailAuthSvc)
+	watchH := handlers.NewWatchHandler(watchSvc)
 
 	r.GET("/health", func(c *gin.Context) {
 		c.JSON(200, gin.H{"status": "ok"})
@@ -68,6 +70,16 @@ func New(
 	{
 		ext.POST("/auth/login", extH.Login)
 		ext.POST("/bits/complete", extH.BitsComplete)
+
+		// Watch-time points (requires Extension JWT)
+		watch := ext.Group("/watch")
+		watch.Use(middleware.ExtJWTAuth(extSvc))
+		{
+			watch.POST("/start", watchH.StartSession)
+			watch.POST("/heartbeat", watchH.Heartbeat)
+			watch.POST("/end", watchH.EndSession)
+			watch.GET("/balance", watchH.GetBalance)
+		}
 	}
 
 	// ── Authenticated routes ──────────────────────────────────────────────
