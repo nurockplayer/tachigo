@@ -5,7 +5,8 @@ import type { BitsTransaction } from '../types/twitch'
  * Only active in dev mode and only if Twitch.ext is not already present.
  */
 export function injectTwitchExtMock() {
-  if (window.Twitch?.ext) return
+  const isInIFrame = window.self !== window.top
+  if (window.Twitch?.ext && isInIFrame) return
 
   let onTransactionComplete: ((tx: BitsTransaction) => void) | null = null
 
