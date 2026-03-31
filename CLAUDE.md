@@ -1,5 +1,9 @@
 # tachigo — Claude Code Guidelines
 
+## 語言設定
+
+永遠使用台灣正體中文回覆，不得使用日文、韓文或簡體中文。
+
 ## GitHub Issue 慣例
 
 ### 標題前綴
