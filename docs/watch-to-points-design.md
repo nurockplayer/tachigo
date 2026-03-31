@@ -286,6 +286,32 @@ ON CONFLICT (user_id, channel_id) DO UPDATE SET
 
 ---
 
+## 實作計劃備忘
+
+### Issue #61 — UUID v7（隨本次順帶處理）
+
+本次修改以下三個檔案時，同步將 `uuid.New()` 改為 `uuid.New7()`（時序 UUID，避免 B-tree index fragmentation）：
+
+| 檔案 | 改動點 |
+|---|---|
+| `backend/internal/models/points.go` | `PointsLedger.BeforeCreate`、`PointsTransaction.BeforeCreate` |
+| `backend/internal/models/watch_session.go` | `WatchSession.BeforeCreate` |
+| `backend/internal/services/watch_service.go` | `ID: uuid.New()` for WatchSession |
+
+其餘 model（`user.go`、`auth_provider.go`、`address.go`、`refresh_token.go`、`email_auth.go`）與 `extension_service.go` 留給 Issue #61 獨立處理。詳見 [docs/uuid-v7.md](uuid-v7.md)。
+
+### PR #62 重疊分析
+
+PR #62（`users.role` VARCHAR → ENUM）也改動了 `backend/cmd/server/main.go`，本次計劃同樣需要修改此檔案。
+
+| 項目 | PR #62 改動 | 本次計劃改動 |
+|---|---|---|
+| `main.go` | 新增 `CREATE TYPE user_role AS ENUM` block（AutoMigrate 前） | 更新 partial index SQL 欄位名（AutoMigrate 後） |
+
+兩個改動在不同位置，無邏輯衝突。PR #62 merge 後本次 branch 需 rebase 解決 git conflict。
+
+---
+
 ## 架構改動對照
 
 本節記錄設計過程中的關鍵決策轉折，說明舊設計、新設計與原因。
