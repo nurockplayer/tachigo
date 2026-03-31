@@ -113,7 +113,15 @@ docker compose run --no-deps --rm app go test ./...
 |---|---|---|
 | `README.md` | 所有人 | 開發環境建置（快速上手） |
 | `docs/` | 工程師 | 架構設計、API 規格、技術決策 |
+| `plans/` | 工程師 | 實作計畫（每個功能開始前先寫） |
 | GitHub Wiki | 全體人員 | 產品說明、功能介紹、非技術文件 |
+
+### plans/ 慣例
+
+- 每個功能或修改在開始實作前，先在 `plans/` 建立計畫文件
+- 檔名：`<feature-slug>.md`，例如 `watch-points-channel-config.md`
+- 計畫文件包含：背景、架構決策、待實作 checklist、驗證方式
+- 完成後在文件頂端標注 `狀態：已完成`
 
 ## 架構參考
 
