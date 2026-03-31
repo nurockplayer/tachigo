@@ -18,7 +18,7 @@ import (
 //	finished: is_active = false, ended_at = <timestamp>
 type WatchSession struct {
 	ID                 uuid.UUID  `gorm:"type:uuid;primaryKey;default:gen_random_uuid()" json:"id"`
-	OpaqueUserID       string     `gorm:"type:varchar(255);not null;index"               json:"opaque_user_id"`
+	TwitchUserID       string     `gorm:"type:varchar(255);not null;index"               json:"twitch_user_id"`
 	ChannelID          string     `gorm:"type:varchar(255);not null;index"               json:"channel_id"`
 	AccumulatedSeconds int64      `gorm:"not null;default:0"                             json:"accumulated_seconds"`
 	RewardedSeconds    int64      `gorm:"not null;default:0"                             json:"rewarded_seconds"`

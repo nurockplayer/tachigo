@@ -21,7 +21,7 @@ const (
 // spent across the entire platform.
 type PointsLedger struct {
 	ID               uuid.UUID `gorm:"type:uuid;primaryKey;default:gen_random_uuid()" json:"id"`
-	OpaqueUserID     string    `gorm:"type:varchar(255);not null;uniqueIndex"         json:"opaque_user_id"`
+	TwitchUserID     string    `gorm:"type:varchar(255);not null;uniqueIndex"         json:"twitch_user_id"`
 	CumulativeTotal  int64     `gorm:"not null;default:0"                             json:"cumulative_total"`
 	SpendableBalance int64     `gorm:"not null;default:0"                             json:"spendable_balance"`
 	CreatedAt        time.Time `                                                      json:"created_at"`
