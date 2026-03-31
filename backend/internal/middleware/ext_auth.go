@@ -11,6 +11,10 @@ import (
 const extClaimsKey = "ext_claims"
 
 // ExtJWTAuth validates a Twitch Extension Bearer token and stores claims in context.
+//
+// Returns 401 if the JWT is missing or invalid.
+// Returns 403 if the JWT is valid but the viewer has not authorized the Extension
+// (claims.UserID is empty — only opaque_user_id is present).
 func ExtJWTAuth(extSvc *services.ExtensionService) gin.HandlerFunc {
 	return func(c *gin.Context) {
 		header := c.GetHeader("Authorization")
@@ -23,6 +27,11 @@ func ExtJWTAuth(extSvc *services.ExtensionService) gin.HandlerFunc {
 		claims, err := extSvc.VerifyExtJWT(token)
 		if err != nil {
 			c.AbortWithStatusJSON(401, gin.H{"success": false, "error": "invalid extension token"})
+			return
+		}
+
+		if claims.UserID == "" {
+			c.AbortWithStatusJSON(403, gin.H{"success": false, "error": "extension authorization required"})
 			return
 		}
 
