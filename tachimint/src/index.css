@@ -89,6 +89,61 @@ p  { margin: 0; }
   flex: 1;
 }
 
+/* ── Points feedback ────────────────────────────────────────────────────────── */
+.ext-balance-wrap {
+  position: relative;
+  margin-bottom: 12px;
+}
+
+.ext-balance {
+  display: flex;
+  align-items: baseline;
+  justify-content: space-between;
+  gap: 8px;
+  padding: 10px 12px;
+  border: 1px solid var(--border);
+  border-radius: var(--radius);
+  background: var(--surface);
+}
+
+.ext-balance--bump {
+  animation: balance-bump 450ms ease;
+}
+
+.ext-balance__label {
+  font-size: 12px;
+  color: var(--text);
+}
+
+.ext-balance__value {
+  font-size: 18px;
+  color: var(--text-h);
+  letter-spacing: -0.2px;
+}
+
+.ext-balance-gain {
+  position: absolute;
+  top: -8px;
+  right: 8px;
+  font-size: 12px;
+  font-weight: 700;
+  color: var(--success);
+  pointer-events: none;
+  animation: gain-float 1.5s ease forwards;
+}
+
+@keyframes balance-bump {
+  0% { transform: scale(1); }
+  35% { transform: scale(1.06); }
+  100% { transform: scale(1); }
+}
+
+@keyframes gain-float {
+  0% { opacity: 0; transform: translateY(3px); }
+  20% { opacity: 1; transform: translateY(0); }
+  100% { opacity: 0; transform: translateY(-10px); }
+}
+
 /* ── Products ───────────────────────────────────────────────────────────────── */
 .ext-products {
   display: flex;
