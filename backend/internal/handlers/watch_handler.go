@@ -21,7 +21,7 @@ func NewWatchHandler(watchSvc *services.WatchService) *WatchHandler {
 func (h *WatchHandler) StartSession(c *gin.Context) {
 	claims := middleware.MustExtClaims(c)
 
-	session, err := h.watchSvc.StartSession(claims.OpaqueUserID, claims.ChannelID)
+	session, err := h.watchSvc.StartSession(claims.UserID, claims.ChannelID)
 	if err != nil {
 		internal(c)
 		return
@@ -33,7 +33,7 @@ func (h *WatchHandler) StartSession(c *gin.Context) {
 func (h *WatchHandler) Heartbeat(c *gin.Context) {
 	claims := middleware.MustExtClaims(c)
 
-	result, err := h.watchSvc.Heartbeat(claims.OpaqueUserID, claims.ChannelID)
+	result, err := h.watchSvc.Heartbeat(claims.UserID, claims.ChannelID)
 	if err != nil {
 		if errors.Is(err, services.ErrNoActiveSession) {
 			badRequest(c, "no active session")
@@ -52,7 +52,7 @@ func (h *WatchHandler) Heartbeat(c *gin.Context) {
 func (h *WatchHandler) EndSession(c *gin.Context) {
 	claims := middleware.MustExtClaims(c)
 
-	if err := h.watchSvc.EndSession(claims.OpaqueUserID, claims.ChannelID); err != nil {
+	if err := h.watchSvc.EndSession(claims.UserID, claims.ChannelID); err != nil {
 		internal(c)
 		return
 	}
@@ -63,7 +63,7 @@ func (h *WatchHandler) EndSession(c *gin.Context) {
 func (h *WatchHandler) GetBalance(c *gin.Context) {
 	claims := middleware.MustExtClaims(c)
 
-	spendable, cumulative, err := h.watchSvc.GetBalance(claims.OpaqueUserID)
+	spendable, cumulative, err := h.watchSvc.GetBalance(claims.UserID)
 	if err != nil {
 		internal(c)
 		return

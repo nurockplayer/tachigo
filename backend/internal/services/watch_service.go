@@ -31,14 +31,14 @@ func NewWatchService(db *gorm.DB) *WatchService {
 //
 // The entire lookup + conditional close + create runs inside a single transaction
 // with a row-level lock so concurrent requests cannot race into the partial-unique
-// index constraint on (opaque_user_id, channel_id) WHERE is_active = true.
-func (s *WatchService) StartSession(opaqueUserID, channelID string) (*models.WatchSession, error) {
+// index constraint on (twitch_user_id, channel_id) WHERE is_active = true.
+func (s *WatchService) StartSession(twitchUserID, channelID string) (*models.WatchSession, error) {
 	var result models.WatchSession
 
 	err := s.db.Transaction(func(tx *gorm.DB) error {
 		var session models.WatchSession
 		err := tx.Clauses(clause.Locking{Strength: "UPDATE"}).
-			Where("opaque_user_id = ? AND channel_id = ? AND is_active = true", opaqueUserID, channelID).
+			Where("twitch_user_id = ? AND channel_id = ? AND is_active = true", twitchUserID, channelID).
 			First(&session).Error
 
 		if err == nil {
@@ -60,7 +60,7 @@ func (s *WatchService) StartSession(opaqueUserID, channelID string) (*models.Wat
 
 		newSession := models.WatchSession{
 			ID:              uuid.New(),
-			OpaqueUserID:    opaqueUserID,
+			TwitchUserID:    twitchUserID,
 			ChannelID:       channelID,
 			LastHeartbeatAt: time.Now(),
 			IsActive:        true,
@@ -75,7 +75,7 @@ func (s *WatchService) StartSession(opaqueUserID, channelID string) (*models.Wat
 			tx.RollbackTo("sp_new_session")
 			var existing models.WatchSession
 			if qErr := tx.Clauses(clause.Locking{Strength: "UPDATE"}).
-				Where("opaque_user_id = ? AND channel_id = ? AND is_active = true", opaqueUserID, channelID).
+				Where("twitch_user_id = ? AND channel_id = ? AND is_active = true", twitchUserID, channelID).
 				First(&existing).Error; qErr == nil {
 				result = existing
 				return nil
@@ -105,14 +105,14 @@ type HeartbeatResult struct {
 //     reading the same state and double-awarding points.
 //   - PointsLedger is updated via an atomic INSERT … ON CONFLICT DO UPDATE, which
 //     prevents balance overwrites under concurrent writes.
-func (s *WatchService) Heartbeat(opaqueUserID, channelID string) (*HeartbeatResult, error) {
+func (s *WatchService) Heartbeat(twitchUserID, channelID string) (*HeartbeatResult, error) {
 	var result HeartbeatResult
 
 	err := s.db.Transaction(func(tx *gorm.DB) error {
 		// Lock the row so concurrent heartbeats queue up rather than racing.
 		var session models.WatchSession
 		if err := tx.Clauses(clause.Locking{Strength: "UPDATE"}).
-			Where("opaque_user_id = ? AND channel_id = ? AND is_active = true", opaqueUserID, channelID).
+			Where("twitch_user_id = ? AND channel_id = ? AND is_active = true", twitchUserID, channelID).
 			First(&session).Error; err != nil {
 			if errors.Is(err, gorm.ErrRecordNotFound) {
 				return ErrNoActiveSession
@@ -148,19 +148,19 @@ func (s *WatchService) Heartbeat(opaqueUserID, channelID string) (*HeartbeatResu
 		if pointsToAward > 0 {
 			// Atomic upsert: avoid read-modify-write by letting the database do the arithmetic.
 			if err := tx.Exec(`
-				INSERT INTO points_ledgers (id, opaque_user_id, spendable_balance, cumulative_total, created_at, updated_at)
+				INSERT INTO points_ledgers (id, twitch_user_id, spendable_balance, cumulative_total, created_at, updated_at)
 				VALUES (gen_random_uuid(), ?, ?, ?, NOW(), NOW())
-				ON CONFLICT (opaque_user_id) DO UPDATE SET
+				ON CONFLICT (twitch_user_id) DO UPDATE SET
 					spendable_balance = points_ledgers.spendable_balance + EXCLUDED.spendable_balance,
 					cumulative_total  = points_ledgers.cumulative_total  + EXCLUDED.cumulative_total,
 					updated_at        = NOW()
-			`, opaqueUserID, pointsToAward, pointsToAward).Error; err != nil {
+			`, twitchUserID, pointsToAward, pointsToAward).Error; err != nil {
 				return err
 			}
 
 			// Fetch the balance that was just written (within the same tx for consistency).
 			var ledger models.PointsLedger
-			if err := tx.Where("opaque_user_id = ?", opaqueUserID).First(&ledger).Error; err != nil {
+			if err := tx.Where("twitch_user_id = ?", twitchUserID).First(&ledger).Error; err != nil {
 				return err
 			}
 
@@ -188,10 +188,10 @@ func (s *WatchService) Heartbeat(opaqueUserID, channelID string) (*HeartbeatResu
 
 // EndSession marks the viewer's active session in the given channel as ended.
 // If no active session exists the call is a no-op (idempotent).
-func (s *WatchService) EndSession(opaqueUserID, channelID string) error {
+func (s *WatchService) EndSession(twitchUserID, channelID string) error {
 	now := time.Now()
 	return s.db.Model(&models.WatchSession{}).
-		Where("opaque_user_id = ? AND channel_id = ? AND is_active = true", opaqueUserID, channelID).
+		Where("twitch_user_id = ? AND channel_id = ? AND is_active = true", twitchUserID, channelID).
 		Updates(map[string]interface{}{
 			"is_active": false,
 			"ended_at":  now,
@@ -200,9 +200,9 @@ func (s *WatchService) EndSession(opaqueUserID, channelID string) error {
 
 // GetBalance returns the viewer's current spendable balance and cumulative total.
 // Returns (0, 0, nil) if no ledger exists yet.
-func (s *WatchService) GetBalance(opaqueUserID string) (spendable, cumulative int64, err error) {
+func (s *WatchService) GetBalance(twitchUserID string) (spendable, cumulative int64, err error) {
 	var ledger models.PointsLedger
-	if err := s.db.Where("opaque_user_id = ?", opaqueUserID).First(&ledger).Error; err != nil {
+	if err := s.db.Where("twitch_user_id = ?", twitchUserID).First(&ledger).Error; err != nil {
 		if errors.Is(err, gorm.ErrRecordNotFound) {
 			return 0, 0, nil
 		}
