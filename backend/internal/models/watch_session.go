@@ -8,7 +8,7 @@ import (
 )
 
 // WatchSession records a viewer's active or completed watch session in a channel.
-// Only one active session (is_active=true) is allowed per (opaque_user_id, channel_id) pair.
+// Only one active session (is_active=true) is allowed per (user_id, channel_id) pair.
 // The partial unique index is created manually in main.go — GORM does not support
 // partial indexes via struct tags.
 //
@@ -18,7 +18,7 @@ import (
 //	finished: is_active = false, ended_at = <timestamp>
 type WatchSession struct {
 	ID                 uuid.UUID  `gorm:"type:uuid;primaryKey;default:gen_random_uuid()" json:"id"`
-	TwitchUserID       string     `gorm:"type:varchar(255);not null;index"               json:"twitch_user_id"`
+	UserID             uuid.UUID  `gorm:"type:uuid;not null;index"                       json:"user_id"`
 	ChannelID          string     `gorm:"type:varchar(255);not null;index"               json:"channel_id"`
 	AccumulatedSeconds int64      `gorm:"not null;default:0"                             json:"accumulated_seconds"`
 	RewardedSeconds    int64      `gorm:"not null;default:0"                             json:"rewarded_seconds"`

@@ -59,7 +59,7 @@ watch_sessions ──heartbeat──▶ points_transactions ◀── points_led
 | 欄位 | 型別 | 說明 |
 |---|---|---|
 | `id` | UUID PK | |
-| `twitch_user_id` | VARCHAR(255) NOT NULL | 觀眾識別碼（來自 tachigo 帳號） |
+| `user_id` | UUID NOT NULL FK → users.id | 觀眾的 tachigo 帳號 ID |
 | `channel_id` | VARCHAR(255) NOT NULL | 頻道 ID |
 | `accumulated_seconds` | BIGINT default 0 | 本 session 累積觀看秒數 |
 | `rewarded_seconds` | BIGINT default 0 | 已換算為點數的秒數（防止重複發） |
@@ -71,7 +71,7 @@ watch_sessions ──heartbeat──▶ points_transactions ◀── points_led
 
 ```sql
 CREATE UNIQUE INDEX idx_watch_sessions_active_user_channel
-  ON watch_sessions (twitch_user_id, channel_id)
+  ON watch_sessions (user_id, channel_id)
   WHERE is_active = TRUE;
 ```
 
@@ -91,12 +91,12 @@ finished: is_active = false, ended_at = <timestamp>
 | 欄位 | 型別 | 說明 |
 |---|---|---|
 | `id` | UUID PK | |
-| `twitch_user_id` | VARCHAR(255) NOT NULL | 觀眾識別碼 |
+| `user_id` | UUID NOT NULL FK → users.id | 觀眾的 tachigo 帳號 ID |
 | `channel_id` | VARCHAR(255) NOT NULL | 頻道識別碼 |
 | `cumulative_total` | BIGINT default 0 | 歷史累積點數（只增不減，用於成就、統計） |
 | `spendable_balance` | BIGINT default 0 | 可消費點數餘額 |
 
-**Unique index：** `(twitch_user_id, channel_id)`
+**Unique index：** `(user_id, channel_id)`
 
 `spendable_balance` 與 `cumulative_total` 會分叉：花掉點數後 `spendable_balance` 下降，`cumulative_total` 不變。
 
@@ -126,14 +126,14 @@ finished: is_active = false, ended_at = <timestamp>
 
 ## API 端點
 
-所有 watch 端點使用標準 tachigo JWT（`Authorization: Bearer <tachigo_jwt>`），由 `ExtJWTAuth` middleware 保護。`twitch_user_id` 與 `channel_id` 從 JWT claims 取出，不由前端傳入（防止偽造）。
+所有 watch 端點使用標準 tachigo JWT（`Authorization: Bearer <tachigo_jwt>`），由 `JWTAuth` middleware 保護。`user_id` 從 JWT claims 取出；`channel_id` 由前端透過 request body 傳入（tachigo JWT 不含頻道資訊）。
 
-| Method | Path | 說明 |
-|---|---|---|
-| POST | `/api/v1/extension/watch/start` | 開始或取回活躍 session |
-| POST | `/api/v1/extension/watch/heartbeat` | 更新計時，達門檻時發點 |
-| POST | `/api/v1/extension/watch/end` | 主動結束 session（盡力送出） |
-| GET | `/api/v1/extension/watch/balance` | 查詢當前頻道點數餘額 |
+| Method | Path | 說明 | Body / Param |
+|---|---|---|---|
+| POST | `/api/v1/extension/watch/start` | 開始或取回活躍 session | `{ "channel_id": "..." }` |
+| POST | `/api/v1/extension/watch/heartbeat` | 更新計時，達門檻時發點 | `{ "channel_id": "..." }` |
+| POST | `/api/v1/extension/watch/end` | 主動結束 session（盡力送出） | `{ "channel_id": "..." }` |
+| GET | `/api/v1/extension/watch/balance` | 查詢當前頻道點數餘額 | `?channel_id=...` |
 
 ---
 
@@ -205,7 +205,7 @@ Server **無法主動偵測** client 斷線，因此採用兩層機制：
 
 ```go
 tx.Clauses(clause.Locking{Strength: "UPDATE"}).
-    Where("twitch_user_id = ? AND channel_id = ? AND is_active = true", ...).
+    Where("user_id = ? AND channel_id = ? AND is_active = true", ...).
     First(&session)
 ```
 
@@ -214,9 +214,9 @@ tx.Clauses(clause.Locking{Strength: "UPDATE"}).
 ### Heartbeat — Atomic Upsert
 
 ```sql
-INSERT INTO points_ledgers (id, twitch_user_id, channel_id, ...)
+INSERT INTO points_ledgers (id, user_id, channel_id, ...)
 VALUES (gen_random_uuid(), ?, ?, ...)
-ON CONFLICT (twitch_user_id, channel_id) DO UPDATE SET
+ON CONFLICT (user_id, channel_id) DO UPDATE SET
     spendable_balance = points_ledgers.spendable_balance + EXCLUDED.spendable_balance,
     cumulative_total  = points_ledgers.cumulative_total  + EXCLUDED.cumulative_total,
     updated_at        = NOW()
@@ -283,6 +283,21 @@ ON CONFLICT (twitch_user_id, channel_id) DO UPDATE SET
 - `GET /api/v1/points/transactions`：交易記錄
 - Bits 發點整合（`source = "bits"`）
 - Claim 上鏈（`spendable_balance → Soulbound ERC-20 mint`）
+
+---
+
+## 架構改動對照
+
+本節記錄設計過程中的關鍵決策轉折，說明舊設計、新設計與原因。
+
+| 項目 | 舊設計 | 新設計 | 原因 |
+|---|---|---|---|
+| 觀眾識別鍵 | `twitch_user_id VARCHAR(255)` | `user_id UUID FK → users.id` | 流程是「先登入才授權」，帳號主體是 tachigo `users`，Twitch 是附掛的 auth provider |
+| 點數帳本範圍 | 全平台共用一本 | 每個觀眾 × 每個頻道各自獨立 | 每個實況主的點數互不流通，`points_ledgers` 唯一鍵改為 `(user_id, channel_id)` |
+| Watch 路由 middleware | `ExtJWTAuth`（驗 Extension JWT） | `JWTAuth`（驗 tachigo JWT） | watch 端點已要求先登入取得 tachigo JWT，Extension JWT 不再適用 |
+| `channel_id` 來源 | 從 Extension JWT claims 直接取出 | 由前端透過 request body 傳入 | tachigo JWT 不含頻道資訊；`balance` 端點用 query param |
+| `WatchService` 參數型別 | `twitchUserID string` | `userID uuid.UUID` | 對應識別鍵型別變更，與 `users.id` FK 一致 |
+| `GetBalance` 簽名 | `GetBalance(twitchUserID string)` | `GetBalance(userID uuid.UUID, channelID string)` | 帳本改為 per-channel，查詢時需同時提供 user 與 channel |
 
 ---
 
