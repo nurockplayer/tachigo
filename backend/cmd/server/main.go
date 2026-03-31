@@ -33,6 +33,16 @@ func main() {
 
 	db := database.Connect(cfg.Database.DSN)
 
+	// Create custom ENUM types before AutoMigrate (GORM cannot create them automatically).
+	if err := db.Exec(`
+		DO $$ BEGIN
+			CREATE TYPE user_role AS ENUM ('viewer', 'streamer', 'admin');
+		EXCEPTION WHEN duplicate_object THEN NULL;
+		END $$;
+	`).Error; err != nil {
+		log.Fatalf("failed to create user_role enum: %v", err)
+	}
+
 	// Auto-migrate all models
 	if err := db.AutoMigrate(
 		&models.User{},

@@ -21,7 +21,7 @@ type User struct {
 	Email        *string        `gorm:"type:varchar(255);uniqueIndex"                  json:"email"`
 	PasswordHash *string        `gorm:"type:varchar(255)"                              json:"-"`
 	AvatarURL    *string        `gorm:"type:text"                                      json:"avatar_url"`
-	Role         UserRole       `gorm:"type:varchar(20);default:'viewer'"              json:"role"`
+	Role         UserRole       `gorm:"type:user_role;default:'viewer'"                json:"role"`
 	IsActive      bool           `gorm:"default:true"                                   json:"is_active"`
 	EmailVerified bool           `gorm:"default:false"                                  json:"email_verified"`
 	CreatedAt    time.Time      `                                                      json:"created_at"`
