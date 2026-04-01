@@ -37,3 +37,37 @@ export async function loginWithTwitchExtension(extensionJwt: string): Promise<Ta
   })
   return data
 }
+
+interface HeartbeatResponse {
+  balance: number
+}
+
+function parseBalanceFromHeartbeatResponse(payload: unknown): number {
+  if (!payload || typeof payload !== 'object') {
+    throw new Error('Invalid heartbeat response')
+  }
+
+  // Accept a few common API shapes to keep frontend resilient while backend evolves.
+  // eslint-disable-next-line @typescript-eslint/no-explicit-any
+  const raw = payload as any
+  const direct = raw.balance
+  const nested = raw.data?.balance
+  const legacy = raw.points_balance
+
+  const value = [direct, nested, legacy].find((candidate) => typeof candidate === 'number')
+  if (typeof value !== 'number') {
+    throw new Error('Heartbeat response missing balance')
+  }
+
+  return value
+}
+
+export async function sendHeartbeat(extensionJwt: string): Promise<HeartbeatResponse> {
+  const { data } = await client.post('/api/v1/extension/heartbeat', {
+    extension_jwt: extensionJwt,
+  })
+
+  return {
+    balance: parseBalanceFromHeartbeatResponse(data),
+  }
+}
