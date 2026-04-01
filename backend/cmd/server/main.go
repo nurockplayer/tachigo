@@ -42,8 +42,23 @@ func main() {
 		&models.Web3Nonce{},
 		&models.EmailVerification{},
 		&models.PasswordReset{},
+		// Points & watch-time
+		&models.PointsLedger{},
+		&models.PointsTransaction{},
+		&models.WatchSession{},
 	); err != nil {
 		log.Fatalf("migration failed: %v", err)
+	}
+
+	// Partial unique index: only one active session per (user_id, channel_id).
+	// GORM AutoMigrate does not support partial indexes via struct tags, so we
+	// create it manually with CREATE INDEX IF NOT EXISTS (idempotent).
+	if err := db.Exec(`
+		CREATE UNIQUE INDEX IF NOT EXISTS idx_watch_sessions_active_user_channel
+		ON watch_sessions (user_id, channel_id)
+		WHERE is_active = true
+	`).Error; err != nil {
+		log.Fatalf("failed to create partial index: %v", err)
 	}
 
 	// Wire services
@@ -53,6 +68,7 @@ func main() {
 	extSvc := services.NewExtensionService(db, cfg, authSvc)
 	mailer := services.NewMailer(cfg.SMTP.Host, cfg.SMTP.Port, cfg.SMTP.Username, cfg.SMTP.Password, cfg.SMTP.From)
 	emailAuthSvc := services.NewEmailAuthService(db, cfg, mailer)
+	watchSvc := services.NewWatchService(db)
 
 	// CORS origins from env, default to localhost for dev
 	originsEnv := os.Getenv("ALLOWED_ORIGINS")
@@ -61,7 +77,7 @@ func main() {
 		allowedOrigins = strings.Split(originsEnv, ",")
 	}
 
-	r := router.New(authSvc, userSvc, addrSvc, extSvc, emailAuthSvc, allowedOrigins)
+	r := router.New(authSvc, userSvc, addrSvc, extSvc, emailAuthSvc, watchSvc, allowedOrigins)
 
 	addr := ":" + cfg.Server.Port
 	log.Printf("server starting on %s (env=%s)", addr, cfg.Server.Env)

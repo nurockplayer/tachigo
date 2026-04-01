@@ -281,6 +281,7 @@ Phase 3：
 - [ ] 私人直播的範圍：一對一 vs 小組（Phase 3 再討論）
 - [ ] Dashboard 的權限設計：Agency 管理者 vs Streamer 各自能看到什麼？
 - [ ] Saleor 的部署與 tachigo 後端的 API 串接介面
+- [ ] **auth_providers 拆表** — 見 [Issue #58](https://github.com/nurockplayer/tachigo/issues/58)：目前 STI 設計將 Twitch `opaque_user_id`（Extension 專屬）與真實 `user_id`（需 OAuth 授權）混存於同一欄位；Phase 2 做 claim 上鏈時需要橋接，屆時評估是否拆成 `twitch_providers` / `google_providers` / `web3_providers` 各自的表
 
 ---
 
@@ -291,6 +292,7 @@ Phase 3：
 - [GitHub Issue #15](https://github.com/nurockplayer/tachigo/issues/15) — 商城與 Token 消費機制
 - [GitHub Issue #17](https://github.com/nurockplayer/tachigo/issues/17) — Token 經濟設計與 Soulbound 衝突
 - [GitHub Issue #18](https://github.com/nurockplayer/tachigo/issues/18) — 後台管理介面
+- [GitHub Issue #58](https://github.com/nurockplayer/tachigo/issues/58) — auth_providers STI vs Concrete Table Inheritance
 
 ---
 
