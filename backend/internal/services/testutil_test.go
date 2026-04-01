@@ -101,6 +101,42 @@ func migrateTestDB(db *gorm.DB) error {
 			expires_at DATETIME NOT NULL,
 			created_at DATETIME
 		)`,
+		`CREATE TABLE IF NOT EXISTS watch_sessions (
+			id TEXT PRIMARY KEY,
+			user_id TEXT NOT NULL,
+			channel_id TEXT NOT NULL,
+			accumulated_seconds INTEGER NOT NULL DEFAULT 0,
+			rewarded_seconds INTEGER NOT NULL DEFAULT 0,
+			last_heartbeat_at DATETIME NOT NULL,
+			is_active INTEGER NOT NULL DEFAULT 1,
+			ended_at DATETIME,
+			created_at DATETIME,
+			updated_at DATETIME
+		)`,
+		`CREATE UNIQUE INDEX IF NOT EXISTS idx_watch_sessions_active_user_channel
+			ON watch_sessions (user_id, channel_id)
+			WHERE is_active = 1`,
+		`CREATE TABLE IF NOT EXISTS points_ledgers (
+			id TEXT PRIMARY KEY,
+			user_id TEXT NOT NULL,
+			channel_id TEXT NOT NULL,
+			cumulative_total INTEGER NOT NULL DEFAULT 0,
+			spendable_balance INTEGER NOT NULL DEFAULT 0,
+			created_at DATETIME,
+			updated_at DATETIME
+		)`,
+		`CREATE UNIQUE INDEX IF NOT EXISTS idx_ledger_user_channel
+			ON points_ledgers (user_id, channel_id)`,
+		`CREATE TABLE IF NOT EXISTS points_transactions (
+			id TEXT PRIMARY KEY,
+			ledger_id TEXT NOT NULL REFERENCES points_ledgers(id),
+			watch_session_id TEXT,
+			source TEXT NOT NULL,
+			delta INTEGER NOT NULL,
+			balance_after INTEGER NOT NULL,
+			note TEXT,
+			created_at DATETIME
+		)`,
 	}
 	for _, s := range stmts {
 		if err := db.Exec(s).Error; err != nil {

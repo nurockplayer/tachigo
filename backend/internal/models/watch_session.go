@@ -31,7 +31,8 @@ type WatchSession struct {
 
 func (w *WatchSession) BeforeCreate(tx *gorm.DB) error {
 	if w.ID == uuid.Nil {
-		w.ID = uuid.New()
+		id, _ := uuid.NewV7()
+		w.ID = id
 	}
 	return nil
 }

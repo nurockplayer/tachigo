@@ -71,9 +71,9 @@ func New(
 		ext.POST("/auth/login", extH.Login)
 		ext.POST("/bits/complete", extH.BitsComplete)
 
-		// Watch-time points (requires Extension JWT)
+		// Watch-time points (requires tachigo JWT — viewer must log in first)
 		watch := ext.Group("/watch")
-		watch.Use(middleware.ExtJWTAuth(extSvc))
+		watch.Use(middleware.JWTAuth(authSvc))
 		{
 			watch.POST("/start", watchH.StartSession)
 			watch.POST("/heartbeat", watchH.Heartbeat)

@@ -16,21 +16,22 @@ const (
 	TxSourceSpend     TxSource = "spend"
 )
 
-// PointsLedger is the single, platform-wide source of truth for a viewer's
-// points balance. Points are not scoped to a channel — they are earned and
-// spent across the entire platform.
+// PointsLedger is the per-channel points balance for a viewer.
+// Each viewer has one ledger per channel; balances are not shared across channels.
 type PointsLedger struct {
-	ID               uuid.UUID `gorm:"type:uuid;primaryKey;default:gen_random_uuid()" json:"id"`
-	TwitchUserID     string    `gorm:"type:varchar(255);not null;uniqueIndex"         json:"twitch_user_id"`
-	CumulativeTotal  int64     `gorm:"not null;default:0"                             json:"cumulative_total"`
-	SpendableBalance int64     `gorm:"not null;default:0"                             json:"spendable_balance"`
-	CreatedAt        time.Time `                                                      json:"created_at"`
-	UpdatedAt        time.Time `                                                      json:"updated_at"`
+	ID               uuid.UUID `gorm:"type:uuid;primaryKey;default:gen_random_uuid()"             json:"id"`
+	UserID           uuid.UUID `gorm:"type:uuid;not null;uniqueIndex:idx_ledger_user_channel"     json:"user_id"`
+	ChannelID        string    `gorm:"type:varchar(255);not null;uniqueIndex:idx_ledger_user_channel" json:"channel_id"`
+	CumulativeTotal  int64     `gorm:"not null;default:0"                                         json:"cumulative_total"`
+	SpendableBalance int64     `gorm:"not null;default:0"                                         json:"spendable_balance"`
+	CreatedAt        time.Time `                                                                   json:"created_at"`
+	UpdatedAt        time.Time `                                                                   json:"updated_at"`
 }
 
 func (p *PointsLedger) BeforeCreate(tx *gorm.DB) error {
 	if p.ID == uuid.Nil {
-		p.ID = uuid.New()
+		id, _ := uuid.NewV7()
+		p.ID = id
 	}
 	return nil
 }
@@ -59,7 +60,8 @@ type PointsTransaction struct {
 
 func (p *PointsTransaction) BeforeCreate(tx *gorm.DB) error {
 	if p.ID == uuid.Nil {
-		p.ID = uuid.New()
+		id, _ := uuid.NewV7()
+		p.ID = id
 	}
 	return nil
 }

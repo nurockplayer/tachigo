@@ -14,7 +14,7 @@
 -- ---------------------------------------------------------------------------
 CREATE TABLE IF NOT EXISTS watch_sessions (
     id                  UUID         PRIMARY KEY DEFAULT gen_random_uuid(),
-    twitch_user_id      VARCHAR(255) NOT NULL,
+    user_id             UUID         NOT NULL REFERENCES users(id),
     channel_id          VARCHAR(255) NOT NULL,
     accumulated_seconds BIGINT       NOT NULL DEFAULT 0,
     rewarded_seconds    BIGINT       NOT NULL DEFAULT 0,
@@ -25,28 +25,29 @@ CREATE TABLE IF NOT EXISTS watch_sessions (
     updated_at          TIMESTAMPTZ  NOT NULL DEFAULT NOW()
 );
 
-CREATE INDEX IF NOT EXISTS idx_watch_sessions_twitch_user_id ON watch_sessions (twitch_user_id);
-CREATE INDEX IF NOT EXISTS idx_watch_sessions_channel_id     ON watch_sessions (channel_id);
-CREATE INDEX IF NOT EXISTS idx_watch_sessions_is_active      ON watch_sessions (is_active);
+CREATE INDEX IF NOT EXISTS idx_watch_sessions_user_id    ON watch_sessions (user_id);
+CREATE INDEX IF NOT EXISTS idx_watch_sessions_channel_id ON watch_sessions (channel_id);
+CREATE INDEX IF NOT EXISTS idx_watch_sessions_is_active  ON watch_sessions (is_active);
 
--- Partial unique index: only one active session per (twitch_user_id, channel_id).
+-- Partial unique index: only one active session per (user_id, channel_id).
 CREATE UNIQUE INDEX IF NOT EXISTS idx_watch_sessions_active_user_channel
-    ON watch_sessions (twitch_user_id, channel_id)
+    ON watch_sessions (user_id, channel_id)
     WHERE is_active = TRUE;
 
 -- ---------------------------------------------------------------------------
 -- points_ledgers
--- Single, platform-wide balance per viewer.
--- Table name is "points_ledgers" (GORM plural) — not "points_ledger".
--- Points are NOT scoped to a channel; they are a platform currency.
+-- Per-channel balance per viewer. Points are scoped to each channel;
+-- balances are not shared across channels.
 -- ---------------------------------------------------------------------------
 CREATE TABLE IF NOT EXISTS points_ledgers (
     id                UUID         PRIMARY KEY DEFAULT gen_random_uuid(),
-    twitch_user_id    VARCHAR(255) NOT NULL UNIQUE,
+    user_id           UUID         NOT NULL REFERENCES users(id),
+    channel_id        VARCHAR(255) NOT NULL,
     cumulative_total  BIGINT       NOT NULL DEFAULT 0,
     spendable_balance BIGINT       NOT NULL DEFAULT 0,
     created_at        TIMESTAMPTZ  NOT NULL DEFAULT NOW(),
-    updated_at        TIMESTAMPTZ  NOT NULL DEFAULT NOW()
+    updated_at        TIMESTAMPTZ  NOT NULL DEFAULT NOW(),
+    UNIQUE (user_id, channel_id)
 );
 
 -- ---------------------------------------------------------------------------
