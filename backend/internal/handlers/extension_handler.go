@@ -38,6 +38,8 @@ func (h *ExtensionHandler) Login(c *gin.Context) {
 		switch err {
 		case services.ErrInvalidExtJWT:
 			unauthorized(c, "invalid extension JWT")
+		case services.ErrUserNotFound:
+			unauthorized(c, "tachigo account not found — please sign up at tachigo and link your Twitch account")
 		case services.ErrExtSecretMissing:
 			internal(c)
 		default:
