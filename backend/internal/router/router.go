@@ -108,21 +108,21 @@ func New(
 	}
 
 	// ── Agency management ─────────────────────────────────────────────────
-	// POST /agencies — engineering only
+	// POST /agencies — admin only
 	agencies := v1.Group("/agencies")
 	agencies.Use(middleware.JWTAuth(authSvc))
 	{
-		agencies.POST("", middleware.RequireRole(models.RoleEngineering), func(c *gin.Context) {
+		agencies.POST("", middleware.RequireRole(models.RoleAdmin), func(c *gin.Context) {
 			c.JSON(501, gin.H{"error": "not implemented"})
 		})
-		// PUT /agencies/:id/settings — agency or engineering
+		// PUT /agencies/:id/settings — agency or admin
 		agencies.PUT("/:id/settings",
-			middleware.RequireRole(models.RoleAgency, models.RoleEngineering),
+			middleware.RequireRole(models.RoleAgency, models.RoleAdmin),
 			func(c *gin.Context) { c.JSON(501, gin.H{"error": "not implemented"}) },
 		)
-		// GET /agencies/:id/streamers — agency or engineering
+		// GET /agencies/:id/streamers — agency or admin
 		agencies.GET("/:id/streamers",
-			middleware.RequireRole(models.RoleAgency, models.RoleEngineering),
+			middleware.RequireRole(models.RoleAgency, models.RoleAdmin),
 			func(c *gin.Context) { c.JSON(501, gin.H{"error": "not implemented"}) },
 		)
 	}
@@ -130,16 +130,16 @@ func New(
 	// ── Events ────────────────────────────────────────────────────────────
 	events := v1.Group("/events")
 	events.Use(middleware.JWTAuth(authSvc))
-	events.Use(middleware.RequireRole(models.RoleStreamer, models.RoleAgency, models.RoleEngineering))
+	events.Use(middleware.RequireRole(models.RoleStreamer, models.RoleAgency, models.RoleAdmin))
 	{
 		events.POST("/create", func(c *gin.Context) { c.JSON(501, gin.H{"error": "not implemented"}) })
 		events.POST("/:id/settle", func(c *gin.Context) { c.JSON(501, gin.H{"error": "not implemented"}) })
 	}
 
-	// ── Admin (engineering only) ──────────────────────────────────────────
+	// ── Admin (admin only) ──────────────────────────────────────────
 	admin := v1.Group("/admin")
 	admin.Use(middleware.JWTAuth(authSvc))
-	admin.Use(middleware.RequireRole(models.RoleEngineering))
+	admin.Use(middleware.RequireRole(models.RoleAdmin))
 	{
 		admin.GET("/users", func(c *gin.Context) { c.JSON(501, gin.H{"error": "not implemented"}) })
 	}

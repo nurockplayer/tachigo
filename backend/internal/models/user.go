@@ -10,13 +10,10 @@ import (
 type UserRole string
 
 const (
-	RoleViewer      UserRole = "viewer"
-	RoleStreamer     UserRole = "streamer"
-	RoleAgency      UserRole = "agency"
-	RoleEngineering UserRole = "engineering"
-
-	// Deprecated: 請改用 RoleEngineering。
-	RoleAdmin UserRole = "admin"
+	RoleViewer   UserRole = "viewer"
+	RoleStreamer  UserRole = "streamer"
+	RoleAgency   UserRole = "agency"
+	RoleAdmin    UserRole = "admin"
 )
 
 type User struct {

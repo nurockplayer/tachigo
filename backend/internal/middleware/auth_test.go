@@ -81,8 +81,8 @@ func doGET(r *gin.Engine, token string) int {
 
 func TestRequireRole_AllowsMatchingRole(t *testing.T) {
 	authSvc := newAuthSvc()
-	router := buildRouter(authSvc, models.RoleEngineering)
-	token := mintToken(t, models.RoleEngineering)
+	router := buildRouter(authSvc, models.RoleAdmin)
+	token := mintToken(t, models.RoleAdmin)
 
 	if got := doGET(router, token); got != 200 {
 		t.Fatalf("expected 200, got %d", got)
@@ -91,7 +91,7 @@ func TestRequireRole_AllowsMatchingRole(t *testing.T) {
 
 func TestRequireRole_ForbidsNonMatchingRole(t *testing.T) {
 	authSvc := newAuthSvc()
-	router := buildRouter(authSvc, models.RoleEngineering)
+	router := buildRouter(authSvc, models.RoleAdmin)
 	token := mintToken(t, models.RoleViewer)
 
 	if got := doGET(router, token); got != 403 {
@@ -101,9 +101,9 @@ func TestRequireRole_ForbidsNonMatchingRole(t *testing.T) {
 
 func TestRequireRole_AllowsAnyOfMultipleRoles(t *testing.T) {
 	authSvc := newAuthSvc()
-	router := buildRouter(authSvc, models.RoleAgency, models.RoleEngineering)
+	router := buildRouter(authSvc, models.RoleAgency, models.RoleAdmin)
 
-	for _, role := range []models.UserRole{models.RoleAgency, models.RoleEngineering} {
+	for _, role := range []models.UserRole{models.RoleAgency, models.RoleAdmin} {
 		token := mintToken(t, role)
 		if got := doGET(router, token); got != 200 {
 			t.Fatalf("role %s: expected 200, got %d", role, got)
@@ -113,7 +113,7 @@ func TestRequireRole_AllowsAnyOfMultipleRoles(t *testing.T) {
 
 func TestRequireRole_ForbidsOtherRolesWhenMultipleAllowed(t *testing.T) {
 	authSvc := newAuthSvc()
-	router := buildRouter(authSvc, models.RoleAgency, models.RoleEngineering)
+	router := buildRouter(authSvc, models.RoleAgency, models.RoleAdmin)
 
 	for _, role := range []models.UserRole{models.RoleViewer, models.RoleStreamer} {
 		token := mintToken(t, role)
@@ -125,7 +125,7 @@ func TestRequireRole_ForbidsOtherRolesWhenMultipleAllowed(t *testing.T) {
 
 func TestRequireRole_Returns401WithoutToken(t *testing.T) {
 	authSvc := newAuthSvc()
-	router := buildRouter(authSvc, models.RoleEngineering)
+	router := buildRouter(authSvc, models.RoleAdmin)
 
 	if got := doGET(router, ""); got != 401 {
 		t.Fatalf("expected 401, got %d", got)
@@ -135,7 +135,7 @@ func TestRequireRole_Returns401WithoutToken(t *testing.T) {
 func TestRequireRole_AllRolesCovered(t *testing.T) {
 	// Ensure all four defined roles behave as expected against a single-role gate.
 	authSvc := newAuthSvc()
-	router := buildRouter(authSvc, models.RoleEngineering)
+	router := buildRouter(authSvc, models.RoleAdmin)
 
 	cases := []struct {
 		role models.UserRole
@@ -144,7 +144,7 @@ func TestRequireRole_AllRolesCovered(t *testing.T) {
 		{models.RoleViewer, 403},
 		{models.RoleStreamer, 403},
 		{models.RoleAgency, 403},
-		{models.RoleEngineering, 200},
+		{models.RoleAdmin, 200},
 	}
 	for _, tc := range cases {
 		token := mintToken(t, tc.role)
