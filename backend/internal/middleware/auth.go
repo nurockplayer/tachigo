@@ -5,6 +5,7 @@ import (
 
 	"github.com/gin-gonic/gin"
 
+	"github.com/tachigo/tachigo/internal/models"
 	"github.com/tachigo/tachigo/internal/services"
 )
 
@@ -36,4 +37,21 @@ func JWTAuth(authSvc *services.AuthService) gin.HandlerFunc {
 func MustClaims(c *gin.Context) *services.Claims {
 	v, _ := c.Get(claimsKey)
 	return v.(*services.Claims)
+}
+
+// RequireRole ensures the authenticated user has one of the allowed roles.
+func RequireRole(roles ...models.UserRole) gin.HandlerFunc {
+	allowed := make(map[models.UserRole]struct{}, len(roles))
+	for _, role := range roles {
+		allowed[role] = struct{}{}
+	}
+
+	return func(c *gin.Context) {
+		claims := MustClaims(c)
+		if _, ok := allowed[claims.Role]; !ok {
+			c.AbortWithStatusJSON(403, gin.H{"success": false, "error": "forbidden"})
+			return
+		}
+		c.Next()
+	}
 }
