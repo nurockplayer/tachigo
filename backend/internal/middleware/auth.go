@@ -5,6 +5,7 @@ import (
 
 	"github.com/gin-gonic/gin"
 
+	"github.com/tachigo/tachigo/internal/models"
 	"github.com/tachigo/tachigo/internal/services"
 )
 
@@ -36,4 +37,19 @@ func JWTAuth(authSvc *services.AuthService) gin.HandlerFunc {
 func MustClaims(c *gin.Context) *services.Claims {
 	v, _ := c.Get(claimsKey)
 	return v.(*services.Claims)
+}
+
+// RequireRole limits access to the specified roles (OR semantics).
+// Must be used after JWTAuth. Returns 403 Forbidden when role does not match.
+func RequireRole(roles ...models.UserRole) gin.HandlerFunc {
+	return func(c *gin.Context) {
+		claims := MustClaims(c)
+		for _, r := range roles {
+			if claims.Role == r {
+				c.Next()
+				return
+			}
+		}
+		c.AbortWithStatusJSON(403, gin.H{"success": false, "error": "forbidden"})
+	}
 }
