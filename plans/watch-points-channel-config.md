@@ -1,6 +1,6 @@
 # Watch-to-Points 補強 + Channel Config
 
-> **狀態：** 待實作
+> **狀態：** 已完成
 > **關聯 Issue：** refs #59
 > **最後更新：** 2026-04-01
 
@@ -33,48 +33,48 @@
 
 ---
 
-## 待實作項目
+## 已完成項目
 
 ### 1. Session 結束機制
 
-- [ ] `backend/internal/services/watch_service.go`
+- [x] `backend/internal/services/watch_service.go`
   - `StartSession()`：偵測 stale session（`last_heartbeat_at > staleThreshold(2 分鐘)`）→ `is_active=false, ended_at=now()`，再建新 session
   - `EndSession()`：best-effort，冪等（無 active session 視為成功，不回傳錯誤）
 
 ### 2. LoginWithExtension 改為 find-only
 
-- [ ] `backend/internal/services/extension_service.go` — 移除 find-or-create 分支，找不到時回傳 `ErrUserNotFound`
-- [ ] `backend/internal/handlers/extension_handler.go` — 判斷 `ErrUserNotFound` → 401，提示先至 tachigo 登入並連結 Twitch
+- [x] `backend/internal/services/extension_service.go` — 移除 find-or-create 分支，找不到時回傳 `ErrUserNotFound`
+- [x] `backend/internal/handlers/extension_handler.go` — 判斷 `ErrUserNotFound` → 401，提示先至 tachigo 登入並連結 Twitch
 
 ### 2. Schema — points_ledgers 改為 per-channel
 
-- [ ] `backend/migrations/003_watch_points.sql` — `points_ledgers` 加入 `channel_id`，unique 改為 `(twitch_user_id, channel_id)`
-- [ ] `backend/internal/models/points.go` — `PointsLedger` struct 加入 `ChannelID`，移除單欄 `UNIQUE` tag
+- [x] `backend/migrations/003_watch_points.sql` — `points_ledgers` 加入 `channel_id`，unique 改為 `(user_id, channel_id)`
+- [x] `backend/internal/models/points.go` — `PointsLedger` struct 加入 `ChannelID`，移除單欄 `UNIQUE` tag
 
 ### 3. Service / Handler — per-channel 帳本 + `<20s ignore` + `seconds_per_point`
 
-- [ ] `backend/internal/services/watch_service.go`
+- [x] `backend/internal/services/watch_service.go`
   - `Heartbeat()`：SELECT FOR UPDATE 後加 `< 20s → return` 早退
   - `Heartbeat()`：SQL upsert 帶入 `channel_id`
   - `Heartbeat()`：以 `getSecondsPerPoint()` 取代硬編碼 `60`
   - `GetBalance()`：加入 `channelID` 參數
   - 新增 `getSecondsPerPoint(db, channelID) int64` helper
-- [ ] `backend/internal/handlers/watch_handler.go` — `GetBalance` 從 Extension JWT claims 取 `ChannelID` 傳入 service
+- [x] `backend/internal/handlers/watch_handler.go` — `GetBalance` 以 `channel_id` query param 傳入 service
 
 ### 4. Migration — channel_configs
 
-- [ ] `backend/migrations/004_channel_config.sql` — 建立 `channel_configs` 表
-- [ ] `backend/internal/models/channel_config.go` — `ChannelConfig` struct
+- [x] `backend/migrations/004_channel_config.sql` — 建立 `channel_configs` 表
+- [x] `backend/internal/models/channel_config.go` — `ChannelConfig` struct
 
 ### 5. Dashboard API
 
-- [ ] `backend/internal/middleware/auth.go` — 新增 `RequireRole(roles ...UserRole)`
-- [ ] `backend/internal/handlers/channel_config_handler.go` — `UpdateChannelConfig` handler
-- [ ] `backend/internal/router/router.go` — 新增 `/dashboard/` route group（`JWTAuth` + `RequireRole(Admin, Streamer)`）
+- [x] `backend/internal/middleware/auth.go` — 新增 `RequireRole(roles ...UserRole)`
+- [x] `backend/internal/handlers/channel_config_handler.go` — `UpdateChannelConfig` handler
+- [x] `backend/internal/router/router.go` — 新增 `/dashboard/` route group（`JWTAuth` + `RequireRole(Admin, Streamer)`）
 
 ### 6. Wiring
 
-- [ ] `backend/cmd/server/main.go`
+- [x] `backend/cmd/server/main.go`
   - `AutoMigrate` 加入 `&models.ChannelConfig{}`
   - 手動建 `idx_points_ledgers_user_channel` unique index
   - 初始化 `ChannelConfigHandler`，傳入 `router.New()`
