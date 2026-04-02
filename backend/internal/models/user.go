@@ -11,7 +11,8 @@ type UserRole string
 
 const (
 	RoleViewer   UserRole = "viewer"
-	RoleStreamer UserRole = "streamer"
+	RoleStreamer  UserRole = "streamer"
+	RoleAgency   UserRole = "agency"
 	RoleAdmin    UserRole = "admin"
 )
 
