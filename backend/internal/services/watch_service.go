@@ -105,6 +105,7 @@ func (s *WatchService) StartSession(userID uuid.UUID, channelID string) (*models
 type HeartbeatResult struct {
 	Session      *models.WatchSession
 	PointsEarned int64
+	DeltaSeconds int64
 }
 
 // Heartbeat advances the session timer and awards points if a full minute has accumulated.
@@ -135,7 +136,7 @@ func (s *WatchService) Heartbeat(userID uuid.UUID, channelID string) (*Heartbeat
 		// Ignore heartbeats that arrive too quickly — likely a client retry.
 		// Normal cadence is 30 s; anything under 20 s is anomalous.
 		if delta < 20*time.Second {
-			result = HeartbeatResult{Session: &session, PointsEarned: 0}
+			result = HeartbeatResult{Session: &session, PointsEarned: 0, DeltaSeconds: 0}
 			return nil
 		}
 
@@ -201,7 +202,7 @@ func (s *WatchService) Heartbeat(userID uuid.UUID, channelID string) (*Heartbeat
 			}
 		}
 
-		result = HeartbeatResult{Session: &session, PointsEarned: pointsToAward}
+		result = HeartbeatResult{Session: &session, PointsEarned: pointsToAward, DeltaSeconds: deltaSeconds}
 		return nil
 	})
 
