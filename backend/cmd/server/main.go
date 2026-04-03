@@ -57,6 +57,8 @@ func main() {
 		&models.PointsLedger{},
 		&models.PointsTransaction{},
 		&models.WatchSession{},
+		&models.WatchTimeStat{},
+		&models.BroadcastTimeStat{},
 	); err != nil {
 		log.Fatalf("migration failed: %v", err)
 	}
@@ -87,6 +89,7 @@ func main() {
 	emailAuthSvc := services.NewEmailAuthService(db, cfg, mailer)
 	watchSvc := services.NewWatchService(db)
 	channelConfigSvc := services.NewChannelConfigService(db)
+	pointsSvc := services.NewPointsService(db, watchSvc)
 
 	// CORS origins from env, default to localhost for dev
 	originsEnv := os.Getenv("ALLOWED_ORIGINS")
@@ -95,7 +98,7 @@ func main() {
 		allowedOrigins = strings.Split(originsEnv, ",")
 	}
 
-	r := router.New(authSvc, userSvc, addrSvc, extSvc, emailAuthSvc, watchSvc, channelConfigSvc, allowedOrigins)
+	r := router.New(authSvc, userSvc, addrSvc, extSvc, emailAuthSvc, watchSvc, channelConfigSvc, pointsSvc, allowedOrigins)
 
 	addr := ":" + cfg.Server.Port
 	log.Printf("server starting on %s (env=%s)", addr, cfg.Server.Env)

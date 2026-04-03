@@ -19,6 +19,7 @@ func New(
 	emailAuthSvc *services.EmailAuthService,
 	watchSvc *services.WatchService,
 	channelConfigSvc *services.ChannelConfigService,
+	pointsSvc *services.PointsService,
 	allowedOrigins []string,
 ) *gin.Engine {
 	r := gin.New()
@@ -32,6 +33,7 @@ func New(
 	emailH := handlers.NewEmailAuthHandler(emailAuthSvc)
 	watchH := handlers.NewWatchHandler(watchSvc)
 	channelConfigH := handlers.NewChannelConfigHandler(channelConfigSvc)
+	pointsH := handlers.NewPointsHandler(pointsSvc)
 
 	r.GET("/health", func(c *gin.Context) {
 		c.JSON(200, gin.H{"status": "ok"})
@@ -89,6 +91,9 @@ func New(
 	protected := v1.Group("/")
 	protected.Use(middleware.JWTAuth(authSvc))
 	{
+		// Points balance
+		protected.GET("users/me/points", pointsH.GetBalance)
+
 		// User profile
 		protected.GET("users/me", userH.Me)
 		protected.PUT("users/me", userH.UpdateMe)
