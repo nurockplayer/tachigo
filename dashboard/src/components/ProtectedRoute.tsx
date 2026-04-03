@@ -1,9 +1,8 @@
 import { Navigate, Outlet } from 'react-router'
+import { isAuthenticated } from '@/services/auth'
 
 export default function ProtectedRoute() {
-  const token = localStorage.getItem('token')
-
-  if (!token) {
+  if (!isAuthenticated()) {
     return <Navigate to="/login" replace />
   }
 
