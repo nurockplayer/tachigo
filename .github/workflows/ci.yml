@@ -16,9 +16,6 @@ jobs:
     steps:
       - uses: actions/checkout@v4
 
-      - name: Setup env files
-        run: make setup
-
       - name: Build image
         run: docker compose build app
 
@@ -31,9 +28,6 @@ jobs:
     steps:
       - uses: actions/checkout@v4
 
-      - name: Setup env files
-        run: make setup
-
       - name: Build image
         run: docker compose build frontend
 
@@ -42,3 +36,18 @@ jobs:
 
       - name: Build
         run: docker compose run --no-deps --rm frontend pnpm build
+
+  dashboard:
+    name: Dashboard build
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+
+      - name: Build image
+        run: docker compose build dashboard
+
+      - name: Lint
+        run: docker compose run --no-deps --rm dashboard pnpm lint
+
+      - name: Build
+        run: docker compose run --no-deps --rm dashboard pnpm build

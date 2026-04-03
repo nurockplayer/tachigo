@@ -4,6 +4,7 @@
 setup:
 	@[ -f backend/.env ]   || cp backend/.env.example backend/.env   && echo "created backend/.env"
 	@[ -f tachimint/.env ] || cp tachimint/.env.example tachimint/.env && echo "created tachimint/.env"
+	@[ -f dashboard/.env ] || cp dashboard/.env.example dashboard/.env && echo "created dashboard/.env"
 
 # ── Dev (setup + build + up) ───────────────────────────────────────────────────
 dev: setup
