@@ -35,7 +35,7 @@ export default function LoginPage() {
   return (
     <div className="flex min-h-screen items-center justify-center bg-background">
       <div className="w-full max-w-sm rounded-lg border border-border bg-background p-8 shadow-sm">
-        <h1 className="mb-6 text-2xl font-bold text-foreground">登入</h1>
+        <h1 className="mb-6 text-2xl font-bold text-foreground">Login</h1>
         {error && <p className="mb-4 text-sm text-destructive">{error}</p>}
         <form onSubmit={handleSubmit} className="space-y-4">
           <div className="space-y-1">
@@ -50,7 +50,7 @@ export default function LoginPage() {
             />
           </div>
           <div className="space-y-1">
-            <Label htmlFor="password">密碼</Label>
+            <Label htmlFor="password">Password</Label>
             <Input
               id="password"
               type="password"
@@ -61,7 +61,7 @@ export default function LoginPage() {
             />
           </div>
           <Button type="submit" className="w-full" disabled={isLoading}>
-            {isLoading ? '登入中...' : '登入'}
+            {isLoading ? 'Logging in...' : 'Login'}
           </Button>
         </form>
       </div>
