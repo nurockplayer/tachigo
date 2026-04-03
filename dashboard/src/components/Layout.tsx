@@ -1,6 +1,9 @@
-import { NavLink, Outlet } from 'react-router'
+import { useState } from 'react'
+import { NavLink, Outlet, useNavigate } from 'react-router'
 import { LayoutDashboard, Users, ArrowLeftRight, Settings } from 'lucide-react'
+import { Button } from '@/components/ui/button'
 import { cn } from '@/lib/utils'
+import { logout } from '@/services/auth'
 
 const navItems = [
   { to: '/', label: '總覽', icon: LayoutDashboard, end: true },
@@ -10,6 +13,15 @@ const navItems = [
 ]
 
 export default function Layout() {
+  const navigate = useNavigate()
+  const [isLoggingOut, setIsLoggingOut] = useState(false)
+
+  async function handleLogout() {
+    setIsLoggingOut(true)
+    await logout()
+    navigate('/login')
+  }
+
   return (
     <div className="flex h-screen bg-background">
       {/* Sidebar */}
@@ -41,8 +53,16 @@ export default function Layout() {
 
       {/* Main content */}
       <div className="flex flex-1 flex-col overflow-hidden">
-        <header className="h-16 shrink-0 border-b border-border flex items-center px-6">
+        <header className="flex h-16 shrink-0 items-center justify-between border-b border-border px-6">
           <span className="text-sm text-muted-foreground">Tachigo Dashboard</span>
+          <Button
+            variant="ghost"
+            size="sm"
+            onClick={handleLogout}
+            disabled={isLoggingOut}
+          >
+            {isLoggingOut ? '登出中...' : '登出'}
+          </Button>
         </header>
         <main className="flex-1 overflow-auto p-6">
           <Outlet />
