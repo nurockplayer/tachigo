@@ -42,14 +42,17 @@ func MustClaims(c *gin.Context) *services.Claims {
 // RequireRole limits access to the specified roles (OR semantics).
 // Must be used after JWTAuth. Returns 403 Forbidden when role does not match.
 func RequireRole(roles ...models.UserRole) gin.HandlerFunc {
+	allowed := make(map[models.UserRole]struct{}, len(roles))
+	for _, role := range roles {
+		allowed[role] = struct{}{}
+	}
+
 	return func(c *gin.Context) {
 		claims := MustClaims(c)
-		for _, r := range roles {
-			if claims.Role == r {
-				c.Next()
-				return
-			}
+		if _, ok := allowed[claims.Role]; !ok {
+			c.AbortWithStatusJSON(403, gin.H{"success": false, "error": "forbidden"})
+			return
 		}
-		c.AbortWithStatusJSON(403, gin.H{"success": false, "error": "forbidden"})
+		c.Next()
 	}
 }

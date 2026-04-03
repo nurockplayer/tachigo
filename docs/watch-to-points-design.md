@@ -1,6 +1,6 @@
 # Watch-to-Points 設計文件
 
-> **狀態：** 實作中（refs #59）
+> **狀態：** 已完成（refs #59）
 > **最後更新：** 2026-04-01
 
 ---
@@ -19,7 +19,7 @@
 觀眾開啟 Extension
   → 前端呼叫 POST /api/v1/extension/auth/login（帶 Extension JWT）
   → 後端 LoginWithExtension：
-      以 Extension JWT 中的 twitch_user_id 查詢已連結的 tachigo 帳號
+      以 Extension JWT 中的 user_id 查詢已連結的 tachigo 帳號
       找到 → 回傳 tachigo JWT
       找不到 → 401，提示觀眾先至 tachigo 登入並授權 Twitch
   → 前端存下 tachigo JWT
@@ -29,6 +29,11 @@
   → 定時呼叫 POST /api/v1/extension/watch/heartbeat（每 30 秒）
   → 離開時盡力呼叫 POST /api/v1/extension/watch/end（見「Session 結束機制」）
 ```
+
+**補充：**
+
+- Twitch Extension JWT 內仍會帶 `opaque_user_id`，但它是 extension-scoped identifier，不再作為登入識別鍵
+- 若觀眾沒有授權分享身分，`user_id` 會是空字串，後端直接視為未授權並回 401
 
 **為什麼必須先登入 tachigo 再授權 Twitch：**
 
@@ -151,7 +156,7 @@ finished: is_active = false, ended_at = <timestamp>
   rewarded_seconds += points_to_award * secondsPerPoint
 
 若 points_to_award > 0：
-  → Atomic upsert points_ledgers（以 twitch_user_id + channel_id 定位帳本）
+  → Atomic upsert points_ledgers（以 user_id + channel_id 定位帳本）
   → 寫入 points_transactions（帶 watch_session_id）
 ```
 
@@ -163,7 +168,7 @@ finished: is_active = false, ended_at = <timestamp>
 |---|---|---|
 | 最小 heartbeat 間隔 | 20 秒 | 擋掉異常重送，正常 30s 間隔不會觸發 |
 | 最大單次 delta | 30 秒 | 斷線後重連不補算過多 |
-| `seconds_per_point` 最小值 | 1 | DB constraint，防止除以零或無限發點 |
+| `seconds_per_point` 最小值 | 1 | API request validation 擋掉非法值；若 DB 中已有異常值，service fallback 回預設 60 |
 
 ---
 
@@ -245,10 +250,11 @@ ON CONFLICT (user_id, channel_id) DO UPDATE SET
 | 欄位 | 型別 | 說明 |
 |---|---|---|
 | `channel_id` | VARCHAR(255) PK | Twitch 頻道 ID |
-| `seconds_per_point` | BIGINT NOT NULL DEFAULT 60 | 幾秒累積 = 1 點（最小值 1） |
+| `seconds_per_point` | BIGINT NOT NULL DEFAULT 60 | 幾秒累積 = 1 點 |
+| `created_at` | TIMESTAMPTZ | 建立時間 |
 | `updated_at` | TIMESTAMPTZ | 最後更新時間 |
 
-無對應此 channel 的設定時，後端 fallback 至預設值 60。
+無對應此 channel 的設定時，後端 fallback 至預設值 60。Dashboard API 會以 request validation 限制 `seconds_per_point >= 1`；若資料庫內已存在異常值（<= 0），`WatchService` 仍會回退到預設值 60，避免除以零或無限發點。
 
 ### Dashboard API
 
@@ -273,6 +279,7 @@ ON CONFLICT (user_id, channel_id) DO UPDATE SET
 
 - [ ] Stale session 定期清理 cron job（目前只在 `StartSession` 時觸發關閉）
 - [ ] `source` 欄位目前無 CHECK constraint，可視需求補上
+- [ ] `channel_configs.seconds_per_point` 目前沒有 DB-level CHECK constraint，僅由 API validation 與 service fallback 保底
 
 ---
 
@@ -286,11 +293,11 @@ ON CONFLICT (user_id, channel_id) DO UPDATE SET
 
 ---
 
-## 實作計劃備忘
+## 實作備忘
 
-### Issue #61 — UUID v7（隨本次順帶處理）
+### Issue #61 — UUID v7（本次已處理 watch-points 相關部分）
 
-本次修改以下三個檔案時，同步將 `uuid.New()` 改為 `uuid.New7()`（時序 UUID，避免 B-tree index fragmentation）：
+本次已在 watch-points 相關檔案中同步改為 `uuid.New7()`（時序 UUID，降低 B-tree index fragmentation 風險）：
 
 | 檔案 | 改動點 |
 |---|---|
@@ -332,5 +339,6 @@ PR #62（`users.role` VARCHAR → ENUM）也改動了 `backend/cmd/server/main.g
 - [Issue #59](https://github.com/nurockplayer/tachigo/issues/59) — watch-to-points MVP 主票
 - [Issue #58](https://github.com/nurockplayer/tachigo/issues/58) — auth_providers 設計討論
 - [PR #52](https://github.com/nurockplayer/tachigo/pull/52) — Phase 1 & 2 實作
+- [PR #64](https://github.com/nurockplayer/tachigo/pull/64) — Watch-to-Points 補強 + Channel Config
 - 實作：[backend/internal/services/watch_service.go](../backend/internal/services/watch_service.go)
 - Migration：[backend/migrations/003_watch_points.sql](../backend/migrations/003_watch_points.sql)
