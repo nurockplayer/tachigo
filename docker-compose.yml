@@ -4,7 +4,8 @@ services:
     ports:
       - "8080:8080"
     env_file:
-      - ./backend/.env
+      - path: ./backend/.env
+        required: false
     environment:
       DATABASE_URL: host=postgres user=postgres password=postgres dbname=tachigo port=5432 sslmode=disable
     depends_on:
@@ -34,7 +35,8 @@ services:
     ports:
       - "5173:5173"
     env_file:
-      - ./tachimint/.env
+      - path: ./tachimint/.env
+        required: false
     volumes:
       - ./tachimint/src:/app/src
       - ./tachimint/public:/app/public
