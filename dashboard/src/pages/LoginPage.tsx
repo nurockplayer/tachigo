@@ -1,4 +1,4 @@
-import React, { useState } from 'react'
+import { useState } from 'react'
 import { useNavigate } from 'react-router'
 import { isAxiosError } from 'axios'
 import { login } from '@/services/auth'
@@ -13,7 +13,7 @@ export default function LoginPage() {
   const [isLoading, setIsLoading] = useState(false)
   const [error, setError] = useState('')
 
-  async function handleSubmit(event: React.FormEvent<HTMLFormElement>) {
+  async function handleSubmit(event: { preventDefault(): void }) {
     event.preventDefault()
     setIsLoading(true)
     setError('')
@@ -23,9 +23,9 @@ export default function LoginPage() {
       navigate('/')
     } catch (err) {
       if (isAxiosError(err) && err.response?.status === 401) {
-        setError('帳號或密碼錯誤')
+        setError('Invalid email or password')
       } else {
-        setError('連線失敗，請稍後再試')
+        setError('Connection failed, please try again later')
       }
     } finally {
       setIsLoading(false)
