@@ -116,6 +116,12 @@ func migrateTestDB(db *gorm.DB) error {
 		`CREATE UNIQUE INDEX IF NOT EXISTS idx_watch_sessions_active_user_channel
 			ON watch_sessions (user_id, channel_id)
 			WHERE is_active = 1`,
+		`CREATE TABLE IF NOT EXISTS channel_configs (
+			channel_id TEXT PRIMARY KEY,
+			seconds_per_point INTEGER NOT NULL DEFAULT 60,
+			created_at DATETIME,
+			updated_at DATETIME
+		)`,
 		`CREATE TABLE IF NOT EXISTS points_ledgers (
 			id TEXT PRIMARY KEY,
 			user_id TEXT NOT NULL,
@@ -125,7 +131,7 @@ func migrateTestDB(db *gorm.DB) error {
 			created_at DATETIME,
 			updated_at DATETIME
 		)`,
-		`CREATE UNIQUE INDEX IF NOT EXISTS idx_ledger_user_channel
+		`CREATE UNIQUE INDEX IF NOT EXISTS idx_points_ledgers_user_channel
 			ON points_ledgers (user_id, channel_id)`,
 		`CREATE TABLE IF NOT EXISTS points_transactions (
 			id TEXT PRIMARY KEY,

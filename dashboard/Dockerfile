@@ -1,3 +1,4 @@
+# dev only - not for production
 FROM node:24-alpine
 
 RUN corepack enable && corepack prepare pnpm@10.33.0 --activate

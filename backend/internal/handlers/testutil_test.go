@@ -88,6 +88,12 @@ func migrateTestDB(db *gorm.DB) error {
 			expires_at DATETIME NOT NULL,
 			created_at DATETIME
 		)`,
+		`CREATE TABLE IF NOT EXISTS channel_configs (
+			channel_id TEXT PRIMARY KEY,
+			seconds_per_point INTEGER NOT NULL DEFAULT 60,
+			created_at DATETIME,
+			updated_at DATETIME
+		)`,
 	}
 	for _, s := range stmts {
 		if err := db.Exec(s).Error; err != nil {

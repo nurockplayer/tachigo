@@ -53,6 +53,7 @@ func main() {
 		&models.EmailVerification{},
 		&models.PasswordReset{},
 		// Points & watch-time
+		&models.ChannelConfig{},
 		&models.PointsLedger{},
 		&models.PointsTransaction{},
 		&models.WatchSession{},
@@ -70,6 +71,12 @@ func main() {
 	`).Error; err != nil {
 		log.Fatalf("failed to create partial index: %v", err)
 	}
+	if err := db.Exec(`
+		CREATE UNIQUE INDEX IF NOT EXISTS idx_points_ledgers_user_channel
+		ON points_ledgers (user_id, channel_id)
+	`).Error; err != nil {
+		log.Fatalf("failed to create points ledger index: %v", err)
+	}
 
 	// Wire services
 	authSvc := services.NewAuthService(db, cfg)
@@ -79,6 +86,7 @@ func main() {
 	mailer := services.NewMailer(cfg.SMTP.Host, cfg.SMTP.Port, cfg.SMTP.Username, cfg.SMTP.Password, cfg.SMTP.From)
 	emailAuthSvc := services.NewEmailAuthService(db, cfg, mailer)
 	watchSvc := services.NewWatchService(db)
+	channelConfigSvc := services.NewChannelConfigService(db)
 
 	// CORS origins from env, default to localhost for dev
 	originsEnv := os.Getenv("ALLOWED_ORIGINS")
@@ -87,7 +95,7 @@ func main() {
 		allowedOrigins = strings.Split(originsEnv, ",")
 	}
 
-	r := router.New(authSvc, userSvc, addrSvc, extSvc, emailAuthSvc, watchSvc, allowedOrigins)
+	r := router.New(authSvc, userSvc, addrSvc, extSvc, emailAuthSvc, watchSvc, channelConfigSvc, allowedOrigins)
 
 	addr := ":" + cfg.Server.Port
 	log.Printf("server starting on %s (env=%s)", addr, cfg.Server.Env)

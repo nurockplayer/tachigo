@@ -145,11 +145,15 @@ func (s *WatchService) Heartbeat(userID uuid.UUID, channelID string) (*Heartbeat
 		// Use integer division on the duration to avoid float truncation issues
 		// (e.g. 29.9s should count as 29s, not silently floor via float cast).
 		deltaSeconds := int64(delta / time.Second)
+		secondsPerPoint, err := s.getSecondsPerPoint(tx, channelID)
+		if err != nil {
+			return err
+		}
 
 		newAccumulated := session.AccumulatedSeconds + deltaSeconds
 		pendingSeconds := newAccumulated - session.RewardedSeconds
-		pointsToAward := pendingSeconds / 60
-		newRewarded := session.RewardedSeconds + pointsToAward*60
+		pointsToAward := pendingSeconds / secondsPerPoint
+		newRewarded := session.RewardedSeconds + pointsToAward*secondsPerPoint
 
 		if err := tx.Model(&session).Updates(map[string]interface{}{
 			"accumulated_seconds": newAccumulated,
@@ -230,4 +234,18 @@ func (s *WatchService) GetBalance(userID uuid.UUID, channelID string) (spendable
 		return 0, 0, err
 	}
 	return ledger.SpendableBalance, ledger.CumulativeTotal, nil
+}
+
+func (s *WatchService) getSecondsPerPoint(db *gorm.DB, channelID string) (int64, error) {
+	var cfg models.ChannelConfig
+	if err := db.Where("channel_id = ?", channelID).First(&cfg).Error; err != nil {
+		if errors.Is(err, gorm.ErrRecordNotFound) {
+			return DefaultSecondsPerPoint, nil
+		}
+		return 0, err
+	}
+	if cfg.SecondsPerPoint <= 0 {
+		return DefaultSecondsPerPoint, nil
+	}
+	return cfg.SecondsPerPoint, nil
 }

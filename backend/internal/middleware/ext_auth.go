@@ -14,7 +14,7 @@ const extClaimsKey = "ext_claims"
 //
 // Returns 401 if the JWT is missing or invalid.
 // Returns 403 if the JWT is valid but the viewer has not authorized the Extension
-// (claims.UserID is empty — only opaque_user_id is present).
+// (claims.UserID is empty — viewer identity not shared).
 func ExtJWTAuth(extSvc *services.ExtensionService) gin.HandlerFunc {
 	return func(c *gin.Context) {
 		header := c.GetHeader("Authorization")

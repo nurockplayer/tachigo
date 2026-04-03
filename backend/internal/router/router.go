@@ -18,6 +18,7 @@ func New(
 	extSvc *services.ExtensionService,
 	emailAuthSvc *services.EmailAuthService,
 	watchSvc *services.WatchService,
+	channelConfigSvc *services.ChannelConfigService,
 	allowedOrigins []string,
 ) *gin.Engine {
 	r := gin.New()
@@ -30,6 +31,7 @@ func New(
 	extH := handlers.NewExtensionHandler(extSvc)
 	emailH := handlers.NewEmailAuthHandler(emailAuthSvc)
 	watchH := handlers.NewWatchHandler(watchSvc)
+	channelConfigH := handlers.NewChannelConfigHandler(channelConfigSvc)
 
 	r.GET("/health", func(c *gin.Context) {
 		c.JSON(200, gin.H{"status": "ok"})
@@ -105,6 +107,13 @@ func New(
 			addresses.DELETE("/:id", addrH.Delete)
 			addresses.PUT("/:id/default", addrH.SetDefault)
 		}
+	}
+
+	dashboard := v1.Group("/dashboard")
+	dashboard.Use(middleware.JWTAuth(authSvc))
+	dashboard.Use(middleware.RequireRole(models.RoleAdmin, models.RoleStreamer))
+	{
+		dashboard.PUT("/channels/:channel_id/config", channelConfigH.UpdateChannelConfig)
 	}
 
 	// ── Agency management ─────────────────────────────────────────────────
