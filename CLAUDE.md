@@ -120,6 +120,23 @@ docker compose run --no-deps --rm app go test ./...
 3. Codex 完成後回報結果
 4. Claude Code 審查、驗收、或進一步調整指令
 
+**委派原則（節省 Claude token）：**
+
+- 任何涉及寫程式、改檔案、跑測試的任務，一律透過 `codex:rescue` 派給 Codex 執行
+- Claude Code 只負責：理解需求、規劃架構、給 Codex 下指令、審查結果
+- 僅在極簡單的單行修改時，Claude Code 才直接動手
+
+**指令操作的分界：**
+
+| 操作 | 誰執行 | 原因 |
+|---|---|---|
+| `git status` / `git log` / `git diff` | Claude Code | 需要即時看輸出來做決策 |
+| `git commit` / `git push` / `git checkout -b` | Codex | 純執行，不需要即時輸出 |
+| 檔案搜尋（探索用） | Claude Code（用 Glob / Grep 工具） | 規劃階段，需要結果判斷下一步 |
+| 複雜 bash 腳本、批次操作 | Codex | 純執行，只需確認最終結果 |
+
+核心判斷：Claude 需要即時看輸出來決策 → 自己做；純執行 → 交給 Codex
+
 ## Claude Code 設定
 
 `.claude/settings.json` 是共享設定，已 commit 進 repo，**請勿直接修改**。
