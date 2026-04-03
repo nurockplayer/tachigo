@@ -131,7 +131,7 @@ docker compose run --no-deps --rm app go test ./...
 | 操作 | 誰執行 | 原因 |
 |---|---|---|
 | `git status` / `git log` / `git diff` | Claude Code | 需要即時看輸出來做決策 |
-| `git commit` / `git push` / `git checkout -b` | Codex | 純執行，不需要即時輸出 |
+| `git commit` / `git push` / `git checkout -b` | Claude Code | `codex:rescue` subagent 在 sandbox 內無 `.git` 寫入權限 |
 | 檔案搜尋（探索用） | Claude Code（用 Glob / Grep 工具） | 規劃階段，需要結果判斷下一步 |
 | 複雜 bash 腳本、批次操作 | Codex | 純執行，只需確認最終結果 |
 
