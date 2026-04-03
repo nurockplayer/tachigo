@@ -44,5 +44,18 @@ services:
       - app
     restart: unless-stopped
 
+  dashboard:
+    build: ./dashboard
+    ports:
+      - "5174:5174"
+    volumes:
+      - ./dashboard/src:/app/src
+      - ./dashboard/public:/app/public
+      - ./dashboard/index.html:/app/index.html
+      - /app/node_modules
+    depends_on:
+      - app
+    restart: unless-stopped
+
 volumes:
   postgres_data:
