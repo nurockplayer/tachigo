@@ -1,5 +1,9 @@
 # tachigo — Claude Code Guidelines
 
+## 語言設定
+
+永遠使用台灣正體中文回覆，不得使用日文、韓文或簡體中文。
+
 ## GitHub Issue 慣例
 
 ### 標題前綴
@@ -100,6 +104,38 @@ make down   # 停止所有服務
 # 執行後端測試
 docker compose run --no-deps --rm app go test ./...
 ```
+
+## AI 分工
+
+本專案使用 Claude Code + Codex CLI 協作開發：
+
+| 角色 | 工具 | 職責 |
+|---|---|---|
+| **指揮** | Claude Code | 分析需求、規劃架構、拆解任務、審查結果、決策取捨 |
+| **執行** | Codex CLI | 實際寫程式碼、跑測試、改檔案、執行指令 |
+
+**工作流程：**
+1. Claude Code 理解需求，擬定實作計畫
+2. Claude Code 下指令給 Codex CLI 執行
+3. Codex 完成後回報結果
+4. Claude Code 審查、驗收、或進一步調整指令
+
+**委派原則（節省 Claude token）：**
+
+- 任何涉及寫程式、改檔案、跑測試的任務，一律透過 `codex:rescue` 派給 Codex 執行
+- Claude Code 只負責：理解需求、規劃架構、給 Codex 下指令、審查結果
+- 僅在極簡單的單行修改時，Claude Code 才直接動手
+
+**指令操作的分界：**
+
+| 操作 | 誰執行 | 原因 |
+|---|---|---|
+| `git status` / `git log` / `git diff` | Claude Code | 需要即時看輸出來做決策 |
+| `git commit` / `git push` / `git checkout -b` | Codex | 純執行，不需要即時輸出 |
+| 檔案搜尋（探索用） | Claude Code（用 Glob / Grep 工具） | 規劃階段，需要結果判斷下一步 |
+| 複雜 bash 腳本、批次操作 | Codex | 純執行，只需確認最終結果 |
+
+核心判斷：Claude 需要即時看輸出來決策 → 自己做；純執行 → 交給 Codex
 
 ## Claude Code 設定
 

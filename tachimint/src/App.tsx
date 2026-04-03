@@ -1,9 +1,13 @@
 import { useTwitch } from './hooks/useTwitch'
 import { useBits } from './hooks/useBits'
+import { useHeartbeat } from './hooks/useHeartbeat'
 
 export default function App() {
   const { context, jwt, products, bitsEnabled, authError } = useTwitch()
   const { buyWithBits, status, error } = useBits(jwt)
+  const { balance, gain, isAnimating } = useHeartbeat(jwt, {
+    enabled: context?.role === 'viewer',
+  })
 
   if (!context) {
     return (
@@ -36,6 +40,16 @@ export default function App() {
       </header>
 
       <div className="ext-body">
+        <section className="ext-balance-wrap">
+          <div className={`ext-balance ${isAnimating ? 'ext-balance--bump' : ''}`}>
+            <span className="ext-balance__label">Points</span>
+            <strong className="ext-balance__value">{balance?.toLocaleString() ?? '—'}</strong>
+          </div>
+          {gain !== null && gain > 0 && (
+            <span className="ext-balance-gain">+{gain.toLocaleString()} 點</span>
+          )}
+        </section>
+
         {status === 'success' && (
           <div className="ext-success">
             <span className="ext-success__icon">✓</span>

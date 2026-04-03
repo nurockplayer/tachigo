@@ -39,7 +39,8 @@ func MustClaims(c *gin.Context) *services.Claims {
 	return v.(*services.Claims)
 }
 
-// RequireRole ensures the authenticated user has one of the allowed roles.
+// RequireRole limits access to the specified roles (OR semantics).
+// Must be used after JWTAuth. Returns 403 Forbidden when role does not match.
 func RequireRole(roles ...models.UserRole) gin.HandlerFunc {
 	allowed := make(map[models.UserRole]struct{}, len(roles))
 	for _, role := range roles {
