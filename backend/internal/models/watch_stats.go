@@ -44,3 +44,22 @@ func (b *BroadcastTimeStat) BeforeCreate(tx *gorm.DB) error {
 	}
 	return nil
 }
+
+// BroadcastTimeLog records each heartbeat's broadcast-second increment.
+// Used for time-windowed queries (daily / monthly / yearly).
+// RecordedAt is indexed to support efficient range scans.
+type BroadcastTimeLog struct {
+	ID         uuid.UUID `gorm:"type:uuid;primaryKey;default:gen_random_uuid()" json:"id"`
+	StreamerID uuid.UUID `gorm:"type:uuid;not null;index"                       json:"streamer_id"`
+	ChannelID  string    `gorm:"type:varchar(255);not null;index"               json:"channel_id"`
+	Seconds    int64     `gorm:"not null"                                       json:"seconds"`
+	RecordedAt time.Time `gorm:"not null;index"                                 json:"recorded_at"`
+}
+
+func (b *BroadcastTimeLog) BeforeCreate(tx *gorm.DB) error {
+	if b.ID == uuid.Nil {
+		id, _ := uuid.NewV7()
+		b.ID = id
+	}
+	return nil
+}

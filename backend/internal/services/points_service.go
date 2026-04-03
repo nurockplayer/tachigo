@@ -178,23 +178,47 @@ func (s *PointsService) GetWatchStats(userID uuid.UUID, channelID string) (*Watc
 
 // AddBroadcastTime accumulates broadcast seconds for a streamer in a channel.
 // Called on each Heartbeat received, in sync with viewer AddWatchTime.
-func (s *PointsService) AddBroadcastTime(streamerID uuid.UUID, channelID string, seconds int64) error {
+// streamerID is resolved internally from channelID via auth_providers (Twitch provider_id = channelID).
+// If the channelID has no registered streamer, the call is a no-op.
+func (s *PointsService) AddBroadcastTime(channelID string, seconds int64) error {
+	var provider models.AuthProvider
+	if err := s.db.Where("provider = ? AND provider_id = ?", models.ProviderTwitch, channelID).
+		First(&provider).Error; err != nil {
+		if errors.Is(err, gorm.ErrRecordNotFound) {
+			return nil // streamer not registered yet — skip silently
+		}
+		return err
+	}
+	streamerID := provider.UserID
+
 	now := time.Now()
-	return s.db.Exec(`
+	if err := s.db.Exec(`
 		INSERT INTO broadcast_time_stats (id, streamer_id, channel_id, total_broadcast_seconds, created_at, updated_at)
 		VALUES (?, ?, ?, ?, ?, ?)
 		ON CONFLICT (streamer_id, channel_id) DO UPDATE SET
 			total_broadcast_seconds = broadcast_time_stats.total_broadcast_seconds + EXCLUDED.total_broadcast_seconds,
 			updated_at              = ?
-	`, newUUID(), streamerID, channelID, seconds, now, now, now).Error
+	`, newUUID(), streamerID, channelID, seconds, now, now, now).Error; err != nil {
+		return err
+	}
+
+	log := &models.BroadcastTimeLog{
+		StreamerID: streamerID,
+		ChannelID:  channelID,
+		Seconds:    seconds,
+		RecordedAt: now,
+	}
+	return s.db.Create(log).Error
 }
 
 // GetBroadcastStats returns broadcast time across four time windows for a streamer.
+// daily / monthly / yearly are derived from broadcast_time_logs (per-heartbeat increments).
+// current_session_seconds is approximated from active viewer watch_sessions in the channel.
 func (s *PointsService) GetBroadcastStats(streamerID uuid.UUID, channelID string) (*BroadcastStats, error) {
 	now := time.Now()
 
-	// current_session_seconds: accumulated seconds in the current active watch session
-	// used as a proxy for the ongoing broadcast session duration.
+	// current_session_seconds: sum of accumulated_seconds across all active viewer sessions
+	// in the channel — used as a proxy for the ongoing broadcast session duration.
 	var currentSession struct {
 		AccumulatedSeconds int64
 	}
@@ -208,15 +232,16 @@ func (s *PointsService) GetBroadcastStats(streamerID uuid.UUID, channelID string
 	startOfMonth := time.Date(now.Year(), now.Month(), 1, 0, 0, 0, 0, now.Location())
 	startOfYear := time.Date(now.Year(), 1, 1, 0, 0, 0, 0, now.Location())
 
-	query := `
-		SELECT COALESCE(SUM(total_broadcast_seconds), 0) AS total
-		FROM broadcast_time_stats
-		WHERE streamer_id = ? AND channel_id = ? AND created_at >= ?
+	// Query broadcast_time_logs for accurate time-windowed totals.
+	logQuery := `
+		SELECT COALESCE(SUM(seconds), 0) AS total
+		FROM broadcast_time_logs
+		WHERE streamer_id = ? AND channel_id = ? AND recorded_at >= ?
 	`
 
 	fetch := func(since time.Time) int64 {
 		var r struct{ Total int64 }
-		s.db.Raw(query, streamerID, channelID, since).Scan(&r)
+		s.db.Raw(logQuery, streamerID, channelID, since).Scan(&r)
 		return r.Total
 	}
 

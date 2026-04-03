@@ -59,6 +59,7 @@ func main() {
 		&models.WatchSession{},
 		&models.WatchTimeStat{},
 		&models.BroadcastTimeStat{},
+		&models.BroadcastTimeLog{},
 	); err != nil {
 		log.Fatalf("migration failed: %v", err)
 	}

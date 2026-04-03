@@ -31,7 +31,7 @@ func New(
 	addrH := handlers.NewAddressHandler(addrSvc)
 	extH := handlers.NewExtensionHandler(extSvc)
 	emailH := handlers.NewEmailAuthHandler(emailAuthSvc)
-	watchH := handlers.NewWatchHandler(watchSvc)
+	watchH := handlers.NewWatchHandler(watchSvc, pointsSvc)
 	channelConfigH := handlers.NewChannelConfigHandler(channelConfigSvc)
 	pointsH := handlers.NewPointsHandler(pointsSvc)
 

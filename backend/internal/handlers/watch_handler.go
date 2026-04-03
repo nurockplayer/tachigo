@@ -11,11 +11,12 @@ import (
 )
 
 type WatchHandler struct {
-	watchSvc *services.WatchService
+	watchSvc  *services.WatchService
+	pointsSvc *services.PointsService
 }
 
-func NewWatchHandler(watchSvc *services.WatchService) *WatchHandler {
-	return &WatchHandler{watchSvc: watchSvc}
+func NewWatchHandler(watchSvc *services.WatchService, pointsSvc *services.PointsService) *WatchHandler {
+	return &WatchHandler{watchSvc: watchSvc, pointsSvc: pointsSvc}
 }
 
 type watchBody struct {
@@ -67,6 +68,13 @@ func (h *WatchHandler) Heartbeat(c *gin.Context) {
 		internal(c)
 		return
 	}
+
+	// Accumulate time stats after a valid heartbeat (non-fatal: don't fail the heartbeat if these fail).
+	if result.DeltaSeconds > 0 {
+		_ = h.pointsSvc.AddWatchTime(userID, body.ChannelID, result.DeltaSeconds)
+		_ = h.pointsSvc.AddBroadcastTime(body.ChannelID, result.DeltaSeconds)
+	}
+
 	ok(c, gin.H{
 		"session":       result.Session,
 		"points_earned": result.PointsEarned,
