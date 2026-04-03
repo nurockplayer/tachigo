@@ -15,6 +15,15 @@ tachimint/.env
 tachimint/.env.local
 tachimint/*.local
 
+dashboard/node_modules/
+dashboard/dist/
+dashboard/.env
+dashboard/.env.local
+dashboard/*.local
+
+# pnpm
+.pnpm-store/
+
 # IDE
 .vscode/
 .idea/

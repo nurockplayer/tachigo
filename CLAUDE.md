@@ -105,6 +105,21 @@ make down   # 停止所有服務
 docker compose run --no-deps --rm app go test ./...
 ```
 
+## AI 分工
+
+本專案使用 Claude Code + Codex CLI 協作開發：
+
+| 角色 | 工具 | 職責 |
+|---|---|---|
+| **指揮** | Claude Code | 分析需求、規劃架構、拆解任務、審查結果、決策取捨 |
+| **執行** | Codex CLI | 實際寫程式碼、跑測試、改檔案、執行指令 |
+
+**工作流程：**
+1. Claude Code 理解需求，擬定實作計畫
+2. Claude Code 下指令給 Codex CLI 執行
+3. Codex 完成後回報結果
+4. Claude Code 審查、驗收、或進一步調整指令
+
 ## Claude Code 設定
 
 `.claude/settings.json` 是共享設定，已 commit 進 repo，**請勿直接修改**。
