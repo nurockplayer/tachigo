@@ -13,12 +13,12 @@ tachigo/
 
 ## Quick start
 
-**Prerequisites:** Docker, Docker Compose, Make
+**Prerequisites:** Docker, Docker Compose
 
 ```bash
 git clone <repo>
 cd tachigo
-make dev          # copies .env files and starts all services with hot reload
+docker compose up --build
 ```
 
 | Service  | URL                                      |
@@ -28,17 +28,25 @@ make dev          # copies .env files and starts all services with hot reload
 | Frontend | http://localhost:5173                    |
 | Postgres | localhost:5433                           |
 
-On first clone, `make dev` copies `.env.example` to `.env` automatically.
+If you want local `.env` files, copy the examples first. Docker Compose can still start without them because the env files are optional.
 Fill in the secrets in `backend/.env` before using OAuth or Twitch Extension features.
+
+On Windows PowerShell, you can generate the local env files with:
+
+```powershell
+./scripts/setup-env.ps1
+```
 
 ## Development
 
 ```bash
-make dev          # start all services (foreground — see logs)
-make up           # start in background
-make down         # stop all services
-make logs         # tail all logs
+docker compose up --build     # start all services (foreground — see logs)
+docker compose up -d --build  # start in background
+docker compose down           # stop all services
+docker compose logs -f        # tail all logs
 ```
+
+`make` is still available as a convenience on macOS/Linux, but it is not required.
 
 ### Backend (`backend/`)
 
@@ -67,6 +75,13 @@ Copy the examples and fill in your secrets:
 ```bash
 cp backend/.env.example backend/.env
 cp tachimint/.env.example tachimint/.env
+cp dashboard/.env.example dashboard/.env
+```
+
+Windows PowerShell:
+
+```powershell
+./scripts/setup-env.ps1
 ```
 
 Key backend variables:

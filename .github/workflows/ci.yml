@@ -16,9 +16,6 @@ jobs:
     steps:
       - uses: actions/checkout@v4
 
-      - name: Setup env files
-        run: make setup
-
       - name: Build image
         run: docker compose build app
 
@@ -30,9 +27,6 @@ jobs:
     runs-on: ubuntu-latest
     steps:
       - uses: actions/checkout@v4
-
-      - name: Setup env files
-        run: make setup
 
       - name: Build image
         run: docker compose build frontend
