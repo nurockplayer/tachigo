@@ -1,4 +1,5 @@
 import { isAxiosError } from 'axios'
+import type { AxiosRequestConfig } from 'axios'
 import client, { setAuthToken, clearAuthToken } from '@/services/api'
 
 // 記憶體儲存，不 export
@@ -55,12 +56,63 @@ export async function restoreSession(): Promise<void> {
   const refreshToken = localStorage.getItem('refresh_token')
   if (!refreshToken) throw new Error('no refresh token')
 
-  const { data } = await client.post<RefreshResponse>('/api/v1/auth/refresh', {
-    refresh_token: refreshToken,
-  })
-  accessToken = data.data.tokens.access_token
-  localStorage.setItem('refresh_token', data.data.tokens.refresh_token)
-  setAuthToken(accessToken)
+  try {
+    const { data } = await client.post<RefreshResponse>('/api/v1/auth/refresh', {
+      refresh_token: refreshToken,
+    })
+    accessToken = data.data.tokens.access_token
+    localStorage.setItem('refresh_token', data.data.tokens.refresh_token)
+    setAuthToken(accessToken)
+  } catch (error) {
+    localStorage.removeItem('refresh_token')
+    throw error
+  }
 }
 
 export { isAxiosError }
+
+let isRefreshing = false
+const pendingRequests: Array<{
+  resolve: (value: unknown) => void
+  reject: (reason: unknown) => void
+}> = []
+
+client.interceptors.response.use(
+  undefined,
+  async (error: unknown) => {
+    if (!isAxiosError(error)) return Promise.reject(error)
+
+    const config = error.config
+    if (!config) return Promise.reject(error)
+
+    type RetryConfig = AxiosRequestConfig & { _retry?: boolean }
+    const retryConfig = config as RetryConfig
+    const isRefreshEndpoint = config.url?.includes('/auth/refresh')
+
+    if (error.response?.status !== 401 || retryConfig._retry || isRefreshEndpoint) {
+      return Promise.reject(error)
+    }
+
+    if (isRefreshing) {
+      return new Promise<unknown>((resolve, reject) => {
+        pendingRequests.push({ resolve, reject })
+      }).then(() => client({ ...retryConfig, _retry: true } as RetryConfig))
+    }
+
+    retryConfig._retry = true
+    isRefreshing = true
+
+    try {
+      await restoreSession()
+      const queued = pendingRequests.splice(0)
+      queued.forEach(({ resolve }) => resolve(undefined))
+      return client(retryConfig as AxiosRequestConfig)
+    } catch (refreshError) {
+      const queued = pendingRequests.splice(0)
+      queued.forEach(({ reject }) => reject(refreshError))
+      return Promise.reject(error)
+    } finally {
+      isRefreshing = false
+    }
+  },
+)

@@ -2,14 +2,16 @@ import type { DataProvider } from '@refinedev/core'
 import client from '@/services/api'
 
 type ApiResponse<T> = { success: boolean; data: T }
+type RefinePagination = {
+  current?: number
+  pageSize?: number
+}
 
 export const dataProvider: DataProvider = {
   getList: async ({ resource, pagination }) => {
+    const page = (pagination as RefinePagination | undefined)?.current
     const { data: body } = await client.get<ApiResponse<unknown>>(`/api/v1/${resource}`, {
-      params:
-        pagination?.currentPage && pagination?.pageSize
-          ? { page: pagination.currentPage, page_size: pagination.pageSize }
-          : undefined,
+      params: page && pagination?.pageSize ? { page, page_size: pagination.pageSize } : undefined,
     })
     const payload = body.data
     if (Array.isArray(payload)) {
