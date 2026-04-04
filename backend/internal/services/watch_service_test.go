@@ -1,6 +1,7 @@
 package services
 
 import (
+	"errors"
 	"testing"
 	"time"
 
@@ -248,6 +249,96 @@ func TestEndSession_Idempotent(t *testing.T) {
 	svc.EndSession(userID, "ch_abc")
 	if err := svc.EndSession(userID, "ch_abc"); err != nil {
 		t.Errorf("unexpected error on second EndSession: %v", err)
+	}
+}
+
+// ─── GetBalance ──────────────────────────────────────────────────────────────
+
+// ─── RecordClick ─────────────────────────────────────────────────────────────
+
+func TestRecordClick_NoActiveSession(t *testing.T) {
+	svc := NewWatchService(newTestDB(t))
+	userID := seedWatchUser(t, svc)
+
+	_, err := svc.RecordClick(userID, "ch_abc")
+	if err != ErrNoActiveSession {
+		t.Errorf("want ErrNoActiveSession, got %v", err)
+	}
+}
+
+func TestRecordClick_AwardsPoint(t *testing.T) {
+	svc := NewWatchService(newTestDB(t))
+	userID := seedWatchUser(t, svc)
+	channelID := "ch_abc"
+
+	svc.StartSession(userID, channelID)
+
+	result, err := svc.RecordClick(userID, channelID)
+	if err != nil {
+		t.Fatalf("unexpected error: %v", err)
+	}
+	if result.Delta != 1 {
+		t.Errorf("want delta=1, got %d", result.Delta)
+	}
+	if result.BalanceAfter != 1 {
+		t.Errorf("want balance=1, got %d", result.BalanceAfter)
+	}
+
+	spendable, cumulative, _ := svc.GetBalance(userID, channelID)
+	if spendable != 1 || cumulative != 1 {
+		t.Errorf("balance: want (1,1), got (%d,%d)", spendable, cumulative)
+	}
+}
+
+func TestRecordClick_OnCooldown(t *testing.T) {
+	svc := NewWatchService(newTestDB(t))
+	userID := seedWatchUser(t, svc)
+
+	svc.StartSession(userID, "ch_abc")
+
+	// First click should succeed.
+	if _, err := svc.RecordClick(userID, "ch_abc"); err != nil {
+		t.Fatalf("first click: %v", err)
+	}
+
+	// Immediate second click must be rejected with ErrClickOnCooldown.
+	_, err := svc.RecordClick(userID, "ch_abc")
+	var cooldownErr ErrClickOnCooldown
+	if !errors.As(err, &cooldownErr) {
+		t.Errorf("want ErrClickOnCooldown, got %v", err)
+	}
+	if cooldownErr.RetryAfterMs <= 0 {
+		t.Errorf("expected RetryAfterMs > 0, got %d", cooldownErr.RetryAfterMs)
+	}
+}
+
+func TestRecordClick_LedgerAccumulates(t *testing.T) {
+	svc := NewWatchService(newTestDB(t))
+	userID := seedWatchUser(t, svc)
+	channelID := "ch_abc"
+
+	svc.StartSession(userID, channelID)
+
+	// Backdate cooldown to simulate passing time between clicks.
+	backdateCooldown := func() {
+		t.Helper()
+		if err := svc.db.Model(&models.WatchSession{}).
+			Where("user_id = ? AND channel_id = ? AND is_active = true", userID, channelID).
+			Update("click_cooldown_until", "1970-01-01 00:00:00").Error; err != nil {
+			t.Fatalf("backdate cooldown: %v", err)
+		}
+	}
+
+	for i := 0; i < 3; i++ {
+		backdateCooldown()
+		if _, err := svc.RecordClick(userID, channelID); err != nil {
+			t.Fatalf("click %d: %v", i+1, err)
+		}
+	}
+
+	spendable, cumulative, _ := svc.GetBalance(userID, channelID)
+	if spendable != 3 || cumulative != 3 {
+		t.Errorf("want (3,3) after 3 clicks, got (%d,%d)", spendable, cumulative)
 	}
 }
 

@@ -1,13 +1,25 @@
 import { useTwitch } from './hooks/useTwitch'
 import { useBits } from './hooks/useBits'
 import { useHeartbeat } from './hooks/useHeartbeat'
+import { useClickBoost } from './hooks/useClickBoost'
 
 export default function App() {
   const { context, jwt, products, bitsEnabled, authError } = useTwitch()
   const { buyWithBits, status, error } = useBits(jwt)
-  const { balance, gain, isAnimating } = useHeartbeat(jwt, {
-    enabled: context?.role === 'viewer',
+  const isViewer = context?.role === 'viewer'
+  const { balance: heartbeatBalance, gain, isAnimating } = useHeartbeat(jwt, {
+    enabled: isViewer,
   })
+  const {
+    handleClick,
+    cooldownMs,
+    isAnimating: clickAnimating,
+    gain: clickGain,
+    balance: clickBalance,
+  } = useClickBoost(context?.channelId, isViewer)
+
+  // Show the most recently updated balance (click response is more recent than heartbeat).
+  const balance = clickBalance ?? heartbeatBalance
 
   if (!context) {
     return (
@@ -47,6 +59,27 @@ export default function App() {
           </div>
           {gain !== null && gain > 0 && (
             <span className="ext-balance-gain">+{gain.toLocaleString()} 點</span>
+          )}
+        </section>
+
+        <section className="ext-mine">
+          <div className="ext-mine__wrap">
+            <button
+              className={`ext-mine__btn${cooldownMs > 0 ? ' ext-mine__btn--cooldown' : ''}`}
+              onClick={handleClick}
+              disabled={cooldownMs > 0}
+              aria-label="Click to mine points"
+            >
+              ⛏
+            </button>
+            {clickGain !== null && clickGain > 0 && (
+              <span className={`ext-mine__gain${clickAnimating ? '' : ' ext-mine__gain--hidden'}`}>
+                +{clickGain}
+              </span>
+            )}
+          </div>
+          {cooldownMs > 0 && (
+            <span className="ext-mine__cooldown">{(cooldownMs / 1000).toFixed(1)}s</span>
           )}
         </section>
 

@@ -23,6 +23,9 @@ type WatchSession struct {
 	AccumulatedSeconds int64      `gorm:"not null;default:0"                             json:"accumulated_seconds"`
 	RewardedSeconds    int64      `gorm:"not null;default:0"                             json:"rewarded_seconds"`
 	LastHeartbeatAt    time.Time  `gorm:"not null;default:now()"                         json:"last_heartbeat_at"`
+	// ClickCooldownUntil tracks when the viewer may next click.
+	// Defaults to the epoch so the first click is always allowed.
+	ClickCooldownUntil time.Time  `gorm:"not null;default:'1970-01-01 00:00:00+00'"      json:"-"`
 	IsActive           bool       `gorm:"not null;default:true;index"                    json:"is_active"`
 	EndedAt            *time.Time `                                                      json:"ended_at"`
 	CreatedAt          time.Time  `                                                      json:"created_at"`
