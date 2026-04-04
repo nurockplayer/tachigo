@@ -1,6 +1,6 @@
+import { isAxiosError } from 'axios'
 import type { AuthProvider } from '@refinedev/core'
 import {
-  isAxiosError,
   isAuthenticated,
   login,
   logout,

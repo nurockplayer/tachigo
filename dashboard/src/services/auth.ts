@@ -69,8 +69,6 @@ export async function restoreSession(): Promise<void> {
   }
 }
 
-export { isAxiosError }
-
 let isRefreshing = false
 const pendingRequests: Array<{
   resolve: (value: unknown) => void
@@ -108,6 +106,8 @@ client.interceptors.response.use(
       queued.forEach(({ resolve }) => resolve(undefined))
       return client(retryConfig as AxiosRequestConfig)
     } catch (refreshError) {
+      accessToken = null
+      clearAuthToken()
       const queued = pendingRequests.splice(0)
       queued.forEach(({ reject }) => reject(refreshError))
       return Promise.reject(error)
