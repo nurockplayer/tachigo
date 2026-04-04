@@ -14,6 +14,15 @@ interface LoginResponse {
   }
 }
 
+interface RefreshResponse {
+  data: {
+    tokens: {
+      access_token: string
+      refresh_token: string
+    }
+  }
+}
+
 export async function login(email: string, password: string): Promise<void> {
   const { data } = await client.post<LoginResponse>('/api/v1/auth/login', {
     email,
@@ -36,6 +45,22 @@ export async function logout(): Promise<void> {
 
 export function isAuthenticated(): boolean {
   return accessToken !== null
+}
+
+export function getAccessToken(): string | null {
+  return accessToken
+}
+
+export async function restoreSession(): Promise<void> {
+  const refreshToken = localStorage.getItem('refresh_token')
+  if (!refreshToken) throw new Error('no refresh token')
+
+  const { data } = await client.post<RefreshResponse>('/api/v1/auth/refresh', {
+    refresh_token: refreshToken,
+  })
+  accessToken = data.data.tokens.access_token
+  localStorage.setItem('refresh_token', data.data.tokens.refresh_token)
+  setAuthToken(accessToken)
 }
 
 export { isAxiosError }

@@ -12,6 +12,8 @@
   },
   "dependencies": {
     "@radix-ui/react-slot": "^1.2.3",
+    "@refinedev/core": "^5.0.12",
+    "@refinedev/react-router": "^2.0.4",
     "@tailwindcss/postcss": "^4.2.2",
     "axios": "^1.14.0",
     "class-variance-authority": "^0.7.1",
