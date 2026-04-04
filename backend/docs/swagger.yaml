@@ -145,11 +145,13 @@ definitions:
     enum:
     - viewer
     - streamer
+    - agency
     - admin
     type: string
     x-enum-varnames:
     - RoleViewer
     - RoleStreamer
+    - RoleAgency
     - RoleAdmin
   services.AddressInput:
     properties:

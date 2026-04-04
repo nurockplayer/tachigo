@@ -18,6 +18,7 @@ func New(
 	extSvc *services.ExtensionService,
 	emailAuthSvc *services.EmailAuthService,
 	watchSvc *services.WatchService,
+	clickSvc *services.ClickService,
 	allowedOrigins []string,
 ) *gin.Engine {
 	r := gin.New()
@@ -30,6 +31,7 @@ func New(
 	extH := handlers.NewExtensionHandler(extSvc)
 	emailH := handlers.NewEmailAuthHandler(emailAuthSvc)
 	watchH := handlers.NewWatchHandler(watchSvc)
+	clickH := handlers.NewClickHandler(clickSvc)
 
 	r.GET("/health", func(c *gin.Context) {
 		c.JSON(200, gin.H{"status": "ok"})
@@ -80,6 +82,13 @@ func New(
 			watch.POST("/heartbeat", watchH.Heartbeat)
 			watch.POST("/end", watchH.EndSession)
 			watch.GET("/balance", watchH.GetBalance)
+		}
+
+		// Click-to-earn points (requires tachigo JWT)
+		extAuth := ext.Group("")
+		extAuth.Use(middleware.JWTAuth(authSvc))
+		{
+			extAuth.POST("/click", clickH.Click)
 		}
 	}
 

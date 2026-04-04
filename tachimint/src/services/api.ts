@@ -62,6 +62,23 @@ function parseBalanceFromHeartbeatResponse(payload: unknown): number {
   return value
 }
 
+interface ClickResponse {
+  pointsEarned: number
+  newBalance: number
+  cooldownRemainingMs: number
+}
+
+export async function sendClick(channelId: string): Promise<ClickResponse> {
+  const { data } = await client.post('/api/v1/extension/click', { channel_id: channelId })
+  // eslint-disable-next-line @typescript-eslint/no-explicit-any
+  const raw = (data?.data ?? data) as any
+  return {
+    pointsEarned: raw.points_earned ?? 0,
+    newBalance: raw.new_balance ?? 0,
+    cooldownRemainingMs: raw.cooldown_remaining_ms ?? 0,
+  }
+}
+
 export async function sendHeartbeat(extensionJwt: string): Promise<HeartbeatResponse> {
   const { data } = await client.post('/api/v1/extension/heartbeat', {
     extension_jwt: extensionJwt,
