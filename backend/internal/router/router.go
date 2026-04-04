@@ -20,6 +20,7 @@ func New(
 	watchSvc *services.WatchService,
 	channelConfigSvc *services.ChannelConfigService,
 	pointsSvc *services.PointsService,
+	streamerSvc *services.StreamerService,
 	allowedOrigins []string,
 ) *gin.Engine {
 	r := gin.New()
@@ -34,6 +35,7 @@ func New(
 	watchH := handlers.NewWatchHandler(watchSvc, pointsSvc)
 	channelConfigH := handlers.NewChannelConfigHandler(channelConfigSvc)
 	pointsH := handlers.NewPointsHandler(pointsSvc)
+	streamerH := handlers.NewStreamerHandler(streamerSvc)
 
 	r.GET("/health", func(c *gin.Context) {
 		c.JSON(200, gin.H{"status": "ok"})
@@ -118,6 +120,9 @@ func New(
 	dashboard.Use(middleware.JWTAuth(authSvc))
 	dashboard.Use(middleware.RequireRole(models.RoleAdmin, models.RoleStreamer))
 	{
+		dashboard.POST("/streamers/register", streamerH.Register)
+		dashboard.GET("/streamers/channels", streamerH.ListChannels)
+		dashboard.GET("/channels/:channel_id/stats", streamerH.GetChannelStats)
 		dashboard.PUT("/channels/:channel_id/config", channelConfigH.UpdateChannelConfig)
 	}
 
