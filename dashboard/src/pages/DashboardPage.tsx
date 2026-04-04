@@ -10,6 +10,38 @@ interface User {
   email_verified: boolean
 }
 
+const MOCK_STATS = {
+  interactionRate: 34,
+  collaborationCount: 1240,
+  retentionRate: 61,
+  conversionCount: 87,
+  angelGateProgress: 68,
+  angelGateTarget: 100,
+}
+
+function StatCard({
+  label,
+  value,
+  unit,
+  description,
+}: {
+  label: string
+  value: number | string
+  unit?: string
+  description: string
+}) {
+  return (
+    <div className="space-y-1 rounded-lg border border-border bg-secondary/30 p-5">
+      <p className="text-xs text-muted-foreground">{label}</p>
+      <p className="text-2xl font-bold text-foreground">
+        {value}
+        {unit && <span className="ml-1 text-sm font-normal text-muted-foreground">{unit}</span>}
+      </p>
+      <p className="text-xs text-muted-foreground">{description}</p>
+    </div>
+  )
+}
+
 export default function DashboardPage() {
   const [user, setUser] = useState<User | null>(null)
   const [userLoading, setUserLoading] = useState(true)
@@ -30,14 +62,17 @@ export default function DashboardPage() {
   }, [])
 
   const displayName = user?.username ?? user?.email ?? '使用者'
+  const progressPct = Math.min(
+    100,
+    Math.round((MOCK_STATS.angelGateProgress / MOCK_STATS.angelGateTarget) * 100),
+  )
 
   return (
-    <div className="space-y-6">
+    <div className="space-y-8">
       <h1 className="text-2xl font-bold text-foreground">總覽</h1>
 
       <div className="grid gap-4 sm:grid-cols-2">
-        {/* 使用者資訊卡 */}
-        <div className="space-y-3 rounded-lg border border-border p-6">
+        <div className="space-y-3 rounded-lg border border-border bg-secondary/30 p-6">
           <p className="text-sm text-muted-foreground">歡迎回來</p>
           {userLoading ? (
             <div className="space-y-2">
@@ -68,8 +103,7 @@ export default function DashboardPage() {
           )}
         </div>
 
-        {/* 系統狀態卡 */}
-        <div className="space-y-3 rounded-lg border border-border p-6">
+        <div className="space-y-3 rounded-lg border border-border bg-secondary/30 p-6">
           <p className="text-sm text-muted-foreground">系統狀態</p>
           <div className="flex items-center gap-2">
             <span
@@ -88,6 +122,61 @@ export default function DashboardPage() {
           </div>
         </div>
       </div>
+
+      <section className="space-y-3">
+        <h2 className="text-sm font-semibold uppercase tracking-wide text-muted-foreground">
+          商業指標
+          <span className="ml-2 text-xs font-normal normal-case">(示範資料)</span>
+        </h2>
+        <div className="grid gap-4 sm:grid-cols-2 lg:grid-cols-4">
+          <StatCard
+            label="互動率"
+            value={MOCK_STATS.interactionRate}
+            unit="%"
+            description="每場直播點擊參與觀眾比例"
+          />
+          <StatCard
+            label="協作率"
+            value={MOCK_STATS.collaborationCount.toLocaleString()}
+            unit="人"
+            description="參與安琪拉之門的唯一觀眾數"
+          />
+          <StatCard
+            label="7 日留存率"
+            value={MOCK_STATS.retentionRate}
+            unit="%"
+            description="導入後 7 日回訪率"
+          />
+          <StatCard
+            label="轉化數"
+            value={MOCK_STATS.conversionCount}
+            unit="件"
+            description="任務完成 + NFT 鑄造合計"
+          />
+        </div>
+      </section>
+
+      <section className="space-y-3">
+        <h2 className="text-sm font-semibold uppercase tracking-wide text-muted-foreground">
+          安琪拉之門 — 全服協作進度
+          <span className="ml-2 text-xs font-normal normal-case">(示範資料)</span>
+        </h2>
+        <div className="space-y-4 rounded-lg border border-border bg-secondary/30 p-6">
+          <div className="flex items-center justify-between text-sm">
+            <span className="text-muted-foreground">全服能量匯聚進度</span>
+            <span className="font-semibold text-foreground">{progressPct}%</span>
+          </div>
+          <div className="h-3 w-full overflow-hidden rounded-full bg-muted">
+            <div
+              className="h-full rounded-full bg-primary transition-all duration-500"
+              style={{ width: `${progressPct}%` }}
+            />
+          </div>
+          <p className="text-xs text-muted-foreground">
+            達成 100% 後觸發 E5，解鎖頻道專屬 Web3 NFT
+          </p>
+        </div>
+      </section>
     </div>
   )
 }
