@@ -126,6 +126,20 @@ docker compose run --no-deps --rm app go test ./...
 - Claude Code 只負責：理解需求、規劃架構、給 Codex 下指令、審查結果
 - 僅在極簡單的單行修改時，Claude Code 才直接動手
 
+**建議優先使用的快捷指令：**
+
+- `/fix-with-codex <問題>`：debug 並盡量直接修復
+- `/implement-with-codex <需求>`：實作功能並補必要驗證
+- `/review-with-codex <PR/變更範圍>`：以 bug / regression / 測試缺口為主做 review
+- `/explore-with-codex <主題>`：快速摸清程式結構與現況
+- `/plan-with-codex <任務>`：先探索，再輸出短版可執行計畫
+- `/test-with-codex <測試範圍>`：執行最相關測試並收斂失敗原因
+
+這些指令都會刻意限制輸出格式，避免貼完整 diff、冗長 log 或大段原始碼，讓 Claude 只接收高密度摘要。
+
+完整教學請見 [docs/claude-codex-workflow.md](docs/claude-codex-workflow.md)。
+快速版可見 [docs/claude-codex-cheatsheet.md](docs/claude-codex-cheatsheet.md)。
+
 **指令操作的分界：**
 
 | 操作 | 誰執行 | 原因 |
@@ -133,7 +147,8 @@ docker compose run --no-deps --rm app go test ./...
 | `git status` / `git log` / `git diff` | Claude Code | 需要即時看輸出來做決策 |
 | `git commit` / `git push` / `git checkout -b` | Claude Code | Codex sandbox 對 `.git` 目錄無寫入權限 |
 | `gh` 指令（issue、PR、API） | Codex | 純執行；`~/.codex/config.toml` 設 `sandbox_permissions = ["network-full-access"]` 讓 sandbox 有網路存取 |
-| 檔案搜尋（探索用） | Claude Code（用 Glob / Grep 工具） | 規劃階段，需要結果判斷下一步 |
+| 檔案搜尋——定向（知道找什麼） | Claude Code（用 Glob / Grep 工具） | 規劃階段，需要結果判斷下一步 |
+| 檔案搜尋——探索性（不確定在哪） | Codex（透過 `/explore-with-codex`） | 大範圍搜尋交給 Codex，只拿摘要回來 |
 | 複雜 bash 腳本、批次操作 | Codex | 純執行，只需確認最終結果 |
 
 核心判斷：Claude 需要即時看輸出來決策 → 自己做；純執行 → 交給 Codex
