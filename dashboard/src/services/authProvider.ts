@@ -1,5 +1,6 @@
 import type { AuthProvider } from '@refinedev/core'
-import { isAxiosError, isAuthenticated, login, logout } from '@/services/auth'
+import { isAxiosError } from 'axios'
+import { getAccessToken, isAuthenticated, login, logout, restoreSession } from '@/services/auth'
 
 type LoginVariables = {
   email?: string
@@ -45,11 +46,15 @@ export const authProvider: AuthProvider = {
       success: true,
     }
   },
+  // Blocker 3 fix: 頁面重整後嘗試用 refresh_token 重建 session，而非直接跳 /login
   check: async () => {
     if (isAuthenticated()) {
-      return {
-        authenticated: true,
-      }
+      return { authenticated: true }
+    }
+
+    const restored = await restoreSession()
+    if (restored) {
+      return { authenticated: true }
     }
 
     return {
@@ -57,13 +62,12 @@ export const authProvider: AuthProvider = {
       redirectTo: '/login',
     }
   },
+  // Blocker 1 fix: 解 access_token（帶有 role claims），而非 opaque refresh_token
   getPermissions: async () => {
-    const refreshToken = localStorage.getItem('refresh_token')
-    if (!refreshToken) {
-      return null
-    }
+    const token = getAccessToken()
+    if (!token) return null
 
-    const payload = decodeJwtPayload(refreshToken)
+    const payload = decodeJwtPayload(token)
     return payload?.role ?? null
   },
   onError: async (error) => {
