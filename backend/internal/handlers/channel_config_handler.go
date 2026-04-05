@@ -51,6 +51,10 @@ func (h *ChannelConfigHandler) UpdateChannelConfig(c *gin.Context) {
 		badRequest(c, err.Error())
 		return
 	}
+	if body.SecondsPerPoint == 0 && body.Multiplier == 0 {
+		badRequest(c, "at least one field must be a positive value")
+		return
+	}
 
 	channelID, allowed := h.authorizeChannelAccess(c)
 	if !allowed {

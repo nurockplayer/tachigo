@@ -119,7 +119,7 @@ func New(
 
 	dashboard := v1.Group("/dashboard")
 	dashboard.Use(middleware.JWTAuth(authSvc))
-	dashboard.Use(middleware.RequireRole(models.RoleAdmin, models.RoleStreamer, models.RoleAgency))
+	dashboard.Use(middleware.RequireRole(models.RoleAdmin, models.RoleStreamer))
 	{
 		dashboard.POST("/streamers/register", streamerH.Register)
 		dashboard.GET("/streamers/channels", streamerH.ListChannels)
