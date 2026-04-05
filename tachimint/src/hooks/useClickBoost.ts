@@ -5,11 +5,14 @@ const OPTIMISTIC_COOLDOWN_MS = 5_000
 const ANIM_DURATION_MS = 1_500
 const COUNTDOWN_INTERVAL_MS = 100
 
-export function useClickBoost(channelId: string | undefined, enabled: boolean) {
+export function useClickBoost(
+  channelId: string | undefined,
+  enabled: boolean,
+  onBalanceUpdate: (balance: number) => void,
+) {
   const [cooldownMs, setCooldownMs] = useState(0)
   const [isAnimating, setIsAnimating] = useState(false)
   const [gain, setGain] = useState<number | null>(null)
-  const [balance, setBalance] = useState<number | null>(null)
 
   const onCooldownRef = useRef(false)
   const cooldownTimerRef = useRef<number | null>(null)
@@ -50,7 +53,7 @@ export function useClickBoost(channelId: string | undefined, enabled: boolean) {
 
     try {
       const result = await sendClick(channelId)
-      setBalance(result.balance)
+      onBalanceUpdate(result.balance)
       setGain(result.delta)
       setIsAnimating(true)
       if (animTimerRef.current !== null) clearTimeout(animTimerRef.current)
@@ -81,5 +84,5 @@ export function useClickBoost(channelId: string | undefined, enabled: boolean) {
     }
   }, [])
 
-  return { handleClick, cooldownMs, isAnimating, gain, balance }
+  return { handleClick, cooldownMs, isAnimating, gain }
 }

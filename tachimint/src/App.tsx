@@ -7,7 +7,7 @@ export default function App() {
   const { context, jwt, products, bitsEnabled, authError } = useTwitch()
   const { buyWithBits, status, error } = useBits(jwt)
   const isViewer = context?.role === 'viewer'
-  const { balance: heartbeatBalance, gain, isAnimating } = useHeartbeat(jwt, {
+  const { balance, gain, isAnimating, syncBalance } = useHeartbeat(jwt, {
     enabled: isViewer,
   })
   const {
@@ -15,11 +15,7 @@ export default function App() {
     cooldownMs,
     isAnimating: clickAnimating,
     gain: clickGain,
-    balance: clickBalance,
-  } = useClickBoost(context?.channelId, isViewer)
-
-  // Show the most recently updated balance (click response is more recent than heartbeat).
-  const balance = clickBalance ?? heartbeatBalance
+  } = useClickBoost(context?.channelId, isViewer, syncBalance)
 
   if (!context) {
     return (
