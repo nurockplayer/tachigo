@@ -31,7 +31,7 @@ func newDashboardTestEnv(t *testing.T) *dashboardEnv {
 	v1 := base.router.Group("/api/v1")
 	dashboard := v1.Group("/dashboard")
 	dashboard.Use(middleware.JWTAuth(base.authSvc))
-	dashboard.Use(middleware.RequireRole(models.RoleAdmin, models.RoleStreamer, models.RoleAgency))
+	dashboard.Use(middleware.RequireRole(models.RoleAdmin, models.RoleStreamer))
 	{
 		dashboard.GET("/channels/:channel_id/config", configH.GetChannelConfig)
 		dashboard.PUT("/channels/:channel_id/config", configH.UpdateChannelConfig)
@@ -127,6 +127,17 @@ func TestUpdateChannelConfig_NoToken(t *testing.T) {
 func TestUpdateChannelConfig_ViewerForbidden(t *testing.T) {
 	env := newDashboardTestEnv(t)
 	token := env.tokenForRole(t, models.RoleViewer)
+
+	w := updateChannelConfig(t, env.router, token, "channel_123", `{"seconds_per_point":45}`)
+
+	if w.Code != http.StatusForbidden {
+		t.Fatalf("want 403, got %d: %s", w.Code, w.Body.String())
+	}
+}
+
+func TestUpdateChannelConfig_AgencyForbidden(t *testing.T) {
+	env := newDashboardTestEnv(t)
+	token := env.tokenForRole(t, models.RoleAgency)
 
 	w := updateChannelConfig(t, env.router, token, "channel_123", `{"seconds_per_point":45}`)
 
@@ -254,5 +265,27 @@ func TestUpdateChannelConfig_RejectsInvalidBody(t *testing.T) {
 	w := updateChannelConfig(t, env.router, token, "channel_123", `{"seconds_per_point":-1}`)
 	if w.Code != http.StatusBadRequest {
 		t.Fatalf("want 400, got %d: %s", w.Code, w.Body.String())
+	}
+}
+
+func TestUpdateChannelConfig_RejectsEmptyValues(t *testing.T) {
+	env := newDashboardTestEnv(t)
+	token := env.tokenForRole(t, models.RoleAdmin)
+
+	testCases := []struct {
+		name string
+		body string
+	}{
+		{name: "empty object", body: `{}`},
+		{name: "zero values", body: `{"seconds_per_point":0,"multiplier":0}`},
+	}
+
+	for _, tc := range testCases {
+		t.Run(tc.name, func(t *testing.T) {
+			w := updateChannelConfig(t, env.router, token, "channel_123", tc.body)
+			if w.Code != http.StatusBadRequest {
+				t.Fatalf("want 400, got %d: %s", w.Code, w.Body.String())
+			}
+		})
 	}
 }
