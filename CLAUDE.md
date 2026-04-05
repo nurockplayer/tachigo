@@ -145,8 +145,8 @@ docker compose run --no-deps --rm app go test ./...
 | 操作 | 誰執行 | 原因 |
 |---|---|---|
 | `git status` / `git log` / `git diff` | Claude Code | 需要即時看輸出來做決策 |
-| `git commit` / `git push` / `git checkout -b` | Claude Code | Codex sandbox 對 `.git` 目錄無寫入權限 |
-| `gh` 指令（issue、PR、API） | Codex | 純執行；`~/.codex/config.toml` 設 `sandbox_permissions = ["network-full-access"]` 讓 sandbox 有網路存取 |
+| `git commit` / `git push` / `git checkout -b` | Codex | 專案根目錄的 `.codex/config.toml` 已預先授權，可直接執行 |
+| `gh` 指令（issue、PR、API） | Codex | 專案根目錄的 `.codex/config.toml` 已預先授權，可直接執行 |
 | 檔案搜尋——定向（知道找什麼） | Claude Code（用 Glob / Grep 工具） | 規劃階段，需要結果判斷下一步 |
 | 檔案搜尋——探索性（不確定在哪） | Codex（透過 `/explore-with-codex`） | 大範圍搜尋交給 Codex，只拿摘要回來 |
 | 複雜 bash 腳本、批次操作 | Codex | 純執行，只需確認最終結果 |

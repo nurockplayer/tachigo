@@ -1,0 +1,6 @@
+# tachigo 專案層級 Codex 設定
+# git 操作需要 disk write 權限，預先授權避免每次手動提權
+sandbox_permissions = [
+  "network-full-access",
+  "disk-write-folder:./"
+]
