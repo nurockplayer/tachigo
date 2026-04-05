@@ -1296,6 +1296,120 @@
                 }
             }
         },
+        "/users/me/points": {
+            "get": {
+                "security": [
+                    {
+                        "BearerAuth": []
+                    }
+                ],
+                "produces": [
+                    "application/json"
+                ],
+                "tags": [
+                    "points"
+                ],
+                "summary": "Get my points balance",
+                "parameters": [
+                    {
+                        "type": "string",
+                        "description": "Twitch channel ID",
+                        "name": "channel_id",
+                        "in": "query",
+                        "required": true
+                    }
+                ],
+                "responses": {
+                    "200": {
+                        "description": "OK",
+                        "schema": {
+                            "allOf": [
+                                {
+                                    "$ref": "#/definitions/handlers.Response"
+                                },
+                                {
+                                    "type": "object",
+                                    "properties": {
+                                        "data": {
+                                            "$ref": "#/definitions/handlers.PointsBalanceResponse"
+                                        }
+                                    }
+                                }
+                            ]
+                        }
+                    },
+                    "400": {
+                        "description": "Bad Request",
+                        "schema": {
+                            "$ref": "#/definitions/handlers.Response"
+                        }
+                    },
+                    "401": {
+                        "description": "Unauthorized",
+                        "schema": {
+                            "$ref": "#/definitions/handlers.Response"
+                        }
+                    }
+                }
+            }
+        },
+        "/users/me/points/history": {
+            "get": {
+                "security": [
+                    {
+                        "BearerAuth": []
+                    }
+                ],
+                "produces": [
+                    "application/json"
+                ],
+                "tags": [
+                    "points"
+                ],
+                "summary": "List my recent points transactions",
+                "parameters": [
+                    {
+                        "type": "string",
+                        "description": "Twitch channel ID",
+                        "name": "channel_id",
+                        "in": "query",
+                        "required": true
+                    }
+                ],
+                "responses": {
+                    "200": {
+                        "description": "OK",
+                        "schema": {
+                            "allOf": [
+                                {
+                                    "$ref": "#/definitions/handlers.Response"
+                                },
+                                {
+                                    "type": "object",
+                                    "properties": {
+                                        "data": {
+                                            "$ref": "#/definitions/handlers.PointsHistoryResponse"
+                                        }
+                                    }
+                                }
+                            ]
+                        }
+                    },
+                    "400": {
+                        "description": "Bad Request",
+                        "schema": {
+                            "$ref": "#/definitions/handlers.Response"
+                        }
+                    },
+                    "401": {
+                        "description": "Unauthorized",
+                        "schema": {
+                            "$ref": "#/definitions/handlers.Response"
+                        }
+                    }
+                }
+            }
+        },
         "/users/me/providers": {
             "get": {
                 "security": [
@@ -1377,6 +1491,48 @@
             "properties": {
                 "nonce": {
                     "type": "string"
+                }
+            }
+        },
+        "handlers.PointsBalanceResponse": {
+            "type": "object",
+            "properties": {
+                "cumulative_total": {
+                    "type": "integer"
+                },
+                "spendable_balance": {
+                    "type": "integer"
+                }
+            }
+        },
+        "handlers.PointsHistoryItem": {
+            "type": "object",
+            "properties": {
+                "amount": {
+                    "type": "integer"
+                },
+                "created_at": {
+                    "type": "string"
+                },
+                "note": {
+                    "type": "string"
+                },
+                "sku": {
+                    "type": "string"
+                },
+                "type": {
+                    "type": "string"
+                }
+            }
+        },
+        "handlers.PointsHistoryResponse": {
+            "type": "object",
+            "properties": {
+                "transactions": {
+                    "type": "array",
+                    "items": {
+                        "$ref": "#/definitions/handlers.PointsHistoryItem"
+                    }
                 }
             }
         },
