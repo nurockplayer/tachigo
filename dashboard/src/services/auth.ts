@@ -64,7 +64,9 @@ export async function restoreSession(): Promise<void> {
     localStorage.setItem('refresh_token', data.data.tokens.refresh_token)
     setAuthToken(accessToken)
   } catch (error) {
-    localStorage.removeItem('refresh_token')
+    if (isAxiosError(error) && error.response?.status === 401) {
+      localStorage.removeItem('refresh_token')
+    }
     throw error
   }
 }
@@ -104,6 +106,12 @@ client.interceptors.response.use(
       await restoreSession()
       const queued = pendingRequests.splice(0)
       queued.forEach(({ resolve }) => resolve(undefined))
+
+      const newToken = getAccessToken()
+      if (newToken && retryConfig.headers) {
+        ;(retryConfig.headers as Record<string, string>).Authorization = `Bearer ${newToken}`
+      }
+
       return client(retryConfig as AxiosRequestConfig)
     } catch (refreshError) {
       accessToken = null
