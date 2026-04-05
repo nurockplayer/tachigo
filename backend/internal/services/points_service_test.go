@@ -2,6 +2,7 @@ package services
 
 import (
 	"errors"
+	"strings"
 	"testing"
 	"time"
 
@@ -170,6 +171,39 @@ func TestPointsService_AddPointsWithMeta_PersistsSKU(t *testing.T) {
 	}
 }
 
+func TestPointsService_AddPointsWithMeta_RejectsNonPositiveAmount(t *testing.T) {
+	svc, _ := newPointsSvc(t)
+	userID := seedViewer(t, svc)
+
+	err := svc.AddPointsWithMeta(
+		userID,
+		"ch_abc",
+		models.TxSourceBits,
+		0,
+		PointsCreditMeta{},
+	)
+	if !errors.Is(err, ErrInvalidPointsAmount) {
+		t.Fatalf("want ErrInvalidPointsAmount, got %v", err)
+	}
+}
+
+func TestPointsService_AddPointsWithMeta_RejectsTooLongSKU(t *testing.T) {
+	svc, _ := newPointsSvc(t)
+	userID := seedViewer(t, svc)
+	sku := strings.Repeat("a", 256)
+
+	err := svc.AddPointsWithMeta(
+		userID,
+		"ch_abc",
+		models.TxSourceBits,
+		100,
+		PointsCreditMeta{SKU: &sku},
+	)
+	if !errors.Is(err, ErrInvalidSKU) {
+		t.Fatalf("want ErrInvalidSKU, got %v", err)
+	}
+}
+
 // ─── ListTransactions ────────────────────────────────────────────────────────
 
 func TestPointsService_ListTransactions_EmptyWhenNoLedger(t *testing.T) {
@@ -261,6 +295,12 @@ func TestPointsService_ListTransactions_ReturnsLatest50NewestFirst(t *testing.T)
 	}
 	if len(txs) != 50 {
 		t.Fatalf("want 50 transactions, got %d", len(txs))
+	}
+	if !txs[0].CreatedAt.Equal(base.Add(54 * time.Second)) {
+		t.Fatalf("first tx should be newest (base+54s), got %v", txs[0].CreatedAt)
+	}
+	if !txs[len(txs)-1].CreatedAt.Equal(base.Add(5 * time.Second)) {
+		t.Fatalf("last tx should be cutoff boundary (base+5s), got %v", txs[len(txs)-1].CreatedAt)
 	}
 
 	for i := 1; i < len(txs); i++ {

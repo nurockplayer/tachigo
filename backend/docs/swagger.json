@@ -1512,7 +1512,8 @@
                     "type": "integer"
                 },
                 "created_at": {
-                    "type": "string"
+                    "type": "string",
+                    "format": "date-time"
                 },
                 "note": {
                     "type": "string"
@@ -1521,7 +1522,11 @@
                     "type": "string"
                 },
                 "type": {
-                    "type": "string"
+                    "type": "string",
+                    "enum": [
+                        "earn",
+                        "spend"
+                    ]
                 }
             }
         },

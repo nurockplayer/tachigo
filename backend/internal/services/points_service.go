@@ -3,6 +3,7 @@ package services
 import (
 	"errors"
 	"time"
+	"unicode/utf8"
 
 	"github.com/google/uuid"
 	"gorm.io/gorm"
@@ -14,6 +15,8 @@ import (
 var (
 	ErrInsufficientBalance = errors.New("insufficient spendable balance")
 	ErrLedgerNotFound      = errors.New("points ledger not found")
+	ErrInvalidPointsAmount = errors.New("amount must be greater than zero")
+	ErrInvalidSKU          = errors.New("sku length must be <= 255 characters")
 )
 
 type PointsCreditMeta struct {
@@ -132,6 +135,13 @@ func (s *PointsService) AddPointsWithMeta(
 	amount int64,
 	meta PointsCreditMeta,
 ) error {
+	if amount <= 0 {
+		return ErrInvalidPointsAmount
+	}
+	if meta.SKU != nil && utf8.RuneCountInString(*meta.SKU) > 255 {
+		return ErrInvalidSKU
+	}
+
 	return s.db.Transaction(func(tx *gorm.DB) error {
 		ledgerID := newUUID()
 		now := time.Now()

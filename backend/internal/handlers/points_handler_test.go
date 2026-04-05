@@ -225,6 +225,13 @@ func TestPointsHandler_GetHistory_ReturnsMappedTransactionsInDescendingOrder(t *
 	if _, ok := first["sku"]; ok {
 		t.Fatalf("first transaction should omit sku, got %v", first["sku"])
 	}
+	firstCreatedAt, ok := first["created_at"].(string)
+	if !ok {
+		t.Fatalf("first.created_at should be a string, got %T", first["created_at"])
+	}
+	if _, err := time.Parse(time.RFC3339, firstCreatedAt); err != nil {
+		t.Fatalf("first.created_at should be RFC3339, got %q (%v)", firstCreatedAt, err)
+	}
 
 	second := transactions[1].(map[string]interface{})
 	if second["type"] != "earn" {
@@ -238,6 +245,13 @@ func TestPointsHandler_GetHistory_ReturnsMappedTransactionsInDescendingOrder(t *
 	}
 	if _, ok := second["note"]; ok {
 		t.Fatalf("second transaction should omit note, got %v", second["note"])
+	}
+	secondCreatedAt, ok := second["created_at"].(string)
+	if !ok {
+		t.Fatalf("second.created_at should be a string, got %T", second["created_at"])
+	}
+	if _, err := time.Parse(time.RFC3339, secondCreatedAt); err != nil {
+		t.Fatalf("second.created_at should be RFC3339, got %q (%v)", secondCreatedAt, err)
 	}
 }
 

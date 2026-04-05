@@ -54,11 +54,11 @@ type PointsBalanceResponse struct {
 }
 
 type PointsHistoryItem struct {
-	Type      string    `json:"type"`
+	Type      string    `json:"type" enums:"earn,spend"`
 	Amount    int64     `json:"amount"`
 	SKU       *string   `json:"sku,omitempty"`
 	Note      *string   `json:"note,omitempty"`
-	CreatedAt time.Time `json:"created_at"`
+	CreatedAt time.Time `json:"created_at" format:"date-time"`
 }
 
 type PointsHistoryResponse struct {
