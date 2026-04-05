@@ -25,7 +25,7 @@ func newStreamerDashboardEnv(t *testing.T) *dashboardEnv {
 	streamerSvc := services.NewStreamerService(base.db, pointsSvc)
 	streamerH := handlers.NewStreamerHandler(streamerSvc)
 	configSvc := services.NewChannelConfigService(base.db)
-	configH := handlers.NewChannelConfigHandler(configSvc)
+	configH := handlers.NewChannelConfigHandler(configSvc, streamerSvc)
 
 	v1 := base.router.Group("/api/v1")
 	dashboard := v1.Group("/dashboard")

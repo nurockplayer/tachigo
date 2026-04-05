@@ -120,6 +120,7 @@ func migrateTestDB(db *gorm.DB) error {
 		`CREATE TABLE IF NOT EXISTS channel_configs (
 			channel_id TEXT PRIMARY KEY,
 			seconds_per_point INTEGER NOT NULL DEFAULT 60,
+			multiplier INTEGER NOT NULL DEFAULT 1,
 			created_at DATETIME,
 			updated_at DATETIME
 		)`,

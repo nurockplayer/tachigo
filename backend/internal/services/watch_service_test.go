@@ -215,6 +215,60 @@ func TestHeartbeat_CapsLargeGapAt30Seconds(t *testing.T) {
 	}
 }
 
+func TestHeartbeat_MultiplierApplied(t *testing.T) {
+	svc := NewWatchService(newTestDB(t))
+	userID := seedWatchUser(t, svc)
+	channelID := "ch_multi"
+
+	if err := svc.db.Create(&models.ChannelConfig{
+		ChannelID:       channelID,
+		SecondsPerPoint: 60,
+		Multiplier:      3,
+	}).Error; err != nil {
+		t.Fatalf("seed channel config: %v", err)
+	}
+
+	s, _ := svc.StartSession(userID, channelID)
+	backdateHeartbeat(t, svc, s.ID, 25*time.Second)
+	svc.Heartbeat(userID, channelID)
+	s = reloadSession(t, svc, s.ID)
+	backdateHeartbeat(t, svc, s.ID, 25*time.Second)
+	svc.Heartbeat(userID, channelID)
+	s = reloadSession(t, svc, s.ID)
+	backdateHeartbeat(t, svc, s.ID, 25*time.Second)
+
+	result, err := svc.Heartbeat(userID, channelID)
+	if err != nil {
+		t.Fatalf("unexpected error: %v", err)
+	}
+	if result.PointsEarned != 3 {
+		t.Fatalf("want 3 points, got %d", result.PointsEarned)
+	}
+}
+
+func TestHeartbeat_DefaultMultiplier(t *testing.T) {
+	svc := NewWatchService(newTestDB(t))
+	userID := seedWatchUser(t, svc)
+	channelID := "ch_default_multi"
+
+	s, _ := svc.StartSession(userID, channelID)
+	backdateHeartbeat(t, svc, s.ID, 25*time.Second)
+	svc.Heartbeat(userID, channelID)
+	s = reloadSession(t, svc, s.ID)
+	backdateHeartbeat(t, svc, s.ID, 25*time.Second)
+	svc.Heartbeat(userID, channelID)
+	s = reloadSession(t, svc, s.ID)
+	backdateHeartbeat(t, svc, s.ID, 25*time.Second)
+
+	result, err := svc.Heartbeat(userID, channelID)
+	if err != nil {
+		t.Fatalf("unexpected error: %v", err)
+	}
+	if result.PointsEarned != 1 {
+		t.Fatalf("want 1 point, got %d", result.PointsEarned)
+	}
+}
+
 // ─── EndSession ──────────────────────────────────────────────────────────────
 
 func TestEndSession_ClosesActiveSession(t *testing.T) {
