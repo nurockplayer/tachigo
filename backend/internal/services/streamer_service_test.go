@@ -24,12 +24,24 @@ func seedStreamerUserRow(t *testing.T, db *gorm.DB, role models.UserRole) uuid.U
 	return id
 }
 
+func seedTwitchAuthProvider(t *testing.T, db *gorm.DB, userID uuid.UUID, channelID string) {
+	t.Helper()
+	if err := db.Exec(
+		`INSERT INTO auth_providers (id, user_id, provider, provider_id, created_at, updated_at)
+		 VALUES (?, ?, ?, ?, CURRENT_TIMESTAMP, CURRENT_TIMESTAMP)`,
+		uuid.New(), userID, models.ProviderTwitch, channelID,
+	).Error; err != nil {
+		t.Fatalf("seed auth provider: %v", err)
+	}
+}
+
 func TestRegister_OK(t *testing.T) {
 	db := newTestDB(t)
 	watchSvc := NewWatchService(db)
 	pointsSvc := NewPointsService(db, watchSvc)
 	svc := NewStreamerService(db, pointsSvc)
 	userID := seedStreamerUserRow(t, db, models.RoleStreamer)
+	seedTwitchAuthProvider(t, db, userID, "ch_abc")
 
 	streamer, err := svc.Register(userID, "ch_abc", "Alice")
 	if err != nil {
@@ -52,6 +64,7 @@ func TestRegister_UpdateDisplayName(t *testing.T) {
 	db := newTestDB(t)
 	svc := NewStreamerService(db, NewPointsService(db, NewWatchService(db)))
 	userID := seedStreamerUserRow(t, db, models.RoleStreamer)
+	seedTwitchAuthProvider(t, db, userID, "ch_abc")
 
 	if _, err := svc.Register(userID, "ch_abc", "Old"); err != nil {
 		t.Fatalf("register old: %v", err)
@@ -83,6 +96,8 @@ func TestListChannels_MultipleChannels(t *testing.T) {
 	db := newTestDB(t)
 	svc := NewStreamerService(db, NewPointsService(db, NewWatchService(db)))
 	userID := seedStreamerUserRow(t, db, models.RoleStreamer)
+	seedTwitchAuthProvider(t, db, userID, "ch_A")
+	seedTwitchAuthProvider(t, db, userID, "ch_B")
 
 	if _, err := svc.Register(userID, "ch_A", "Alpha"); err != nil {
 		t.Fatalf("register ch_A: %v", err)
