@@ -6,6 +6,8 @@ import (
 	"fmt"
 	"net/http"
 	"net/http/httptest"
+	"os"
+	"os/exec"
 	"testing"
 	"time"
 
@@ -41,6 +43,19 @@ func newWatchTestEnv(t *testing.T) *watchEnv {
 	}
 
 	return &watchEnv{testEnv: base, watchSvc: watchSvc, pointsSvc: pointsSvc}
+}
+
+type failingPointsService struct {
+	addWatchTimeErr     error
+	addBroadcastTimeErr error
+}
+
+func (s *failingPointsService) AddWatchTime(uuid.UUID, string, int64) error {
+	return s.addWatchTimeErr
+}
+
+func (s *failingPointsService) AddBroadcastTime(string, int64) error {
+	return s.addBroadcastTimeErr
 }
 
 // registerViewer registers a new user and returns their UUID + access token.
@@ -81,10 +96,12 @@ func (e *watchEnv) seedActiveSession(t *testing.T, userID uuid.UUID, channelID s
 func (e *watchEnv) watchTimeSeconds(t *testing.T, userID uuid.UUID, channelID string) int64 {
 	t.Helper()
 	var total int64
-	e.db.Raw(
+	if err := e.db.Raw(
 		`SELECT COALESCE(total_watch_seconds, 0) FROM watch_time_stats WHERE user_id = ? AND channel_id = ?`,
 		userID, channelID,
-	).Scan(&total)
+	).Scan(&total).Error; err != nil {
+		t.Fatalf("watchTimeSeconds query failed: %v", err)
+	}
 	return total
 }
 
@@ -154,5 +171,52 @@ func TestWatchHandler_Heartbeat_NoSession_Returns400(t *testing.T) {
 	w := heartbeatRequest(t, e.router, token, "ch_no_session")
 	if w.Code != http.StatusBadRequest {
 		t.Fatalf("expected 400, got %d: %s", w.Code, w.Body.String())
+	}
+}
+
+func TestWatchHandler_Heartbeat_PointsServiceFailure_Returns500(t *testing.T) {
+	base := newTestEnv(t)
+	watchSvc := services.NewWatchService(base.db)
+	watchH := handlers.NewWatchHandler(watchSvc, &failingPointsService{
+		addWatchTimeErr: fmt.Errorf("watch stats failed"),
+	})
+
+	watch := base.router.Group("/api/v1/extension/watch")
+	watch.Use(middleware.JWTAuth(base.authSvc))
+	watch.POST("/heartbeat", watchH.Heartbeat)
+
+	e := &watchEnv{testEnv: base, watchSvc: watchSvc}
+	channelID := "ch_test_500"
+	userID, token := e.registerViewer(t, "pointsfail")
+	e.seedActiveSession(t, userID, channelID, 30)
+
+	w := heartbeatRequest(t, e.router, token, channelID)
+	if w.Code != http.StatusInternalServerError {
+		t.Fatalf("expected 500, got %d: %s", w.Code, w.Body.String())
+	}
+
+	var resp handlers.Response
+	if err := json.Unmarshal(w.Body.Bytes(), &resp); err != nil {
+		t.Fatalf("decode response: %v", err)
+	}
+	if resp.Error != "internal server error" {
+		t.Fatalf("expected internal server error, got %q", resp.Error)
+	}
+}
+
+func TestWatchHandler_WatchTimeSeconds_QueryErrorFailsTest(t *testing.T) {
+	if os.Getenv("WATCH_TIME_SECONDS_FATAL") == "1" {
+		e := newWatchTestEnv(t)
+		if err := e.db.Exec(`DROP TABLE watch_time_stats`).Error; err != nil {
+			t.Fatalf("drop watch_time_stats: %v", err)
+		}
+		_ = e.watchTimeSeconds(t, uuid.New(), "ch_broken")
+		return
+	}
+
+	cmd := exec.Command(os.Args[0], "-test.run=TestWatchHandler_WatchTimeSeconds_QueryErrorFailsTest")
+	cmd.Env = append(os.Environ(), "WATCH_TIME_SECONDS_FATAL=1")
+	if err := cmd.Run(); err == nil {
+		t.Fatal("expected watchTimeSeconds to fail when the query errors")
 	}
 }

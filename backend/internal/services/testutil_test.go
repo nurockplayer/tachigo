@@ -108,6 +108,7 @@ func migrateTestDB(db *gorm.DB) error {
 			accumulated_seconds INTEGER NOT NULL DEFAULT 0,
 			rewarded_seconds INTEGER NOT NULL DEFAULT 0,
 			last_heartbeat_at DATETIME NOT NULL,
+			click_cooldown_until DATETIME NOT NULL DEFAULT '1970-01-01 00:00:00',
 			is_active INTEGER NOT NULL DEFAULT 1,
 			ended_at DATETIME,
 			created_at DATETIME,
@@ -122,6 +123,16 @@ func migrateTestDB(db *gorm.DB) error {
 			created_at DATETIME,
 			updated_at DATETIME
 		)`,
+		`CREATE TABLE IF NOT EXISTS streamers (
+			id TEXT PRIMARY KEY,
+			user_id TEXT NOT NULL REFERENCES users(id),
+			channel_id TEXT NOT NULL,
+			display_name TEXT,
+			created_at DATETIME,
+			updated_at DATETIME
+		)`,
+		`CREATE UNIQUE INDEX IF NOT EXISTS idx_streamers_user_channel
+			ON streamers (user_id, channel_id)`,
 		`CREATE TABLE IF NOT EXISTS points_ledgers (
 			id TEXT PRIMARY KEY,
 			user_id TEXT NOT NULL,

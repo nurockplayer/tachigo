@@ -13,6 +13,7 @@ type TxSource string
 const (
 	TxSourceBits      TxSource = "bits"
 	TxSourceWatchTime TxSource = "watch_time"
+	TxSourceClick     TxSource = "click"
 	TxSourceSpend     TxSource = "spend"
 )
 
