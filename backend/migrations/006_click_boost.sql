@@ -1,4 +1,4 @@
--- migrations/005_click_boost.sql
+-- migrations/006_click_boost.sql
 -- Adds click-boost cooldown tracking to watch_sessions.
 -- GORM AutoMigrate handles this automatically in dev.
 -- Use this for manual DB setup or production migrations.
