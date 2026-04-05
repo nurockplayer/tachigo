@@ -108,6 +108,7 @@ func migrateTestDB(db *gorm.DB) error {
 			accumulated_seconds INTEGER NOT NULL DEFAULT 0,
 			rewarded_seconds INTEGER NOT NULL DEFAULT 0,
 			last_heartbeat_at DATETIME NOT NULL,
+			click_cooldown_until DATETIME NOT NULL DEFAULT '1970-01-01 00:00:00',
 			is_active INTEGER NOT NULL DEFAULT 1,
 			ended_at DATETIME,
 			created_at DATETIME,

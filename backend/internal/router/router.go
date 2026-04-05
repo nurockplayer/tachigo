@@ -84,6 +84,7 @@ func New(
 		{
 			watch.POST("/start", watchH.StartSession)
 			watch.POST("/heartbeat", watchH.Heartbeat)
+			watch.POST("/click", watchH.Click)
 			watch.POST("/end", watchH.EndSession)
 			watch.GET("/balance", watchH.GetBalance)
 		}
