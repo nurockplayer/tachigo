@@ -33,7 +33,7 @@ func New(
 	extH := handlers.NewExtensionHandler(extSvc)
 	emailH := handlers.NewEmailAuthHandler(emailAuthSvc)
 	watchH := handlers.NewWatchHandler(watchSvc, pointsSvc)
-	channelConfigH := handlers.NewChannelConfigHandler(channelConfigSvc)
+	channelConfigH := handlers.NewChannelConfigHandler(channelConfigSvc, streamerSvc)
 	pointsH := handlers.NewPointsHandler(pointsSvc)
 	streamerH := handlers.NewStreamerHandler(streamerSvc)
 
@@ -124,6 +124,7 @@ func New(
 		dashboard.POST("/streamers/register", streamerH.Register)
 		dashboard.GET("/streamers/channels", streamerH.ListChannels)
 		dashboard.GET("/channels/:channel_id/stats", streamerH.GetChannelStats)
+		dashboard.GET("/channels/:channel_id/config", channelConfigH.GetChannelConfig)
 		dashboard.PUT("/channels/:channel_id/config", channelConfigH.UpdateChannelConfig)
 	}
 

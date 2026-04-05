@@ -53,8 +53,8 @@ func main() {
 		&models.EmailVerification{},
 		&models.PasswordReset{},
 		// Points & watch-time
-		&models.ChannelConfig{},
 		&models.Streamer{},
+		&models.ChannelConfig{},
 		&models.PointsLedger{},
 		&models.PointsTransaction{},
 		&models.WatchSession{},
