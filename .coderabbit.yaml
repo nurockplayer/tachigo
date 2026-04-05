@@ -1,0 +1,26 @@
+# yaml-language-server: $schema=https://coderabbit.ai/integrations/schema.v2.json
+
+language: "zh"
+tone_instructions: >-
+  請一律使用台灣正體中文（繁體中文）回覆，不可使用英文或簡體中文。
+  優先指出 bug、邏輯風險、行為回歸、測試缺口與安全問題；
+  findings 請優先列出，並盡量附上檔案路徑與原因。若沒有明確問題，請簡短說明即可；
+  避免空泛稱讚，也避免吹毛求疵。
+enable_free_tier: true
+
+reviews:
+  profile: "chill"
+  request_changes_workflow: false
+  high_level_summary: true
+  high_level_summary_in_walkthrough: false
+  review_status: true
+  commit_status: true
+  collapse_walkthrough: false
+  auto_review:
+    enabled: true
+    drafts: false
+    base_branches:
+      - develop
+
+chat:
+  auto_reply: true
