@@ -33,7 +33,7 @@ func New(
 	extH := handlers.NewExtensionHandler(extSvc)
 	emailH := handlers.NewEmailAuthHandler(emailAuthSvc)
 	watchH := handlers.NewWatchHandler(watchSvc, pointsSvc)
-	channelConfigH := handlers.NewChannelConfigHandler(channelConfigSvc)
+	channelConfigH := handlers.NewChannelConfigHandler(channelConfigSvc, streamerSvc)
 	pointsH := handlers.NewPointsHandler(pointsSvc)
 	streamerH := handlers.NewStreamerHandler(streamerSvc)
 
@@ -119,11 +119,12 @@ func New(
 
 	dashboard := v1.Group("/dashboard")
 	dashboard.Use(middleware.JWTAuth(authSvc))
-	dashboard.Use(middleware.RequireRole(models.RoleAdmin, models.RoleStreamer))
+	dashboard.Use(middleware.RequireRole(models.RoleAdmin, models.RoleStreamer, models.RoleAgency))
 	{
 		dashboard.POST("/streamers/register", streamerH.Register)
 		dashboard.GET("/streamers/channels", streamerH.ListChannels)
 		dashboard.GET("/channels/:channel_id/stats", streamerH.GetChannelStats)
+		dashboard.GET("/channels/:channel_id/config", channelConfigH.GetChannelConfig)
 		dashboard.PUT("/channels/:channel_id/config", channelConfigH.UpdateChannelConfig)
 	}
 
