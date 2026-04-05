@@ -152,6 +152,7 @@ func migrateTestDB(db *gorm.DB) error {
 			source TEXT NOT NULL,
 			delta INTEGER NOT NULL,
 			balance_after INTEGER NOT NULL,
+			sku TEXT,
 			note TEXT,
 			created_at DATETIME
 		)`,
