@@ -233,8 +233,8 @@ func TestHeartbeat_RejectsOverflowedPointsAward(t *testing.T) {
 	backdateHeartbeat(t, svc, s.ID, 25*time.Second)
 
 	_, err := svc.Heartbeat(userID, channelID)
-	if err == nil {
-		t.Fatal("want overflow error, got nil")
+	if !errors.Is(err, ErrPointsDeltaOverflow) {
+		t.Fatalf("want ErrPointsDeltaOverflow, got %v", err)
 	}
 }
 

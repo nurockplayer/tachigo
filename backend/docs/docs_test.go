@@ -2,6 +2,7 @@ package docs
 
 import (
 	"encoding/json"
+	"fmt"
 	"testing"
 )
 
@@ -51,20 +52,23 @@ func TestSwaggerDoc_UsesGlobalBearerAuthAndPublicOverrides(t *testing.T) {
 		{path: "/extension/auth/login", method: "post"},
 		{path: "/extension/bits/complete", method: "post"},
 	} {
-		pathItem, ok := paths[tc.path].(map[string]any)
-		if !ok {
-			t.Fatalf("%s: path item missing, got %#v", tc.path, paths[tc.path])
-		}
-		op, ok := pathItem[tc.method].(map[string]any)
-		if !ok {
-			t.Fatalf("%s %s: operation missing, got %#v", tc.method, tc.path, pathItem[tc.method])
-		}
-		override, ok := op["security"].([]any)
-		if !ok {
-			t.Fatalf("%s %s: security override missing, got %#v", tc.method, tc.path, op["security"])
-		}
-		if len(override) != 0 {
-			t.Fatalf("%s %s: want empty security override, got %#v", tc.method, tc.path, override)
-		}
+		tc := tc
+		t.Run(fmt.Sprintf("%s %s", tc.method, tc.path), func(t *testing.T) {
+			pathItem, ok := paths[tc.path].(map[string]any)
+			if !ok {
+				t.Fatalf("%s: path item missing, got %#v", tc.path, paths[tc.path])
+			}
+			op, ok := pathItem[tc.method].(map[string]any)
+			if !ok {
+				t.Fatalf("%s %s: operation missing, got %#v", tc.method, tc.path, pathItem[tc.method])
+			}
+			override, ok := op["security"].([]any)
+			if !ok {
+				t.Fatalf("%s %s: security override missing, got %#v", tc.method, tc.path, op["security"])
+			}
+			if len(override) != 0 {
+				t.Fatalf("%s %s: want empty security override, got %#v", tc.method, tc.path, override)
+			}
+		})
 	}
 }
