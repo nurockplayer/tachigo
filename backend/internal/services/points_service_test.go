@@ -368,6 +368,40 @@ func TestPointsService_GetWatchStats_ZeroWhenNone(t *testing.T) {
 
 // ─── AddBroadcastTime ────────────────────────────────────────────────────────
 
+func TestPointsService_AddHeartbeatTime_RollsBackWhenBroadcastWriteFails(t *testing.T) {
+	svc, _ := newPointsSvc(t)
+	userID := seedViewer(t, svc)
+	channelID := "ch_atomic"
+	seedStreamer(t, svc, channelID)
+
+	if err := svc.db.Exec(`DROP TABLE broadcast_time_logs`).Error; err != nil {
+		t.Fatalf("drop broadcast_time_logs: %v", err)
+	}
+
+	if err := svc.AddHeartbeatTime(userID, channelID, 30); err == nil {
+		t.Fatal("expected AddHeartbeatTime to fail when broadcast log write fails")
+	}
+
+	stats, err := svc.GetWatchStats(userID, channelID)
+	if err != nil {
+		t.Fatalf("unexpected watch stats error: %v", err)
+	}
+	if stats.TotalWatchSeconds != 0 {
+		t.Fatalf("expected watch_time_stats rollback, got %d", stats.TotalWatchSeconds)
+	}
+
+	var broadcastCount int64
+	if err := svc.db.Raw(
+		`SELECT COUNT(*) FROM broadcast_time_stats WHERE channel_id = ?`,
+		channelID,
+	).Scan(&broadcastCount).Error; err != nil {
+		t.Fatalf("count broadcast_time_stats: %v", err)
+	}
+	if broadcastCount != 0 {
+		t.Fatalf("expected broadcast_time_stats rollback, got %d rows", broadcastCount)
+	}
+}
+
 func TestPointsService_AddBroadcastTime_NoOpWhenStreamerNotRegistered(t *testing.T) {
 	svc, _ := newPointsSvc(t)
 

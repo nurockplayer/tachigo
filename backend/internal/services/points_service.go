@@ -167,8 +167,12 @@ func (s *PointsService) AddPointsWithMeta(
 // AddWatchTime accumulates observed seconds for a viewer in a channel.
 // Called after each successful Heartbeat.
 func (s *PointsService) AddWatchTime(userID uuid.UUID, channelID string, seconds int64) error {
+	return s.addWatchTime(s.db, userID, channelID, seconds)
+}
+
+func (s *PointsService) addWatchTime(db *gorm.DB, userID uuid.UUID, channelID string, seconds int64) error {
 	now := time.Now()
-	return s.db.Exec(`
+	return db.Exec(`
 		INSERT INTO watch_time_stats (id, user_id, channel_id, total_watch_seconds, created_at, updated_at)
 		VALUES (?, ?, ?, ?, ?, ?)
 		ON CONFLICT (user_id, channel_id) DO UPDATE SET
@@ -198,8 +202,12 @@ func (s *PointsService) GetWatchStats(userID uuid.UUID, channelID string) (*Watc
 // streamerID is resolved internally from channelID via auth_providers (Twitch provider_id = channelID).
 // If the channelID has no registered streamer, the call is a no-op.
 func (s *PointsService) AddBroadcastTime(channelID string, seconds int64) error {
+	return s.addBroadcastTime(s.db, channelID, seconds)
+}
+
+func (s *PointsService) addBroadcastTime(db *gorm.DB, channelID string, seconds int64) error {
 	var provider models.AuthProvider
-	if err := s.db.Where("provider = ? AND provider_id = ?", models.ProviderTwitch, channelID).
+	if err := db.Where("provider = ? AND provider_id = ?", models.ProviderTwitch, channelID).
 		First(&provider).Error; err != nil {
 		if errors.Is(err, gorm.ErrRecordNotFound) {
 			return nil // streamer not registered yet — skip silently
@@ -209,7 +217,7 @@ func (s *PointsService) AddBroadcastTime(channelID string, seconds int64) error 
 	streamerID := provider.UserID
 
 	now := time.Now()
-	if err := s.db.Exec(`
+	if err := db.Exec(`
 		INSERT INTO broadcast_time_stats (id, streamer_id, channel_id, total_broadcast_seconds, created_at, updated_at)
 		VALUES (?, ?, ?, ?, ?, ?)
 		ON CONFLICT (streamer_id, channel_id) DO UPDATE SET
@@ -225,7 +233,21 @@ func (s *PointsService) AddBroadcastTime(channelID string, seconds int64) error 
 		Seconds:    seconds,
 		RecordedAt: now,
 	}
-	return s.db.Create(log).Error
+	return db.Create(log).Error
+}
+
+// AddHeartbeatTime atomically accumulates viewer watch time and broadcaster
+// broadcast time for a single heartbeat delta.
+func (s *PointsService) AddHeartbeatTime(userID uuid.UUID, channelID string, seconds int64) error {
+	return s.db.Transaction(func(tx *gorm.DB) error {
+		if err := s.addWatchTime(tx, userID, channelID, seconds); err != nil {
+			return err
+		}
+		if err := s.addBroadcastTime(tx, channelID, seconds); err != nil {
+			return err
+		}
+		return nil
+	})
 }
 
 // GetBroadcastStats returns broadcast time across four time windows for a streamer.

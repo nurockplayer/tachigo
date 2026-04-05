@@ -62,6 +62,19 @@ function parseBalanceFromHeartbeatResponse(payload: unknown): number {
   return value
 }
 
+interface ClickResponse {
+  balance: number
+  delta: number
+}
+
+export async function sendClick(channelId: string): Promise<ClickResponse> {
+  const { data } = await client.post<{ success: boolean; data: ClickResponse }>(
+    '/api/v1/extension/watch/click',
+    { channel_id: channelId },
+  )
+  return data.data
+}
+
 export async function sendHeartbeat(extensionJwt: string): Promise<HeartbeatResponse> {
   const { data } = await client.post('/api/v1/extension/heartbeat', {
     extension_jwt: extensionJwt,

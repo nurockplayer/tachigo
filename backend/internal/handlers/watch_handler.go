@@ -2,6 +2,7 @@ package handlers
 
 import (
 	"errors"
+	"net/http"
 
 	"github.com/gin-gonic/gin"
 	"github.com/google/uuid"
@@ -10,12 +11,16 @@ import (
 	"github.com/tachigo/tachigo/internal/services"
 )
 
-type WatchHandler struct {
-	watchSvc  *services.WatchService
-	pointsSvc *services.PointsService
+type watchPointsService interface {
+	AddHeartbeatTime(userID uuid.UUID, channelID string, seconds int64) error
 }
 
-func NewWatchHandler(watchSvc *services.WatchService, pointsSvc *services.PointsService) *WatchHandler {
+type WatchHandler struct {
+	watchSvc  *services.WatchService
+	pointsSvc watchPointsService
+}
+
+func NewWatchHandler(watchSvc *services.WatchService, pointsSvc watchPointsService) *WatchHandler {
 	return &WatchHandler{watchSvc: watchSvc, pointsSvc: pointsSvc}
 }
 
@@ -69,10 +74,11 @@ func (h *WatchHandler) Heartbeat(c *gin.Context) {
 		return
 	}
 
-	// Accumulate time stats after a valid heartbeat (non-fatal: don't fail the heartbeat if these fail).
 	if result.DeltaSeconds > 0 {
-		_ = h.pointsSvc.AddWatchTime(userID, body.ChannelID, result.DeltaSeconds)
-		_ = h.pointsSvc.AddBroadcastTime(body.ChannelID, result.DeltaSeconds)
+		if err := h.pointsSvc.AddHeartbeatTime(userID, body.ChannelID, result.DeltaSeconds); err != nil {
+			internal(c)
+			return
+		}
 	}
 
 	ok(c, gin.H{
@@ -100,6 +106,44 @@ func (h *WatchHandler) EndSession(c *gin.Context) {
 		return
 	}
 	ok(c, gin.H{"ended": true})
+}
+
+// Click handles POST /extension/watch/click
+func (h *WatchHandler) Click(c *gin.Context) {
+	claims := middleware.MustClaims(c)
+	var body watchBody
+	if err := c.ShouldBindJSON(&body); err != nil {
+		badRequest(c, err.Error())
+		return
+	}
+	userID, err := uuid.Parse(claims.UserID)
+	if err != nil {
+		badRequest(c, "invalid user id")
+		return
+	}
+
+	result, err := h.watchSvc.RecordClick(userID, body.ChannelID)
+	if err != nil {
+		if errors.Is(err, services.ErrNoActiveSession) {
+			badRequest(c, "no active session")
+			return
+		}
+		var cooldownErr services.ErrClickOnCooldown
+		if errors.As(err, &cooldownErr) {
+			c.JSON(http.StatusTooManyRequests, gin.H{
+				"success":        false,
+				"error":          "on_cooldown",
+				"retry_after_ms": cooldownErr.RetryAfterMs,
+			})
+			return
+		}
+		internal(c)
+		return
+	}
+	ok(c, gin.H{
+		"balance": result.BalanceAfter,
+		"delta":   result.Delta,
+	})
 }
 
 // GetBalance handles GET /extension/watch/balance?channel_id=...
