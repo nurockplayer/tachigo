@@ -74,7 +74,7 @@ export function useClickBoost(
         stopCooldown()
       }
     }
-  }, [channelId, enabled, startCooldown, stopCooldown])
+  }, [channelId, enabled, onBalanceUpdate, startCooldown, stopCooldown])
 
   // Cleanup on unmount.
   useEffect(() => {
