@@ -53,6 +53,7 @@ type PointsTransaction struct {
 	Source         TxSource   `gorm:"type:varchar(50);not null"                      json:"source"`
 	Delta          int64      `gorm:"not null"                                       json:"delta"`
 	BalanceAfter   int64      `gorm:"not null"                                       json:"balance_after"`
+	SKU            *string    `gorm:"type:varchar(255)"                              json:"sku,omitempty"`
 	Note           *string    `gorm:"type:text"                                      json:"note"`
 	CreatedAt      time.Time  `                                                      json:"created_at"`
 
