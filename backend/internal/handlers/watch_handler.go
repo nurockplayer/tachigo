@@ -11,12 +11,16 @@ import (
 	"github.com/tachigo/tachigo/internal/services"
 )
 
-type WatchHandler struct {
-	watchSvc  *services.WatchService
-	pointsSvc *services.PointsService
+type watchPointsService interface {
+	AddHeartbeatTime(userID uuid.UUID, channelID string, seconds int64) error
 }
 
-func NewWatchHandler(watchSvc *services.WatchService, pointsSvc *services.PointsService) *WatchHandler {
+type WatchHandler struct {
+	watchSvc  *services.WatchService
+	pointsSvc watchPointsService
+}
+
+func NewWatchHandler(watchSvc *services.WatchService, pointsSvc watchPointsService) *WatchHandler {
 	return &WatchHandler{watchSvc: watchSvc, pointsSvc: pointsSvc}
 }
 
@@ -70,10 +74,11 @@ func (h *WatchHandler) Heartbeat(c *gin.Context) {
 		return
 	}
 
-	// Accumulate time stats after a valid heartbeat (non-fatal: don't fail the heartbeat if these fail).
 	if result.DeltaSeconds > 0 {
-		_ = h.pointsSvc.AddWatchTime(userID, body.ChannelID, result.DeltaSeconds)
-		_ = h.pointsSvc.AddBroadcastTime(body.ChannelID, result.DeltaSeconds)
+		if err := h.pointsSvc.AddHeartbeatTime(userID, body.ChannelID, result.DeltaSeconds); err != nil {
+			internal(c)
+			return
+		}
 	}
 
 	ok(c, gin.H{
