@@ -29,6 +29,33 @@ definitions:
       nonce:
         type: string
     type: object
+  handlers.PointsBalanceResponse:
+    properties:
+      cumulative_total:
+        type: integer
+      spendable_balance:
+        type: integer
+    type: object
+  handlers.PointsHistoryItem:
+    properties:
+      amount:
+        type: integer
+      created_at:
+        type: string
+      note:
+        type: string
+      sku:
+        type: string
+      type:
+        type: string
+    type: object
+  handlers.PointsHistoryResponse:
+    properties:
+      transactions:
+        items:
+          $ref: '#/definitions/handlers.PointsHistoryItem'
+        type: array
+    type: object
   handlers.ProvidersResponse:
     properties:
       providers:
@@ -1001,6 +1028,72 @@ paths:
       summary: Set an address as default
       tags:
       - addresses
+  /users/me/points:
+    get:
+      parameters:
+      - description: Twitch channel ID
+        in: query
+        name: channel_id
+        required: true
+        type: string
+      produces:
+      - application/json
+      responses:
+        "200":
+          description: OK
+          schema:
+            allOf:
+            - $ref: '#/definitions/handlers.Response'
+            - properties:
+                data:
+                  $ref: '#/definitions/handlers.PointsBalanceResponse'
+              type: object
+        "400":
+          description: Bad Request
+          schema:
+            $ref: '#/definitions/handlers.Response'
+        "401":
+          description: Unauthorized
+          schema:
+            $ref: '#/definitions/handlers.Response'
+      security:
+      - BearerAuth: []
+      summary: Get my points balance
+      tags:
+      - points
+  /users/me/points/history:
+    get:
+      parameters:
+      - description: Twitch channel ID
+        in: query
+        name: channel_id
+        required: true
+        type: string
+      produces:
+      - application/json
+      responses:
+        "200":
+          description: OK
+          schema:
+            allOf:
+            - $ref: '#/definitions/handlers.Response'
+            - properties:
+                data:
+                  $ref: '#/definitions/handlers.PointsHistoryResponse'
+              type: object
+        "400":
+          description: Bad Request
+          schema:
+            $ref: '#/definitions/handlers.Response'
+        "401":
+          description: Unauthorized
+          schema:
+            $ref: '#/definitions/handlers.Response'
+      security:
+      - BearerAuth: []
+      summary: List my recent points transactions
+      tags:
+      - points
   /users/me/providers:
     get:
       produces:
