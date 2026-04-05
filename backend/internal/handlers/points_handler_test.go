@@ -77,11 +77,99 @@ func TestPointsHandler_GetBalance_ReturnsWrappedBalances(t *testing.T) {
 	}
 }
 
-func TestPointsHandler_GetHistory_ReturnsMappedTransactions(t *testing.T) {
+func TestPointsHandler_GetBalance_ReturnsZeroWhenNoLedger(t *testing.T) {
 	e := newPointsEnv(t)
-	userID, token := e.registerViewer(t, "history")
+	_, token := e.registerViewer(t, "zero")
+
+	req := httptest.NewRequest(http.MethodGet, "/api/v1/users/me/points?channel_id=ch_abc", nil)
+	req.Header.Set("Authorization", "Bearer "+token)
+	rec := httptest.NewRecorder()
+	e.router.ServeHTTP(rec, req)
+
+	if rec.Code != http.StatusOK {
+		t.Fatalf("want 200, got %d: %s", rec.Code, rec.Body.String())
+	}
+
+	resp := parseBody(t, rec.Body.Bytes())
+	if resp["success"] != true {
+		t.Fatalf("success: want true, got %v", resp["success"])
+	}
+	data := resp["data"].(map[string]interface{})
+	if data["spendable_balance"] != float64(0) {
+		t.Fatalf("spendable_balance: want 0, got %v", data["spendable_balance"])
+	}
+	if data["cumulative_total"] != float64(0) {
+		t.Fatalf("cumulative_total: want 0, got %v", data["cumulative_total"])
+	}
+}
+
+func TestPointsHandler_GetBalance_IsScopedToRequestedChannel(t *testing.T) {
+	e := newPointsEnv(t)
+	userID, token := e.registerViewer(t, "balance-scope")
 
 	if err := e.pointsSvc.AddPoints(userID, "ch_abc", models.TxSourceBits, 100); err != nil {
+		t.Fatalf("seed ch_abc: %v", err)
+	}
+	if err := e.pointsSvc.AddPoints(userID, "ch_other", models.TxSourceBits, 999); err != nil {
+		t.Fatalf("seed ch_other: %v", err)
+	}
+
+	req := httptest.NewRequest(http.MethodGet, "/api/v1/users/me/points?channel_id=ch_abc", nil)
+	req.Header.Set("Authorization", "Bearer "+token)
+	rec := httptest.NewRecorder()
+	e.router.ServeHTTP(rec, req)
+
+	if rec.Code != http.StatusOK {
+		t.Fatalf("want 200, got %d: %s", rec.Code, rec.Body.String())
+	}
+
+	resp := parseBody(t, rec.Body.Bytes())
+	if resp["success"] != true {
+		t.Fatalf("success: want true, got %v", resp["success"])
+	}
+	data := resp["data"].(map[string]interface{})
+	if data["spendable_balance"] != float64(100) {
+		t.Fatalf("spendable_balance: want 100, got %v", data["spendable_balance"])
+	}
+	if data["cumulative_total"] != float64(100) {
+		t.Fatalf("cumulative_total: want 100, got %v", data["cumulative_total"])
+	}
+}
+
+func TestPointsHandler_GetBalance_RequiresChannelID(t *testing.T) {
+	e := newPointsEnv(t)
+	_, token := e.registerViewer(t, "balance-missing-channel")
+
+	req := httptest.NewRequest(http.MethodGet, "/api/v1/users/me/points", nil)
+	req.Header.Set("Authorization", "Bearer "+token)
+	rec := httptest.NewRecorder()
+	e.router.ServeHTTP(rec, req)
+
+	if rec.Code != http.StatusBadRequest {
+		t.Fatalf("want 400, got %d: %s", rec.Code, rec.Body.String())
+	}
+
+	resp := parseBody(t, rec.Body.Bytes())
+	if resp["success"] != false {
+		t.Fatalf("success: want false, got %v", resp["success"])
+	}
+	if resp["error"] != "channel_id is required" {
+		t.Fatalf("error: want channel_id is required, got %v", resp["error"])
+	}
+}
+
+func TestPointsHandler_GetHistory_ReturnsMappedTransactionsInDescendingOrder(t *testing.T) {
+	e := newPointsEnv(t)
+	userID, token := e.registerViewer(t, "history")
+	sku := "bits_100"
+
+	if err := e.pointsSvc.AddPointsWithMeta(
+		userID,
+		"ch_abc",
+		models.TxSourceBits,
+		100,
+		services.PointsCreditMeta{SKU: &sku},
+	); err != nil {
 		t.Fatalf("seed earn: %v", err)
 	}
 	if err := e.pointsSvc.DeductPoints(userID, "ch_abc", 30, "avatar"); err != nil {
@@ -134,6 +222,9 @@ func TestPointsHandler_GetHistory_ReturnsMappedTransactions(t *testing.T) {
 	if first["note"] != "avatar" {
 		t.Fatalf("first.note: want avatar, got %v", first["note"])
 	}
+	if _, ok := first["sku"]; ok {
+		t.Fatalf("first transaction should omit sku, got %v", first["sku"])
+	}
 
 	second := transactions[1].(map[string]interface{})
 	if second["type"] != "earn" {
@@ -141,6 +232,36 @@ func TestPointsHandler_GetHistory_ReturnsMappedTransactions(t *testing.T) {
 	}
 	if second["amount"] != float64(100) {
 		t.Fatalf("second.amount: want 100, got %v", second["amount"])
+	}
+	if second["sku"] != "bits_100" {
+		t.Fatalf("second.sku: want bits_100, got %v", second["sku"])
+	}
+	if _, ok := second["note"]; ok {
+		t.Fatalf("second transaction should omit note, got %v", second["note"])
+	}
+}
+
+func TestPointsHandler_GetHistory_ReturnsEmptyListWhenNoTransactions(t *testing.T) {
+	e := newPointsEnv(t)
+	_, token := e.registerViewer(t, "empty-history")
+
+	req := httptest.NewRequest(http.MethodGet, "/api/v1/users/me/points/history?channel_id=ch_abc", nil)
+	req.Header.Set("Authorization", "Bearer "+token)
+	rec := httptest.NewRecorder()
+	e.router.ServeHTTP(rec, req)
+
+	if rec.Code != http.StatusOK {
+		t.Fatalf("want 200, got %d: %s", rec.Code, rec.Body.String())
+	}
+
+	resp := parseBody(t, rec.Body.Bytes())
+	if resp["success"] != true {
+		t.Fatalf("success: want true, got %v", resp["success"])
+	}
+	data := resp["data"].(map[string]interface{})
+	transactions := data["transactions"].([]interface{})
+	if len(transactions) != 0 {
+		t.Fatalf("want 0 transactions, got %d", len(transactions))
 	}
 }
 

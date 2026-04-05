@@ -1,6 +1,8 @@
 package handlers
 
 import (
+	"time"
+
 	"github.com/tachigo/tachigo/internal/models"
 	"github.com/tachigo/tachigo/internal/services"
 )
@@ -44,4 +46,21 @@ type AddressesResponse struct {
 // NonceResponse wraps a Web3 nonce.
 type NonceResponse struct {
 	Nonce string `json:"nonce"`
+}
+
+type PointsBalanceResponse struct {
+	CumulativeTotal  int64 `json:"cumulative_total"`
+	SpendableBalance int64 `json:"spendable_balance"`
+}
+
+type PointsHistoryItem struct {
+	Type      string    `json:"type"`
+	Amount    int64     `json:"amount"`
+	SKU       *string   `json:"sku,omitempty"`
+	Note      *string   `json:"note,omitempty"`
+	CreatedAt time.Time `json:"created_at"`
+}
+
+type PointsHistoryResponse struct {
+	Transactions []PointsHistoryItem `json:"transactions"`
 }
