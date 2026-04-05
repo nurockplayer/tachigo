@@ -41,12 +41,16 @@ definitions:
       amount:
         type: integer
       created_at:
+        format: date-time
         type: string
       note:
         type: string
       sku:
         type: string
       type:
+        enum:
+        - earn
+        - spend
         type: string
     type: object
   handlers.PointsHistoryResponse:

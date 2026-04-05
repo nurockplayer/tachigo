@@ -225,6 +225,13 @@ func TestPointsHandler_GetHistory_ReturnsMappedTransactionsInDescendingOrder(t *
 	if _, ok := first["sku"]; ok {
 		t.Fatalf("first transaction should omit sku, got %v", first["sku"])
 	}
+	firstCreatedAt, ok := first["created_at"].(string)
+	if !ok {
+		t.Fatalf("first.created_at should be a string, got %T", first["created_at"])
+	}
+	if _, err := time.Parse(time.RFC3339, firstCreatedAt); err != nil {
+		t.Fatalf("first.created_at should be RFC3339, got %q (%v)", firstCreatedAt, err)
+	}
 
 	second := transactions[1].(map[string]interface{})
 	if second["type"] != "earn" {
@@ -238,6 +245,13 @@ func TestPointsHandler_GetHistory_ReturnsMappedTransactionsInDescendingOrder(t *
 	}
 	if _, ok := second["note"]; ok {
 		t.Fatalf("second transaction should omit note, got %v", second["note"])
+	}
+	secondCreatedAt, ok := second["created_at"].(string)
+	if !ok {
+		t.Fatalf("second.created_at should be a string, got %T", second["created_at"])
+	}
+	if _, err := time.Parse(time.RFC3339, secondCreatedAt); err != nil {
+		t.Fatalf("second.created_at should be RFC3339, got %q (%v)", secondCreatedAt, err)
 	}
 }
 
@@ -262,6 +276,45 @@ func TestPointsHandler_GetHistory_ReturnsEmptyListWhenNoTransactions(t *testing.
 	transactions := data["transactions"].([]interface{})
 	if len(transactions) != 0 {
 		t.Fatalf("want 0 transactions, got %d", len(transactions))
+	}
+}
+
+func TestPointsHandler_GetHistory_IsScopedToRequestedChannel(t *testing.T) {
+	e := newPointsEnv(t)
+	userID, token := e.registerViewer(t, "history-scope")
+
+	if err := e.pointsSvc.AddPoints(userID, "ch_abc", models.TxSourceBits, 100); err != nil {
+		t.Fatalf("seed ch_abc: %v", err)
+	}
+	if err := e.pointsSvc.AddPoints(userID, "ch_other", models.TxSourceBits, 999); err != nil {
+		t.Fatalf("seed ch_other: %v", err)
+	}
+
+	req := httptest.NewRequest(http.MethodGet, "/api/v1/users/me/points/history?channel_id=ch_abc", nil)
+	req.Header.Set("Authorization", "Bearer "+token)
+	rec := httptest.NewRecorder()
+	e.router.ServeHTTP(rec, req)
+
+	if rec.Code != http.StatusOK {
+		t.Fatalf("want 200, got %d: %s", rec.Code, rec.Body.String())
+	}
+
+	resp := parseBody(t, rec.Body.Bytes())
+	if resp["success"] != true {
+		t.Fatalf("success: want true, got %v", resp["success"])
+	}
+	data := resp["data"].(map[string]interface{})
+	transactions := data["transactions"].([]interface{})
+	if len(transactions) != 1 {
+		t.Fatalf("want 1 transaction for ch_abc, got %d", len(transactions))
+	}
+
+	first := transactions[0].(map[string]interface{})
+	if first["amount"] != float64(100) {
+		t.Fatalf("amount: want 100, got %v", first["amount"])
+	}
+	if first["type"] != "earn" {
+		t.Fatalf("type: want earn, got %v", first["type"])
 	}
 }
 

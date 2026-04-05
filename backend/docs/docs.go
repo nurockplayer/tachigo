@@ -1518,7 +1518,8 @@ const docTemplate = `{
                     "type": "integer"
                 },
                 "created_at": {
-                    "type": "string"
+                    "type": "string",
+                    "format": "date-time"
                 },
                 "note": {
                     "type": "string"
@@ -1527,7 +1528,11 @@ const docTemplate = `{
                     "type": "string"
                 },
                 "type": {
-                    "type": "string"
+                    "type": "string",
+                    "enum": [
+                        "earn",
+                        "spend"
+                    ]
                 }
             }
         },
