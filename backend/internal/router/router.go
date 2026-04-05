@@ -93,6 +93,7 @@ func New(
 	{
 		// Points balance
 		protected.GET("users/me/points", pointsH.GetBalance)
+		protected.GET("users/me/points/history", pointsH.GetHistory)
 
 		// User profile
 		protected.GET("users/me", userH.Me)
