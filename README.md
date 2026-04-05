@@ -8,7 +8,8 @@ Viewers spend Bits to earn on-chain tokens; streamers manage rewards from the da
 ```
 tachigo/
 ├── backend/      # Go API (Gin + GORM + PostgreSQL)
-└── tachimint/    # Twitch Extension frontend (React + TypeScript + Vite)
+├── tachimint/    # Twitch Extension frontend (React + TypeScript + Vite)
+└── dashboard/    # Admin dashboard (React + TypeScript + Vite)
 ```
 
 ## Quick start
@@ -99,6 +100,13 @@ Key backend variables:
 ## Architecture
 
 See [docs/architecture.md](docs/architecture.md) for the full system diagram.
+
+## Documentation
+
+- [docs/architecture.md](docs/architecture.md) — system architecture
+- [docs/claude-codex-cheatsheet.md](docs/claude-codex-cheatsheet.md) — quick reference for Claude Code + Codex collaboration
+- [docs/claude-codex-workflow.md](docs/claude-codex-workflow.md) — full workflow guide for low-token Claude Code usage
+- [CLAUDE.md](CLAUDE.md) — repo-specific collaboration rules and command entry points
 
 ## CI
 
