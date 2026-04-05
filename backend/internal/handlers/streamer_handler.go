@@ -2,11 +2,13 @@ package handlers
 
 import (
 	"errors"
+	"net/http"
 
 	"github.com/gin-gonic/gin"
 	"github.com/google/uuid"
 
 	"github.com/tachigo/tachigo/internal/middleware"
+	"github.com/tachigo/tachigo/internal/models"
 	"github.com/tachigo/tachigo/internal/services"
 )
 
@@ -37,6 +39,10 @@ func (h *StreamerHandler) Register(c *gin.Context) {
 
 	streamer, err := h.streamerSvc.Register(userID, body.ChannelID, body.DisplayName)
 	if err != nil {
+		if errors.Is(err, services.ErrChannelNotOwned) {
+			c.JSON(http.StatusForbidden, Response{Success: false, Error: "channel_id does not match your Twitch account"})
+			return
+		}
 		internal(c)
 		return
 	}
@@ -66,6 +72,24 @@ func (h *StreamerHandler) GetChannelStats(c *gin.Context) {
 	if channelID == "" {
 		badRequest(c, "channel_id is required")
 		return
+	}
+
+	claims := middleware.MustClaims(c)
+	if claims.Role != models.RoleAdmin {
+		userID, err := uuid.Parse(claims.UserID)
+		if err != nil {
+			badRequest(c, "invalid user id")
+			return
+		}
+		owns, err := h.streamerSvc.OwnsChannel(userID, channelID)
+		if err != nil {
+			internal(c)
+			return
+		}
+		if !owns {
+			c.JSON(http.StatusForbidden, Response{Success: false, Error: "forbidden"})
+			return
+		}
 	}
 
 	stats, err := h.streamerSvc.GetChannelStats(channelID)

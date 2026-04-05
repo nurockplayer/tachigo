@@ -9,7 +9,10 @@ import (
 	"github.com/tachigo/tachigo/internal/models"
 )
 
-var ErrStreamerNotFound = errors.New("streamer not found")
+var (
+	ErrStreamerNotFound = errors.New("streamer not found")
+	ErrChannelNotOwned  = errors.New("channel not owned by user")
+)
 
 type StreamerService struct {
 	db        *gorm.DB
@@ -21,6 +24,17 @@ func NewStreamerService(db *gorm.DB, pointsSvc *PointsService) *StreamerService 
 }
 
 func (s *StreamerService) Register(userID uuid.UUID, channelID, displayName string) (*models.Streamer, error) {
+	// Verify the channelID matches the user's Twitch auth_provider entry.
+	var count int64
+	if err := s.db.Model(&models.AuthProvider{}).
+		Where("user_id = ? AND provider = ? AND provider_id = ?", userID, models.ProviderTwitch, channelID).
+		Count(&count).Error; err != nil {
+		return nil, err
+	}
+	if count == 0 {
+		return nil, ErrChannelNotOwned
+	}
+
 	streamer := &models.Streamer{
 		UserID:      userID,
 		ChannelID:   channelID,
@@ -35,6 +49,16 @@ func (s *StreamerService) Register(userID uuid.UUID, channelID, displayName stri
 	}
 
 	return streamer, nil
+}
+
+func (s *StreamerService) OwnsChannel(userID uuid.UUID, channelID string) (bool, error) {
+	var count int64
+	if err := s.db.Model(&models.Streamer{}).
+		Where("user_id = ? AND channel_id = ?", userID, channelID).
+		Count(&count).Error; err != nil {
+		return false, err
+	}
+	return count > 0, nil
 }
 
 func (s *StreamerService) ListChannels(userID uuid.UUID) ([]models.Streamer, error) {
