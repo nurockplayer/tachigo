@@ -143,6 +143,33 @@ func TestPointsService_AddPoints_IncreasesBothBalances(t *testing.T) {
 	}
 }
 
+func TestPointsService_AddPointsWithMeta_PersistsSKU(t *testing.T) {
+	svc, _ := newPointsSvc(t)
+	userID := seedViewer(t, svc)
+	sku := "bits_100"
+
+	if err := svc.AddPointsWithMeta(
+		userID,
+		"ch_abc",
+		models.TxSourceBits,
+		100,
+		PointsCreditMeta{SKU: &sku},
+	); err != nil {
+		t.Fatalf("unexpected error: %v", err)
+	}
+
+	txs, err := svc.ListTransactions(userID, "ch_abc")
+	if err != nil {
+		t.Fatalf("list transactions: %v", err)
+	}
+	if len(txs) != 1 {
+		t.Fatalf("want 1 transaction, got %d", len(txs))
+	}
+	if txs[0].SKU == nil || *txs[0].SKU != "bits_100" {
+		t.Fatalf("want sku bits_100, got %#v", txs[0].SKU)
+	}
+}
+
 // ─── ListTransactions ────────────────────────────────────────────────────────
 
 func TestPointsService_ListTransactions_EmptyWhenNoLedger(t *testing.T) {
@@ -171,6 +198,140 @@ func TestPointsService_ListTransactions_RecordsDeduction(t *testing.T) {
 	}
 	if len(txs) != 2 {
 		t.Errorf("want 2 transactions, got %d", len(txs))
+	}
+}
+
+func TestPointsService_ListTransactions_IsScopedToRequestedChannel(t *testing.T) {
+	svc, _ := newPointsSvc(t)
+	userID := seedViewer(t, svc)
+
+	if err := svc.AddPoints(userID, "ch_abc", models.TxSourceBits, 100); err != nil {
+		t.Fatalf("seed ch_abc: %v", err)
+	}
+	if err := svc.AddPoints(userID, "ch_other", models.TxSourceBits, 999); err != nil {
+		t.Fatalf("seed ch_other: %v", err)
+	}
+
+	txs, err := svc.ListTransactions(userID, "ch_abc")
+	if err != nil {
+		t.Fatalf("list transactions: %v", err)
+	}
+	if len(txs) != 1 {
+		t.Fatalf("want 1 transaction for ch_abc, got %d", len(txs))
+	}
+	if txs[0].Delta != 100 {
+		t.Fatalf("want ch_abc delta 100, got %d", txs[0].Delta)
+	}
+	if txs[0].BalanceAfter != 100 {
+		t.Fatalf("want ch_abc balance_after 100, got %d", txs[0].BalanceAfter)
+	}
+}
+
+func TestPointsService_ListTransactions_ReturnsLatest50NewestFirst(t *testing.T) {
+	svc, _ := newPointsSvc(t)
+	userID := seedViewer(t, svc)
+
+	if err := svc.AddPoints(userID, "ch_abc", models.TxSourceBits, 1); err != nil {
+		t.Fatalf("seed first point: %v", err)
+	}
+
+	var ledger models.PointsLedger
+	if err := svc.db.Where("user_id = ? AND channel_id = ?", userID, "ch_abc").First(&ledger).Error; err != nil {
+		t.Fatalf("get ledger: %v", err)
+	}
+	if err := svc.db.Where("ledger_id = ?", ledger.ID).Delete(&models.PointsTransaction{}).Error; err != nil {
+		t.Fatalf("clear bootstrap transaction: %v", err)
+	}
+
+	base := time.Date(2026, time.January, 1, 0, 0, 0, 0, time.UTC)
+	for i := 1; i <= 54; i++ {
+		ts := base.Add(time.Duration(i) * time.Second)
+		if err := svc.db.Exec(
+			`INSERT INTO points_transactions (id, ledger_id, source, delta, balance_after, created_at)
+			 VALUES (?, ?, ?, ?, ?, ?)`,
+			uuid.New().String(), ledger.ID, string(models.TxSourceBits), 1, int64(i+1), ts,
+		).Error; err != nil {
+			t.Fatalf("seed tx %d: %v", i, err)
+		}
+	}
+
+	txs, err := svc.ListTransactions(userID, "ch_abc")
+	if err != nil {
+		t.Fatalf("list transactions: %v", err)
+	}
+	if len(txs) != 50 {
+		t.Fatalf("want 50 transactions, got %d", len(txs))
+	}
+
+	for i := 1; i < len(txs); i++ {
+		left := txs[i-1]
+		right := txs[i]
+		if left.CreatedAt.Before(right.CreatedAt) {
+			t.Fatalf("transactions not sorted descending at index %d: %v < %v", i, left.CreatedAt, right.CreatedAt)
+		}
+	}
+}
+
+func TestPointsService_ListTransactions_UsesIDAsTieBreakerWhenCreatedAtMatches(t *testing.T) {
+	svc, _ := newPointsSvc(t)
+	userID := seedViewer(t, svc)
+
+	if err := svc.AddPoints(userID, "ch_abc", models.TxSourceBits, 1); err != nil {
+		t.Fatalf("seed first point: %v", err)
+	}
+
+	var ledger models.PointsLedger
+	if err := svc.db.Where("user_id = ? AND channel_id = ?", userID, "ch_abc").First(&ledger).Error; err != nil {
+		t.Fatalf("get ledger: %v", err)
+	}
+	if err := svc.db.Where("ledger_id = ?", ledger.ID).Delete(&models.PointsTransaction{}).Error; err != nil {
+		t.Fatalf("clear bootstrap transaction: %v", err)
+	}
+
+	createdAt := time.Date(2026, time.January, 2, 0, 0, 0, 0, time.UTC)
+	lowID := uuid.MustParse("00000000-0000-0000-0000-000000000001")
+	highID := uuid.MustParse("00000000-0000-0000-0000-000000000002")
+	lowNote := "low-id"
+	highNote := "high-id"
+
+	for _, tx := range []models.PointsTransaction{
+		{
+			ID:           lowID,
+			LedgerID:     ledger.ID,
+			Source:       models.TxSourceBits,
+			Delta:        1,
+			BalanceAfter: 1,
+			Note:         &lowNote,
+			CreatedAt:    createdAt,
+		},
+		{
+			ID:           highID,
+			LedgerID:     ledger.ID,
+			Source:       models.TxSourceBits,
+			Delta:        1,
+			BalanceAfter: 2,
+			Note:         &highNote,
+			CreatedAt:    createdAt,
+		},
+	} {
+		tx := tx
+		if err := svc.db.Create(&tx).Error; err != nil {
+			t.Fatalf("create transaction %s: %v", tx.ID, err)
+		}
+	}
+
+	txs, err := svc.ListTransactions(userID, "ch_abc")
+	if err != nil {
+		t.Fatalf("list transactions: %v", err)
+	}
+	if len(txs) != 2 {
+		t.Fatalf("want 2 transactions, got %d", len(txs))
+	}
+	if txs[0].Note == nil || *txs[0].Note != "high-id" {
+		t.Fatalf("want first transaction high-id, got %#v", txs[0].Note)
+	}
+	if txs[1].Note == nil || *txs[1].Note != "low-id" {
+		t.Fatalf("want second transaction low-id, got %#v", txs[1].Note)
 	}
 }
 
