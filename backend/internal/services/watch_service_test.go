@@ -2,6 +2,7 @@ package services
 
 import (
 	"errors"
+	"math"
 	"testing"
 	"time"
 
@@ -212,6 +213,28 @@ func TestHeartbeat_CapsLargeGapAt30Seconds(t *testing.T) {
 	}
 	if result.Session.AccumulatedSeconds > 30 {
 		t.Errorf("expected delta capped at 30 s, got %d accumulated", result.Session.AccumulatedSeconds)
+	}
+}
+
+func TestHeartbeat_RejectsOverflowedPointsAward(t *testing.T) {
+	svc := NewWatchService(newTestDB(t))
+	userID := seedWatchUser(t, svc)
+	channelID := "ch_overflow"
+
+	if err := svc.db.Create(&models.ChannelConfig{
+		ChannelID:       channelID,
+		SecondsPerPoint: 1,
+		Multiplier:      math.MaxInt64,
+	}).Error; err != nil {
+		t.Fatalf("seed channel config: %v", err)
+	}
+
+	s, _ := svc.StartSession(userID, channelID)
+	backdateHeartbeat(t, svc, s.ID, 25*time.Second)
+
+	_, err := svc.Heartbeat(userID, channelID)
+	if err == nil {
+		t.Fatal("want overflow error, got nil")
 	}
 }
 

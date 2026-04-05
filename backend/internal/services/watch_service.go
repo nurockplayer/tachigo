@@ -2,6 +2,7 @@ package services
 
 import (
 	"errors"
+	"math"
 	"time"
 
 	"github.com/google/uuid"
@@ -167,8 +168,14 @@ func (s *WatchService) Heartbeat(userID uuid.UUID, channelID string) (*Heartbeat
 		multiplier := cfg.Multiplier
 
 		newAccumulated := session.AccumulatedSeconds + deltaSeconds
+		if session.AccumulatedSeconds > math.MaxInt64-deltaSeconds {
+			return ErrPointsDeltaOverflow
+		}
 		pendingSeconds := newAccumulated - session.RewardedSeconds
 		basePoints := pendingSeconds / secondsPerPoint
+		if basePoints > 0 && multiplier > math.MaxInt64/basePoints {
+			return ErrPointsDeltaOverflow
+		}
 		pointsToAward := basePoints * multiplier
 		newRewarded := session.RewardedSeconds + basePoints*secondsPerPoint
 

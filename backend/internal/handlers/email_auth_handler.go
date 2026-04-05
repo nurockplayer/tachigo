@@ -54,6 +54,7 @@ func (h *EmailAuthHandler) SendVerification(c *gin.Context) {
 // @Param        body body object{token=string} true "Verification token"
 // @Success      200  {object}  Response{data=MessageResponse}
 // @Failure      400  {object}  Response
+// @Security
 // @Router       /auth/verify-email/confirm [post]
 func (h *EmailAuthHandler) ConfirmVerification(c *gin.Context) {
 	var body struct {
@@ -86,6 +87,7 @@ func (h *EmailAuthHandler) ConfirmVerification(c *gin.Context) {
 // @Param        body body object{email=string} true "Email address"
 // @Success      200  {object}  Response{data=MessageResponse}
 // @Failure      400  {object}  Response
+// @Security
 // @Router       /auth/forgot-password [post]
 func (h *EmailAuthHandler) ForgotPassword(c *gin.Context) {
 	var body struct {
@@ -113,6 +115,7 @@ func (h *EmailAuthHandler) ForgotPassword(c *gin.Context) {
 // @Param        body body object{token=string,new_password=string} true "Token and new password (min 8 chars)"
 // @Success      200  {object}  Response{data=MessageResponse}
 // @Failure      400  {object}  Response
+// @Security
 // @Router       /auth/reset-password [post]
 func (h *EmailAuthHandler) ResetPassword(c *gin.Context) {
 	var body struct {

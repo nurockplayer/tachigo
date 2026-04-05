@@ -17,6 +17,7 @@ const docTemplate = `{
     "paths": {
         "/auth/forgot-password": {
             "post": {
+                "security": [],
                 "description": "Always returns 200 to prevent user enumeration",
                 "consumes": [
                     "application/json"
@@ -74,6 +75,7 @@ const docTemplate = `{
         },
         "/auth/google": {
             "get": {
+                "security": [],
                 "produces": [
                     "application/json"
                 ],
@@ -90,6 +92,7 @@ const docTemplate = `{
         },
         "/auth/google/callback": {
             "get": {
+                "security": [],
                 "produces": [
                     "application/json"
                 ],
@@ -149,6 +152,7 @@ const docTemplate = `{
         },
         "/auth/login": {
             "post": {
+                "security": [],
                 "consumes": [
                     "application/json"
                 ],
@@ -206,6 +210,7 @@ const docTemplate = `{
         },
         "/auth/logout": {
             "post": {
+                "security": [],
                 "consumes": [
                     "application/json"
                 ],
@@ -325,6 +330,7 @@ const docTemplate = `{
         },
         "/auth/refresh": {
             "post": {
+                "security": [],
                 "consumes": [
                     "application/json"
                 ],
@@ -387,6 +393,7 @@ const docTemplate = `{
         },
         "/auth/register": {
             "post": {
+                "security": [],
                 "consumes": [
                     "application/json"
                 ],
@@ -444,6 +451,7 @@ const docTemplate = `{
         },
         "/auth/reset-password": {
             "post": {
+                "security": [],
                 "consumes": [
                     "application/json"
                 ],
@@ -503,6 +511,7 @@ const docTemplate = `{
         },
         "/auth/twitch": {
             "get": {
+                "security": [],
                 "produces": [
                     "application/json"
                 ],
@@ -519,6 +528,7 @@ const docTemplate = `{
         },
         "/auth/twitch/callback": {
             "get": {
+                "security": [],
                 "produces": [
                     "application/json"
                 ],
@@ -578,6 +588,7 @@ const docTemplate = `{
         },
         "/auth/verify-email/confirm": {
             "post": {
+                "security": [],
                 "consumes": [
                     "application/json"
                 ],
@@ -682,6 +693,7 @@ const docTemplate = `{
         },
         "/auth/web3/nonce": {
             "post": {
+                "security": [],
                 "consumes": [
                     "application/json"
                 ],
@@ -744,6 +756,7 @@ const docTemplate = `{
         },
         "/auth/web3/verify": {
             "post": {
+                "security": [],
                 "consumes": [
                     "application/json"
                 ],
@@ -801,6 +814,7 @@ const docTemplate = `{
         },
         "/extension/auth/login": {
             "post": {
+                "security": [],
                 "consumes": [
                     "application/json"
                 ],
@@ -863,6 +877,7 @@ const docTemplate = `{
         },
         "/extension/bits/complete": {
             "post": {
+                "security": [],
                 "consumes": [
                     "application/json"
                 ],
@@ -1857,7 +1872,12 @@ const docTemplate = `{
             "name": "Authorization",
             "in": "header"
         }
-    }
+    },
+    "security": [
+        {
+            "BearerAuth": []
+        }
+    ]
 }`
 
 // SwaggerInfo holds exported Swagger Info so clients can modify it

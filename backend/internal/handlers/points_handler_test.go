@@ -1,6 +1,7 @@
 package handlers_test
 
 import (
+	"math"
 	"net/http"
 	"net/http/httptest"
 	"testing"
@@ -315,6 +316,45 @@ func TestPointsHandler_GetHistory_IsScopedToRequestedChannel(t *testing.T) {
 	}
 	if first["type"] != "earn" {
 		t.Fatalf("type: want earn, got %v", first["type"])
+	}
+}
+
+func TestPointsHandler_GetHistory_ReturnsInternalErrorForUnsafeSpendDelta(t *testing.T) {
+	e := newPointsEnv(t)
+	userID, token := e.registerViewer(t, "history-overflow")
+
+	if err := e.pointsSvc.AddPoints(userID, "ch_abc", models.TxSourceBits, 1); err != nil {
+		t.Fatalf("seed ledger: %v", err)
+	}
+
+	var ledger models.PointsLedger
+	if err := e.db.Where("user_id = ? AND channel_id = ?", userID, "ch_abc").First(&ledger).Error; err != nil {
+		t.Fatalf("load ledger: %v", err)
+	}
+	if err := e.db.Where("ledger_id = ?", ledger.ID).Delete(&models.PointsTransaction{}).Error; err != nil {
+		t.Fatalf("clear txs: %v", err)
+	}
+
+	note := "corrupt"
+	tx := models.PointsTransaction{
+		LedgerID:     ledger.ID,
+		Source:       models.TxSourceSpend,
+		Delta:        math.MinInt64,
+		BalanceAfter: 0,
+		Note:         &note,
+		CreatedAt:    time.Now().UTC(),
+	}
+	if err := e.db.Create(&tx).Error; err != nil {
+		t.Fatalf("create corrupt tx: %v", err)
+	}
+
+	req := httptest.NewRequest(http.MethodGet, "/api/v1/users/me/points/history?channel_id=ch_abc", nil)
+	req.Header.Set("Authorization", "Bearer "+token)
+	rec := httptest.NewRecorder()
+	e.router.ServeHTTP(rec, req)
+
+	if rec.Code != http.StatusInternalServerError {
+		t.Fatalf("want 500, got %d: %s", rec.Code, rec.Body.String())
 	}
 }
 
