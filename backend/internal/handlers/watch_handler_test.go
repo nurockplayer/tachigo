@@ -46,16 +46,11 @@ func newWatchTestEnv(t *testing.T) *watchEnv {
 }
 
 type failingPointsService struct {
-	addWatchTimeErr     error
-	addBroadcastTimeErr error
+	addHeartbeatTimeErr error
 }
 
-func (s *failingPointsService) AddWatchTime(uuid.UUID, string, int64) error {
-	return s.addWatchTimeErr
-}
-
-func (s *failingPointsService) AddBroadcastTime(string, int64) error {
-	return s.addBroadcastTimeErr
+func (s *failingPointsService) AddHeartbeatTime(uuid.UUID, string, int64) error {
+	return s.addHeartbeatTimeErr
 }
 
 // registerViewer registers a new user and returns their UUID + access token.
@@ -178,7 +173,7 @@ func TestWatchHandler_Heartbeat_PointsServiceFailure_Returns500(t *testing.T) {
 	base := newTestEnv(t)
 	watchSvc := services.NewWatchService(base.db)
 	watchH := handlers.NewWatchHandler(watchSvc, &failingPointsService{
-		addWatchTimeErr: fmt.Errorf("watch stats failed"),
+		addHeartbeatTimeErr: fmt.Errorf("heartbeat aggregation failed"),
 	})
 
 	watch := base.router.Group("/api/v1/extension/watch")

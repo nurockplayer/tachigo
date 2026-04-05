@@ -12,8 +12,7 @@ import (
 )
 
 type watchPointsService interface {
-	AddWatchTime(userID uuid.UUID, channelID string, seconds int64) error
-	AddBroadcastTime(channelID string, seconds int64) error
+	AddHeartbeatTime(userID uuid.UUID, channelID string, seconds int64) error
 }
 
 type WatchHandler struct {
@@ -76,11 +75,7 @@ func (h *WatchHandler) Heartbeat(c *gin.Context) {
 	}
 
 	if result.DeltaSeconds > 0 {
-		if err := h.pointsSvc.AddWatchTime(userID, body.ChannelID, result.DeltaSeconds); err != nil {
-			internal(c)
-			return
-		}
-		if err := h.pointsSvc.AddBroadcastTime(body.ChannelID, result.DeltaSeconds); err != nil {
+		if err := h.pointsSvc.AddHeartbeatTime(userID, body.ChannelID, result.DeltaSeconds); err != nil {
 			internal(c)
 			return
 		}
