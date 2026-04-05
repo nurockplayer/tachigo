@@ -16,6 +16,11 @@ var (
 	ErrLedgerNotFound      = errors.New("points ledger not found")
 )
 
+type PointsCreditMeta struct {
+	SKU  *string
+	Note *string
+}
+
 // PointsBalance holds both balance views for a viewer in a channel.
 type PointsBalance struct {
 	CumulativeTotal  int64 `json:"cumulative_total"`
@@ -69,7 +74,7 @@ func (s *PointsService) ListTransactions(userID uuid.UUID, channelID string) ([]
 
 	var txs []models.PointsTransaction
 	err := s.db.Where("ledger_id = ?", ledger.ID).
-		Order("created_at DESC").
+		Order("created_at DESC, id DESC").
 		Limit(50).
 		Find(&txs).Error
 	return txs, err
@@ -117,6 +122,16 @@ func (s *PointsService) DeductPoints(userID uuid.UUID, channelID string, amount 
 // AddPoints adds amount to both spendable_balance and cumulative_total.
 // Intended for use by AirdropService — Heartbeat points are handled by WatchService.Heartbeat.
 func (s *PointsService) AddPoints(userID uuid.UUID, channelID string, source models.TxSource, amount int64) error {
+	return s.AddPointsWithMeta(userID, channelID, source, amount, PointsCreditMeta{})
+}
+
+func (s *PointsService) AddPointsWithMeta(
+	userID uuid.UUID,
+	channelID string,
+	source models.TxSource,
+	amount int64,
+	meta PointsCreditMeta,
+) error {
 	return s.db.Transaction(func(tx *gorm.DB) error {
 		ledgerID := newUUID()
 		now := time.Now()
@@ -142,6 +157,8 @@ func (s *PointsService) AddPoints(userID uuid.UUID, channelID string, source mod
 			Source:       source,
 			Delta:        amount,
 			BalanceAfter: ledger.SpendableBalance,
+			SKU:          meta.SKU,
+			Note:         meta.Note,
 		}
 		return tx.Create(txRecord).Error
 	})
