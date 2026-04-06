@@ -88,8 +88,7 @@ func (h *PointsHandler) GetHistory(c *gin.Context) {
 		amount := tx.Delta
 		if tx.Delta < 0 {
 			if tx.Delta == math.MinInt64 {
-				internal(c)
-				return
+				continue
 			}
 			txType = "spend"
 			amount = -tx.Delta

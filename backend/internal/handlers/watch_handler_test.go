@@ -4,6 +4,7 @@ import (
 	"bytes"
 	"encoding/json"
 	"fmt"
+	"math"
 	"net/http"
 	"net/http/httptest"
 	"os"
@@ -193,6 +194,40 @@ func TestWatchHandler_Heartbeat_PointsServiceFailure_Returns500(t *testing.T) {
 	var resp handlers.Response
 	if err := json.Unmarshal(w.Body.Bytes(), &resp); err != nil {
 		t.Fatalf("decode response: %v", err)
+	}
+	if resp.Error != "internal server error" {
+		t.Fatalf("expected internal server error, got %q", resp.Error)
+	}
+}
+
+func TestWatchHandler_Heartbeat_Overflow_Returns500(t *testing.T) {
+	e := newWatchTestEnv(t)
+	channelID := "ch_handler_overflow"
+	userID, token := e.registerViewer(t, "overflow")
+	e.seedActiveSession(t, userID, channelID, 25)
+	if err := e.db.Exec(
+		`UPDATE watch_sessions
+		 SET accumulated_seconds = ?, rewarded_seconds = ?
+		 WHERE user_id = ? AND channel_id = ? AND is_active = 1`,
+		math.MaxInt64-10,
+		math.MaxInt64-10,
+		userID,
+		channelID,
+	).Error; err != nil {
+		t.Fatalf("seed near-overflow session counters: %v", err)
+	}
+
+	w := heartbeatRequest(t, e.router, token, channelID)
+	if w.Code != http.StatusInternalServerError {
+		t.Fatalf("expected 500, got %d: %s", w.Code, w.Body.String())
+	}
+
+	var resp handlers.Response
+	if err := json.Unmarshal(w.Body.Bytes(), &resp); err != nil {
+		t.Fatalf("decode response: %v", err)
+	}
+	if resp.Success {
+		t.Fatalf("expected success=false, got true")
 	}
 	if resp.Error != "internal server error" {
 		t.Fatalf("expected internal server error, got %q", resp.Error)

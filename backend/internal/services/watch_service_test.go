@@ -238,6 +238,36 @@ func TestHeartbeat_RejectsOverflowedPointsAward(t *testing.T) {
 	}
 }
 
+func TestHeartbeat_RejectsAccumulatedSecondsOverflow(t *testing.T) {
+	svc := NewWatchService(newTestDB(t))
+	userID := seedWatchUser(t, svc)
+	channelID := "ch_accumulated_overflow"
+
+	s, _ := svc.StartSession(userID, channelID)
+	if err := svc.db.Model(&models.WatchSession{}).
+		Where("id = ?", s.ID).
+		Updates(map[string]interface{}{
+			"accumulated_seconds": math.MaxInt64 - 10,
+			"rewarded_seconds":    math.MaxInt64 - 10,
+		}).Error; err != nil {
+		t.Fatalf("seed near-overflow session counters: %v", err)
+	}
+	backdateHeartbeat(t, svc, s.ID, 25*time.Second)
+
+	_, err := svc.Heartbeat(userID, channelID)
+	if !errors.Is(err, ErrPointsDeltaOverflow) {
+		t.Fatalf("want ErrPointsDeltaOverflow, got %v", err)
+	}
+
+	unchanged := reloadSession(t, svc, s.ID)
+	if unchanged.AccumulatedSeconds != math.MaxInt64-10 {
+		t.Fatalf("accumulated_seconds should stay unchanged, got %d", unchanged.AccumulatedSeconds)
+	}
+	if unchanged.RewardedSeconds != math.MaxInt64-10 {
+		t.Fatalf("rewarded_seconds should stay unchanged, got %d", unchanged.RewardedSeconds)
+	}
+}
+
 func TestHeartbeat_MultiplierApplied(t *testing.T) {
 	svc := NewWatchService(newTestDB(t))
 	userID := seedWatchUser(t, svc)

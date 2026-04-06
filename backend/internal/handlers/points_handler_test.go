@@ -319,7 +319,7 @@ func TestPointsHandler_GetHistory_IsScopedToRequestedChannel(t *testing.T) {
 	}
 }
 
-func TestPointsHandler_GetHistory_ReturnsInternalErrorForUnsafeSpendDelta(t *testing.T) {
+func TestPointsHandler_GetHistory_SkipsUnsafeSpendDeltaAndReturnsValidTransactions(t *testing.T) {
 	e := newPointsEnv(t)
 	userID, token := e.registerViewer(t, "history-overflow")
 
@@ -331,8 +331,12 @@ func TestPointsHandler_GetHistory_ReturnsInternalErrorForUnsafeSpendDelta(t *tes
 	if err := e.db.Where("user_id = ? AND channel_id = ?", userID, "ch_abc").First(&ledger).Error; err != nil {
 		t.Fatalf("load ledger: %v", err)
 	}
-	if err := e.db.Where("ledger_id = ?", ledger.ID).Delete(&models.PointsTransaction{}).Error; err != nil {
-		t.Fatalf("clear txs: %v", err)
+
+	base := time.Date(2026, time.January, 4, 0, 0, 0, 0, time.UTC)
+	if err := e.db.Model(&models.PointsTransaction{}).
+		Where("ledger_id = ? AND source = ?", ledger.ID, models.TxSourceBits).
+		Update("created_at", base).Error; err != nil {
+		t.Fatalf("update valid tx timestamp: %v", err)
 	}
 
 	note := "corrupt"
@@ -342,7 +346,7 @@ func TestPointsHandler_GetHistory_ReturnsInternalErrorForUnsafeSpendDelta(t *tes
 		Delta:        math.MinInt64,
 		BalanceAfter: 0,
 		Note:         &note,
-		CreatedAt:    time.Now().UTC(),
+		CreatedAt:    base.Add(time.Second),
 	}
 	if err := e.db.Create(&tx).Error; err != nil {
 		t.Fatalf("create corrupt tx: %v", err)
@@ -353,8 +357,25 @@ func TestPointsHandler_GetHistory_ReturnsInternalErrorForUnsafeSpendDelta(t *tes
 	rec := httptest.NewRecorder()
 	e.router.ServeHTTP(rec, req)
 
-	if rec.Code != http.StatusInternalServerError {
-		t.Fatalf("want 500, got %d: %s", rec.Code, rec.Body.String())
+	if rec.Code != http.StatusOK {
+		t.Fatalf("want 200, got %d: %s", rec.Code, rec.Body.String())
+	}
+
+	resp := parseBody(t, rec.Body.Bytes())
+	if resp["success"] != true {
+		t.Fatalf("success: want true, got %v", resp["success"])
+	}
+	data := resp["data"].(map[string]interface{})
+	transactions := data["transactions"].([]interface{})
+	if len(transactions) != 1 {
+		t.Fatalf("want only the valid transaction, got %d", len(transactions))
+	}
+	first := transactions[0].(map[string]interface{})
+	if first["type"] != "earn" {
+		t.Fatalf("type: want earn, got %v", first["type"])
+	}
+	if first["amount"] != float64(1) {
+		t.Fatalf("amount: want 1, got %v", first["amount"])
 	}
 }
 

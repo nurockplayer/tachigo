@@ -156,6 +156,18 @@ func TestPointsService_AddPoints_IncreasesBothBalances(t *testing.T) {
 	}
 }
 
+func TestPointsService_AddPoints_RejectsNonPositiveAmount(t *testing.T) {
+	svc, _ := newPointsSvc(t)
+	userID := seedViewer(t, svc)
+
+	for _, amount := range []int64{0, -1} {
+		err := svc.AddPoints(userID, "ch_abc", models.TxSourceBits, amount)
+		if !errors.Is(err, ErrInvalidPointsAmount) {
+			t.Fatalf("amount %d: want ErrInvalidPointsAmount, got %v", amount, err)
+		}
+	}
+}
+
 func TestPointsService_AddPointsWithMeta_PersistsSKU(t *testing.T) {
 	svc, _ := newPointsSvc(t)
 	userID := seedViewer(t, svc)
@@ -215,6 +227,7 @@ func TestPointsService_AddPointsWithMeta_RejectsTooLongSKU(t *testing.T) {
 		t.Fatalf("want ErrInvalidSKU, got %v", err)
 	}
 }
+
 // ─── ListTransactions ────────────────────────────────────────────────────────
 
 func TestPointsService_ListTransactions_EmptyWhenNoLedger(t *testing.T) {

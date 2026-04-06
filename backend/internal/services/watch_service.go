@@ -167,10 +167,10 @@ func (s *WatchService) Heartbeat(userID uuid.UUID, channelID string) (*Heartbeat
 		secondsPerPoint := cfg.SecondsPerPoint
 		multiplier := cfg.Multiplier
 
-		newAccumulated := session.AccumulatedSeconds + deltaSeconds
 		if session.AccumulatedSeconds > math.MaxInt64-deltaSeconds {
 			return ErrPointsDeltaOverflow
 		}
+		newAccumulated := session.AccumulatedSeconds + deltaSeconds
 		pendingSeconds := newAccumulated - session.RewardedSeconds
 		basePoints := pendingSeconds / secondsPerPoint
 		if basePoints > 0 && multiplier > math.MaxInt64/basePoints {
