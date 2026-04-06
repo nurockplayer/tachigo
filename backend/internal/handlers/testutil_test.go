@@ -170,6 +170,13 @@ func migrateTestDB(db *gorm.DB) error {
 			seconds INTEGER NOT NULL,
 			recorded_at DATETIME NOT NULL
 		)`,
+		`CREATE TABLE IF NOT EXISTS tachi_balances (
+			id TEXT PRIMARY KEY,
+			user_id TEXT NOT NULL REFERENCES users(id) ON DELETE CASCADE,
+			balance INTEGER NOT NULL DEFAULT 0,
+			updated_at DATETIME NOT NULL DEFAULT CURRENT_TIMESTAMP,
+			UNIQUE (user_id)
+		)`,
 	}
 	for _, s := range stmts {
 		if err := db.Exec(s).Error; err != nil {

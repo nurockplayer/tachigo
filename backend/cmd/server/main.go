@@ -101,6 +101,7 @@ func main() {
 	channelConfigSvc := services.NewChannelConfigService(db)
 	pointsSvc := services.NewPointsService(db, watchSvc)
 	streamerSvc := services.NewStreamerService(db, pointsSvc)
+	claimSvc := services.NewClaimService(db)
 
 	// CORS origins from env, default to localhost for dev
 	originsEnv := os.Getenv("ALLOWED_ORIGINS")
@@ -109,7 +110,7 @@ func main() {
 		allowedOrigins = strings.Split(originsEnv, ",")
 	}
 
-	r := router.New(authSvc, userSvc, addrSvc, extSvc, emailAuthSvc, watchSvc, channelConfigSvc, pointsSvc, streamerSvc, allowedOrigins)
+	r := router.New(authSvc, userSvc, addrSvc, extSvc, emailAuthSvc, watchSvc, channelConfigSvc, pointsSvc, streamerSvc, claimSvc, allowedOrigins)
 
 	addr := ":" + cfg.Server.Port
 	log.Printf("server starting on %s (env=%s)", addr, cfg.Server.Env)

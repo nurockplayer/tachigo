@@ -21,6 +21,7 @@ func New(
 	channelConfigSvc *services.ChannelConfigService,
 	pointsSvc *services.PointsService,
 	streamerSvc *services.StreamerService,
+	claimSvc *services.ClaimService,
 	allowedOrigins []string,
 ) *gin.Engine {
 	r := gin.New()
@@ -36,6 +37,7 @@ func New(
 	channelConfigH := handlers.NewChannelConfigHandler(channelConfigSvc, streamerSvc)
 	pointsH := handlers.NewPointsHandler(pointsSvc)
 	streamerH := handlers.NewStreamerHandler(streamerSvc)
+	claimH := handlers.NewClaimHandler(claimSvc)
 
 	r.GET("/health", func(c *gin.Context) {
 		c.JSON(200, gin.H{"status": "ok"})
@@ -97,6 +99,10 @@ func New(
 		// Points balance
 		protected.GET("users/me/points", pointsH.GetBalance)
 		protected.GET("users/me/points/history", pointsH.GetHistory)
+
+		// T-Point → $TACHI claim
+		protected.POST("users/me/points/claim", claimH.Claim)
+		protected.GET("users/me/tachi/balance", claimH.GetTachiBalance)
 
 		// User profile
 		protected.GET("users/me", userH.Me)
