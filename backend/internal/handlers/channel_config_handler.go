@@ -81,9 +81,6 @@ func (h *ChannelConfigHandler) authorizeChannelAccess(c *gin.Context) (string, b
 	switch claims.Role {
 	case models.RoleAdmin:
 		return channelID, true
-	case models.RoleAgency:
-		c.JSON(http.StatusNotImplemented, Response{Success: false, Error: "agency channel config not implemented"})
-		return "", false
 	case models.RoleStreamer:
 		userID, err := uuid.Parse(claims.UserID)
 		if err != nil {
