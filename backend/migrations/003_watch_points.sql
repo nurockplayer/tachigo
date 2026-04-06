@@ -46,9 +46,11 @@ CREATE TABLE IF NOT EXISTS points_ledgers (
     cumulative_total  BIGINT       NOT NULL DEFAULT 0,
     spendable_balance BIGINT       NOT NULL DEFAULT 0,
     created_at        TIMESTAMPTZ  NOT NULL DEFAULT NOW(),
-    updated_at        TIMESTAMPTZ  NOT NULL DEFAULT NOW(),
-    UNIQUE (user_id, channel_id)
+    updated_at        TIMESTAMPTZ  NOT NULL DEFAULT NOW()
 );
+
+CREATE UNIQUE INDEX IF NOT EXISTS idx_points_ledgers_user_channel
+    ON points_ledgers (user_id, channel_id);
 
 -- ---------------------------------------------------------------------------
 -- points_transactions

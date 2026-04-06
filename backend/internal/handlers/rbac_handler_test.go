@@ -213,3 +213,198 @@ func TestRBAC_CreateEvent_StreamerAllowed(t *testing.T) {
 		t.Errorf("streamer: want 501, got %d", got)
 	}
 }
+
+// agency → 501（通過授權）
+func TestRBAC_CreateEvent_AgencyAllowed(t *testing.T) {
+	env := newRBACTestEnv(t)
+	token := env.tokenForRole(t, models.RoleAgency)
+
+	if got := doRequest(env.router, http.MethodPost, "/api/v1/events/create", token); got != http.StatusNotImplemented {
+		t.Errorf("agency: want 501, got %d", got)
+	}
+}
+
+// admin → 501（通過授權）
+func TestRBAC_CreateEvent_AdminAllowed(t *testing.T) {
+	env := newRBACTestEnv(t)
+	token := env.tokenForRole(t, models.RoleAdmin)
+
+	if got := doRequest(env.router, http.MethodPost, "/api/v1/events/create", token); got != http.StatusNotImplemented {
+		t.Errorf("admin: want 501, got %d", got)
+	}
+}
+
+// ── POST /agencies（補完角色覆蓋）────────────────────────────────────────────
+
+// streamer → 403（有 token 但角色不符，應回 403 而非 401）
+func TestRBAC_CreateAgency_StreamerForbidden(t *testing.T) {
+	env := newRBACTestEnv(t)
+	token := env.tokenForRole(t, models.RoleStreamer)
+
+	if got := doRequest(env.router, http.MethodPost, "/api/v1/agencies", token); got != http.StatusForbidden {
+		t.Errorf("streamer: want 403, got %d", got)
+	}
+}
+
+// agency → 403（有 token 但角色不符，應回 403 而非 401）
+func TestRBAC_CreateAgency_AgencyForbidden(t *testing.T) {
+	env := newRBACTestEnv(t)
+	token := env.tokenForRole(t, models.RoleAgency)
+
+	if got := doRequest(env.router, http.MethodPost, "/api/v1/agencies", token); got != http.StatusForbidden {
+		t.Errorf("agency: want 403, got %d", got)
+	}
+}
+
+// ── PUT /agencies/:id/settings ────────────────────────────────────────────────
+
+// 無 token → 401
+func TestRBAC_UpdateAgencySettings_NoToken(t *testing.T) {
+	env := newRBACTestEnv(t)
+
+	if got := doRequest(env.router, http.MethodPut, "/api/v1/agencies/1/settings", ""); got != http.StatusUnauthorized {
+		t.Errorf("no token: want 401, got %d", got)
+	}
+}
+
+// viewer → 403（有 token 但角色不符，應回 403 而非 401）
+func TestRBAC_UpdateAgencySettings_ViewerForbidden(t *testing.T) {
+	env := newRBACTestEnv(t)
+	token := env.tokenForRole(t, models.RoleViewer)
+
+	if got := doRequest(env.router, http.MethodPut, "/api/v1/agencies/1/settings", token); got != http.StatusForbidden {
+		t.Errorf("viewer: want 403, got %d", got)
+	}
+}
+
+// streamer → 403（有 token 但角色不符，應回 403 而非 401）
+func TestRBAC_UpdateAgencySettings_StreamerForbidden(t *testing.T) {
+	env := newRBACTestEnv(t)
+	token := env.tokenForRole(t, models.RoleStreamer)
+
+	if got := doRequest(env.router, http.MethodPut, "/api/v1/agencies/1/settings", token); got != http.StatusForbidden {
+		t.Errorf("streamer: want 403, got %d", got)
+	}
+}
+
+// agency → 501（通過授權）
+func TestRBAC_UpdateAgencySettings_AgencyAllowed(t *testing.T) {
+	env := newRBACTestEnv(t)
+	token := env.tokenForRole(t, models.RoleAgency)
+
+	if got := doRequest(env.router, http.MethodPut, "/api/v1/agencies/1/settings", token); got != http.StatusNotImplemented {
+		t.Errorf("agency: want 501, got %d", got)
+	}
+}
+
+// admin → 501（通過授權）
+func TestRBAC_UpdateAgencySettings_AdminAllowed(t *testing.T) {
+	env := newRBACTestEnv(t)
+	token := env.tokenForRole(t, models.RoleAdmin)
+
+	if got := doRequest(env.router, http.MethodPut, "/api/v1/agencies/1/settings", token); got != http.StatusNotImplemented {
+		t.Errorf("admin: want 501, got %d", got)
+	}
+}
+
+// ── GET /agencies/:id/streamers ───────────────────────────────────────────────
+
+// 無 token → 401
+func TestRBAC_ListAgencyStreamers_NoToken(t *testing.T) {
+	env := newRBACTestEnv(t)
+
+	if got := doRequest(env.router, http.MethodGet, "/api/v1/agencies/1/streamers", ""); got != http.StatusUnauthorized {
+		t.Errorf("no token: want 401, got %d", got)
+	}
+}
+
+// viewer → 403（有 token 但角色不符，應回 403 而非 401）
+func TestRBAC_ListAgencyStreamers_ViewerForbidden(t *testing.T) {
+	env := newRBACTestEnv(t)
+	token := env.tokenForRole(t, models.RoleViewer)
+
+	if got := doRequest(env.router, http.MethodGet, "/api/v1/agencies/1/streamers", token); got != http.StatusForbidden {
+		t.Errorf("viewer: want 403, got %d", got)
+	}
+}
+
+// streamer → 403（有 token 但角色不符，應回 403 而非 401）
+func TestRBAC_ListAgencyStreamers_StreamerForbidden(t *testing.T) {
+	env := newRBACTestEnv(t)
+	token := env.tokenForRole(t, models.RoleStreamer)
+
+	if got := doRequest(env.router, http.MethodGet, "/api/v1/agencies/1/streamers", token); got != http.StatusForbidden {
+		t.Errorf("streamer: want 403, got %d", got)
+	}
+}
+
+// agency → 501（通過授權）
+func TestRBAC_ListAgencyStreamers_AgencyAllowed(t *testing.T) {
+	env := newRBACTestEnv(t)
+	token := env.tokenForRole(t, models.RoleAgency)
+
+	if got := doRequest(env.router, http.MethodGet, "/api/v1/agencies/1/streamers", token); got != http.StatusNotImplemented {
+		t.Errorf("agency: want 501, got %d", got)
+	}
+}
+
+// admin → 501（通過授權）
+func TestRBAC_ListAgencyStreamers_AdminAllowed(t *testing.T) {
+	env := newRBACTestEnv(t)
+	token := env.tokenForRole(t, models.RoleAdmin)
+
+	if got := doRequest(env.router, http.MethodGet, "/api/v1/agencies/1/streamers", token); got != http.StatusNotImplemented {
+		t.Errorf("admin: want 501, got %d", got)
+	}
+}
+
+// ── POST /events/:id/settle ───────────────────────────────────────────────────
+
+// 無 token → 401
+func TestRBAC_SettleEvent_NoToken(t *testing.T) {
+	env := newRBACTestEnv(t)
+
+	if got := doRequest(env.router, http.MethodPost, "/api/v1/events/1/settle", ""); got != http.StatusUnauthorized {
+		t.Errorf("no token: want 401, got %d", got)
+	}
+}
+
+// viewer → 403（有 token 但角色不符，應回 403 而非 401）
+func TestRBAC_SettleEvent_ViewerForbidden(t *testing.T) {
+	env := newRBACTestEnv(t)
+	token := env.tokenForRole(t, models.RoleViewer)
+
+	if got := doRequest(env.router, http.MethodPost, "/api/v1/events/1/settle", token); got != http.StatusForbidden {
+		t.Errorf("viewer: want 403, got %d", got)
+	}
+}
+
+// streamer → 501（通過授權）
+func TestRBAC_SettleEvent_StreamerAllowed(t *testing.T) {
+	env := newRBACTestEnv(t)
+	token := env.tokenForRole(t, models.RoleStreamer)
+
+	if got := doRequest(env.router, http.MethodPost, "/api/v1/events/1/settle", token); got != http.StatusNotImplemented {
+		t.Errorf("streamer: want 501, got %d", got)
+	}
+}
+
+// agency → 501（通過授權）
+func TestRBAC_SettleEvent_AgencyAllowed(t *testing.T) {
+	env := newRBACTestEnv(t)
+	token := env.tokenForRole(t, models.RoleAgency)
+
+	if got := doRequest(env.router, http.MethodPost, "/api/v1/events/1/settle", token); got != http.StatusNotImplemented {
+		t.Errorf("agency: want 501, got %d", got)
+	}
+}
+
+// admin → 501（通過授權）
+func TestRBAC_SettleEvent_AdminAllowed(t *testing.T) {
+	env := newRBACTestEnv(t)
+	token := env.tokenForRole(t, models.RoleAdmin)
+
+	if got := doRequest(env.router, http.MethodPost, "/api/v1/events/1/settle", token); got != http.StatusNotImplemented {
+		t.Errorf("admin: want 501, got %d", got)
+	}
+}

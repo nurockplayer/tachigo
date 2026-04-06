@@ -1560,11 +1560,13 @@ const docTemplate = `{
             "enum": [
                 "viewer",
                 "streamer",
+                "agency",
                 "admin"
             ],
             "x-enum-varnames": [
                 "RoleViewer",
                 "RoleStreamer",
+                "RoleAgency",
                 "RoleAdmin"
             ]
         },

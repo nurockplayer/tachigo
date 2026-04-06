@@ -14,6 +14,12 @@ import (
 // staleThreshold is how long without a heartbeat before a session is considered stale.
 const staleThreshold = 2 * time.Minute
 
+// clickCooldown is how long a viewer must wait between clicks.
+const clickCooldown = 5 * time.Second
+
+// clickPointsPerClick is the fixed reward per click (MVP; configurable in future).
+const clickPointsPerClick = int64(1)
+
 // newUUID generates a time-ordered UUID v7. Falls back to random v4 on failure.
 func newUUID() uuid.UUID {
 	id, err := uuid.NewV7()
@@ -24,6 +30,13 @@ func newUUID() uuid.UUID {
 }
 
 var ErrNoActiveSession = errors.New("no active session")
+
+// ErrClickOnCooldown is returned when a viewer clicks before their cooldown expires.
+type ErrClickOnCooldown struct {
+	RetryAfterMs int64
+}
+
+func (e ErrClickOnCooldown) Error() string { return "click on cooldown" }
 
 type WatchService struct {
 	db *gorm.DB
@@ -105,6 +118,7 @@ func (s *WatchService) StartSession(userID uuid.UUID, channelID string) (*models
 type HeartbeatResult struct {
 	Session      *models.WatchSession
 	PointsEarned int64
+	DeltaSeconds int64
 }
 
 // Heartbeat advances the session timer and awards points if a full minute has accumulated.
@@ -135,7 +149,7 @@ func (s *WatchService) Heartbeat(userID uuid.UUID, channelID string) (*Heartbeat
 		// Ignore heartbeats that arrive too quickly — likely a client retry.
 		// Normal cadence is 30 s; anything under 20 s is anomalous.
 		if delta < 20*time.Second {
-			result = HeartbeatResult{Session: &session, PointsEarned: 0}
+			result = HeartbeatResult{Session: &session, PointsEarned: 0, DeltaSeconds: 0}
 			return nil
 		}
 
@@ -145,11 +159,18 @@ func (s *WatchService) Heartbeat(userID uuid.UUID, channelID string) (*Heartbeat
 		// Use integer division on the duration to avoid float truncation issues
 		// (e.g. 29.9s should count as 29s, not silently floor via float cast).
 		deltaSeconds := int64(delta / time.Second)
+		cfg, err := s.getChannelConfig(tx, channelID)
+		if err != nil {
+			return err
+		}
+		secondsPerPoint := cfg.SecondsPerPoint
+		multiplier := cfg.Multiplier
 
 		newAccumulated := session.AccumulatedSeconds + deltaSeconds
 		pendingSeconds := newAccumulated - session.RewardedSeconds
-		pointsToAward := pendingSeconds / 60
-		newRewarded := session.RewardedSeconds + pointsToAward*60
+		basePoints := pendingSeconds / secondsPerPoint
+		pointsToAward := basePoints * multiplier
+		newRewarded := session.RewardedSeconds + basePoints*secondsPerPoint
 
 		if err := tx.Model(&session).Updates(map[string]interface{}{
 			"accumulated_seconds": newAccumulated,
@@ -197,7 +218,7 @@ func (s *WatchService) Heartbeat(userID uuid.UUID, channelID string) (*Heartbeat
 			}
 		}
 
-		result = HeartbeatResult{Session: &session, PointsEarned: pointsToAward}
+		result = HeartbeatResult{Session: &session, PointsEarned: pointsToAward, DeltaSeconds: deltaSeconds}
 		return nil
 	})
 
@@ -219,6 +240,82 @@ func (s *WatchService) EndSession(userID uuid.UUID, channelID string) error {
 		}).Error
 }
 
+// ClickResult contains the outcome of a single click event.
+type ClickResult struct {
+	BalanceAfter int64
+	Delta        int64
+}
+
+// RecordClick awards points for a viewer clicking the mining character.
+//
+// Rules:
+//   - The viewer must have an active watch session.
+//   - A per-viewer cooldown (clickCooldown) prevents click spam.
+//   - On success, clickPointsPerClick is added to the viewer's ledger.
+//
+// Concurrency: SELECT FOR UPDATE on the session row serialises concurrent clicks.
+func (s *WatchService) RecordClick(userID uuid.UUID, channelID string) (*ClickResult, error) {
+	var result ClickResult
+
+	err := s.db.Transaction(func(tx *gorm.DB) error {
+		var session models.WatchSession
+		if err := tx.Clauses(clause.Locking{Strength: "UPDATE"}).
+			Where("user_id = ? AND channel_id = ? AND is_active = true", userID, channelID).
+			First(&session).Error; err != nil {
+			if errors.Is(err, gorm.ErrRecordNotFound) {
+				return ErrNoActiveSession
+			}
+			return err
+		}
+
+		if time.Now().Before(session.ClickCooldownUntil) {
+			remaining := time.Until(session.ClickCooldownUntil)
+			return ErrClickOnCooldown{RetryAfterMs: remaining.Milliseconds()}
+		}
+
+		if err := tx.Model(&session).Update("click_cooldown_until", time.Now().Add(clickCooldown)).Error; err != nil {
+			return err
+		}
+
+		ledgerID := newUUID()
+		upsertTime := time.Now()
+		if err := tx.Exec(`
+			INSERT INTO points_ledgers (id, user_id, channel_id, spendable_balance, cumulative_total, created_at, updated_at)
+			VALUES (?, ?, ?, ?, ?, ?, ?)
+			ON CONFLICT (user_id, channel_id) DO UPDATE SET
+				spendable_balance = points_ledgers.spendable_balance + EXCLUDED.spendable_balance,
+				cumulative_total  = points_ledgers.cumulative_total  + EXCLUDED.cumulative_total,
+				updated_at        = ?
+		`, ledgerID, userID, channelID, clickPointsPerClick, clickPointsPerClick, upsertTime, upsertTime, upsertTime).Error; err != nil {
+			return err
+		}
+
+		var ledger models.PointsLedger
+		if err := tx.Where("user_id = ? AND channel_id = ?", userID, channelID).First(&ledger).Error; err != nil {
+			return err
+		}
+
+		txRecord := &models.PointsTransaction{
+			LedgerID:       ledger.ID,
+			WatchSessionID: &session.ID,
+			Source:         models.TxSourceClick,
+			Delta:          clickPointsPerClick,
+			BalanceAfter:   ledger.SpendableBalance,
+		}
+		if err := tx.Create(txRecord).Error; err != nil {
+			return err
+		}
+
+		result = ClickResult{BalanceAfter: ledger.SpendableBalance, Delta: clickPointsPerClick}
+		return nil
+	})
+
+	if err != nil {
+		return nil, err
+	}
+	return &result, nil
+}
+
 // GetBalance returns the viewer's current spendable balance and cumulative total
 // for the given channel. Returns (0, 0, nil) if no ledger exists yet.
 func (s *WatchService) GetBalance(userID uuid.UUID, channelID string) (spendable, cumulative int64, err error) {
@@ -230,4 +327,25 @@ func (s *WatchService) GetBalance(userID uuid.UUID, channelID string) (spendable
 		return 0, 0, err
 	}
 	return ledger.SpendableBalance, ledger.CumulativeTotal, nil
+}
+
+func (s *WatchService) getChannelConfig(db *gorm.DB, channelID string) (*models.ChannelConfig, error) {
+	var cfg models.ChannelConfig
+	if err := db.Where("channel_id = ?", channelID).First(&cfg).Error; err != nil {
+		if errors.Is(err, gorm.ErrRecordNotFound) {
+			return &models.ChannelConfig{
+				ChannelID:       channelID,
+				SecondsPerPoint: DefaultSecondsPerPoint,
+				Multiplier:      1,
+			}, nil
+		}
+		return nil, err
+	}
+	if cfg.SecondsPerPoint <= 0 {
+		cfg.SecondsPerPoint = DefaultSecondsPerPoint
+	}
+	if cfg.Multiplier <= 0 {
+		cfg.Multiplier = 1
+	}
+	return &cfg, nil
 }

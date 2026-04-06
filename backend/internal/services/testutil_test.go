@@ -108,6 +108,7 @@ func migrateTestDB(db *gorm.DB) error {
 			accumulated_seconds INTEGER NOT NULL DEFAULT 0,
 			rewarded_seconds INTEGER NOT NULL DEFAULT 0,
 			last_heartbeat_at DATETIME NOT NULL,
+			click_cooldown_until DATETIME NOT NULL DEFAULT '1970-01-01 00:00:00',
 			is_active INTEGER NOT NULL DEFAULT 1,
 			ended_at DATETIME,
 			created_at DATETIME,
@@ -116,6 +117,23 @@ func migrateTestDB(db *gorm.DB) error {
 		`CREATE UNIQUE INDEX IF NOT EXISTS idx_watch_sessions_active_user_channel
 			ON watch_sessions (user_id, channel_id)
 			WHERE is_active = 1`,
+		`CREATE TABLE IF NOT EXISTS channel_configs (
+			channel_id TEXT PRIMARY KEY,
+			seconds_per_point INTEGER NOT NULL DEFAULT 60,
+			multiplier INTEGER NOT NULL DEFAULT 1,
+			created_at DATETIME,
+			updated_at DATETIME
+		)`,
+		`CREATE TABLE IF NOT EXISTS streamers (
+			id TEXT PRIMARY KEY,
+			user_id TEXT NOT NULL REFERENCES users(id),
+			channel_id TEXT NOT NULL,
+			display_name TEXT,
+			created_at DATETIME,
+			updated_at DATETIME
+		)`,
+		`CREATE UNIQUE INDEX IF NOT EXISTS idx_streamers_user_channel
+			ON streamers (user_id, channel_id)`,
 		`CREATE TABLE IF NOT EXISTS points_ledgers (
 			id TEXT PRIMARY KEY,
 			user_id TEXT NOT NULL,
@@ -125,7 +143,7 @@ func migrateTestDB(db *gorm.DB) error {
 			created_at DATETIME,
 			updated_at DATETIME
 		)`,
-		`CREATE UNIQUE INDEX IF NOT EXISTS idx_ledger_user_channel
+		`CREATE UNIQUE INDEX IF NOT EXISTS idx_points_ledgers_user_channel
 			ON points_ledgers (user_id, channel_id)`,
 		`CREATE TABLE IF NOT EXISTS points_transactions (
 			id TEXT PRIMARY KEY,
@@ -136,6 +154,33 @@ func migrateTestDB(db *gorm.DB) error {
 			balance_after INTEGER NOT NULL,
 			note TEXT,
 			created_at DATETIME
+		)`,
+		`CREATE TABLE IF NOT EXISTS watch_time_stats (
+			id TEXT PRIMARY KEY,
+			user_id TEXT NOT NULL,
+			channel_id TEXT NOT NULL,
+			total_watch_seconds INTEGER NOT NULL DEFAULT 0,
+			created_at DATETIME,
+			updated_at DATETIME
+		)`,
+		`CREATE UNIQUE INDEX IF NOT EXISTS idx_watch_time_user_channel
+			ON watch_time_stats (user_id, channel_id)`,
+		`CREATE TABLE IF NOT EXISTS broadcast_time_stats (
+			id TEXT PRIMARY KEY,
+			streamer_id TEXT NOT NULL,
+			channel_id TEXT NOT NULL,
+			total_broadcast_seconds INTEGER NOT NULL DEFAULT 0,
+			created_at DATETIME,
+			updated_at DATETIME
+		)`,
+		`CREATE UNIQUE INDEX IF NOT EXISTS idx_broadcast_time_streamer_channel
+			ON broadcast_time_stats (streamer_id, channel_id)`,
+		`CREATE TABLE IF NOT EXISTS broadcast_time_logs (
+			id TEXT PRIMARY KEY,
+			streamer_id TEXT NOT NULL,
+			channel_id TEXT NOT NULL,
+			seconds INTEGER NOT NULL,
+			recorded_at DATETIME NOT NULL
 		)`,
 	}
 	for _, s := range stmts {
