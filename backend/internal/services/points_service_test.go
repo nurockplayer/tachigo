@@ -102,6 +102,18 @@ func TestPointsService_DeductPoints_InsufficientBalance(t *testing.T) {
 	}
 }
 
+func TestPointsService_DeductPoints_RejectsNonPositiveAmount(t *testing.T) {
+	svc, _ := newPointsSvc(t)
+	userID := seedViewer(t, svc)
+
+	for _, amount := range []int64{0, -1} {
+		err := svc.DeductPoints(userID, "ch_abc", amount, "invalid")
+		if !errors.Is(err, ErrInvalidPointsAmount) {
+			t.Fatalf("amount %d: want ErrInvalidPointsAmount, got %v", amount, err)
+		}
+	}
+}
+
 func TestPointsService_DeductPoints_Success(t *testing.T) {
 	svc, watchSvc := newPointsSvc(t)
 	userID := seedViewer(t, svc)
@@ -141,6 +153,18 @@ func TestPointsService_AddPoints_IncreasesBothBalances(t *testing.T) {
 	bal, _ := svc.GetBalance(userID, "ch_abc")
 	if bal.SpendableBalance != 500 || bal.CumulativeTotal != 500 {
 		t.Errorf("want (500,500), got (%d,%d)", bal.SpendableBalance, bal.CumulativeTotal)
+	}
+}
+
+func TestPointsService_AddPoints_RejectsNonPositiveAmount(t *testing.T) {
+	svc, _ := newPointsSvc(t)
+	userID := seedViewer(t, svc)
+
+	for _, amount := range []int64{0, -1} {
+		err := svc.AddPoints(userID, "ch_abc", models.TxSourceBits, amount)
+		if !errors.Is(err, ErrInvalidPointsAmount) {
+			t.Fatalf("amount %d: want ErrInvalidPointsAmount, got %v", amount, err)
+		}
 	}
 }
 

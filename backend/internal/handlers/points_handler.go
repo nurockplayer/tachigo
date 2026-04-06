@@ -1,6 +1,8 @@
 package handlers
 
 import (
+	"math"
+
 	"github.com/gin-gonic/gin"
 	"github.com/google/uuid"
 
@@ -85,6 +87,9 @@ func (h *PointsHandler) GetHistory(c *gin.Context) {
 		txType := "earn"
 		amount := tx.Delta
 		if tx.Delta < 0 {
+			if tx.Delta == math.MinInt64 {
+				continue
+			}
 			txType = "spend"
 			amount = -tx.Delta
 		}

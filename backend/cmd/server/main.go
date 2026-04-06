@@ -7,7 +7,6 @@
 // @in              header
 // @name            Authorization
 // @description     Enter: Bearer {access_token}
-
 package main
 
 import (
@@ -25,6 +24,7 @@ import (
 	"github.com/tachigo/tachigo/internal/services"
 )
 
+// @security BearerAuth
 func main() {
 	// Load .env (ignore error in production where env is set externally)
 	_ = godotenv.Load()
