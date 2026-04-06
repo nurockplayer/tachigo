@@ -11,7 +11,6 @@
 package main
 
 import (
-	"fmt"
 	"log"
 	"os"
 	"strings"
@@ -89,14 +88,6 @@ func main() {
 	`).Error; err != nil {
 		log.Fatalf("failed to create streamer index: %v", err)
 	}
-	// agency_streamers unique constraint — refs #99
-	if err := db.Exec(`
-		CREATE UNIQUE INDEX IF NOT EXISTS idx_agency_streamers_agency_channel
-		ON agency_streamers (agency_id, channel_id)
-	`).Error; err != nil {
-		log.Fatalf("failed to create agency_streamers index: %v", err)
-	}
-
 	// Wire services
 	authSvc := services.NewAuthService(db, cfg)
 	userSvc := services.NewUserService(db)
@@ -133,10 +124,6 @@ func initializeUserRoleEnum(exec func(query string) error) error {
 		END $$;
 	`); err != nil {
 		return err
-	}
-
-	if err := exec(`ALTER TYPE user_role ADD VALUE IF NOT EXISTS 'agency'`); err != nil {
-		return fmt.Errorf("alter user_role enum: %w", err)
 	}
 
 	return nil
