@@ -11,6 +11,7 @@
 package main
 
 import (
+	"fmt"
 	"log"
 	"os"
 	"strings"
@@ -36,12 +37,9 @@ func main() {
 	// Create custom ENUM types before AutoMigrate (GORM cannot create them automatically).
 	// NOTE: keep in sync with models.UserRole constants in internal/models/user.go.
 	// 'agency' was added in refs #99; if adding new roles, update this list.
-	if err := db.Exec(`
-		DO $$ BEGIN
-			CREATE TYPE user_role AS ENUM ('viewer', 'streamer', 'agency', 'admin');
-		EXCEPTION WHEN duplicate_object THEN NULL;
-		END $$;
-	`).Error; err != nil {
+	if err := initializeUserRoleEnum(func(query string) error {
+		return db.Exec(query).Error
+	}); err != nil {
 		log.Fatalf("failed to create user_role enum: %v", err)
 	}
 
@@ -125,4 +123,21 @@ func main() {
 	if err := r.Run(addr); err != nil {
 		log.Fatalf("server error: %v", err)
 	}
+}
+
+func initializeUserRoleEnum(exec func(query string) error) error {
+	if err := exec(`
+		DO $$ BEGIN
+			CREATE TYPE user_role AS ENUM ('viewer', 'streamer', 'agency', 'admin');
+		EXCEPTION WHEN duplicate_object THEN NULL;
+		END $$;
+	`); err != nil {
+		return err
+	}
+
+	if err := exec(`ALTER TYPE user_role ADD VALUE IF NOT EXISTS 'agency'`); err != nil {
+		return fmt.Errorf("alter user_role enum: %w", err)
+	}
+
+	return nil
 }
