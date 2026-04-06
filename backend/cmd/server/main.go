@@ -61,6 +61,8 @@ func main() {
 		&models.WatchTimeStat{},
 		&models.BroadcastTimeStat{},
 		&models.BroadcastTimeLog{},
+		// Tachi token balance — refs #103
+		&models.TachiBalance{},
 	); err != nil {
 		log.Fatalf("migration failed: %v", err)
 	}
