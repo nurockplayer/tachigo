@@ -2,6 +2,7 @@ package handlers
 
 import (
 	"errors"
+	"io"
 
 	"github.com/gin-gonic/gin"
 	"github.com/google/uuid"
@@ -48,7 +49,13 @@ func (h *ClaimHandler) Claim(c *gin.Context) {
 
 	var req claimRequest
 	if err := c.ShouldBindJSON(&req); err != nil {
-		// empty body is allowed (means claim all)
+		// Only a truly empty body (EOF) is treated as "claim all".
+		// Malformed JSON or type errors must be rejected to avoid silently
+		// draining the user's entire balance on a bad request.
+		if !errors.Is(err, io.EOF) {
+			badRequest(c, "invalid request body: "+err.Error())
+			return
+		}
 		req.Amount = 0
 	}
 	if req.Amount < 0 {

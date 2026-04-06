@@ -46,9 +46,12 @@ func (s *ClaimService) Claim(userID uuid.UUID, amount int64) (int64, error) {
 
 	err := s.db.Transaction(func(tx *gorm.DB) error {
 		// Lock all ledgers for this user.
+		// ORDER BY created_at ASC, id ASC ensures deterministic deduction order
+		// across DB restarts and query plan changes.
 		var ledgers []models.PointsLedger
 		if err := tx.Clauses(clause.Locking{Strength: "UPDATE"}).
 			Where("user_id = ? AND spendable_balance > 0", userID).
+			Order("created_at ASC, id ASC").
 			Find(&ledgers).Error; err != nil {
 			return err
 		}
@@ -71,7 +74,7 @@ func (s *ClaimService) Claim(userID uuid.UUID, amount int64) (int64, error) {
 			return ErrClaimInsufficientBalance
 		}
 
-		// Deduct from ledgers greedily (in primary-key order, already stable from GORM).
+		// Deduct from ledgers greedily in created_at ASC, id ASC order (oldest first).
 		remaining := claimAmount
 		now := time.Now()
 		for _, ledger := range ledgers {

@@ -186,9 +186,10 @@ func migrateTestDB(db *gorm.DB) error {
 		`CREATE TABLE IF NOT EXISTS tachi_balances (
 			id TEXT PRIMARY KEY,
 			user_id TEXT NOT NULL REFERENCES users(id) ON DELETE CASCADE,
-			balance INTEGER NOT NULL DEFAULT 0,
+			balance NUMERIC(20,6) NOT NULL DEFAULT 0,
 			updated_at DATETIME NOT NULL DEFAULT CURRENT_TIMESTAMP,
-			UNIQUE (user_id)
+			UNIQUE (user_id),
+			CHECK (balance >= 0)
 		)`,
 	}
 	for _, s := range stmts {
