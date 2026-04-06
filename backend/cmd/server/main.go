@@ -34,9 +34,11 @@ func main() {
 	db := database.Connect(cfg.Database.DSN)
 
 	// Create custom ENUM types before AutoMigrate (GORM cannot create them automatically).
+	// NOTE: keep in sync with models.UserRole constants in internal/models/user.go.
+	// 'agency' was added in refs #99; if adding new roles, update this list.
 	if err := db.Exec(`
 		DO $$ BEGIN
-			CREATE TYPE user_role AS ENUM ('viewer', 'streamer', 'admin');
+			CREATE TYPE user_role AS ENUM ('viewer', 'streamer', 'agency', 'admin');
 		EXCEPTION WHEN duplicate_object THEN NULL;
 		END $$;
 	`).Error; err != nil {
@@ -61,6 +63,8 @@ func main() {
 		&models.WatchTimeStat{},
 		&models.BroadcastTimeStat{},
 		&models.BroadcastTimeLog{},
+		// Agency management — refs #99
+		&models.AgencyStreamer{},
 	); err != nil {
 		log.Fatalf("migration failed: %v", err)
 	}
@@ -86,6 +90,13 @@ func main() {
 		ON streamers (user_id, channel_id)
 	`).Error; err != nil {
 		log.Fatalf("failed to create streamer index: %v", err)
+	}
+	// agency_streamers unique constraint — refs #99
+	if err := db.Exec(`
+		CREATE UNIQUE INDEX IF NOT EXISTS idx_agency_streamers_agency_channel
+		ON agency_streamers (agency_id, channel_id)
+	`).Error; err != nil {
+		log.Fatalf("failed to create agency_streamers index: %v", err)
 	}
 
 	// Wire services
