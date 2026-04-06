@@ -8,12 +8,13 @@ import (
 )
 
 type Streamer struct {
-	ID          uuid.UUID `gorm:"type:uuid;primaryKey;default:gen_random_uuid()" json:"id"`
-	UserID      uuid.UUID `gorm:"type:uuid;not null;index;uniqueIndex:idx_streamers_user_channel" json:"user_id"`
-	ChannelID   string    `gorm:"type:varchar(255);not null;index;uniqueIndex:idx_streamers_user_channel" json:"channel_id"`
-	DisplayName string    `gorm:"type:varchar(255)"                              json:"display_name"`
-	CreatedAt   time.Time `                                                      json:"created_at"`
-	UpdatedAt   time.Time `                                                      json:"updated_at"`
+	ID           uuid.UUID  `gorm:"type:uuid;primaryKey;default:gen_random_uuid()" json:"id"`
+	UserID       uuid.UUID  `gorm:"type:uuid;not null"                              json:"user_id"`
+	AgencyUserID *uuid.UUID `gorm:"type:uuid"                                       json:"agency_user_id"`
+	TwitchLogin  string     `gorm:"type:varchar(50);not null;uniqueIndex"           json:"twitch_login"`
+	DisplayName  string     `gorm:"type:varchar(100)"                               json:"display_name"`
+	CreatedAt    time.Time  `                                                        json:"created_at"`
+	UpdatedAt    time.Time  `                                                        json:"updated_at"`
 }
 
 func (s *Streamer) BeforeCreate(tx *gorm.DB) error {

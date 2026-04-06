@@ -7,6 +7,7 @@ import (
 	"testing"
 
 	"github.com/gin-gonic/gin"
+	"github.com/google/uuid"
 
 	"github.com/tachigo/tachigo/internal/handlers"
 	"github.com/tachigo/tachigo/internal/middleware"
@@ -105,12 +106,12 @@ func seedOwnedStreamerChannel(t *testing.T, env *dashboardEnv, email, channelID 
 	if err := env.db.Where("email = ?", email).First(&user).Error; err != nil {
 		t.Fatalf("load user by email: %v", err)
 	}
-	if err := env.db.Create(&models.Streamer{
-		UserID:      user.ID,
-		ChannelID:   channelID,
-		DisplayName: "Owned channel",
-	}).Error; err != nil {
-		t.Fatalf("seed streamer ownership: %v", err)
+	if err := env.db.Exec(
+		`INSERT INTO auth_providers (id, user_id, provider, provider_id, created_at, updated_at)
+		 VALUES (?, ?, ?, ?, CURRENT_TIMESTAMP, CURRENT_TIMESTAMP)`,
+		uuid.New(), user.ID, models.ProviderTwitch, channelID,
+	).Error; err != nil {
+		t.Fatalf("seed channel ownership: %v", err)
 	}
 }
 
