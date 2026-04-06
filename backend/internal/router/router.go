@@ -126,8 +126,12 @@ func New(
 		dashboard.GET("/streamers/:streamer_id/stats",
 			middleware.RequireRole(models.RoleStreamer, models.RoleAgency, models.RoleAdmin),
 			streamerH.GetStats)
-		dashboard.GET("/channels/:channel_id/config", channelConfigH.GetChannelConfig)
-		dashboard.PUT("/channels/:channel_id/config", channelConfigH.UpdateChannelConfig)
+		dashboard.GET("/channels/:channel_id/config",
+			middleware.RequireRole(models.RoleAdmin, models.RoleStreamer),
+			channelConfigH.GetChannelConfig)
+		dashboard.PUT("/channels/:channel_id/config",
+			middleware.RequireRole(models.RoleAdmin, models.RoleStreamer),
+			channelConfigH.UpdateChannelConfig)
 	}
 
 	// ── Agency management ─────────────────────────────────────────────────

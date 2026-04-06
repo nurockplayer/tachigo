@@ -101,9 +101,6 @@ func (s *StreamerService) ListByAgencyUserID(agencyUserID uuid.UUID) ([]models.S
 		Find(&streamers).Error; err != nil {
 		return nil, err
 	}
-	if streamers == nil {
-		return []models.Streamer{}, nil
-	}
 	return streamers, nil
 }
 
@@ -111,9 +108,6 @@ func (s *StreamerService) ListAll() ([]models.Streamer, error) {
 	var streamers []models.Streamer
 	if err := s.db.Order("created_at ASC").Find(&streamers).Error; err != nil {
 		return nil, err
-	}
-	if streamers == nil {
-		return []models.Streamer{}, nil
 	}
 	return streamers, nil
 }
