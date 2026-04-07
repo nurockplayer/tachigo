@@ -95,6 +95,13 @@ func migrateTestDB(db *gorm.DB) error {
 			created_at DATETIME,
 			updated_at DATETIME
 		)`,
+		`CREATE TABLE IF NOT EXISTS agency_streamers (
+			id TEXT PRIMARY KEY,
+			agency_id TEXT NOT NULL,
+			channel_id TEXT NOT NULL,
+			created_at DATETIME,
+			UNIQUE (agency_id, channel_id)
+		)`,
 		`CREATE TABLE IF NOT EXISTS streamers (
 			id TEXT PRIMARY KEY,
 			user_id TEXT NOT NULL REFERENCES users(id),
@@ -169,6 +176,14 @@ func migrateTestDB(db *gorm.DB) error {
 			channel_id TEXT NOT NULL,
 			seconds INTEGER NOT NULL,
 			recorded_at DATETIME NOT NULL
+		)`,
+		`CREATE TABLE IF NOT EXISTS tachi_balances (
+			id TEXT PRIMARY KEY,
+			user_id TEXT NOT NULL REFERENCES users(id) ON DELETE CASCADE,
+			balance INTEGER NOT NULL DEFAULT 0,
+			updated_at DATETIME NOT NULL DEFAULT CURRENT_TIMESTAMP,
+			UNIQUE (user_id),
+			CHECK (balance >= 0)
 		)`,
 	}
 	for _, s := range stmts {

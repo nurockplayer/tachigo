@@ -15,6 +15,7 @@ const (
 	TxSourceWatchTime TxSource = "watch_time"
 	TxSourceClick     TxSource = "click"
 	TxSourceSpend     TxSource = "spend"
+	TxSourceClaim     TxSource = "claim"
 )
 
 // PointsLedger is the per-channel points balance for a viewer.
