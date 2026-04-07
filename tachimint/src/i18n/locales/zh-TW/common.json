@@ -1,0 +1,10 @@
+{
+  "contextLoading": {
+    "title": "載入中...",
+    "subtitle": "正在啟動 extension"
+  },
+  "common": {
+    "retry": "重試",
+    "initializing": "初始化中..."
+  }
+}

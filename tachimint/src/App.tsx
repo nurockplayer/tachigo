@@ -1,8 +1,10 @@
+import { useTranslation } from 'react-i18next'
 import { useTwitch } from './hooks/useTwitch'
 import { useBits } from './hooks/useBits'
 import { useHeartbeat } from './hooks/useHeartbeat'
 
 export default function App() {
+  const { t } = useTranslation()
   const { context, jwt, products, bitsEnabled, authError } = useTwitch()
   const { buyWithBits, status, error } = useBits(jwt)
   const { balance, gain, isAnimating } = useHeartbeat(jwt, {
@@ -13,7 +15,8 @@ export default function App() {
     return (
       <div className="ext-loading">
         <div className="ext-loading__spinner" />
-        <span>Connecting…</span>
+        <p>{t('contextLoading.title')}</p>
+        <p>{t('contextLoading.subtitle')}</p>
       </div>
     )
   }

@@ -1,6 +1,7 @@
 import { useEffect, useState } from 'react'
 import type { TwitchContext } from '../types/twitch'
 import { loginWithTwitchExtension, setAuthToken } from '../services/api'
+import i18n, { mapTwitchLocaleToAppLanguage } from '../i18n'
 
 export interface TwitchBitsProduct {
   sku: string
@@ -21,6 +22,10 @@ export function useTwitch() {
     if (!ext) return
 
     ext.onContext((ctx: TwitchExtContext) => {
+      const rawLocale = ctx.locale ?? ctx.language ?? 'en'
+      const appLang = mapTwitchLocaleToAppLanguage(rawLocale)
+      i18n.changeLanguage(appLang)
+
       setContext({
         channelId: ctx.channelId,
         clientId: ctx.clientId,

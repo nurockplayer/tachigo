@@ -1,0 +1,10 @@
+{
+  "contextLoading": {
+    "title": "Loading...",
+    "subtitle": "Starting extension"
+  },
+  "common": {
+    "retry": "Retry",
+    "initializing": "Initializing..."
+  }
+}
