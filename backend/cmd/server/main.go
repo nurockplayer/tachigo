@@ -15,12 +15,13 @@ import (
 	"os"
 	"strings"
 
-	"github.com/joho/godotenv"
 	"github.com/jackc/pgx/v5/pgconn"
+	"github.com/joho/godotenv"
 
 	_ "github.com/tachigo/tachigo/docs"
 	"github.com/tachigo/tachigo/internal/config"
 	"github.com/tachigo/tachigo/internal/database"
+	"github.com/tachigo/tachigo/internal/handlers"
 	"github.com/tachigo/tachigo/internal/models"
 	"github.com/tachigo/tachigo/internal/router"
 	"github.com/tachigo/tachigo/internal/services"
@@ -116,6 +117,8 @@ func main() {
 	pointsSvc := services.NewPointsService(db, watchSvc)
 	streamerSvc := services.NewStreamerService(db, pointsSvc)
 	claimSvc := services.NewClaimService(db)
+	agencySvc := services.NewAgencyService(db)
+	agencyH := handlers.NewAgencyHandler(agencySvc)
 
 	// CORS origins from env, default to localhost for dev
 	originsEnv := os.Getenv("ALLOWED_ORIGINS")
@@ -124,7 +127,7 @@ func main() {
 		allowedOrigins = strings.Split(originsEnv, ",")
 	}
 
-	r := router.New(authSvc, userSvc, addrSvc, extSvc, emailAuthSvc, watchSvc, channelConfigSvc, pointsSvc, streamerSvc, claimSvc, allowedOrigins)
+	r := router.New(authSvc, userSvc, addrSvc, extSvc, emailAuthSvc, watchSvc, channelConfigSvc, pointsSvc, streamerSvc, claimSvc, agencyH, allowedOrigins)
 
 	addr := ":" + cfg.Server.Port
 	log.Printf("server starting on %s (env=%s)", addr, cfg.Server.Env)
