@@ -17,6 +17,7 @@ var (
 	ErrLedgerNotFound      = errors.New("points ledger not found")
 	ErrInvalidPointsAmount = errors.New("amount must be greater than zero")
 	ErrInvalidSKU          = errors.New("sku length must be <= 255 characters")
+	ErrPointsDeltaOverflow = errors.New("points delta overflow")
 )
 
 type PointsCreditMeta struct {
@@ -87,6 +88,10 @@ func (s *PointsService) ListTransactions(userID uuid.UUID, channelID string) ([]
 // cumulative_total is never modified by a deduction.
 // Returns ErrInsufficientBalance if the current spendable balance is too low.
 func (s *PointsService) DeductPoints(userID uuid.UUID, channelID string, amount int64, note string) error {
+	if err := validatePositivePointsAmount(amount); err != nil {
+		return err
+	}
+
 	return s.db.Transaction(func(tx *gorm.DB) error {
 		var ledger models.PointsLedger
 		if err := tx.Clauses(clause.Locking{Strength: "UPDATE"}).
@@ -125,6 +130,9 @@ func (s *PointsService) DeductPoints(userID uuid.UUID, channelID string, amount 
 // AddPoints adds amount to both spendable_balance and cumulative_total.
 // Intended for use by AirdropService — Heartbeat points are handled by WatchService.Heartbeat.
 func (s *PointsService) AddPoints(userID uuid.UUID, channelID string, source models.TxSource, amount int64) error {
+	if err := validatePositivePointsAmount(amount); err != nil {
+		return err
+	}
 	return s.AddPointsWithMeta(userID, channelID, source, amount, PointsCreditMeta{})
 }
 
@@ -135,13 +143,12 @@ func (s *PointsService) AddPointsWithMeta(
 	amount int64,
 	meta PointsCreditMeta,
 ) error {
-	if amount <= 0 {
-		return ErrInvalidPointsAmount
+	if err := validatePositivePointsAmount(amount); err != nil {
+		return err
 	}
 	if meta.SKU != nil && utf8.RuneCountInString(*meta.SKU) > 255 {
 		return ErrInvalidSKU
 	}
-
 	return s.db.Transaction(func(tx *gorm.DB) error {
 		ledgerID := newUUID()
 		now := time.Now()
@@ -172,6 +179,13 @@ func (s *PointsService) AddPointsWithMeta(
 		}
 		return tx.Create(txRecord).Error
 	})
+}
+
+func validatePositivePointsAmount(amount int64) error {
+	if amount <= 0 {
+		return ErrInvalidPointsAmount
+	}
+	return nil
 }
 
 // AddWatchTime accumulates observed seconds for a viewer in a channel.

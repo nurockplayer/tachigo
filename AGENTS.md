@@ -50,7 +50,7 @@ docker compose run --no-deps --rm app go test ./...
 
 refs #<issue號碼>
 
-Co-Authored-By: Claude Sonnet 4.6 <noreply@anthropic.com>
+Co-Authored-By: Codex <codex[bot]@openai.com>
 ```
 
 - 實作過程中的 commit 用 `refs #號碼`
@@ -63,6 +63,38 @@ Type：`feat` / `fix` / `docs` / `chore` / `refactor` / `test`
 - **不要** 直接推 `main`，PR 目標分支是 `develop`
 - `git commit` / `git push` / `git checkout -b` 由 Claude Code 執行（sandbox 對 `.git` 無寫入權限）
 - `gh` 指令（issue、PR、API）由你執行
+
+## Scope 邊界
+
+禁止 scope pollution：不要把 issue 沒有明確要求的內容混進同一個 PR。
+
+### 基本規則
+
+- PR 只應包含該 issue 明確列出的任務、規格與完成條件
+- 若在實作途中發現額外想做的功能、重構、future work、design exploration，必須另開 issue / PR，不可順手一起提交
+- docs / research draft 不能自動視為 implementation source of truth；只有被明確指定的 issue / PR / 文件，才能作為當前實作依據
+
+### 常見禁止情況
+
+- issue 只要求 migration，PR 卻同時加入 service、handler、router、前端串接
+- 本輪 MVP 只要求單一畫面，PR 卻順手加入 future panels、bottom nav、完整 design system
+- 修 bug 時順便重構整個模組，且未經事前同意
+- backend issue 混入 dashboard / tachimint UI 改動，反之亦然
+
+### 遇到岔路時怎麼做
+
+- 如果額外內容是必要前置條件：先回報 Claude Code，說明為什麼原 issue 缺這一塊，再決定是否調整範圍
+- 如果額外內容不是必要前置條件：先記錄成新的 issue / TODO，不要混進目前 PR
+- 若目前 PR 已經超出 issue 範圍，應主動建議拆 PR 或縮回原範圍
+
+## AI 協作守則
+
+若貢獻內容主要由 AI 產生，必須額外遵守以下規則：
+
+- 不得讓 AI 自行擴張 issue scope；AI 提出的額外功能、future work、重構建議，必須拆成獨立 issue / PR
+- 不得把 docs / research draft / brainstorming 內容直接當成 implementation source of truth，除非 repo 已明確指定
+- 不得未經驗證就宣稱「已完成」；至少要回報實際執行過的測試、未驗證部分、以及已知風險
+- reviewer 應優先檢查 AI 是否偏離 issue、腦補需求、混入未要求的 schema / API / UI 改動，而不是只看程式碼表面是否完整
 
 ## 輸出格式
 

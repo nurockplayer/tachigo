@@ -303,6 +303,7 @@ paths:
           description: Bad Request
           schema:
             $ref: '#/definitions/handlers.Response'
+      security: []
       summary: Request a password reset email
       tags:
       - auth
@@ -313,6 +314,7 @@ paths:
       responses:
         "302":
           description: Found
+      security: []
       summary: Redirect to Google OAuth
       tags:
       - auth
@@ -349,6 +351,7 @@ paths:
           description: Unauthorized
           schema:
             $ref: '#/definitions/handlers.Response'
+      security: []
       summary: Google OAuth callback
       tags:
       - auth
@@ -383,6 +386,7 @@ paths:
           description: Unauthorized
           schema:
             $ref: '#/definitions/handlers.Response'
+      security: []
       summary: Login with email and password
       tags:
       - auth
@@ -416,6 +420,7 @@ paths:
           description: Bad Request
           schema:
             $ref: '#/definitions/handlers.Response'
+      security: []
       summary: Logout and invalidate refresh token
       tags:
       - auth
@@ -491,6 +496,7 @@ paths:
           description: Unauthorized
           schema:
             $ref: '#/definitions/handlers.Response'
+      security: []
       summary: Refresh access token
       tags:
       - auth
@@ -525,6 +531,7 @@ paths:
           description: Conflict
           schema:
             $ref: '#/definitions/handlers.Response'
+      security: []
       summary: Register a new user
       tags:
       - auth
@@ -560,6 +567,7 @@ paths:
           description: Bad Request
           schema:
             $ref: '#/definitions/handlers.Response'
+      security: []
       summary: Reset password using token
       tags:
       - auth
@@ -570,6 +578,7 @@ paths:
       responses:
         "302":
           description: Found
+      security: []
       summary: Redirect to Twitch OAuth
       tags:
       - auth
@@ -606,6 +615,7 @@ paths:
           description: Unauthorized
           schema:
             $ref: '#/definitions/handlers.Response'
+      security: []
       summary: Twitch OAuth callback
       tags:
       - auth
@@ -639,6 +649,7 @@ paths:
           description: Bad Request
           schema:
             $ref: '#/definitions/handlers.Response'
+      security: []
       summary: Confirm email verification token
       tags:
       - auth
@@ -703,6 +714,7 @@ paths:
           description: Internal Server Error
           schema:
             $ref: '#/definitions/handlers.Response'
+      security: []
       summary: Get a sign-in nonce for a wallet address
       tags:
       - auth
@@ -737,6 +749,7 @@ paths:
           description: Unauthorized
           schema:
             $ref: '#/definitions/handlers.Response'
+      security: []
       summary: Verify wallet signature and authenticate
       tags:
       - auth
@@ -774,6 +787,7 @@ paths:
           description: Unauthorized
           schema:
             $ref: '#/definitions/handlers.Response'
+      security: []
       summary: Authenticate via Twitch Extension JWT
       tags:
       - extension
@@ -815,6 +829,7 @@ paths:
           description: Unauthorized
           schema:
             $ref: '#/definitions/handlers.Response'
+      security: []
       summary: Complete a Bits transaction
       tags:
       - extension
@@ -1117,6 +1132,8 @@ paths:
       summary: List linked OAuth providers
       tags:
       - users
+security:
+- BearerAuth: []
 securityDefinitions:
   BearerAuth:
     description: 'Enter: Bearer {access_token}'
