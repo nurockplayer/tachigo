@@ -2,6 +2,7 @@ package services
 
 import (
 	"errors"
+	"strings"
 	"testing"
 
 	"github.com/google/uuid"
@@ -128,5 +129,29 @@ func TestAgencyStreamerCascadeDelete(t *testing.T) {
 	}
 	if count != 0 {
 		t.Fatalf("expected agency streamer row to be deleted, got %d", count)
+	}
+}
+
+func TestAgencyService_Create_DuplicateName(t *testing.T) {
+	db := newTestDB(t)
+	svc := NewAgencyService(db)
+
+	if _, err := svc.Create("agency_x", "agency_x_1@example.com"); err != nil {
+		t.Fatalf("first create failed: %v", err)
+	}
+
+	_, err := svc.Create("agency_x", "agency_x_2@example.com")
+	if !errors.Is(err, ErrAgencyNameTaken) {
+		t.Fatalf("expected ErrAgencyNameTaken, got %v", err)
+	}
+}
+
+func TestAgencyService_Create_NameTooLong(t *testing.T) {
+	db := newTestDB(t)
+	svc := NewAgencyService(db)
+
+	_, err := svc.Create(strings.Repeat("a", 51), "agency_long@example.com")
+	if !errors.Is(err, ErrAgencyNameTaken) {
+		t.Fatalf("expected ErrAgencyNameTaken, got %v", err)
 	}
 }

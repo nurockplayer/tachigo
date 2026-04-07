@@ -2,6 +2,7 @@ package handlers
 
 import (
 	"errors"
+	"log"
 
 	"github.com/gin-gonic/gin"
 	"github.com/google/uuid"
@@ -37,9 +38,14 @@ func (h *AgencyHandler) Create(c *gin.Context) {
 	user, err := h.agencySvc.Create(req.Name, req.Email)
 	if err != nil {
 		if errors.Is(err, services.ErrAgencyEmailTaken) {
-			conflict(c, "email already registered")
+			conflict(c, err.Error())
 			return
 		}
+		if errors.Is(err, services.ErrAgencyNameTaken) {
+			conflict(c, err.Error())
+			return
+		}
+		log.Printf("agency create: unexpected error: %v", err)
 		internal(c)
 		return
 	}
