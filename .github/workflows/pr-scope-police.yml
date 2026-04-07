@@ -54,6 +54,7 @@ jobs:
               backend: filenames.some((name) => name.startsWith('backend/')),
               dashboard: filenames.some((name) => name.startsWith('dashboard/')),
               tachimint: filenames.some((name) => name.startsWith('tachimint/')),
+              contracts: filenames.some((name) => name.startsWith('contracts/')),
               docs: filenames.some((name) => name.startsWith('docs/') || name.startsWith('plans/')),
             }
 
@@ -61,6 +62,7 @@ jobs:
               backend: touches.backend,
               dashboard: touches.dashboard,
               tachimint: touches.tachimint,
+              contracts: touches.contracts,
             })
               .filter(([, touched]) => touched)
               .map(([name]) => name)
@@ -71,7 +73,7 @@ jobs:
             const severeFailures = []
             const warnings = []
 
-            const allowedPrefixes = ['[backend]', '[frontend]', '[discussion]']
+            const allowedPrefixes = ['[backend]', '[frontend]', '[contract]', '[discussion]']
             const titlePrefix = allowedPrefixes.find((prefix) => title.startsWith(prefix))
             if (!titlePrefix) {
               failures.push(
@@ -121,6 +123,12 @@ jobs:
             if (titlePrefix === '[frontend]' && touches.backend) {
               const message =
                 '[frontend] PR must not change backend/. Move backend prerequisites into a separate PR.'
+              failures.push(message)
+              severeFailures.push(message)
+            }
+
+            if (titlePrefix === '[contract]' && (touches.backend || touches.dashboard || touches.tachimint)) {
+              const message = '[contract] PR must not change backend/, dashboard/, or tachimint/.'
               failures.push(message)
               severeFailures.push(message)
             }
