@@ -93,6 +93,22 @@ jobs:
               failures.push('PR body must include a `本 PR 明確不做` section.')
             }
 
+            const dependencyPattern = /依賴[：:]\s*#(\d+)|depends\s+on\s+#(\d+)/gi
+            let depMatch
+            while ((depMatch = dependencyPattern.exec(body)) !== null) {
+              const depNumber = parseInt(depMatch[1] || depMatch[2], 10)
+              try {
+                const depPr = await github.rest.pulls.get({ owner, repo, pull_number: depNumber })
+                if (depPr.data.state === 'open') {
+                  const message = `PR declares a dependency on #${depNumber}, which is still open. All dependencies must be merged before opening this PR.`
+                  failures.push(message)
+                  severeFailures.push(message)
+                }
+              } catch (error) {
+                if (error.status !== 404) throw error
+              }
+            }
+
             if (filenames.length > hardMaxChangedFiles) {
               const message =
                 `PR changes ${filenames.length} files, which exceeds the hard limit of ${hardMaxChangedFiles}. Split the PR before review.`
