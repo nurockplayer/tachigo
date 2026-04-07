@@ -16,6 +16,7 @@ const (
 	TxSourceClick     TxSource = "click"
 	TxSourceSpend     TxSource = "spend"
 	TxSourceClaim     TxSource = "claim"
+	TxSourceAirdrop   TxSource = "airdrop"
 )
 
 // PointsLedger is the per-channel points balance for a viewer.

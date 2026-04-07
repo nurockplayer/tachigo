@@ -85,6 +85,17 @@ definitions:
       user:
         $ref: '#/definitions/models.User'
     type: object
+  handlers.claimRequest:
+    properties:
+      amount:
+        description: 0 = claim all
+        type: integer
+    type: object
+  handlers.tachiBalanceResponse:
+    properties:
+      tachi_balance:
+        type: integer
+    type: object
   models.AuthProvider:
     properties:
       created_at:
@@ -303,7 +314,8 @@ paths:
           description: Bad Request
           schema:
             $ref: '#/definitions/handlers.Response'
-      security: []
+      security:
+      - "": []
       summary: Request a password reset email
       tags:
       - auth
@@ -314,7 +326,8 @@ paths:
       responses:
         "302":
           description: Found
-      security: []
+      security:
+      - "": []
       summary: Redirect to Google OAuth
       tags:
       - auth
@@ -351,7 +364,8 @@ paths:
           description: Unauthorized
           schema:
             $ref: '#/definitions/handlers.Response'
-      security: []
+      security:
+      - "": []
       summary: Google OAuth callback
       tags:
       - auth
@@ -386,7 +400,8 @@ paths:
           description: Unauthorized
           schema:
             $ref: '#/definitions/handlers.Response'
-      security: []
+      security:
+      - "": []
       summary: Login with email and password
       tags:
       - auth
@@ -420,7 +435,8 @@ paths:
           description: Bad Request
           schema:
             $ref: '#/definitions/handlers.Response'
-      security: []
+      security:
+      - "": []
       summary: Logout and invalidate refresh token
       tags:
       - auth
@@ -496,7 +512,8 @@ paths:
           description: Unauthorized
           schema:
             $ref: '#/definitions/handlers.Response'
-      security: []
+      security:
+      - "": []
       summary: Refresh access token
       tags:
       - auth
@@ -531,7 +548,8 @@ paths:
           description: Conflict
           schema:
             $ref: '#/definitions/handlers.Response'
-      security: []
+      security:
+      - "": []
       summary: Register a new user
       tags:
       - auth
@@ -567,7 +585,8 @@ paths:
           description: Bad Request
           schema:
             $ref: '#/definitions/handlers.Response'
-      security: []
+      security:
+      - "": []
       summary: Reset password using token
       tags:
       - auth
@@ -578,7 +597,8 @@ paths:
       responses:
         "302":
           description: Found
-      security: []
+      security:
+      - "": []
       summary: Redirect to Twitch OAuth
       tags:
       - auth
@@ -615,7 +635,8 @@ paths:
           description: Unauthorized
           schema:
             $ref: '#/definitions/handlers.Response'
-      security: []
+      security:
+      - "": []
       summary: Twitch OAuth callback
       tags:
       - auth
@@ -649,7 +670,8 @@ paths:
           description: Bad Request
           schema:
             $ref: '#/definitions/handlers.Response'
-      security: []
+      security:
+      - "": []
       summary: Confirm email verification token
       tags:
       - auth
@@ -714,7 +736,8 @@ paths:
           description: Internal Server Error
           schema:
             $ref: '#/definitions/handlers.Response'
-      security: []
+      security:
+      - "": []
       summary: Get a sign-in nonce for a wallet address
       tags:
       - auth
@@ -749,7 +772,8 @@ paths:
           description: Unauthorized
           schema:
             $ref: '#/definitions/handlers.Response'
-      security: []
+      security:
+      - "": []
       summary: Verify wallet signature and authenticate
       tags:
       - auth
@@ -787,7 +811,8 @@ paths:
           description: Unauthorized
           schema:
             $ref: '#/definitions/handlers.Response'
-      security: []
+      security:
+      - "": []
       summary: Authenticate via Twitch Extension JWT
       tags:
       - extension
@@ -829,7 +854,8 @@ paths:
           description: Unauthorized
           schema:
             $ref: '#/definitions/handlers.Response'
-      security: []
+      security:
+      - "": []
       summary: Complete a Bits transaction
       tags:
       - extension
@@ -1080,6 +1106,45 @@ paths:
       summary: Get my points balance
       tags:
       - points
+  /users/me/points/claim:
+    post:
+      consumes:
+      - application/json
+      parameters:
+      - description: Amount to claim (0 = all)
+        in: body
+        name: body
+        schema:
+          $ref: '#/definitions/handlers.claimRequest'
+      produces:
+      - application/json
+      responses:
+        "200":
+          description: OK
+          schema:
+            allOf:
+            - $ref: '#/definitions/handlers.Response'
+            - properties:
+                data:
+                  $ref: '#/definitions/handlers.tachiBalanceResponse'
+              type: object
+        "400":
+          description: Bad Request
+          schema:
+            $ref: '#/definitions/handlers.Response'
+        "401":
+          description: Unauthorized
+          schema:
+            $ref: '#/definitions/handlers.Response'
+        "422":
+          description: Unprocessable Entity
+          schema:
+            $ref: '#/definitions/handlers.Response'
+      security:
+      - BearerAuth: []
+      summary: Claim T-Points as $TACHI
+      tags:
+      - tachi
   /users/me/points/history:
     get:
       parameters:
@@ -1132,8 +1197,29 @@ paths:
       summary: List linked OAuth providers
       tags:
       - users
-security:
-- BearerAuth: []
+  /users/me/tachi/balance:
+    get:
+      produces:
+      - application/json
+      responses:
+        "200":
+          description: OK
+          schema:
+            allOf:
+            - $ref: '#/definitions/handlers.Response'
+            - properties:
+                data:
+                  $ref: '#/definitions/handlers.tachiBalanceResponse'
+              type: object
+        "401":
+          description: Unauthorized
+          schema:
+            $ref: '#/definitions/handlers.Response'
+      security:
+      - BearerAuth: []
+      summary: Get my $TACHI balance
+      tags:
+      - tachi
 securityDefinitions:
   BearerAuth:
     description: 'Enter: Bearer {access_token}'

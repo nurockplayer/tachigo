@@ -92,6 +92,7 @@ func migrateTestDB(db *gorm.DB) error {
 			channel_id TEXT PRIMARY KEY,
 			seconds_per_point INTEGER NOT NULL DEFAULT 60,
 			multiplier INTEGER NOT NULL DEFAULT 1,
+			daily_airdrop_limit INTEGER NOT NULL DEFAULT 5000,
 			created_at DATETIME,
 			updated_at DATETIME
 		)`,

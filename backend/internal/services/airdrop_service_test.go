@@ -1,0 +1,152 @@
+package services
+
+import (
+	"errors"
+	"testing"
+	"time"
+
+	"github.com/google/uuid"
+	"gorm.io/gorm"
+
+	"github.com/tachigo/tachigo/internal/models"
+)
+
+func seedAirdropViewer(t *testing.T, db *gorm.DB, channelID string, accumulatedSeconds int64) uuid.UUID {
+	t.Helper()
+
+	userID := uuid.New()
+	if err := db.Exec(
+		`INSERT INTO users (id, role, is_active, email_verified, created_at, updated_at)
+		 VALUES (?, 'viewer', 1, 0, CURRENT_TIMESTAMP, CURRENT_TIMESTAMP)`,
+		userID,
+	).Error; err != nil {
+		t.Fatalf("seed viewer user: %v", err)
+	}
+
+	if err := db.Exec(
+		`INSERT INTO watch_sessions (
+			id, user_id, channel_id, accumulated_seconds, rewarded_seconds,
+			last_heartbeat_at, click_cooldown_until, is_active, created_at, updated_at
+		) VALUES (?, ?, ?, ?, 0, ?, '1970-01-01 00:00:00', 1, CURRENT_TIMESTAMP, CURRENT_TIMESTAMP)`,
+		uuid.New(), userID, channelID, accumulatedSeconds, time.Now(),
+	).Error; err != nil {
+		t.Fatalf("seed watch session: %v", err)
+	}
+
+	return userID
+}
+
+func TestAirdrop_NoActiveSessions(t *testing.T) {
+	db := newTestDB(t)
+	watchSvc := NewWatchService(db)
+	pointsSvc := NewPointsService(db, watchSvc)
+	configSvc := NewChannelConfigService(db)
+	svc := NewAirdropService(db, pointsSvc, configSvc)
+
+	_, err := svc.Execute(AirdropRequest{
+		ChannelID: "ch_empty",
+		Amount:    100,
+	})
+	if !errors.Is(err, ErrNoActiveViewers) {
+		t.Fatalf("want ErrNoActiveViewers, got %v", err)
+	}
+}
+
+func TestAirdrop_DailyLimitExceeded(t *testing.T) {
+	db := newTestDB(t)
+	watchSvc := NewWatchService(db)
+	pointsSvc := NewPointsService(db, watchSvc)
+	configSvc := NewChannelConfigService(db)
+	svc := NewAirdropService(db, pointsSvc, configSvc)
+
+	seedAirdropViewer(t, db, "ch_limit", 60)
+
+	if err := db.Exec(
+		`INSERT INTO channel_configs (channel_id, seconds_per_point, multiplier, daily_airdrop_limit, created_at, updated_at)
+		 VALUES (?, 60, 1, 5000, CURRENT_TIMESTAMP, CURRENT_TIMESTAMP)`,
+		"ch_limit",
+	).Error; err != nil {
+		t.Fatalf("seed channel config: %v", err)
+	}
+
+	if _, err := svc.Execute(AirdropRequest{ChannelID: "ch_limit", Amount: 4500}); err != nil {
+		t.Fatalf("first execute: %v", err)
+	}
+
+	_, err := svc.Execute(AirdropRequest{ChannelID: "ch_limit", Amount: 600})
+	if !errors.Is(err, ErrDailyAirdropExceeded) {
+		t.Fatalf("want ErrDailyAirdropExceeded, got %v", err)
+	}
+
+	var exceededErr *DailyAirdropExceededError
+	if !errors.As(err, &exceededErr) {
+		t.Fatalf("want DailyAirdropExceededError, got %T", err)
+	}
+	if exceededErr.Remaining != 500 {
+		t.Fatalf("want remaining 500, got %d", exceededErr.Remaining)
+	}
+}
+
+func TestAirdrop_ProportionalDistribution(t *testing.T) {
+	db := newTestDB(t)
+	watchSvc := NewWatchService(db)
+	pointsSvc := NewPointsService(db, watchSvc)
+	configSvc := NewChannelConfigService(db)
+	svc := NewAirdropService(db, pointsSvc, configSvc)
+
+	viewerA := seedAirdropViewer(t, db, "ch_ratio", 60)
+	viewerB := seedAirdropViewer(t, db, "ch_ratio", 120)
+
+	result, err := svc.Execute(AirdropRequest{
+		ChannelID: "ch_ratio",
+		Amount:    300,
+	})
+	if err != nil {
+		t.Fatalf("execute: %v", err)
+	}
+	if result.AffectedCount != 2 {
+		t.Fatalf("want affected_count 2, got %d", result.AffectedCount)
+	}
+
+	balanceA, err := pointsSvc.GetBalance(viewerA, "ch_ratio")
+	if err != nil {
+		t.Fatalf("balance viewerA: %v", err)
+	}
+	if balanceA.SpendableBalance != 100 {
+		t.Fatalf("viewerA want 100, got %d", balanceA.SpendableBalance)
+	}
+
+	balanceB, err := pointsSvc.GetBalance(viewerB, "ch_ratio")
+	if err != nil {
+		t.Fatalf("balance viewerB: %v", err)
+	}
+	if balanceB.SpendableBalance != 200 {
+		t.Fatalf("viewerB want 200, got %d", balanceB.SpendableBalance)
+	}
+}
+
+func TestAirdrop_WritesAirdropSource(t *testing.T) {
+	db := newTestDB(t)
+	watchSvc := NewWatchService(db)
+	pointsSvc := NewPointsService(db, watchSvc)
+	configSvc := NewChannelConfigService(db)
+	svc := NewAirdropService(db, pointsSvc, configSvc)
+
+	seedAirdropViewer(t, db, "ch_source", 60)
+
+	if _, err := svc.Execute(AirdropRequest{
+		ChannelID: "ch_source",
+		Amount:    100,
+		Note:      "promo",
+	}); err != nil {
+		t.Fatalf("execute: %v", err)
+	}
+
+	var tx models.PointsTransaction
+	if err := db.Order("created_at DESC, id DESC").First(&tx).Error; err != nil {
+		t.Fatalf("load tx: %v", err)
+	}
+	if tx.Source != models.TxSourceAirdrop {
+		t.Fatalf("want source %q, got %q", models.TxSourceAirdrop, tx.Source)
+	}
+}
