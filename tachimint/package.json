@@ -8,6 +8,7 @@
     "preinstall": "npx only-allow pnpm",
     "dev": "vite",
     "build": "tsc -b && vite build",
+    "check:i18n": "node --experimental-strip-types scripts/check-i18n.ts",
     "lint": "eslint .",
     "preview": "vite preview"
   },
