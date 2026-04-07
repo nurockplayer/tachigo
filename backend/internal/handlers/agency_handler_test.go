@@ -305,6 +305,29 @@ func TestAgencyHandler_ListStreamers_InvalidID(t *testing.T) {
 	}
 }
 
+func TestAgencyHandler_ListStreamers_OrphanChannelReturns500(t *testing.T) {
+	env, r := newAgencyTestEnv(t)
+	agencyID := uuid.New()
+
+	// Insert agency_streamers row for a channel that has NO matching streamers row.
+	if err := env.db.Exec(
+		`INSERT INTO agency_streamers (id, agency_id, channel_id, created_at)
+		 VALUES (?, ?, ?, CURRENT_TIMESTAMP)`,
+		uuid.New(), agencyID, "ch_orphan",
+	).Error; err != nil {
+		t.Fatalf("seed orphan agency streamer: %v", err)
+	}
+
+	w := httptest.NewRecorder()
+	req, _ := http.NewRequest("GET", "/api/v1/agencies/"+agencyID.String()+"/streamers", nil)
+	req.Header.Set("Authorization", "Bearer "+makeAccessToken(t, models.RoleAdmin))
+	r.ServeHTTP(w, req)
+
+	if w.Code != http.StatusInternalServerError {
+		t.Fatalf("expected 500 for orphan channel, got %d: %s", w.Code, w.Body.String())
+	}
+}
+
 func TestAgencyHandler_ListStreamers_RequiresAuth(t *testing.T) {
 	_, r := newAgencyTestEnv(t)
 

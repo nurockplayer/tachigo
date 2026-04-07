@@ -102,9 +102,15 @@ func (h *AgencyHandler) ListStreamers(c *gin.Context) {
 
 	response := make([]agencyStreamerResponse, 0, len(streamers))
 	for _, streamer := range streamers {
+		userID, ok := userIDsByChannel[streamer.ChannelID]
+		if !ok {
+			log.Printf("agency %s: channel %s has no matching streamer user", agencyID, streamer.ChannelID)
+			internal(c)
+			return
+		}
 		response = append(response, agencyStreamerResponse{
 			ChannelID: streamer.ChannelID,
-			UserID:    userIDsByChannel[streamer.ChannelID],
+			UserID:    userID,
 		})
 	}
 
