@@ -4,18 +4,24 @@
   "version": "0.0.0",
   "type": "module",
   "packageManager": "pnpm@10.33.0",
+  "engines": {
+    "node": ">=22.12.0"
+  },
   "scripts": {
     "preinstall": "npx only-allow pnpm",
     "dev": "vite",
     "build": "tsc -b && vite build",
+    "check:i18n": "node --experimental-strip-types scripts/check-i18n.ts",
     "lint": "eslint .",
     "preview": "vite preview"
   },
   "dependencies": {
     "@types/twitch-ext": "^1.24.9",
     "axios": "^1.14.0",
+    "i18next": "^26.0.3",
     "react": "^19.2.4",
-    "react-dom": "^19.2.4"
+    "react-dom": "^19.2.4",
+    "react-i18next": "^17.0.2"
   },
   "devDependencies": {
     "@eslint/js": "^9.39.4",

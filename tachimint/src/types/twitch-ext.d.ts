@@ -25,6 +25,8 @@ interface TwitchExtAuth {
 interface TwitchExtContext {
   channelId: string
   clientId: string
+  locale?: string
+  language?: string
   userId?: string
   opaqueUserId: string
   role: 'broadcaster' | 'moderator' | 'viewer' | 'external'

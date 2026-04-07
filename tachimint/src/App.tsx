@@ -1,9 +1,11 @@
+import { useTranslation } from 'react-i18next'
 import { useTwitch } from './hooks/useTwitch'
 import { useBits } from './hooks/useBits'
 import { useHeartbeat } from './hooks/useHeartbeat'
 import { useClickBoost } from './hooks/useClickBoost'
 
 export default function App() {
+  const { t } = useTranslation()
   const { context, jwt, products, bitsEnabled, authError } = useTwitch()
   const { buyWithBits, status, error } = useBits(jwt)
   const isViewer = context?.role === 'viewer'
@@ -19,9 +21,8 @@ export default function App() {
 
   if (!context) {
     return (
-      <div className="ext-loading">
+      <div className="ext-loading" role="status" aria-live="polite" aria-busy="true">
         <div className="ext-loading__spinner" />
-        <span>Connecting…</span>
       </div>
     )
   }
@@ -54,7 +55,7 @@ export default function App() {
             <strong className="ext-balance__value">{balance?.toLocaleString() ?? '—'}</strong>
           </div>
           {gain !== null && gain > 0 && (
-            <span className="ext-balance-gain">+{gain.toLocaleString()} 點</span>
+            <span className="ext-balance-gain">+{gain.toLocaleString()} {t('common.points')}</span>
           )}
         </section>
 
