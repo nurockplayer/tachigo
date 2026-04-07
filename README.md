@@ -106,11 +106,17 @@ See [docs/architecture.md](docs/architecture.md) for the full system diagram.
 - [docs/architecture.md](docs/architecture.md) — system architecture
 - [docs/claude-codex-cheatsheet.md](docs/claude-codex-cheatsheet.md) — quick reference for Claude Code + Codex collaboration
 - [docs/claude-codex-workflow.md](docs/claude-codex-workflow.md) — full workflow guide for low-token Claude Code usage
+- [docs/pr-scope-policy.md](docs/pr-scope-policy.md) — PR 邊界規則、required checks、scope police 設定
 - [CLAUDE.md](CLAUDE.md) — repo-specific collaboration rules and command entry points
 
 ## CI
 
-GitHub Actions runs on every push/PR to `main`:
+GitHub Actions 目前分兩段：
+
+- `PR Scope Police` 先檢查 PR 邊界；超大包或跨 scope PR 會先被擋下
+- scope police 通過後，才會跑 backend / frontend / dashboard 的重型 CI
+
+在受保護分支上的 CI：
 
 - **Backend tests** — `go test ./...` inside the dev Docker image
 - **Frontend build** — `npm run build` inside the frontend Docker image
