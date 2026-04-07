@@ -1,0 +1,39 @@
+#!/usr/bin/env bash
+# Pre-push hook: warn when diff is too large (mirrors CI hard limits)
+# Hard limits match pr-scope-police.yml
+MAX_FILES=35
+MAX_LINES=1800
+
+remote="$1"
+url="$2"
+
+# Find the merge base against origin/develop (or origin/main as fallback)
+base=$(git merge-base HEAD origin/develop 2>/dev/null || git merge-base HEAD origin/main 2>/dev/null)
+if [ -z "$base" ]; then
+  exit 0
+fi
+
+changed_files=$(git diff --name-only "$base" HEAD | wc -l | tr -d ' ')
+diff_lines=$(git diff --shortstat "$base" HEAD | grep -oE '[0-9]+ insertion' | grep -oE '[0-9]+' || echo 0)
+deletions=$(git diff --shortstat "$base" HEAD | grep -oE '[0-9]+ deletion' | grep -oE '[0-9]+' || echo 0)
+total_lines=$((diff_lines + deletions))
+
+if [ "$changed_files" -gt "$MAX_FILES" ] || [ "$total_lines" -gt "$MAX_LINES" ]; then
+  echo ""
+  echo "╔══════════════════════════════════════════════════════╗"
+  echo "║  PR Scope Police — pre-push warning                 ║"
+  echo "╠══════════════════════════════════════════════════════╣"
+  printf "║  Changed files : %4d  (limit: %d)%*s║\n" "$changed_files" "$MAX_FILES" $((19 - ${#changed_files})) ""
+  printf "║  Diff lines    : %4d  (limit: %d)%*s║\n" "$total_lines" "$MAX_LINES" $((16 - ${#total_lines})) ""
+  echo "╠══════════════════════════════════════════════════════╣"
+  echo "║  This PR will be auto-closed by CI. Split it first. ║"
+  echo "╚══════════════════════════════════════════════════════╝"
+  echo ""
+  read -p "Push anyway? [y/N] " -r reply
+  if [[ ! "$reply" =~ ^[Yy]$ ]]; then
+    echo "Push aborted."
+    exit 1
+  fi
+fi
+
+exit 0
