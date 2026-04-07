@@ -114,7 +114,7 @@ See [docs/architecture.md](docs/architecture.md) for the full system diagram.
 GitHub Actions 目前分兩段：
 
 - `PR Scope Police` 先檢查 PR 邊界；超大包或跨 scope PR 會先被擋下
-- scope police 通過後，才會跑 backend / frontend / dashboard 的重型 CI
+- `CI` 會直接出現在 PR 上，但會先經過輕量 `Scope gate`；只有 scope 合格才會跑 backend / frontend / dashboard 的重型 job
 
 在受保護分支上的 CI：
 

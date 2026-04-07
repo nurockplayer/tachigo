@@ -9,7 +9,6 @@ setup:
 
 # ── Dev (setup + build + up) ───────────────────────────────────────────────────
 dev: setup
-	@git config core.hooksPath .githooks
 	docker compose up --build
 
 # ── Docker Compose ────────────────────────────────────────────────────────────

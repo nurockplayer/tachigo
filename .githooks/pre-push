@@ -14,8 +14,9 @@ if [ -z "$base" ]; then
 fi
 
 changed_files=$(git diff --name-only "$base" HEAD | wc -l | tr -d ' ')
-diff_lines=$(git diff --shortstat "$base" HEAD | grep -oE '[0-9]+ insertion' | grep -oE '[0-9]+' || echo 0)
-deletions=$(git diff --shortstat "$base" HEAD | grep -oE '[0-9]+ deletion' | grep -oE '[0-9]+' || echo 0)
+stat_output=$(git diff --shortstat "$base" HEAD)
+diff_lines=$(printf '%s\n' "$stat_output" | grep -oE '[0-9]+ insertion' | grep -oE '[0-9]+') || diff_lines=0
+deletions=$(printf '%s\n' "$stat_output" | grep -oE '[0-9]+ deletion' | grep -oE '[0-9]+') || deletions=0
 total_lines=$((diff_lines + deletions))
 
 if [ "$changed_files" -gt "$MAX_FILES" ] || [ "$total_lines" -gt "$MAX_LINES" ]; then
@@ -29,6 +30,10 @@ if [ "$changed_files" -gt "$MAX_FILES" ] || [ "$total_lines" -gt "$MAX_LINES" ];
   echo "║  This PR will be auto-closed by CI. Split it first. ║"
   echo "╚══════════════════════════════════════════════════════╝"
   echo ""
+  if [ ! -t 0 ]; then
+    echo "Non-interactive mode detected; skipping prompt and allowing push."
+    exit 0
+  fi
   read -p "Push anyway? [y/N] " -r reply
   if [[ ! "$reply" =~ ^[Yy]$ ]]; then
     echo "Push aborted."

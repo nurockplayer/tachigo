@@ -67,8 +67,8 @@ repo 目前有一個 GitHub Actions workflow：
 repo 的 CI 目前改成：
 
 - PR 先跑 `PR Scope Police`
-- 只有當 `PR Scope Police` 成功時，才會接著跑 `.github/workflows/ci.yml`
-- backend / frontend / dashboard 的 docker build 與測試，不會浪費在明顯違規的 PR 上
+- `.github/workflows/ci.yml` 也會直接跑在 PR 上，但會先經過一個輕量 `Scope gate`
+- 只有目前符合同一套 scope 規則的 PR，才會繼續跑 backend / frontend / dashboard 的 docker build 與測試
 
 ## GitHub 設定
 
@@ -98,7 +98,7 @@ repo 的 CI 目前改成：
 注意：
 
 - `PR Scope Police` 應該是第一道 gate
-- 後面三個 CI checks 只有在 scope police 通過後才會跑
+- 後面三個 CI checks 會直接出現在 PR 上；若 scope 不合格，job 會在 `Scope gate` 後被略過
 
 ## Reviewer 指南
 
@@ -118,7 +118,7 @@ repo 的 CI 目前改成：
 
 應該被擋：
 
-- `[frontend]` PR 同時修改 `dashboard/` 與 `backend/`
+- `[backend]` PR 同時修改 `backend/` 與 `dashboard/`
 - 一張票只做 dashboard UI，PR 卻順手改 migration、router、service、docs
 - PR 改了 50 個檔案，混入多個 issue 的工作
 
