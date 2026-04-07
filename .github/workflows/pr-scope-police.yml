@@ -1,0 +1,257 @@
+name: PR Scope Police
+
+on:
+  pull_request:
+    types: [opened, edited, synchronize, reopened, labeled, unlabeled]
+    branches: [main, develop]
+
+permissions:
+  contents: read
+  pull-requests: write
+  issues: write
+
+jobs:
+  scope-police:
+    name: Scope police
+    runs-on: ubuntu-latest
+    steps:
+      - name: Evaluate PR scope
+        uses: actions/github-script@v7
+        with:
+          script: |
+            const pr = context.payload.pull_request
+            if (!pr) {
+              core.setFailed('pull_request payload is required')
+              return
+            }
+
+            const bypassLabels = new Set(['scope-exception'])
+            const labels = (pr.labels || []).map((label) => label.name)
+            const bypassed = labels.some((label) => bypassLabels.has(label))
+
+            if (bypassed) {
+              core.notice('Scope police bypassed by scope-exception label.')
+              return
+            }
+
+            const hardMaxChangedFiles = 35
+            const hardMaxDiffLines = 1800
+            const autoCloseLabel = 'scope-violation'
+            const owner = context.repo.owner
+            const repo = context.repo.repo
+
+            const files = await github.paginate(github.rest.pulls.listFiles, {
+              owner,
+              repo,
+              pull_number: pr.number,
+              per_page: 100,
+            })
+
+            const filenames = files.map((file) => file.filename)
+            const diffLines = files.reduce((sum, file) => sum + file.additions + file.deletions, 0)
+
+            const touches = {
+              backend: filenames.some((name) => name.startsWith('backend/')),
+              dashboard: filenames.some((name) => name.startsWith('dashboard/')),
+              tachimint: filenames.some((name) => name.startsWith('tachimint/')),
+              docs: filenames.some((name) => name.startsWith('docs/') || name.startsWith('plans/')),
+            }
+
+            const productSurfaces = Object.entries({
+              backend: touches.backend,
+              dashboard: touches.dashboard,
+              tachimint: touches.tachimint,
+            })
+              .filter(([, touched]) => touched)
+              .map(([name]) => name)
+
+            const body = pr.body || ''
+            const title = pr.title || ''
+            const failures = []
+            const severeFailures = []
+            const warnings = []
+
+            const allowedPrefixes = ['[backend]', '[frontend]', '[discussion]']
+            const titlePrefix = allowedPrefixes.find((prefix) => title.startsWith(prefix))
+            if (!titlePrefix) {
+              failures.push(
+                `PR title must start with one of: ${allowedPrefixes.join(', ')}. Current title: "${title}".`,
+              )
+            }
+
+            if (!/#\d+/.test(body)) {
+              failures.push('PR body must reference at least one issue or PR number such as `#123`.')
+            }
+
+            if (!body.includes('Source of truth：') && !body.includes('Source of truth:')) {
+              failures.push('PR body must include a `Source of truth` line in the Scope 對齊 section.')
+            }
+
+            if (!body.includes('本 PR 明確不做')) {
+              failures.push('PR body must include a `本 PR 明確不做` section.')
+            }
+
+            if (filenames.length > hardMaxChangedFiles) {
+              const message =
+                `PR changes ${filenames.length} files, which exceeds the hard limit of ${hardMaxChangedFiles}. Split the PR before review.`
+              failures.push(message)
+              severeFailures.push(message)
+            }
+
+            if (diffLines > hardMaxDiffLines) {
+              const message =
+                `PR diff size is ${diffLines} lines (+/-), which exceeds the hard limit of ${hardMaxDiffLines}. Split the PR before review.`
+              failures.push(message)
+              severeFailures.push(message)
+            }
+
+            if (productSurfaces.length > 1) {
+              const message =
+                `PR touches multiple product surfaces (${productSurfaces.join(', ')}). Keep one PR to one surface only.`
+              failures.push(message)
+              severeFailures.push(message)
+            }
+
+            if (titlePrefix === '[backend]' && (touches.dashboard || touches.tachimint)) {
+              const message = '[backend] PR must not change dashboard/ or tachimint/.'
+              failures.push(message)
+              severeFailures.push(message)
+            }
+
+            if (titlePrefix === '[frontend]' && touches.backend) {
+              const message =
+                '[frontend] PR must not change backend/. Move backend prerequisites into a separate PR.'
+              failures.push(message)
+              severeFailures.push(message)
+            }
+
+            if (titlePrefix === '[discussion]' && productSurfaces.length > 0) {
+              warnings.push(
+                '[discussion] PR is changing product code. Consider moving implementation work to a feature PR.',
+              )
+            }
+
+            const commentHeader = '<!-- pr-scope-police -->'
+            const summaryLines = [
+              commentHeader,
+              '## PR Scope Police',
+              '',
+            ]
+
+            if (failures.length === 0) {
+              summaryLines.push('- PASS: scope checks passed.')
+            } else {
+              summaryLines.push('- FAIL: this PR must be split or narrowed before review.')
+              summaryLines.push('')
+              summaryLines.push('### Blocking issues')
+              for (const failure of failures) {
+                summaryLines.push(`- ${failure}`)
+              }
+            }
+
+            if (warnings.length > 0) {
+              summaryLines.push('')
+              summaryLines.push('### Warnings')
+              for (const warning of warnings) {
+                summaryLines.push(`- ${warning}`)
+              }
+            }
+
+            summaryLines.push('')
+            summaryLines.push('### Snapshot')
+            summaryLines.push(`- Changed files: ${filenames.length}`)
+            summaryLines.push(`- Diff lines (+/-): ${diffLines}`)
+            summaryLines.push(
+              `- Product surfaces: ${productSurfaces.length > 0 ? productSurfaces.join(', ') : 'none'}`,
+            )
+            summaryLines.push(
+              `- Auto-close triggered: ${severeFailures.length > 0 ? 'yes' : 'no'}`,
+            )
+            summaryLines.push(`- Auto-close label: \`${autoCloseLabel}\``)
+            summaryLines.push('- Bypass label: `scope-exception`')
+
+            const commentBody = summaryLines.join('\n')
+
+            const existingComments = await github.paginate(github.rest.issues.listComments, {
+              owner,
+              repo,
+              issue_number: pr.number,
+              per_page: 100,
+            })
+
+            const previous = existingComments.find(
+              (comment) =>
+                comment.user?.type === 'Bot' &&
+                typeof comment.body === 'string' &&
+                comment.body.includes(commentHeader),
+            )
+
+            if (previous) {
+              await github.rest.issues.updateComment({
+                owner,
+                repo,
+                comment_id: previous.id,
+                body: commentBody,
+              })
+            } else {
+              await github.rest.issues.createComment({
+                owner,
+                repo,
+                issue_number: pr.number,
+                body: commentBody,
+              })
+            }
+
+            const ensureLabel = async (name, color, description) => {
+              try {
+                await github.rest.issues.getLabel({ owner, repo, name })
+              } catch (error) {
+                if (error.status !== 404) throw error
+                await github.rest.issues.createLabel({
+                  owner,
+                  repo,
+                  name,
+                  color,
+                  description,
+                })
+              }
+            }
+
+            if (failures.length > 0) {
+              await ensureLabel(
+                autoCloseLabel,
+                'B60205',
+                'PR was blocked by automated scope policy checks',
+              )
+              await github.rest.issues.addLabels({
+                owner,
+                repo,
+                issue_number: pr.number,
+                labels: [autoCloseLabel],
+              })
+
+              if (severeFailures.length > 0 && pr.state === 'open') {
+                await github.rest.pulls.update({
+                  owner,
+                  repo,
+                  pull_number: pr.number,
+                  state: 'closed',
+                })
+                core.notice('PR was auto-closed due to severe scope violations.')
+              }
+              core.setFailed('PR scope police failed.')
+            } else {
+              if (labels.includes(autoCloseLabel)) {
+                try {
+                  await github.rest.issues.removeLabel({
+                    owner,
+                    repo,
+                    issue_number: pr.number,
+                    name: autoCloseLabel,
+                  })
+                } catch (error) {
+                  if (error.status !== 404) throw error
+                }
+              }
+              core.notice('PR scope police passed.')
+            }
