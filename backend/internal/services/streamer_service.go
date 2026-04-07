@@ -34,10 +34,10 @@ func NewStreamerService(db *gorm.DB, pointsSvc *PointsService) *StreamerService 
 	return &StreamerService{db: db, pointsSvc: pointsSvc}
 }
 
-func (s *StreamerService) Create(userID uuid.UUID, agencyUserID *uuid.UUID, twitchLogin string) (*models.Streamer, error) {
+func (s *StreamerService) Create(userID uuid.UUID, agencyUserID *uuid.UUID, channelID string) (*models.Streamer, error) {
 	var count int64
 	if err := s.db.Model(&models.AuthProvider{}).
-		Where("user_id = ? AND provider = ? AND provider_id = ?", userID, models.ProviderTwitch, twitchLogin).
+		Where("user_id = ? AND provider = ? AND provider_id = ?", userID, models.ProviderTwitch, channelID).
 		Count(&count).Error; err != nil {
 		return nil, err
 	}
@@ -48,11 +48,11 @@ func (s *StreamerService) Create(userID uuid.UUID, agencyUserID *uuid.UUID, twit
 	streamer := &models.Streamer{
 		UserID:       userID,
 		AgencyUserID: agencyUserID,
-		TwitchLogin:  twitchLogin,
+		ChannelID:    channelID,
 	}
 
 	if err := s.db.
-		Where("user_id = ? AND twitch_login = ?", userID, twitchLogin).
+		Where("user_id = ? AND channel_id = ?", userID, channelID).
 		Assign(models.Streamer{AgencyUserID: agencyUserID}).
 		FirstOrCreate(streamer).Error; err != nil {
 		return nil, err

@@ -40,7 +40,7 @@ func seedStreamerRecord(t *testing.T, db *gorm.DB, userID uuid.UUID, agencyUserI
 	streamer := &models.Streamer{
 		UserID:       userID,
 		AgencyUserID: agencyUserID,
-		TwitchLogin:  twitchLogin,
+		ChannelID:    twitchLogin,
 	}
 	if err := db.Create(streamer).Error; err != nil {
 		t.Fatalf("seed streamer: %v", err)
@@ -72,8 +72,8 @@ func TestCreate_OK(t *testing.T) {
 	if streamer.AgencyUserID == nil || *streamer.AgencyUserID != agencyUserID {
 		t.Fatalf("agency_user_id mismatch: %+v", streamer.AgencyUserID)
 	}
-	if streamer.TwitchLogin != "alice_login" {
-		t.Fatalf("twitch_login: want alice_login, got %q", streamer.TwitchLogin)
+	if streamer.ChannelID != "alice_login" {
+		t.Fatalf("twitch_login: want alice_login, got %q", streamer.ChannelID)
 	}
 
 	var saved models.Streamer
@@ -124,7 +124,7 @@ func TestStreamerGetByID_Found(t *testing.T) {
 	if err != nil {
 		t.Fatalf("unexpected error: %v", err)
 	}
-	if got.ID != streamer.ID || got.UserID != userID || got.TwitchLogin != "alice_login" {
+	if got.ID != streamer.ID || got.UserID != userID || got.ChannelID != "alice_login" {
 		t.Fatalf("unexpected streamer: %+v", got)
 	}
 }
@@ -147,7 +147,7 @@ func TestGetByUserID_Found(t *testing.T) {
 	if err != nil {
 		t.Fatalf("unexpected error: %v", err)
 	}
-	if got.UserID != userID || got.TwitchLogin != "alice_login" {
+	if got.UserID != userID || got.ChannelID != "alice_login" {
 		t.Fatalf("unexpected streamer: %+v", got)
 	}
 }

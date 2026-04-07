@@ -2,32 +2,22 @@ import { useEffect, useState } from 'react'
 import { usePermissions } from '@refinedev/core'
 import { useNavigate } from 'react-router'
 import { Skeleton } from '@/components/ui/skeleton'
-import { getStreamerChannels, type ChannelListItem } from '@/services/channels'
-
-function formatHours(seconds?: number) {
-  if (seconds === undefined) return '—'
-  return `${(seconds / 3600).toFixed(1)} 小時`
-}
-
-function formatNumber(value?: number) {
-  if (value === undefined) return '—'
-  return value.toLocaleString()
-}
+import { getStreamers, type Streamer } from '@/services/channels'
 
 export default function StreamersPage() {
   const navigate = useNavigate()
   const { data: role } = usePermissions<string>({})
-  const [channels, setChannels] = useState<ChannelListItem[]>([])
+  const [streamers, setStreamers] = useState<Streamer[]>([])
   const [loading, setLoading] = useState(true)
   const [error, setError] = useState(false)
 
   useEffect(() => {
     let mounted = true
 
-    getStreamerChannels()
+    getStreamers()
       .then((data) => {
         if (!mounted) return
-        setChannels(data)
+        setStreamers(data)
       })
       .catch(() => {
         if (!mounted) return
@@ -45,10 +35,10 @@ export default function StreamersPage() {
 
   useEffect(() => {
     if (loading || role !== 'streamer') return
-    const firstChannel = channels[0]
-    if (!firstChannel) return
-    navigate(`/streamers/${firstChannel.channel_id}`, { replace: true })
-  }, [channels, loading, navigate, role])
+    const first = streamers[0]
+    if (!first) return
+    navigate(`/streamers/${first.id}`, { replace: true })
+  }, [streamers, loading, navigate, role])
 
   return (
     <div className="space-y-6">
@@ -64,7 +54,7 @@ export default function StreamersPage() {
         <div className="rounded-lg border border-destructive/20 bg-destructive/5 px-4 py-3 text-sm text-destructive">
           無法載入實況主資料
         </div>
-      ) : channels.length === 0 ? (
+      ) : streamers.length === 0 ? (
         <div className="rounded-lg border border-border bg-secondary/20 px-4 py-8 text-center text-sm text-muted-foreground">
           目前沒有可顯示的實況主資料
         </div>
@@ -74,28 +64,20 @@ export default function StreamersPage() {
             <thead>
               <tr className="border-b border-border bg-secondary/50">
                 <th className="px-4 py-3 text-left font-medium text-muted-foreground">實況主名稱</th>
-                <th className="px-4 py-3 text-right font-medium text-muted-foreground">本日開台</th>
-                <th className="px-4 py-3 text-right font-medium text-muted-foreground">挖礦觀眾</th>
-                <th className="px-4 py-3 text-right font-medium text-muted-foreground">總產出點數</th>
+                <th className="px-4 py-3 text-left font-medium text-muted-foreground">Channel ID</th>
               </tr>
             </thead>
             <tbody>
-              {channels.map((channel, index) => (
+              {streamers.map((streamer, index) => (
                 <tr
-                  key={channel.id}
+                  key={streamer.id}
                   className={`cursor-pointer border-b border-border transition-colors last:border-0 hover:bg-accent/30 ${index % 2 === 0 ? '' : 'bg-secondary/20'}`}
-                  onClick={() => navigate(`/streamers/${channel.channel_id}`)}
+                  onClick={() => navigate(`/streamers/${streamer.id}`)}
                 >
-                  <td className="px-4 py-3 font-medium text-foreground">{channel.display_name}</td>
-                  <td className="px-4 py-3 text-right text-muted-foreground">
-                    {formatHours(channel.daily_seconds)}
+                  <td className="px-4 py-3 font-medium text-foreground">
+                    {streamer.display_name || streamer.channel_id}
                   </td>
-                  <td className="px-4 py-3 text-right text-muted-foreground">
-                    {formatNumber(channel.unique_miners)}
-                  </td>
-                  <td className="px-4 py-3 text-right text-muted-foreground">
-                    {formatNumber(channel.total_token_minted)}
-                  </td>
+                  <td className="px-4 py-3 text-muted-foreground">{streamer.channel_id}</td>
                 </tr>
               ))}
             </tbody>

@@ -99,13 +99,11 @@ func migrateTestDB(db *gorm.DB) error {
 			id TEXT PRIMARY KEY,
 			user_id TEXT NOT NULL REFERENCES users(id),
 			agency_user_id TEXT REFERENCES users(id),
-			twitch_login TEXT NOT NULL,
+			channel_id TEXT NOT NULL UNIQUE,
 			display_name TEXT,
 			created_at DATETIME,
 			updated_at DATETIME
 		)`,
-		`CREATE UNIQUE INDEX IF NOT EXISTS idx_streamers_twitch_login
-			ON streamers (twitch_login)`,
 		`CREATE INDEX IF NOT EXISTS idx_streamers_agency_user_id
 			ON streamers (agency_user_id)`,
 		`CREATE TABLE IF NOT EXISTS watch_sessions (

@@ -4,7 +4,7 @@ import { beforeEach, describe, expect, it, vi } from 'vitest'
 import StreamersPage from '@/pages/StreamersPage'
 
 const navigateMock = vi.fn()
-const getStreamerChannelsMock = vi.fn()
+const getStreamersMock = vi.fn()
 const usePermissionsMock = vi.fn()
 
 ;(globalThis as typeof globalThis & { IS_REACT_ACT_ENVIRONMENT?: boolean }).IS_REACT_ACT_ENVIRONMENT =
@@ -27,7 +27,7 @@ vi.mock('@refinedev/core', async () => {
 })
 
 vi.mock('@/services/channels', () => ({
-  getStreamerChannels: (...args: unknown[]) => getStreamerChannelsMock(...args),
+  getStreamers: (...args: unknown[]) => getStreamersMock(...args),
 }))
 
 async function renderPage() {
@@ -62,15 +62,16 @@ async function renderPage() {
 describe('StreamersPage', () => {
   beforeEach(() => {
     navigateMock.mockReset()
-    getStreamerChannelsMock.mockReset()
+    getStreamersMock.mockReset()
     usePermissionsMock.mockReset()
   })
 
-  it('載入成功時顯示 API 資料，缺少的統計欄位顯示破折號', async () => {
+  it('載入成功時顯示 API 資料', async () => {
     usePermissionsMock.mockReturnValue({ data: 'admin' })
-    getStreamerChannelsMock.mockResolvedValue([
+    getStreamersMock.mockResolvedValue([
       {
-        id: '1',
+        id: 'uuid-1',
+        user_id: 'user-uuid-1',
         channel_id: 'channel-1',
         display_name: 'Nurock',
       },
@@ -79,7 +80,7 @@ describe('StreamersPage', () => {
     const { container, unmount } = await renderPage()
 
     expect(container.textContent).toContain('Nurock')
-    expect(container.textContent).toContain('—')
+    expect(container.textContent).toContain('channel-1')
     expect(container.textContent).not.toContain('示範資料')
 
     await unmount()
@@ -87,9 +88,10 @@ describe('StreamersPage', () => {
 
   it('streamer 角色在載入完成後自動跳轉到自己的詳細頁', async () => {
     usePermissionsMock.mockReturnValue({ data: 'streamer' })
-    getStreamerChannelsMock.mockResolvedValue([
+    getStreamersMock.mockResolvedValue([
       {
-        id: '1',
+        id: 'uuid-1',
+        user_id: 'user-uuid-1',
         channel_id: 'channel-1',
         display_name: 'Nurock',
       },
@@ -97,14 +99,14 @@ describe('StreamersPage', () => {
 
     const { unmount } = await renderPage()
 
-    expect(navigateMock).toHaveBeenCalledWith('/streamers/channel-1', { replace: true })
+    expect(navigateMock).toHaveBeenCalledWith('/streamers/uuid-1', { replace: true })
 
     await unmount()
   })
 
   it('API 失敗時顯示錯誤訊息', async () => {
     usePermissionsMock.mockReturnValue({ data: 'admin' })
-    getStreamerChannelsMock.mockRejectedValue(new Error('boom'))
+    getStreamersMock.mockRejectedValue(new Error('boom'))
 
     const { container, unmount } = await renderPage()
 
@@ -115,7 +117,7 @@ describe('StreamersPage', () => {
 
   it('API 回傳空陣列時顯示無資料訊息', async () => {
     usePermissionsMock.mockReturnValue({ data: 'admin' })
-    getStreamerChannelsMock.mockResolvedValue([])
+    getStreamersMock.mockResolvedValue([])
 
     const { container, unmount } = await renderPage()
 
