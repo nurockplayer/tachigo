@@ -13,6 +13,7 @@ import (
 	"errors"
 	"log"
 	"os"
+	"path/filepath"
 	"strings"
 
 	"github.com/joho/godotenv"
@@ -103,6 +104,12 @@ func main() {
 		ON streamers (user_id, channel_id)
 	`).Error; err != nil {
 		log.Fatalf("failed to create streamer index: %v", err)
+	}
+	migration008Path := filepath.Join("backend", "migrations", "008_streamers_agency.sql")
+	if contents, err := os.ReadFile(migration008Path); err == nil {
+		if err := db.Exec(string(contents)).Error; err != nil {
+			log.Fatalf("failed to run 008_streamers_agency.sql: %v", err)
+		}
 	}
 	// Wire services
 	authSvc := services.NewAuthService(db, cfg)

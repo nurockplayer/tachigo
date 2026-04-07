@@ -126,12 +126,19 @@ func New(
 
 	dashboard := v1.Group("/dashboard")
 	dashboard.Use(middleware.JWTAuth(authSvc))
-	dashboard.Use(middleware.RequireRole(models.RoleAdmin, models.RoleStreamer))
+	dashboard.Use(middleware.RequireRole(models.RoleAdmin, models.RoleStreamer, models.RoleAgency))
 	{
+		dashboard.POST("/streamers", middleware.RequireRole(models.RoleAdmin), streamerH.Create)
+		dashboard.GET("/streamers", middleware.RequireRole(models.RoleAgency, models.RoleAdmin), streamerH.List)
+		dashboard.GET("/streamers/:streamer_id/stats",
+			middleware.RequireRole(models.RoleStreamer, models.RoleAgency, models.RoleAdmin),
+			streamerH.GetStats)
 		dashboard.POST("/streamers/register", streamerH.Register)
 		dashboard.GET("/streamers/channels", streamerH.ListChannels)
 		dashboard.GET("/channels/:channel_id/stats", streamerH.GetChannelStats)
-		dashboard.GET("/channels/:channel_id/config", channelConfigH.GetChannelConfig)
+		dashboard.GET("/channels/:channel_id/config",
+			middleware.RequireRole(models.RoleAdmin, models.RoleStreamer, models.RoleAgency),
+			channelConfigH.GetChannelConfig)
 		dashboard.PUT("/channels/:channel_id/config", channelConfigH.UpdateChannelConfig)
 	}
 
