@@ -3,10 +3,13 @@ package handlers
 import (
 	"errors"
 	"log"
+	"net/http"
 
 	"github.com/gin-gonic/gin"
 	"github.com/google/uuid"
 
+	"github.com/tachigo/tachigo/internal/middleware"
+	"github.com/tachigo/tachigo/internal/models"
 	"github.com/tachigo/tachigo/internal/services"
 )
 
@@ -26,6 +29,11 @@ type createAgencyRequest struct {
 type createAgencyResponse struct {
 	ID   uuid.UUID `json:"id"`
 	Name string    `json:"name"`
+}
+
+type agencyStreamerResponse struct {
+	ChannelID string    `json:"channel_id"`
+	UserID    uuid.UUID `json:"user_id"`
 }
 
 func (h *AgencyHandler) Create(c *gin.Context) {
@@ -58,4 +66,47 @@ func (h *AgencyHandler) Create(c *gin.Context) {
 		ID:   user.ID,
 		Name: req.Name,
 	})
+}
+
+func (h *AgencyHandler) ListStreamers(c *gin.Context) {
+	agencyID, err := uuid.Parse(c.Param("id"))
+	if err != nil {
+		badRequest(c, "invalid agency id")
+		return
+	}
+
+	claims := middleware.MustClaims(c)
+	if claims.Role == models.RoleAgency && claims.UserID != agencyID.String() {
+		c.JSON(http.StatusForbidden, Response{Success: false, Error: "forbidden"})
+		return
+	}
+
+	streamers, err := h.agencySvc.ListStreamers(agencyID)
+	if err != nil {
+		log.Printf("agency list streamers: unexpected error: %v", err)
+		internal(c)
+		return
+	}
+
+	channelIDs := make([]string, 0, len(streamers))
+	for _, streamer := range streamers {
+		channelIDs = append(channelIDs, streamer.ChannelID)
+	}
+
+	userIDsByChannel, err := h.agencySvc.ListStreamerUserIDs(channelIDs)
+	if err != nil {
+		log.Printf("agency list streamer users: unexpected error: %v", err)
+		internal(c)
+		return
+	}
+
+	response := make([]agencyStreamerResponse, 0, len(streamers))
+	for _, streamer := range streamers {
+		response = append(response, agencyStreamerResponse{
+			ChannelID: streamer.ChannelID,
+			UserID:    userIDsByChannel[streamer.ChannelID],
+		})
+	}
+
+	ok(c, gin.H{"streamers": response})
 }

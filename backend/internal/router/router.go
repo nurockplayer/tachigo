@@ -150,7 +150,7 @@ func New(
 		// GET /agencies/:id/streamers — agency or admin
 		agencies.GET("/:id/streamers",
 			middleware.RequireRole(models.RoleAgency, models.RoleAdmin),
-			func(c *gin.Context) { c.JSON(501, gin.H{"error": "not implemented"}) },
+			agencyHandler.ListStreamers,
 		)
 	}
 

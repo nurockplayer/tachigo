@@ -91,3 +91,43 @@ func (s *AgencyService) OwnsChannel(agencyUserID uuid.UUID, channelID string) (b
 		Count(&count).Error
 	return count > 0, err
 }
+
+func (s *AgencyService) ListStreamers(agencyID uuid.UUID) ([]models.AgencyStreamer, error) {
+	var streamers []models.AgencyStreamer
+	if err := s.db.
+		Where("agency_id = ?", agencyID).
+		Order("created_at ASC").
+		Find(&streamers).Error; err != nil {
+		return nil, err
+	}
+	if streamers == nil {
+		return []models.AgencyStreamer{}, nil
+	}
+	return streamers, nil
+}
+
+func (s *AgencyService) ListStreamerUserIDs(channelIDs []string) (map[string]uuid.UUID, error) {
+	type streamerUserRow struct {
+		ChannelID string
+		UserID    uuid.UUID
+	}
+
+	if len(channelIDs) == 0 {
+		return map[string]uuid.UUID{}, nil
+	}
+
+	var rows []streamerUserRow
+	if err := s.db.Model(&models.Streamer{}).
+		Select("channel_id, user_id").
+		Where("channel_id IN ?", channelIDs).
+		Find(&rows).Error; err != nil {
+		return nil, err
+	}
+
+	userIDs := make(map[string]uuid.UUID, len(rows))
+	for _, row := range rows {
+		userIDs[row.ChannelID] = row.UserID
+	}
+
+	return userIDs, nil
+}
