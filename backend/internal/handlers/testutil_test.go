@@ -95,6 +95,13 @@ func migrateTestDB(db *gorm.DB) error {
 			created_at DATETIME,
 			updated_at DATETIME
 		)`,
+		`CREATE TABLE IF NOT EXISTS agency_streamers (
+			id TEXT PRIMARY KEY,
+			agency_id TEXT NOT NULL,
+			channel_id TEXT NOT NULL,
+			created_at DATETIME,
+			UNIQUE (agency_id, channel_id)
+		)`,
 		`CREATE TABLE IF NOT EXISTS streamers (
 			id TEXT PRIMARY KEY,
 			user_id TEXT NOT NULL REFERENCES users(id),

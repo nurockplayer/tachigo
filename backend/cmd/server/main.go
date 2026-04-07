@@ -10,11 +10,13 @@
 package main
 
 import (
+	"errors"
 	"log"
 	"os"
 	"strings"
 
 	"github.com/joho/godotenv"
+	"github.com/jackc/pgx/v5/pgconn"
 
 	_ "github.com/tachigo/tachigo/docs"
 	"github.com/tachigo/tachigo/internal/config"
@@ -34,12 +36,11 @@ func main() {
 	db := database.Connect(cfg.Database.DSN)
 
 	// Create custom ENUM types before AutoMigrate (GORM cannot create them automatically).
-	if err := db.Exec(`
-		DO $$ BEGIN
-			CREATE TYPE user_role AS ENUM ('viewer', 'streamer', 'admin');
-		EXCEPTION WHEN duplicate_object THEN NULL;
-		END $$;
-	`).Error; err != nil {
+	// NOTE: keep in sync with models.UserRole constants in internal/models/user.go.
+	// 'agency' was added in refs #99; if adding new roles, update this list.
+	if err := initializeUserRoleEnum(func(query string) error {
+		return db.Exec(query).Error
+	}); err != nil {
 		log.Fatalf("failed to create user_role enum: %v", err)
 	}
 
@@ -63,6 +64,8 @@ func main() {
 		&models.BroadcastTimeLog{},
 		// Tachi token balance — refs #103
 		&models.TachiBalance{},
+		// Agency management — refs #99
+		&models.AgencyStreamer{},
 	); err != nil {
 		log.Fatalf("migration failed: %v", err)
 	}
@@ -101,7 +104,6 @@ func main() {
 	`).Error; err != nil {
 		log.Fatalf("failed to create streamer index: %v", err)
 	}
-
 	// Wire services
 	authSvc := services.NewAuthService(db, cfg)
 	userSvc := services.NewUserService(db)
@@ -129,4 +131,26 @@ func main() {
 	if err := r.Run(addr); err != nil {
 		log.Fatalf("server error: %v", err)
 	}
+}
+
+func initializeUserRoleEnum(exec func(query string) error) error {
+	if err := exec(`CREATE TYPE user_role AS ENUM ('viewer', 'streamer', 'agency', 'admin')`); err != nil {
+		if !isDuplicateObject(err) {
+			return err
+		}
+	}
+
+	if err := exec(`ALTER TYPE user_role ADD VALUE IF NOT EXISTS 'agency'`); err != nil {
+		return err
+	}
+
+	return nil
+}
+
+func isDuplicateObject(err error) bool {
+	var pgErr *pgconn.PgError
+	if errors.As(err, &pgErr) {
+		return pgErr.Code == "42710"
+	}
+	return false
 }
