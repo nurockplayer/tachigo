@@ -52,25 +52,43 @@ jobs:
             const diffLines = files.reduce((sum, file) => sum + file.additions + file.deletions, 0)
             const body = pr.body || ''
             const title = pr.title || ''
-            const allowedPrefixes = ['[backend]', '[frontend]', '[discussion]']
+            const allowedPrefixes = ['[backend]', '[frontend]', '[contract]', '[discussion]']
             const titlePrefix = allowedPrefixes.find((prefix) => title.startsWith(prefix))
             const touches = {
               backend: filenames.some((name) => name.startsWith('backend/')),
               dashboard: filenames.some((name) => name.startsWith('dashboard/')),
               tachimint: filenames.some((name) => name.startsWith('tachimint/')),
+              contracts: filenames.some((name) => name.startsWith('contracts/')),
             }
             const productSurfaces = Object.values(touches).filter(Boolean).length
+
+            const dependsOnMatch = body.match(/Depends on PR[：:]\s*(.+)/i)
+            const dependsOnRaw = dependsOnMatch?.[1]?.trim()
+            const dependsOnNone = dependsOnRaw?.toLowerCase() === 'none'
+            const dependsOnPrMatch = dependsOnRaw?.match(/^#(\d+)$/)
+            const backendContractYes = /Backend contract already in develop:[\s\S]*?- \[[xX]\] yes/i.test(body)
+            const backendContractNo = /Backend contract already in develop:[\s\S]*?- \[[xX]\] no/i.test(body)
+            const dependencyBlocked =
+              titlePrefix === '[frontend]' &&
+              Boolean(dependsOnPrMatch) &&
+              backendContractNo &&
+              !backendContractYes
 
             const runCi =
               Boolean(titlePrefix) &&
               /#\d+/.test(body) &&
               (body.includes('Source of truth：') || body.includes('Source of truth:')) &&
+              Boolean(dependsOnRaw) &&
+              (dependsOnNone || Boolean(dependsOnPrMatch)) &&
+              (backendContractYes !== backendContractNo) &&
               body.includes('本 PR 明確不做') &&
               filenames.length <= hardMaxChangedFiles &&
               diffLines <= hardMaxDiffLines &&
               productSurfaces <= 1 &&
               !(titlePrefix === '[backend]' && (touches.dashboard || touches.tachimint)) &&
-              !(titlePrefix === '[frontend]' && touches.backend)
+              !(titlePrefix === '[frontend]' && touches.backend) &&
+              !(titlePrefix === '[contract]' && (touches.backend || touches.dashboard || touches.tachimint)) &&
+              !dependencyBlocked
 
             core.setOutput('run_ci', runCi ? 'true' : 'false')
             if (!runCi) {

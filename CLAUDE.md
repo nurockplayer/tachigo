@@ -87,6 +87,14 @@
 - 修 bug 時順便重構整個模組，且未經事前同意
 - backend issue 混入 dashboard / tachimint UI 改動，反之亦然
 
+### PR 不得依賴未 merge 的 PR
+
+禁止在 PR body 中宣告對其他尚未 merge 的 PR 的依賴（例如「依賴：#123 需先 merge」）。
+
+- 若前置 PR 尚未 merge，後續 PR 不應開出來
+- 若真有順序依賴，先等前置 PR merge，再從最新 `develop` 拉新 branch 開發
+- scope police 會自動偵測 `依賴：#xxx` 或 `depends on #xxx` 語法，若引用的 PR 仍為 open 狀態，該 PR 會被自動關閉
+
 ### 遇到岔路時怎麼做
 
 - 如果額外內容是必要前置條件：先明確說明為什麼原 issue 缺這一塊，再決定是否調整範圍

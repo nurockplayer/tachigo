@@ -1,6 +1,6 @@
 # PR Scope Policy
 
-這份文件說明 `tachigo` 的 PR 邊界規則，以及 GitHub 上需要如何設定，避免再次出現超大包、跨 scope、review 失焦的 PR。
+這份文件說明 `tachigo` 的 PR 邊界規則，以及 GitHub 上需要如何設定，避免再次出現超大包、跨 scope、review 失焦，或前端建立在未落地 backend contract 上的 PR。
 
 ## 目標
 
@@ -17,9 +17,11 @@ repo 目前有一個 GitHub Actions workflow：
 
 它會在 PR 開啟、更新、編輯時檢查以下規則：
 
-- PR title 必須以 `[backend]` / `[frontend]` / `[discussion]` 開頭
+- PR title 必須以 `[backend]` / `[frontend]` / `[contract]` / `[discussion]` 開頭
 - PR body 必須包含 issue / PR 編號，例如 `#123`
 - PR body 必須包含 `Source of truth`
+- PR body 必須包含 `Depends on PR`
+- PR body 必須明確標記 backend contract 是否已經在 `develop`
 - PR body 必須包含 `本 PR 明確不做`
 - PR 變更檔案數超過 `35` 個時 fail
 - PR diff 超過 `1800` 行時 fail
@@ -29,6 +31,8 @@ repo 目前有一個 GitHub Actions workflow：
   - `tachimint/`
 - `[backend]` PR 不可修改 `dashboard/` 或 `tachimint/`
 - `[frontend]` PR 不可修改 `backend/`
+- `[contract]` PR 不可修改 `backend/` / `dashboard/` / `tachimint/`
+- `[frontend]` PR 若依賴尚未 merge 的 backend contract，會被 dependency gate 擋下
 
 ## 自動處置
 
@@ -36,7 +40,8 @@ repo 目前有一個 GitHub Actions workflow：
 
 - `PR Scope Police` check 會 fail
 - PR 會收到一則可更新的 sticky comment
-- PR 會自動加上 `scope-violation` label
+- 嚴重 scope 違規會自動加上 `scope-violation` label
+- 依賴未落地的前端 PR 會自動加上 `blocked-by-dependency` label
 - 若屬於嚴重違規，PR 會被自動關閉
 
 目前視為嚴重違規的情況：
@@ -46,6 +51,7 @@ repo 目前有一個 GitHub Actions workflow：
 - 同時改多個 product surface
 - `[backend]` PR 去改前端
 - `[frontend]` PR 去改 backend
+- `[contract]` PR 去改 backend / dashboard / tachimint
 
 ## 例外機制
 
@@ -68,7 +74,8 @@ repo 的 CI 目前改成：
 
 - PR 先跑 `PR Scope Police`
 - `.github/workflows/ci.yml` 也會直接跑在 PR 上，但會先經過一個輕量 `Scope gate`
-- 只有目前符合同一套 scope 規則的 PR，才會繼續跑 backend / frontend / dashboard 的 docker build 與測試
+- 只有目前符合同一套 scope 規則、且沒有被 dependency gate 擋住的 PR，才會繼續跑 backend / frontend / dashboard 的 docker build 與測試
+- 若 `[frontend]` PR 依賴尚未 merge 的 backend contract，重型 CI 會直接跳過
 
 ## GitHub 設定
 
@@ -106,6 +113,7 @@ repo 的 CI 目前改成：
 
 - 不需要先做完整 code review
 - 先要求作者拆 PR 或縮 scope
+- 若是 dependency block，先要求作者等依賴 merge，或改成 stacked PR
 - 只有在 maintainer 明確決定加 `scope-exception` 時，才進一步 review
 
 若 PR 雖然通過自動檢查，但 reviewer 仍判斷 scope 已混掉：
@@ -119,6 +127,7 @@ repo 的 CI 目前改成：
 應該被擋：
 
 - `[backend]` PR 同時修改 `backend/` 與 `dashboard/`
+- `[frontend]` PR 依賴 `#123` 的 backend contract，但 `#123` 還沒 merge 到 `develop`
 - 一張票只做 dashboard UI，PR 卻順手改 migration、router、service、docs
 - PR 改了 50 個檔案，混入多個 issue 的工作
 
