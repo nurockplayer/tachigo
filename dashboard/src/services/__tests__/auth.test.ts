@@ -113,6 +113,54 @@ describe('401 interceptor', () => {
     await expect(restoreSession()).rejects.toThrow()
     expect(mock.history.post.filter((r) => r.url?.includes('/auth/refresh')).length).toBe(1)
   })
+
+  it('queued request retry 時帶新 token（不帶舊的過期 token）', async () => {
+    localStorage.setItem('refresh_token', 'valid-refresh')
+
+    // 兩個 API call 都先回 401
+    mock
+      .onGet('/api/v1/streamers')
+      .replyOnce(401)
+      .onGet('/api/v1/streamers')
+      .replyOnce(200, { data: [] })
+    mock
+      .onGet('/api/v1/channels')
+      .replyOnce(401)
+      .onGet('/api/v1/channels')
+      .replyOnce(200, { data: [] })
+    mock.onPost('/api/v1/auth/refresh').replyOnce(200, {
+      data: { tokens: { access_token: 'refreshed-token', refresh_token: 'new-refresh' } },
+    })
+
+    await Promise.all([client.get('/api/v1/streamers'), client.get('/api/v1/channels')])
+
+    // 第二個 GET（queued request retry）必須帶新 token
+    const channelRetry = mock.history.get.find(
+      (r) => r.url?.includes('/api/v1/channels') && r.headers?.Authorization,
+    )
+    expect(channelRetry?.headers?.Authorization).toBe('Bearer refreshed-token')
+  })
+
+  it('refresh 回 5xx 時不清除 in-memory accessToken', async () => {
+    // 先登入讓 accessToken 不為 null
+    mock.onPost('/api/v1/auth/login').replyOnce(200, {
+      data: {
+        user: {},
+        tokens: { access_token: 'current-access', refresh_token: 'valid-refresh' },
+      },
+    })
+    await login('user@example.com', 'password')
+    expect(getAccessToken()).toBe('current-access')
+
+    // API call 回 401，refresh 回 500
+    mock.onGet('/api/v1/streamers').replyOnce(401)
+    mock.onPost('/api/v1/auth/refresh').replyOnce(500)
+
+    await expect(client.get('/api/v1/streamers')).rejects.toBeDefined()
+
+    // session 應保留（token 不被清除）
+    expect(getAccessToken()).toBe('current-access')
+  })
 })
 
 describe('auth basics', () => {

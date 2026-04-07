@@ -96,7 +96,17 @@ client.interceptors.response.use(
     if (isRefreshing) {
       return new Promise<unknown>((resolve, reject) => {
         pendingRequests.push({ resolve, reject })
-      }).then(() => client({ ...retryConfig, _retry: true } as RetryConfig))
+      }).then(() => {
+        const newToken = getAccessToken()
+        const updatedConfig = { ...retryConfig, _retry: true } as RetryConfig
+        if (newToken) {
+          updatedConfig.headers = {
+            ...(retryConfig.headers as Record<string, string>),
+            Authorization: `Bearer ${newToken}`,
+          }
+        }
+        return client(updatedConfig as AxiosRequestConfig)
+      })
     }
 
     retryConfig._retry = true
@@ -114,11 +124,15 @@ client.interceptors.response.use(
 
       return client(retryConfig as AxiosRequestConfig)
     } catch (refreshError) {
-      accessToken = null
-      clearAuthToken()
+      const isDefiniteAuthFailure =
+        isAxiosError(refreshError) && refreshError.response?.status === 401
+      if (isDefiniteAuthFailure) {
+        accessToken = null
+        clearAuthToken()
+      }
       const queued = pendingRequests.splice(0)
       queued.forEach(({ reject }) => reject(refreshError))
-      return Promise.reject(error)
+      return Promise.reject(isDefiniteAuthFailure ? error : refreshError)
     } finally {
       isRefreshing = false
     }
