@@ -13,7 +13,9 @@ type TxSource string
 const (
 	TxSourceBits      TxSource = "bits"
 	TxSourceWatchTime TxSource = "watch_time"
+	TxSourceClick     TxSource = "click"
 	TxSourceSpend     TxSource = "spend"
+	TxSourceClaim     TxSource = "claim"
 )
 
 // PointsLedger is the per-channel points balance for a viewer.
@@ -52,6 +54,7 @@ type PointsTransaction struct {
 	Source         TxSource   `gorm:"type:varchar(50);not null"                      json:"source"`
 	Delta          int64      `gorm:"not null"                                       json:"delta"`
 	BalanceAfter   int64      `gorm:"not null"                                       json:"balance_after"`
+	SKU            *string    `gorm:"type:varchar(255)"                              json:"sku,omitempty"`
 	Note           *string    `gorm:"type:text"                                      json:"note"`
 	CreatedAt      time.Time  `                                                      json:"created_at"`
 

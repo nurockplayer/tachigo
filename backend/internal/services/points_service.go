@@ -3,6 +3,7 @@ package services
 import (
 	"errors"
 	"time"
+	"unicode/utf8"
 
 	"github.com/google/uuid"
 	"gorm.io/gorm"
@@ -14,7 +15,15 @@ import (
 var (
 	ErrInsufficientBalance = errors.New("insufficient spendable balance")
 	ErrLedgerNotFound      = errors.New("points ledger not found")
+	ErrInvalidPointsAmount = errors.New("amount must be greater than zero")
+	ErrInvalidSKU          = errors.New("sku length must be <= 255 characters")
+	ErrPointsDeltaOverflow = errors.New("points delta overflow")
 )
+
+type PointsCreditMeta struct {
+	SKU  *string
+	Note *string
+}
 
 // PointsBalance holds both balance views for a viewer in a channel.
 type PointsBalance struct {
@@ -69,7 +78,7 @@ func (s *PointsService) ListTransactions(userID uuid.UUID, channelID string) ([]
 
 	var txs []models.PointsTransaction
 	err := s.db.Where("ledger_id = ?", ledger.ID).
-		Order("created_at DESC").
+		Order("created_at DESC, id DESC").
 		Limit(50).
 		Find(&txs).Error
 	return txs, err
@@ -79,6 +88,10 @@ func (s *PointsService) ListTransactions(userID uuid.UUID, channelID string) ([]
 // cumulative_total is never modified by a deduction.
 // Returns ErrInsufficientBalance if the current spendable balance is too low.
 func (s *PointsService) DeductPoints(userID uuid.UUID, channelID string, amount int64, note string) error {
+	if err := validatePositivePointsAmount(amount); err != nil {
+		return err
+	}
+
 	return s.db.Transaction(func(tx *gorm.DB) error {
 		var ledger models.PointsLedger
 		if err := tx.Clauses(clause.Locking{Strength: "UPDATE"}).
@@ -117,6 +130,25 @@ func (s *PointsService) DeductPoints(userID uuid.UUID, channelID string, amount 
 // AddPoints adds amount to both spendable_balance and cumulative_total.
 // Intended for use by AirdropService — Heartbeat points are handled by WatchService.Heartbeat.
 func (s *PointsService) AddPoints(userID uuid.UUID, channelID string, source models.TxSource, amount int64) error {
+	if err := validatePositivePointsAmount(amount); err != nil {
+		return err
+	}
+	return s.AddPointsWithMeta(userID, channelID, source, amount, PointsCreditMeta{})
+}
+
+func (s *PointsService) AddPointsWithMeta(
+	userID uuid.UUID,
+	channelID string,
+	source models.TxSource,
+	amount int64,
+	meta PointsCreditMeta,
+) error {
+	if err := validatePositivePointsAmount(amount); err != nil {
+		return err
+	}
+	if meta.SKU != nil && utf8.RuneCountInString(*meta.SKU) > 255 {
+		return ErrInvalidSKU
+	}
 	return s.db.Transaction(func(tx *gorm.DB) error {
 		ledgerID := newUUID()
 		now := time.Now()
@@ -142,16 +174,29 @@ func (s *PointsService) AddPoints(userID uuid.UUID, channelID string, source mod
 			Source:       source,
 			Delta:        amount,
 			BalanceAfter: ledger.SpendableBalance,
+			SKU:          meta.SKU,
+			Note:         meta.Note,
 		}
 		return tx.Create(txRecord).Error
 	})
 }
 
+func validatePositivePointsAmount(amount int64) error {
+	if amount <= 0 {
+		return ErrInvalidPointsAmount
+	}
+	return nil
+}
+
 // AddWatchTime accumulates observed seconds for a viewer in a channel.
 // Called after each successful Heartbeat.
 func (s *PointsService) AddWatchTime(userID uuid.UUID, channelID string, seconds int64) error {
+	return s.addWatchTime(s.db, userID, channelID, seconds)
+}
+
+func (s *PointsService) addWatchTime(db *gorm.DB, userID uuid.UUID, channelID string, seconds int64) error {
 	now := time.Now()
-	return s.db.Exec(`
+	return db.Exec(`
 		INSERT INTO watch_time_stats (id, user_id, channel_id, total_watch_seconds, created_at, updated_at)
 		VALUES (?, ?, ?, ?, ?, ?)
 		ON CONFLICT (user_id, channel_id) DO UPDATE SET
@@ -181,8 +226,12 @@ func (s *PointsService) GetWatchStats(userID uuid.UUID, channelID string) (*Watc
 // streamerID is resolved internally from channelID via auth_providers (Twitch provider_id = channelID).
 // If the channelID has no registered streamer, the call is a no-op.
 func (s *PointsService) AddBroadcastTime(channelID string, seconds int64) error {
+	return s.addBroadcastTime(s.db, channelID, seconds)
+}
+
+func (s *PointsService) addBroadcastTime(db *gorm.DB, channelID string, seconds int64) error {
 	var provider models.AuthProvider
-	if err := s.db.Where("provider = ? AND provider_id = ?", models.ProviderTwitch, channelID).
+	if err := db.Where("provider = ? AND provider_id = ?", models.ProviderTwitch, channelID).
 		First(&provider).Error; err != nil {
 		if errors.Is(err, gorm.ErrRecordNotFound) {
 			return nil // streamer not registered yet — skip silently
@@ -192,7 +241,7 @@ func (s *PointsService) AddBroadcastTime(channelID string, seconds int64) error 
 	streamerID := provider.UserID
 
 	now := time.Now()
-	if err := s.db.Exec(`
+	if err := db.Exec(`
 		INSERT INTO broadcast_time_stats (id, streamer_id, channel_id, total_broadcast_seconds, created_at, updated_at)
 		VALUES (?, ?, ?, ?, ?, ?)
 		ON CONFLICT (streamer_id, channel_id) DO UPDATE SET
@@ -208,7 +257,21 @@ func (s *PointsService) AddBroadcastTime(channelID string, seconds int64) error 
 		Seconds:    seconds,
 		RecordedAt: now,
 	}
-	return s.db.Create(log).Error
+	return db.Create(log).Error
+}
+
+// AddHeartbeatTime atomically accumulates viewer watch time and broadcaster
+// broadcast time for a single heartbeat delta.
+func (s *PointsService) AddHeartbeatTime(userID uuid.UUID, channelID string, seconds int64) error {
+	return s.db.Transaction(func(tx *gorm.DB) error {
+		if err := s.addWatchTime(tx, userID, channelID, seconds); err != nil {
+			return err
+		}
+		if err := s.addBroadcastTime(tx, channelID, seconds); err != nil {
+			return err
+		}
+		return nil
+	})
 }
 
 // GetBroadcastStats returns broadcast time across four time windows for a streamer.

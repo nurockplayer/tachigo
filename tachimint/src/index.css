@@ -144,6 +144,71 @@ p  { margin: 0; }
   100% { opacity: 0; transform: translateY(-10px); }
 }
 
+/* ── Mining character ───────────────────────────────────────────────────────── */
+.ext-mine {
+  display: flex;
+  flex-direction: column;
+  align-items: center;
+  gap: 4px;
+  margin-bottom: 12px;
+}
+
+.ext-mine__wrap {
+  position: relative;
+  display: inline-flex;
+}
+
+.ext-mine__btn {
+  width: 64px;
+  height: 64px;
+  font-size: 32px;
+  background: var(--surface);
+  border: 1px solid var(--border);
+  border-radius: var(--radius);
+  cursor: pointer;
+  transition: transform 0.1s, background 0.15s, opacity 0.15s;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  line-height: 1;
+}
+
+.ext-mine__btn:hover:not(:disabled) {
+  background: #222228;
+  transform: scale(1.08);
+}
+
+.ext-mine__btn:active:not(:disabled) {
+  transform: scale(0.94);
+}
+
+.ext-mine__btn--cooldown {
+  opacity: 0.4;
+  cursor: not-allowed;
+}
+
+.ext-mine__gain {
+  position: absolute;
+  top: -4px;
+  right: -4px;
+  font-size: 12px;
+  font-weight: 700;
+  color: var(--success);
+  pointer-events: none;
+  animation: gain-float 1.5s ease forwards;
+}
+
+.ext-mine__gain--hidden {
+  display: none;
+}
+
+.ext-mine__cooldown {
+  font-size: 11px;
+  color: var(--text);
+  min-width: 32px;
+  text-align: center;
+}
+
 /* ── Products ───────────────────────────────────────────────────────────────── */
 .ext-products {
   display: flex;

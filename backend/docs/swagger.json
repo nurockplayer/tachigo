@@ -11,6 +11,7 @@
     "paths": {
         "/auth/forgot-password": {
             "post": {
+                "security": [],
                 "description": "Always returns 200 to prevent user enumeration",
                 "consumes": [
                     "application/json"
@@ -68,6 +69,7 @@
         },
         "/auth/google": {
             "get": {
+                "security": [],
                 "produces": [
                     "application/json"
                 ],
@@ -84,6 +86,7 @@
         },
         "/auth/google/callback": {
             "get": {
+                "security": [],
                 "produces": [
                     "application/json"
                 ],
@@ -143,6 +146,7 @@
         },
         "/auth/login": {
             "post": {
+                "security": [],
                 "consumes": [
                     "application/json"
                 ],
@@ -200,6 +204,7 @@
         },
         "/auth/logout": {
             "post": {
+                "security": [],
                 "consumes": [
                     "application/json"
                 ],
@@ -319,6 +324,7 @@
         },
         "/auth/refresh": {
             "post": {
+                "security": [],
                 "consumes": [
                     "application/json"
                 ],
@@ -381,6 +387,7 @@
         },
         "/auth/register": {
             "post": {
+                "security": [],
                 "consumes": [
                     "application/json"
                 ],
@@ -438,6 +445,7 @@
         },
         "/auth/reset-password": {
             "post": {
+                "security": [],
                 "consumes": [
                     "application/json"
                 ],
@@ -497,6 +505,7 @@
         },
         "/auth/twitch": {
             "get": {
+                "security": [],
                 "produces": [
                     "application/json"
                 ],
@@ -513,6 +522,7 @@
         },
         "/auth/twitch/callback": {
             "get": {
+                "security": [],
                 "produces": [
                     "application/json"
                 ],
@@ -572,6 +582,7 @@
         },
         "/auth/verify-email/confirm": {
             "post": {
+                "security": [],
                 "consumes": [
                     "application/json"
                 ],
@@ -676,6 +687,7 @@
         },
         "/auth/web3/nonce": {
             "post": {
+                "security": [],
                 "consumes": [
                     "application/json"
                 ],
@@ -738,6 +750,7 @@
         },
         "/auth/web3/verify": {
             "post": {
+                "security": [],
                 "consumes": [
                     "application/json"
                 ],
@@ -795,6 +808,7 @@
         },
         "/extension/auth/login": {
             "post": {
+                "security": [],
                 "consumes": [
                     "application/json"
                 ],
@@ -857,6 +871,7 @@
         },
         "/extension/bits/complete": {
             "post": {
+                "security": [],
                 "consumes": [
                     "application/json"
                 ],
@@ -1296,6 +1311,120 @@
                 }
             }
         },
+        "/users/me/points": {
+            "get": {
+                "security": [
+                    {
+                        "BearerAuth": []
+                    }
+                ],
+                "produces": [
+                    "application/json"
+                ],
+                "tags": [
+                    "points"
+                ],
+                "summary": "Get my points balance",
+                "parameters": [
+                    {
+                        "type": "string",
+                        "description": "Twitch channel ID",
+                        "name": "channel_id",
+                        "in": "query",
+                        "required": true
+                    }
+                ],
+                "responses": {
+                    "200": {
+                        "description": "OK",
+                        "schema": {
+                            "allOf": [
+                                {
+                                    "$ref": "#/definitions/handlers.Response"
+                                },
+                                {
+                                    "type": "object",
+                                    "properties": {
+                                        "data": {
+                                            "$ref": "#/definitions/handlers.PointsBalanceResponse"
+                                        }
+                                    }
+                                }
+                            ]
+                        }
+                    },
+                    "400": {
+                        "description": "Bad Request",
+                        "schema": {
+                            "$ref": "#/definitions/handlers.Response"
+                        }
+                    },
+                    "401": {
+                        "description": "Unauthorized",
+                        "schema": {
+                            "$ref": "#/definitions/handlers.Response"
+                        }
+                    }
+                }
+            }
+        },
+        "/users/me/points/history": {
+            "get": {
+                "security": [
+                    {
+                        "BearerAuth": []
+                    }
+                ],
+                "produces": [
+                    "application/json"
+                ],
+                "tags": [
+                    "points"
+                ],
+                "summary": "List my recent points transactions",
+                "parameters": [
+                    {
+                        "type": "string",
+                        "description": "Twitch channel ID",
+                        "name": "channel_id",
+                        "in": "query",
+                        "required": true
+                    }
+                ],
+                "responses": {
+                    "200": {
+                        "description": "OK",
+                        "schema": {
+                            "allOf": [
+                                {
+                                    "$ref": "#/definitions/handlers.Response"
+                                },
+                                {
+                                    "type": "object",
+                                    "properties": {
+                                        "data": {
+                                            "$ref": "#/definitions/handlers.PointsHistoryResponse"
+                                        }
+                                    }
+                                }
+                            ]
+                        }
+                    },
+                    "400": {
+                        "description": "Bad Request",
+                        "schema": {
+                            "$ref": "#/definitions/handlers.Response"
+                        }
+                    },
+                    "401": {
+                        "description": "Unauthorized",
+                        "schema": {
+                            "$ref": "#/definitions/handlers.Response"
+                        }
+                    }
+                }
+            }
+        },
         "/users/me/providers": {
             "get": {
                 "security": [
@@ -1377,6 +1506,53 @@
             "properties": {
                 "nonce": {
                     "type": "string"
+                }
+            }
+        },
+        "handlers.PointsBalanceResponse": {
+            "type": "object",
+            "properties": {
+                "cumulative_total": {
+                    "type": "integer"
+                },
+                "spendable_balance": {
+                    "type": "integer"
+                }
+            }
+        },
+        "handlers.PointsHistoryItem": {
+            "type": "object",
+            "properties": {
+                "amount": {
+                    "type": "integer"
+                },
+                "created_at": {
+                    "type": "string",
+                    "format": "date-time"
+                },
+                "note": {
+                    "type": "string"
+                },
+                "sku": {
+                    "type": "string"
+                },
+                "type": {
+                    "type": "string",
+                    "enum": [
+                        "earn",
+                        "spend"
+                    ]
+                }
+            }
+        },
+        "handlers.PointsHistoryResponse": {
+            "type": "object",
+            "properties": {
+                "transactions": {
+                    "type": "array",
+                    "items": {
+                        "$ref": "#/definitions/handlers.PointsHistoryItem"
+                    }
                 }
             }
         },
@@ -1690,5 +1866,10 @@
             "name": "Authorization",
             "in": "header"
         }
-    }
+    },
+    "security": [
+        {
+            "BearerAuth": []
+        }
+    ]
 }

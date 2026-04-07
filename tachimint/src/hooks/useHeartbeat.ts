@@ -1,4 +1,4 @@
-import { useEffect, useRef, useState } from 'react'
+import { useCallback, useEffect, useRef, useState } from 'react'
 import { sendHeartbeat } from '../services/api'
 
 interface UseHeartbeatOptions {
@@ -70,5 +70,12 @@ export function useHeartbeat(extensionJwt: string, options: UseHeartbeatOptions 
     }
   }, [enabled, extensionJwt, intervalMs])
 
-  return { balance, gain, isAnimating, error }
+  // Allow external callers (e.g. click boost) to sync the baseline so the
+  // next heartbeat gain animation doesn't double-count already-awarded points.
+  const syncBalance = useCallback((newBalance: number) => {
+    lastBalanceRef.current = newBalance
+    setBalance(newBalance)
+  }, [])
+
+  return { balance, gain, isAnimating, error, syncBalance }
 }
