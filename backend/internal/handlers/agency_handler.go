@@ -45,6 +45,10 @@ func (h *AgencyHandler) Create(c *gin.Context) {
 			conflict(c, err.Error())
 			return
 		}
+		if errors.Is(err, services.ErrAgencyNameTooLong) {
+			badRequest(c, err.Error())
+			return
+		}
 		log.Printf("agency create: unexpected error: %v", err)
 		internal(c)
 		return

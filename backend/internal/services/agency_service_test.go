@@ -151,7 +151,40 @@ func TestAgencyService_Create_NameTooLong(t *testing.T) {
 	svc := NewAgencyService(db)
 
 	_, err := svc.Create(strings.Repeat("a", 51), "agency_long@example.com")
-	if !errors.Is(err, ErrAgencyNameTaken) {
-		t.Fatalf("expected ErrAgencyNameTaken, got %v", err)
+	if !errors.Is(err, ErrAgencyNameTooLong) {
+		t.Fatalf("expected ErrAgencyNameTooLong, got %v", err)
+	}
+}
+
+func TestAgencyService_Create_DuplicateEmail(t *testing.T) {
+	db := newTestDB(t)
+	svc := NewAgencyService(db)
+
+	if _, err := svc.Create("agency_a", "shared@example.com"); err != nil {
+		t.Fatalf("first create failed: %v", err)
+	}
+
+	_, err := svc.Create("agency_b", "shared@example.com")
+	if !errors.Is(err, ErrAgencyEmailTaken) {
+		t.Fatalf("expected ErrAgencyEmailTaken, got %v", err)
+	}
+}
+
+func TestAgencyService_Create_Success(t *testing.T) {
+	db := newTestDB(t)
+	svc := NewAgencyService(db)
+
+	user, err := svc.Create("test_agency", "test@example.com")
+	if err != nil {
+		t.Fatalf("create failed: %v", err)
+	}
+	if user.ID == uuid.Nil {
+		t.Fatal("expected non-nil user ID")
+	}
+	if user.Username == nil || *user.Username != "test_agency" {
+		t.Fatalf("expected username 'test_agency', got %v", user.Username)
+	}
+	if user.Role != models.RoleAgency {
+		t.Fatalf("expected role agency, got %v", user.Role)
 	}
 }
