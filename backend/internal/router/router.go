@@ -130,7 +130,7 @@ func New(
 
 	dashboard := v1.Group("/dashboard")
 	dashboard.Use(middleware.JWTAuth(authSvc))
-	dashboard.Use(middleware.RequireRole(models.RoleAdmin, models.RoleStreamer, models.RoleAgency))
+	dashboard.Use(middleware.RequireRole(models.RoleAdmin, models.RoleStreamer))
 	{
 		dashboard.POST("/streamers", middleware.RequireRole(models.RoleAdmin), streamerH.Create)
 		dashboard.GET("/streamers", middleware.RequireRole(models.RoleAgency, models.RoleAdmin), streamerH.List)
@@ -152,7 +152,13 @@ func New(
 		dashboard.PUT("/channels/:channel_id/config",
 			middleware.RequireRole(models.RoleAdmin, models.RoleStreamer),
 			channelConfigH.UpdateChannelConfig)
-		dashboard.POST("/channels/:channel_id/airdrop", airdropH.Airdrop)
+	}
+
+	dashboardAirdrop := v1.Group("/dashboard/channels/:channel_id")
+	dashboardAirdrop.Use(middleware.JWTAuth(authSvc))
+	dashboardAirdrop.Use(middleware.RequireRole(models.RoleAdmin, models.RoleStreamer, models.RoleAgency))
+	{
+		dashboardAirdrop.POST("/airdrop", airdropH.Airdrop)
 	}
 
 	// ── Agency management ─────────────────────────────────────────────────

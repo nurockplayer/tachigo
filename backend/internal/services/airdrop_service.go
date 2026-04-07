@@ -1,17 +1,21 @@
 package services
 
 import (
+	"database/sql"
 	"errors"
 	"sort"
+	"strings"
 	"time"
 
 	"github.com/google/uuid"
+	"github.com/jackc/pgx/v5/pgconn"
 	"gorm.io/gorm"
 
 	"github.com/tachigo/tachigo/internal/models"
 )
 
 const defaultDailyAirdropLimit int64 = 5000
+const maxAirdropTxRetries = 5
 
 var (
 	ErrNoActiveViewers      = errors.New("no active viewers")
@@ -118,50 +122,66 @@ func (s *AirdropService) Execute(req AirdropRequest) (*AirdropResult, error) {
 		meta.Note = &note
 	}
 
-	result := &AirdropResult{
-		TotalAmount:  req.Amount,
-		Distribution: make([]AirdropRecipient, 0, len(viewers)),
-	}
-
-	err = s.db.Transaction(func(tx *gorm.DB) error {
-		todayTotal, err := s.todayTotal(tx, req.ChannelID)
-		if err != nil {
-			return err
-		}
-		if todayTotal+req.Amount > limit {
-			remaining := limit - todayTotal
-			if remaining < 0 {
-				remaining = 0
-			}
-			return &DailyAirdropExceededError{
-				Limit:      limit,
-				TodayTotal: todayTotal,
-				Requested:  req.Amount,
-				Remaining:  remaining,
-			}
+	for attempt := 0; attempt < maxAirdropTxRetries; attempt++ {
+		result := &AirdropResult{
+			TotalAmount:  req.Amount,
+			Distribution: make([]AirdropRecipient, 0, len(viewers)),
 		}
 
-		for _, viewer := range viewers {
-			if viewer.Share <= 0 {
-				continue
-			}
-			if err := s.pointsSvc.addPointsWithMeta(tx, viewer.UserID, req.ChannelID, models.TxSourceAirdrop, viewer.Share, meta); err != nil {
+		err = s.db.Transaction(func(tx *gorm.DB) error {
+			todayTotal, err := s.todayTotal(tx, req.ChannelID)
+			if err != nil {
 				return err
 			}
-			result.AffectedCount++
-			result.Distribution = append(result.Distribution, AirdropRecipient{
-				UserID:          viewer.UserID,
-				AllocatedPoints: viewer.Share,
-			})
-		}
+			if todayTotal+req.Amount > limit {
+				remaining := limit - todayTotal
+				if remaining < 0 {
+					remaining = 0
+				}
+				return &DailyAirdropExceededError{
+					Limit:      limit,
+					TodayTotal: todayTotal,
+					Requested:  req.Amount,
+					Remaining:  remaining,
+				}
+			}
 
-		return nil
-	})
-	if err != nil {
-		return nil, err
+			for _, viewer := range viewers {
+				if viewer.Share <= 0 {
+					continue
+				}
+				if err := s.pointsSvc.addPointsWithMeta(tx, viewer.UserID, req.ChannelID, models.TxSourceAirdrop, viewer.Share, meta); err != nil {
+					return err
+				}
+				result.AffectedCount++
+				result.Distribution = append(result.Distribution, AirdropRecipient{
+					UserID:          viewer.UserID,
+					AllocatedPoints: viewer.Share,
+				})
+			}
+
+			return nil
+		}, &sql.TxOptions{Isolation: sql.LevelSerializable})
+		if err == nil {
+			return result, nil
+		}
+		if !isRetryableAirdropTxError(err) {
+			return nil, err
+		}
 	}
 
-	return result, nil
+	return nil, err
+}
+
+func isRetryableAirdropTxError(err error) bool {
+	var pgErr *pgconn.PgError
+	if errors.As(err, &pgErr) {
+		return pgErr.Code == "40001" || pgErr.Code == "40P01"
+	}
+
+	msg := strings.ToLower(err.Error())
+	return strings.Contains(msg, "database is locked") ||
+		strings.Contains(msg, "database table is locked")
 }
 
 func (s *AirdropService) todayTotal(db *gorm.DB, channelID string) (int64, error) {

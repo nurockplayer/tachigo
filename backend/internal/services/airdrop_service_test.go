@@ -2,11 +2,14 @@ package services
 
 import (
 	"errors"
+	"sync"
 	"testing"
 	"time"
 
 	"github.com/google/uuid"
+	"gorm.io/driver/sqlite"
 	"gorm.io/gorm"
+	"gorm.io/gorm/logger"
 
 	"github.com/tachigo/tachigo/internal/models"
 )
@@ -167,4 +170,109 @@ func TestAirdrop_WritesAirdropSource(t *testing.T) {
 	if tx.Source != models.TxSourceAirdrop {
 		t.Fatalf("want source %q, got %q", models.TxSourceAirdrop, tx.Source)
 	}
+}
+
+func TestAirdrop_ConcurrentExecute_DoesNotExceedDailyLimit(t *testing.T) {
+	db := newConcurrentTestDB(t)
+	watchSvc := NewWatchService(db)
+	pointsSvc := NewPointsService(db, watchSvc)
+	configSvc := NewChannelConfigService(db)
+	svc := NewAirdropService(db, pointsSvc, configSvc)
+
+	channelID := "ch_concurrent_limit"
+	seedAirdropViewer(t, db, channelID, 60)
+
+	if err := db.Exec(
+		`INSERT INTO channel_configs (channel_id, seconds_per_point, multiplier, daily_airdrop_limit, created_at, updated_at)
+		 VALUES (?, 60, 1, 5000, CURRENT_TIMESTAMP, CURRENT_TIMESTAMP)`,
+		channelID,
+	).Error; err != nil {
+		t.Fatalf("seed channel config: %v", err)
+	}
+
+	start := make(chan struct{})
+	errCh := make(chan error, 2)
+	var wg sync.WaitGroup
+
+	for range 2 {
+		wg.Add(1)
+		go func() {
+			defer wg.Done()
+			<-start
+			_, err := svc.Execute(AirdropRequest{
+				ChannelID: channelID,
+				Amount:    3000,
+			})
+			errCh <- err
+		}()
+	}
+
+	close(start)
+	wg.Wait()
+	close(errCh)
+
+	successes := 0
+	exceeded := 0
+	for err := range errCh {
+		switch {
+		case err == nil:
+			successes++
+		case errors.Is(err, ErrDailyAirdropExceeded):
+			exceeded++
+		default:
+			t.Fatalf("unexpected concurrent execute error: %v", err)
+		}
+	}
+
+	if successes != 1 {
+		t.Fatalf("want exactly 1 successful airdrop, got %d", successes)
+	}
+	if exceeded != 1 {
+		t.Fatalf("want exactly 1 daily limit error, got %d", exceeded)
+	}
+
+	todayTotal, err := svc.TodayTotal(channelID)
+	if err != nil {
+		t.Fatalf("today total: %v", err)
+	}
+	if todayTotal > 5000 {
+		t.Fatalf("daily limit exceeded: got total %d", todayTotal)
+	}
+}
+
+func newConcurrentTestDB(t *testing.T) *gorm.DB {
+	t.Helper()
+
+	dbPath := t.TempDir() + "/airdrop-concurrency.db"
+	db, err := gorm.Open(sqlite.Open(dbPath), &gorm.Config{
+		Logger:         logger.Default.LogMode(logger.Silent),
+		TranslateError: true,
+	})
+	if err != nil {
+		t.Fatalf("open concurrent test db: %v", err)
+	}
+
+	sqlDB, err := db.DB()
+	if err != nil {
+		t.Fatalf("db handle: %v", err)
+	}
+	sqlDB.SetMaxOpenConns(8)
+	sqlDB.SetMaxIdleConns(8)
+
+	pragmas := []string{
+		`PRAGMA foreign_keys = ON`,
+		`PRAGMA journal_mode = WAL`,
+		`PRAGMA busy_timeout = 5000`,
+	}
+	for _, stmt := range pragmas {
+		if err := db.Exec(stmt).Error; err != nil {
+			t.Fatalf("apply pragma %q: %v", stmt, err)
+		}
+	}
+
+	if err := migrateTestDB(db); err != nil {
+		t.Fatalf("migrate concurrent test db: %v", err)
+	}
+
+	return db
 }
