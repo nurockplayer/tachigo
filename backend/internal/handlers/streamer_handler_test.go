@@ -97,7 +97,7 @@ func seedStreamerRow(t *testing.T, env *dashboardEnv, userID uuid.UUID, agencyUs
 	streamer := &models.Streamer{
 		UserID:       userID,
 		AgencyUserID: agencyUserID,
-		TwitchLogin:  twitchLogin,
+		ChannelID:    twitchLogin,
 	}
 	if err := env.db.Create(streamer).Error; err != nil {
 		t.Fatalf("seed streamer: %v", err)
@@ -110,9 +110,9 @@ func TestCreate_AdminOK(t *testing.T) {
 	_, adminToken := createDashboardUser(t, env, models.RoleAdmin, "streamer_admin")
 	streamerUser, _ := createDashboardUser(t, env, models.RoleStreamer, "streamer_target")
 	agencyUser, _ := createDashboardUser(t, env, models.RoleAgency, "agency_target")
-	seedTwitchProviderForUser(t, env, streamerUser.ID, "target_login")
+	seedTwitchProviderForUser(t, env, streamerUser.ID, "target_ch_id")
 
-	body := `{"user_id":"` + streamerUser.ID.String() + `","agency_user_id":"` + agencyUser.ID.String() + `","twitch_login":"target_login"}`
+	body := `{"user_id":"` + streamerUser.ID.String() + `","agency_user_id":"` + agencyUser.ID.String() + `","channel_id":"target_ch_id"}`
 	w := dashboardRequest(t, env.router, http.MethodPost, "/api/v1/dashboard/streamers", adminToken, body)
 	if w.Code != http.StatusOK {
 		t.Fatalf("want 200, got %d: %s", w.Code, w.Body.String())
@@ -127,8 +127,8 @@ func TestCreate_AdminOK(t *testing.T) {
 	if streamer["agency_user_id"] != agencyUser.ID.String() {
 		t.Fatalf("agency_user_id mismatch: %v", streamer["agency_user_id"])
 	}
-	if streamer["twitch_login"] != "target_login" {
-		t.Fatalf("twitch_login mismatch: %v", streamer["twitch_login"])
+	if streamer["channel_id"] != "target_ch_id" {
+		t.Fatalf("channel_id mismatch: %v", streamer["channel_id"])
 	}
 }
 
@@ -136,9 +136,9 @@ func TestCreate_StreamerForbidden(t *testing.T) {
 	env := newStreamerDashboardEnv(t)
 	_, streamerToken := createDashboardUser(t, env, models.RoleStreamer, "forbidden_streamer")
 	streamerUser, _ := createDashboardUser(t, env, models.RoleStreamer, "streamer_target_s")
-	seedTwitchProviderForUser(t, env, streamerUser.ID, "target_login")
+	seedTwitchProviderForUser(t, env, streamerUser.ID, "target_ch_id")
 
-	body := `{"user_id":"` + streamerUser.ID.String() + `","twitch_login":"target_login"}`
+	body := `{"user_id":"` + streamerUser.ID.String() + `","channel_id":"target_ch_id"}`
 	w := dashboardRequest(t, env.router, http.MethodPost, "/api/v1/dashboard/streamers", streamerToken, body)
 	if w.Code != http.StatusForbidden {
 		t.Fatalf("want 403, got %d: %s", w.Code, w.Body.String())
@@ -149,9 +149,9 @@ func TestCreate_AgencyForbidden(t *testing.T) {
 	env := newStreamerDashboardEnv(t)
 	_, agencyToken := createDashboardUser(t, env, models.RoleAgency, "forbidden_agency")
 	streamerUser, _ := createDashboardUser(t, env, models.RoleStreamer, "streamer_target_a")
-	seedTwitchProviderForUser(t, env, streamerUser.ID, "target_login")
+	seedTwitchProviderForUser(t, env, streamerUser.ID, "target_ch_id")
 
-	body := `{"user_id":"` + streamerUser.ID.String() + `","twitch_login":"target_login"}`
+	body := `{"user_id":"` + streamerUser.ID.String() + `","channel_id":"target_ch_id"}`
 	w := dashboardRequest(t, env.router, http.MethodPost, "/api/v1/dashboard/streamers", agencyToken, body)
 	if w.Code != http.StatusForbidden {
 		t.Fatalf("want 403, got %d: %s", w.Code, w.Body.String())
@@ -222,6 +222,12 @@ func TestGetStats_StreamerOwnOK(t *testing.T) {
 	w := dashboardRequest(t, env.router, http.MethodGet, "/api/v1/dashboard/streamers/"+streamer.ID.String()+"/stats", streamerToken, "")
 	if w.Code != http.StatusOK {
 		t.Fatalf("want 200, got %d: %s", w.Code, w.Body.String())
+	}
+
+	resp := parseBody(t, w.Body.Bytes())
+	data := resp["data"].(map[string]interface{})
+	if data["channel_id"] != "self_login" {
+		t.Fatalf("channel_id mismatch: %v", data["channel_id"])
 	}
 }
 

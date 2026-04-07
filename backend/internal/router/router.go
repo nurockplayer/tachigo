@@ -127,7 +127,7 @@ func New(
 			middleware.RequireRole(models.RoleStreamer, models.RoleAgency, models.RoleAdmin),
 			streamerH.GetStats)
 		dashboard.GET("/channels/:channel_id/config",
-			middleware.RequireRole(models.RoleAdmin, models.RoleStreamer),
+			middleware.RequireRole(models.RoleAdmin, models.RoleStreamer, models.RoleAgency),
 			channelConfigH.GetChannelConfig)
 		dashboard.PUT("/channels/:channel_id/config",
 			middleware.RequireRole(models.RoleAdmin, models.RoleStreamer),

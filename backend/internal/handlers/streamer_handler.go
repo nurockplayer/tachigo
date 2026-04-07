@@ -24,7 +24,7 @@ func (h *StreamerHandler) Create(c *gin.Context) {
 	var body struct {
 		UserID       string  `json:"user_id" binding:"required"`
 		AgencyUserID *string `json:"agency_user_id"`
-		TwitchLogin  string  `json:"twitch_login" binding:"required"`
+		ChannelID    string  `json:"channel_id" binding:"required"`
 	}
 	if err := c.ShouldBindJSON(&body); err != nil {
 		badRequest(c, err.Error())
@@ -47,10 +47,10 @@ func (h *StreamerHandler) Create(c *gin.Context) {
 		agencyUserID = &aid
 	}
 
-	streamer, err := h.streamerSvc.Create(userID, agencyUserID, body.TwitchLogin)
+	streamer, err := h.streamerSvc.Create(userID, agencyUserID, body.ChannelID)
 	if err != nil {
 		if errors.Is(err, services.ErrChannelNotOwned) {
-			c.JSON(http.StatusForbidden, Response{Success: false, Error: "twitch_login does not match user's Twitch account"})
+			c.JSON(http.StatusForbidden, Response{Success: false, Error: "channel_id does not match user's Twitch account"})
 			return
 		}
 		internal(c)
@@ -145,5 +145,5 @@ func (h *StreamerHandler) GetStats(c *gin.Context) {
 		return
 	}
 
-	ok(c, gin.H{"stats": stats})
+	ok(c, gin.H{"stats": stats, "channel_id": streamer.ChannelID})
 }
