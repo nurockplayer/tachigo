@@ -62,10 +62,24 @@ func main() {
 		&models.WatchTimeStat{},
 		&models.BroadcastTimeStat{},
 		&models.BroadcastTimeLog{},
+		// Tachi token balance — refs #103
+		&models.TachiBalance{},
 		// Agency management — refs #99
 		&models.AgencyStreamer{},
 	); err != nil {
 		log.Fatalf("migration failed: %v", err)
+	}
+
+	// FK constraint on tachi_balances.user_id — GORM AutoMigrate does not create FK
+	// constraints without an explicit association field, so we add it manually (idempotent).
+	if err := db.Exec(`
+		DO $$ BEGIN
+			ALTER TABLE tachi_balances ADD CONSTRAINT fk_tachi_balances_user_id
+			FOREIGN KEY (user_id) REFERENCES users(id) ON DELETE CASCADE;
+		EXCEPTION WHEN duplicate_object THEN NULL;
+		END $$;
+	`).Error; err != nil {
+		log.Fatalf("failed to create tachi_balances FK: %v", err)
 	}
 
 	// Partial unique index: only one active session per (user_id, channel_id).
@@ -101,6 +115,7 @@ func main() {
 	channelConfigSvc := services.NewChannelConfigService(db)
 	pointsSvc := services.NewPointsService(db, watchSvc)
 	streamerSvc := services.NewStreamerService(db, pointsSvc)
+	claimSvc := services.NewClaimService(db)
 
 	// CORS origins from env, default to localhost for dev
 	originsEnv := os.Getenv("ALLOWED_ORIGINS")
@@ -109,7 +124,7 @@ func main() {
 		allowedOrigins = strings.Split(originsEnv, ",")
 	}
 
-	r := router.New(authSvc, userSvc, addrSvc, extSvc, emailAuthSvc, watchSvc, channelConfigSvc, pointsSvc, streamerSvc, allowedOrigins)
+	r := router.New(authSvc, userSvc, addrSvc, extSvc, emailAuthSvc, watchSvc, channelConfigSvc, pointsSvc, streamerSvc, claimSvc, allowedOrigins)
 
 	addr := ":" + cfg.Server.Port
 	log.Printf("server starting on %s (env=%s)", addr, cfg.Server.Env)
