@@ -75,7 +75,7 @@
 
 refs #27
 
-Co-Authored-By: Claude Sonnet 4.6 <noreply@anthropic.com>
+Co-Authored-By: Claude Sonnet 4.6 <claude[bot]@anthropic.com>
 ```
 
 - 實作過程中的 commit 用 `refs #號碼`

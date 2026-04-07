@@ -50,7 +50,7 @@ docker compose run --no-deps --rm app go test ./...
 
 refs #<issue號碼>
 
-Co-Authored-By: Claude Sonnet 4.6 <noreply@anthropic.com>
+Co-Authored-By: Codex <codex[bot]@openai.com>
 ```
 
 - 實作過程中的 commit 用 `refs #號碼`
