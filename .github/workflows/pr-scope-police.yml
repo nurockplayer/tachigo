@@ -37,6 +37,7 @@ jobs:
             const hardMaxChangedFiles = 35
             const hardMaxDiffLines = 1800
             const autoCloseLabel = 'scope-violation'
+            const dependencyLabel = 'blocked-by-dependency'
             const owner = context.repo.owner
             const repo = context.repo.repo
 
@@ -70,43 +71,74 @@ jobs:
             const body = pr.body || ''
             const title = pr.title || ''
             const failures = []
+            const policyFailures = []
+            const dependencyFailures = []
             const severeFailures = []
             const warnings = []
 
             const allowedPrefixes = ['[backend]', '[frontend]', '[contract]', '[discussion]']
             const titlePrefix = allowedPrefixes.find((prefix) => title.startsWith(prefix))
             if (!titlePrefix) {
-              failures.push(
+              policyFailures.push(
                 `PR title must start with one of: ${allowedPrefixes.join(', ')}. Current title: "${title}".`,
               )
             }
 
             if (!/#\d+/.test(body)) {
-              failures.push('PR body must reference at least one issue or PR number such as `#123`.')
+              policyFailures.push('PR body must reference at least one issue or PR number such as `#123`.')
             }
 
             if (!body.includes('Source of truth：') && !body.includes('Source of truth:')) {
-              failures.push('PR body must include a `Source of truth` line in the Scope 對齊 section.')
+              policyFailures.push('PR body must include a `Source of truth` line in the Scope 對齊 section.')
             }
 
             if (!body.includes('本 PR 明確不做')) {
-              failures.push('PR body must include a `本 PR 明確不做` section.')
+              policyFailures.push('PR body must include a `本 PR 明確不做` section.')
             }
 
-            const dependencyPattern = /依賴[：:]\s*#(\d+)|depends\s+on\s+#(\d+)/gi
-            let depMatch
-            while ((depMatch = dependencyPattern.exec(body)) !== null) {
-              const depNumber = parseInt(depMatch[1] || depMatch[2], 10)
+            const dependsOnMatch = body.match(/Depends on PR[：:]\s*(.+)/i)
+            const dependsOnRaw = dependsOnMatch?.[1]?.trim()
+            if (!dependsOnRaw) {
+              policyFailures.push('PR body must include a `Depends on PR` line with `none` or `#123`.')
+            }
+
+            const dependsOnNone = dependsOnRaw?.toLowerCase() === 'none'
+            const dependsOnPrMatch = dependsOnRaw?.match(/^#(\d+)$/)
+            if (dependsOnRaw && !dependsOnNone && !dependsOnPrMatch) {
+              policyFailures.push('`Depends on PR` must be `none` or a single PR number such as `#123`.')
+            }
+
+            const backendContractYes = /Backend contract already in develop:[\s\S]*?- \[[xX]\] yes/i.test(body)
+            const backendContractNo = /Backend contract already in develop:[\s\S]*?- \[[xX]\] no/i.test(body)
+            if (!backendContractYes && !backendContractNo) {
+              policyFailures.push('PR body must mark whether the backend contract is already in `develop`.')
+            }
+            if (backendContractYes && backendContractNo) {
+              policyFailures.push('`Backend contract already in develop` cannot select both yes and no.')
+            }
+
+            const stackedOnDependency = /If no, this PR is:[\s\S]*?- \[[xX]\] stacked on dependency branch/i.test(body)
+            const intentionallyBlocked = /If no, this PR is:[\s\S]*?- \[[xX]\] intentionally blocked until dependency merges/i.test(body)
+            if (backendContractNo && !stackedOnDependency && !intentionallyBlocked) {
+              policyFailures.push(
+                'When backend contract is not yet in `develop`, PR body must mark this PR as stacked or intentionally blocked.',
+              )
+            }
+
+            if (titlePrefix === '[frontend]' && dependsOnPrMatch && backendContractNo) {
+              const depNumber = parseInt(dependsOnPrMatch[1], 10)
+              let depState = 'unknown'
               try {
                 const depPr = await github.rest.pulls.get({ owner, repo, pull_number: depNumber })
-                if (depPr.data.state === 'open') {
-                  const message = `PR declares a dependency on #${depNumber}, which is still open. All dependencies must be merged before opening this PR.`
-                  failures.push(message)
-                  severeFailures.push(message)
-                }
+                depState = depPr.data.state
               } catch (error) {
                 if (error.status !== 404) throw error
               }
+
+              const message = stackedOnDependency
+                ? `This frontend PR depends on #${depNumber}, but the backend contract is not yet in develop. Keep it stacked on the dependency branch and do not merge until #${depNumber} lands. Dependency PR state: ${depState}.`
+                : `This frontend PR depends on #${depNumber}, but the backend contract is not yet in develop. Wait for #${depNumber} to merge, then re-stack from latest develop. Dependency PR state: ${depState}.`
+              dependencyFailures.push(message)
             }
 
             if (filenames.length > hardMaxChangedFiles) {
@@ -155,6 +187,8 @@ jobs:
               )
             }
 
+            failures.push(...policyFailures, ...dependencyFailures)
+
             const commentHeader = '<!-- pr-scope-police -->'
             const summaryLines = [
               commentHeader,
@@ -165,11 +199,30 @@ jobs:
             if (failures.length === 0) {
               summaryLines.push('- PASS: scope checks passed.')
             } else {
-              summaryLines.push('- FAIL: this PR must be split or narrowed before review.')
-              summaryLines.push('')
-              summaryLines.push('### Blocking issues')
-              for (const failure of failures) {
-                summaryLines.push(`- ${failure}`)
+              summaryLines.push('- FAIL: this PR is blocked by policy, dependency, or scope issues.')
+
+              if (policyFailures.length > 0) {
+                summaryLines.push('')
+                summaryLines.push('### Policy issues')
+                for (const failure of policyFailures) {
+                  summaryLines.push(`- ${failure}`)
+                }
+              }
+
+              if (dependencyFailures.length > 0) {
+                summaryLines.push('')
+                summaryLines.push('### Dependency blocks')
+                for (const failure of dependencyFailures) {
+                  summaryLines.push(`- ${failure}`)
+                }
+              }
+
+              if (failures.length > policyFailures.length + dependencyFailures.length) {
+                summaryLines.push('')
+                summaryLines.push('### Scope violations')
+                for (const failure of severeFailures) {
+                  summaryLines.push(`- ${failure}`)
+                }
               }
             }
 
@@ -188,10 +241,12 @@ jobs:
             summaryLines.push(
               `- Product surfaces: ${productSurfaces.length > 0 ? productSurfaces.join(', ') : 'none'}`,
             )
+            summaryLines.push(`- Dependency blocked: ${dependencyFailures.length > 0 ? 'yes' : 'no'}`)
             summaryLines.push(
               `- Auto-close triggered: ${severeFailures.length > 0 ? 'yes' : 'no'}`,
             )
             summaryLines.push(`- Auto-close label: \`${autoCloseLabel}\``)
+            summaryLines.push(`- Dependency block label: \`${dependencyLabel}\``)
             summaryLines.push('- Bypass label: `scope-exception`')
 
             const commentBody = summaryLines.join('\n')
@@ -241,7 +296,7 @@ jobs:
               }
             }
 
-            if (failures.length > 0) {
+            if (severeFailures.length > 0) {
               await ensureLabel(
                 autoCloseLabel,
                 'B60205',
@@ -254,7 +309,7 @@ jobs:
                 labels: [autoCloseLabel],
               })
 
-              if (severeFailures.length > 0 && pr.state === 'open') {
+              if (pr.state === 'open') {
                 await github.rest.pulls.update({
                   owner,
                   repo,
@@ -263,19 +318,46 @@ jobs:
                 })
                 core.notice('PR was auto-closed due to severe scope violations.')
               }
-              core.setFailed('PR scope police failed.')
-            } else {
-              if (labels.includes(autoCloseLabel)) {
-                try {
-                  await github.rest.issues.removeLabel({
-                    owner,
-                    repo,
-                    issue_number: pr.number,
-                    name: autoCloseLabel,
-                  })
-                } catch (error) {
-                  if (error.status !== 404) throw error
-                }
+            } else if (labels.includes(autoCloseLabel)) {
+              try {
+                await github.rest.issues.removeLabel({
+                  owner,
+                  repo,
+                  issue_number: pr.number,
+                  name: autoCloseLabel,
+                })
+              } catch (error) {
+                if (error.status !== 404) throw error
               }
+            }
+
+            if (dependencyFailures.length > 0) {
+              await ensureLabel(
+                dependencyLabel,
+                '1D76DB',
+                'PR is blocked by an unmerged dependency or undeployed backend contract',
+              )
+              await github.rest.issues.addLabels({
+                owner,
+                repo,
+                issue_number: pr.number,
+                labels: [dependencyLabel],
+              })
+            } else if (labels.includes(dependencyLabel)) {
+              try {
+                await github.rest.issues.removeLabel({
+                  owner,
+                  repo,
+                  issue_number: pr.number,
+                  name: dependencyLabel,
+                })
+              } catch (error) {
+                if (error.status !== 404) throw error
+              }
+            }
+
+            if (failures.length > 0) {
+              core.setFailed('PR Scope Police blocked this PR. See sticky comment for details.')
+            } else {
               core.notice('PR scope police passed.')
             }
