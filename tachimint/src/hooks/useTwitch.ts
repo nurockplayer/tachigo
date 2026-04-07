@@ -24,7 +24,11 @@ export function useTwitch() {
     ext.onContext((ctx: TwitchExtContext) => {
       const rawLocale = ctx.locale ?? ctx.language ?? 'en'
       const appLang = mapTwitchLocaleToAppLanguage(rawLocale)
-      i18n.changeLanguage(appLang)
+      if (i18n.language !== appLang && i18n.resolvedLanguage !== appLang) {
+        void i18n.changeLanguage(appLang).catch((error: unknown) => {
+          console.warn('Failed to change i18n language', error)
+        })
+      }
 
       setContext({
         channelId: ctx.channelId,

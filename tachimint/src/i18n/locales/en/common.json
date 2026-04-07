@@ -5,6 +5,7 @@
   },
   "common": {
     "retry": "Retry",
-    "initializing": "Initializing..."
+    "initializing": "Initializing...",
+    "points": "points"
   }
 }

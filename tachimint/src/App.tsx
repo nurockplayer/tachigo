@@ -21,7 +21,7 @@ export default function App() {
 
   if (!context) {
     return (
-      <div className="ext-loading">
+      <div className="ext-loading" role="status" aria-live="polite" aria-busy="true">
         <div className="ext-loading__spinner" />
         <p>{t('contextLoading.title')}</p>
         <p>{t('contextLoading.subtitle')}</p>
@@ -57,7 +57,7 @@ export default function App() {
             <strong className="ext-balance__value">{balance?.toLocaleString() ?? '—'}</strong>
           </div>
           {gain !== null && gain > 0 && (
-            <span className="ext-balance-gain">+{gain.toLocaleString()} 點</span>
+            <span className="ext-balance-gain">+{gain.toLocaleString()} {t('common.points')}</span>
           )}
         </section>
 

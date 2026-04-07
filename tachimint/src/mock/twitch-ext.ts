@@ -20,6 +20,7 @@ export function injectTwitchExtMock() {
         setTimeout(() => cb({
           channelId: 'dev-channel-123',
           clientId: 'dev-client-id',
+          locale: 'en',
           language: 'en',
           opaqueUserId: 'U-dev-opaque',
           userId: 'dev-user-123',

@@ -5,6 +5,7 @@
   },
   "common": {
     "retry": "重試",
-    "initializing": "初始化中..."
+    "initializing": "初始化中...",
+    "points": "點"
   }
 }

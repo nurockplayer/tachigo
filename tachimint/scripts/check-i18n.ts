@@ -10,10 +10,18 @@ const localeCases: Array<[locale: string, language: AppLanguage]> = [
   ['en', 'en'],
   ['en-US', 'en'],
   ['zh-TW', 'zh-TW'],
+  ['zh-tw', 'zh-TW'],
   ['zh-HK', 'zh-TW'],
+  ['zh_HK', 'zh-TW'],
   ['zh-MO', 'zh-TW'],
   ['zh-CN', 'zh-CN'],
+  ['zh-cn', 'zh-CN'],
   ['zh-SG', 'zh-CN'],
+  ['zh_sg', 'zh-CN'],
+  ['zh-Hans', 'zh-CN'],
+  ['zh_Hans', 'zh-CN'],
+  ['zh-Hant', 'zh-TW'],
+  [' zh-CN ', 'zh-CN'],
   ['zh', 'zh-TW'],
   ['zh-unknown', 'zh-TW'],
   ['unknown', 'en'],
@@ -40,7 +48,14 @@ function readLocale(file: string): Record<string, unknown> {
 }
 
 function flattenKeys(value: unknown, prefix = ''): string[] {
-  if (!value || typeof value !== 'object' || Array.isArray(value)) return [prefix]
+  if (!value || typeof value !== 'object') return [prefix]
+
+  if (Array.isArray(value)) {
+    return value.flatMap((child, index) => {
+      const nextPrefix = prefix ? `${prefix}.${index}` : `${index}`
+      return flattenKeys(child, nextPrefix)
+    })
+  }
 
   return Object.entries(value).flatMap(([key, child]) => {
     const nextPrefix = prefix ? `${prefix}.${key}` : key
