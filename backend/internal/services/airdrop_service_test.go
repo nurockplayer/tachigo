@@ -87,6 +87,24 @@ func TestAirdrop_DailyLimitExceeded(t *testing.T) {
 	}
 }
 
+func TestAirdrop_AmountMustBePositive(t *testing.T) {
+	db := newTestDB(t)
+	watchSvc := NewWatchService(db)
+	pointsSvc := NewPointsService(db, watchSvc)
+	configSvc := NewChannelConfigService(db)
+	svc := NewAirdropService(db, pointsSvc, configSvc)
+
+	seedAirdropViewer(t, db, "ch_positive", 60)
+
+	_, err := svc.Execute(AirdropRequest{
+		ChannelID: "ch_positive",
+		Amount:    0,
+	})
+	if !errors.Is(err, ErrInvalidPointsAmount) {
+		t.Fatalf("want ErrInvalidPointsAmount, got %v", err)
+	}
+}
+
 func TestAirdrop_ProportionalDistribution(t *testing.T) {
 	db := newTestDB(t)
 	watchSvc := NewWatchService(db)

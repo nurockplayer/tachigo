@@ -135,6 +135,16 @@ func TestAirdropHandler_AgencyNonOwnedForbidden(t *testing.T) {
 	}
 }
 
+func TestAirdropHandler_AmountMustBePositive(t *testing.T) {
+	env := newAirdropTestEnv(t)
+	token := (&dashboardEnv{testEnv: env.testEnv}).tokenForRole(t, models.RoleAdmin)
+
+	w := airdropRequest(t, env.router, token, "channel_live", `{"amount":0}`)
+	if w.Code != http.StatusBadRequest {
+		t.Fatalf("want 400, got %d: %s", w.Code, w.Body.String())
+	}
+}
+
 func TestAirdropHandler_NoActiveViewers(t *testing.T) {
 	env := newAirdropTestEnv(t)
 	token := (&dashboardEnv{testEnv: env.testEnv}).tokenForRole(t, models.RoleAdmin)
@@ -160,5 +170,20 @@ func TestAirdropHandler_NormalAirdropAdmin(t *testing.T) {
 	}
 	if !strings.Contains(w.Body.String(), `"affected_count":2`) {
 		t.Fatalf("want affected_count=2, got %s", w.Body.String())
+	}
+}
+
+func TestAirdropHandler_StreamerOwnedChannelAllowed(t *testing.T) {
+	env := newAirdropTestEnv(t)
+	token := (&dashboardEnv{testEnv: env.testEnv}).tokenForRole(t, models.RoleStreamer)
+	seedOwnedStreamerChannel(t, &dashboardEnv{testEnv: env.testEnv}, "streamer_dashboard@example.com", "channel_owned")
+	seedActiveViewerSession(t, env, "channel_owned", 120)
+
+	w := airdropRequest(t, env.router, token, "channel_owned", `{"amount":100}`)
+	if w.Code != http.StatusOK {
+		t.Fatalf("want 200, got %d: %s", w.Code, w.Body.String())
+	}
+	if !strings.Contains(w.Body.String(), `"success":true`) {
+		t.Fatalf("want success response, got %s", w.Body.String())
 	}
 }

@@ -68,14 +68,24 @@ func NewAirdropService(db *gorm.DB, pointsSvc *PointsService, configSvc *Channel
 }
 
 func (s *AirdropService) TodayTotal(channelID string) (int64, error) {
-	now := time.Now()
-	startOfDay := time.Date(now.Year(), now.Month(), now.Day(), 0, 0, 0, 0, now.Location())
+	location, err := time.LoadLocation("Asia/Taipei")
+	if err != nil {
+		return 0, err
+	}
+
+	now := time.Now().In(location)
+	startOfDay := time.Date(now.Year(), now.Month(), now.Day(), 0, 0, 0, 0, location)
 
 	var total int64
-	err := s.db.Model(&models.PointsTransaction{}).
+	err = s.db.Model(&models.PointsTransaction{}).
 		Select("COALESCE(SUM(points_transactions.delta), 0)").
 		Joins("JOIN points_ledgers ON points_ledgers.id = points_transactions.ledger_id").
-		Where("points_ledgers.channel_id = ? AND points_transactions.source = ? AND points_transactions.created_at >= ?", channelID, models.TxSourceAirdrop, startOfDay).
+		Where(
+			"points_ledgers.channel_id = ? AND points_transactions.source = ? AND points_transactions.created_at >= ?",
+			channelID,
+			models.TxSourceAirdrop,
+			startOfDay,
+		).
 		Scan(&total).Error
 	if err != nil {
 		return 0, err
@@ -84,6 +94,10 @@ func (s *AirdropService) TodayTotal(channelID string) (int64, error) {
 }
 
 func (s *AirdropService) Execute(req AirdropRequest) (*AirdropResult, error) {
+	if req.Amount <= 0 {
+		return nil, ErrInvalidPointsAmount
+	}
+
 	viewers, err := s.activeViewers(req.ChannelID)
 	if err != nil {
 		return nil, err
@@ -97,23 +111,6 @@ func (s *AirdropService) Execute(req AirdropRequest) (*AirdropResult, error) {
 		return nil, err
 	}
 
-	todayTotal, err := s.TodayTotal(req.ChannelID)
-	if err != nil {
-		return nil, err
-	}
-	if todayTotal+req.Amount > limit {
-		remaining := limit - todayTotal
-		if remaining < 0 {
-			remaining = 0
-		}
-		return nil, &DailyAirdropExceededError{
-			Limit:      limit,
-			TodayTotal: todayTotal,
-			Requested:  req.Amount,
-			Remaining:  remaining,
-		}
-	}
-
 	distributeAirdrop(viewers, req.Amount)
 	note := req.Note
 	meta := PointsCreditMeta{}
@@ -121,27 +118,76 @@ func (s *AirdropService) Execute(req AirdropRequest) (*AirdropResult, error) {
 		meta.Note = &note
 	}
 
-	var affectedCount int64
-	var distribution []AirdropRecipient
-	for _, viewer := range viewers {
-		if viewer.Share <= 0 {
-			continue
-		}
-		if err := s.pointsSvc.AddPointsWithMeta(viewer.UserID, req.ChannelID, models.TxSourceAirdrop, viewer.Share, meta); err != nil {
-			return nil, err
-		}
-		affectedCount++
-		distribution = append(distribution, AirdropRecipient{
-			UserID:          viewer.UserID,
-			AllocatedPoints: viewer.Share,
-		})
+	result := &AirdropResult{
+		TotalAmount:  req.Amount,
+		Distribution: make([]AirdropRecipient, 0, len(viewers)),
 	}
 
-	return &AirdropResult{
-		AffectedCount: affectedCount,
-		TotalAmount:   req.Amount,
-		Distribution:  distribution,
-	}, nil
+	err = s.db.Transaction(func(tx *gorm.DB) error {
+		todayTotal, err := s.todayTotal(tx, req.ChannelID)
+		if err != nil {
+			return err
+		}
+		if todayTotal+req.Amount > limit {
+			remaining := limit - todayTotal
+			if remaining < 0 {
+				remaining = 0
+			}
+			return &DailyAirdropExceededError{
+				Limit:      limit,
+				TodayTotal: todayTotal,
+				Requested:  req.Amount,
+				Remaining:  remaining,
+			}
+		}
+
+		for _, viewer := range viewers {
+			if viewer.Share <= 0 {
+				continue
+			}
+			if err := s.pointsSvc.addPointsWithMeta(tx, viewer.UserID, req.ChannelID, models.TxSourceAirdrop, viewer.Share, meta); err != nil {
+				return err
+			}
+			result.AffectedCount++
+			result.Distribution = append(result.Distribution, AirdropRecipient{
+				UserID:          viewer.UserID,
+				AllocatedPoints: viewer.Share,
+			})
+		}
+
+		return nil
+	})
+	if err != nil {
+		return nil, err
+	}
+
+	return result, nil
+}
+
+func (s *AirdropService) todayTotal(db *gorm.DB, channelID string) (int64, error) {
+	location, err := time.LoadLocation("Asia/Taipei")
+	if err != nil {
+		return 0, err
+	}
+
+	now := time.Now().In(location)
+	startOfDay := time.Date(now.Year(), now.Month(), now.Day(), 0, 0, 0, 0, location)
+
+	var total int64
+	err = db.Model(&models.PointsTransaction{}).
+		Select("COALESCE(SUM(points_transactions.delta), 0)").
+		Joins("JOIN points_ledgers ON points_ledgers.id = points_transactions.ledger_id").
+		Where(
+			"points_ledgers.channel_id = ? AND points_transactions.source = ? AND points_transactions.created_at >= ?",
+			channelID,
+			models.TxSourceAirdrop,
+			startOfDay,
+		).
+		Scan(&total).Error
+	if err != nil {
+		return 0, err
+	}
+	return total, nil
 }
 
 func (s *AirdropService) activeViewers(channelID string) ([]airdropViewer, error) {

@@ -81,6 +81,9 @@ func (h *AirdropHandler) Airdrop(c *gin.Context) {
 			}
 			badRequest(c, err.Error())
 			return
+		case errors.Is(err, services.ErrInvalidPointsAmount):
+			badRequest(c, err.Error())
+			return
 		default:
 			internal(c)
 			return
