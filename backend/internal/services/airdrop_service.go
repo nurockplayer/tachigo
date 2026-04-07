@@ -133,7 +133,7 @@ func (s *AirdropService) Execute(req AirdropRequest) (*AirdropResult, error) {
 			if err != nil {
 				return err
 			}
-			if todayTotal+req.Amount > limit {
+			if todayTotal > limit || req.Amount > limit-todayTotal {
 				remaining := limit - todayTotal
 				if remaining < 0 {
 					remaining = 0
