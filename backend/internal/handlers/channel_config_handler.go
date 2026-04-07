@@ -82,8 +82,21 @@ func (h *ChannelConfigHandler) authorizeChannelAccess(c *gin.Context) (string, b
 	case models.RoleAdmin:
 		return channelID, true
 	case models.RoleAgency:
-		c.JSON(http.StatusNotImplemented, Response{Success: false, Error: "agency channel config not implemented"})
-		return "", false
+		agencyUserID, err := uuid.Parse(claims.UserID)
+		if err != nil {
+			badRequest(c, "invalid user id")
+			return "", false
+		}
+		owns, err := h.streamerSvc.OwnsAgencyChannel(agencyUserID, channelID)
+		if err != nil {
+			internal(c)
+			return "", false
+		}
+		if !owns {
+			c.JSON(http.StatusForbidden, Response{Success: false, Error: "forbidden"})
+			return "", false
+		}
+		return channelID, true
 	case models.RoleStreamer:
 		userID, err := uuid.Parse(claims.UserID)
 		if err != nil {
