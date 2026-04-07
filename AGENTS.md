@@ -61,8 +61,8 @@ Type：`feat` / `fix` / `docs` / `chore` / `refactor` / `test`
 ### 注意事項
 
 - **不要** 直接推 `main`，PR 目標分支是 `develop`
-- `git commit` / `git push` / `git checkout -b` 由 Claude Code 執行（sandbox 對 `.git` 無寫入權限）
-- `gh` 指令（issue、PR、API）由你執行
+- GitHub 相關的 `gh` 指令（issue、PR、API）與必要的 `git` 指令可由你執行
+- 執行 `git` 時仍需遵守 branch / commit / scope 規範，不得繞過 PR 流程
 
 ## Scope 邊界
 

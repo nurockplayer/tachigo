@@ -5,6 +5,7 @@
 <!-- 背景、需求，或關聯的 issue（e.g. closes #123） -->
 
 ## Scope 對齊
+<!-- 若 PR 超過約 35 個檔案、diff 過大、或同時改 backend + dashboard/tachimint，會被 PR Scope Police 自動擋下；嚴重違規會自動加 label 並關閉 PR -->
 - Source of truth：<!-- issue / PR / 文件，例如 #115 -->
 - 本 PR 是否完全在 source of truth 範圍內？
   - [ ] 是
