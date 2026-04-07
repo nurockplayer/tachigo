@@ -131,11 +131,11 @@ Type：`feat` / `fix` / `docs` / `chore` / `refactor` / `test`
 
 本專案使用 Claude Code + Codex CLI 協作開發，以節省 Claude token。
 
-**原則：寫程式、改檔案、跑測試、`gh` 指令原則上交給 Codex。Claude Code 主要負責 `git` 操作、即時決策、和審查結果；只有在極小型且委派成本高於直接處理時，才自行處理。**
+**原則：寫程式、改檔案、跑測試、`gh` 指令，以及必要的 `git` 指令都可交給 Codex。Claude Code 主要負責即時決策、審查結果、與架構方向；只有在極小型且委派成本高於直接處理時，才自行處理。**
 
 | 操作 | 誰執行 | 原因 |
 |---|---|---|
-| `git` 所有指令 | Claude Code | RTK 已處理 token，且需要即時看輸出決策 |
+| `git` 指令（branch / commit / push / status） | Codex 優先 | 純執行工作可直接交給 Codex；仍需遵守 branch、PR、scope 規範 |
 | 寫程式、改檔案、跑測試 | Codex | 純執行，只需確認最終結果 |
 | `gh` 指令（issue、PR、API） | Codex | 純執行 |
 | 檔案搜尋——定向（知道找什麼） | Claude Code（Glob / Grep） | 規劃階段需要結果判斷下一步 |

@@ -10,8 +10,77 @@ env:
   FORCE_JAVASCRIPT_ACTIONS_TO_NODE24: true
 
 jobs:
+  scope-gate:
+    name: Scope gate
+    runs-on: ubuntu-latest
+    outputs:
+      run_ci: ${{ steps.evaluate.outputs.run_ci }}
+    steps:
+      - name: Evaluate PR scope for CI
+        id: evaluate
+        uses: actions/github-script@v7
+        with:
+          script: |
+            const pr = context.payload.pull_request
+            if (!pr) {
+              core.notice('Non-PR event detected; running CI without scope gate restrictions.')
+              core.setOutput('run_ci', 'true')
+              return
+            }
+
+            const bypassLabels = new Set(['scope-exception'])
+            const labels = (pr.labels || []).map((label) => label.name)
+            if (labels.some((label) => bypassLabels.has(label))) {
+              core.notice('Scope gate bypassed by scope-exception label.')
+              core.setOutput('run_ci', 'true')
+              return
+            }
+
+            const hardMaxChangedFiles = 35
+            const hardMaxDiffLines = 1800
+            const owner = context.repo.owner
+            const repo = context.repo.repo
+
+            const files = await github.paginate(github.rest.pulls.listFiles, {
+              owner,
+              repo,
+              pull_number: pr.number,
+              per_page: 100,
+            })
+
+            const filenames = files.map((file) => file.filename)
+            const diffLines = files.reduce((sum, file) => sum + file.additions + file.deletions, 0)
+            const body = pr.body || ''
+            const title = pr.title || ''
+            const allowedPrefixes = ['[backend]', '[frontend]', '[discussion]']
+            const titlePrefix = allowedPrefixes.find((prefix) => title.startsWith(prefix))
+            const touches = {
+              backend: filenames.some((name) => name.startsWith('backend/')),
+              dashboard: filenames.some((name) => name.startsWith('dashboard/')),
+              tachimint: filenames.some((name) => name.startsWith('tachimint/')),
+            }
+            const productSurfaces = Object.values(touches).filter(Boolean).length
+
+            const runCi =
+              Boolean(titlePrefix) &&
+              /#\d+/.test(body) &&
+              (body.includes('Source of truth：') || body.includes('Source of truth:')) &&
+              body.includes('本 PR 明確不做') &&
+              filenames.length <= hardMaxChangedFiles &&
+              diffLines <= hardMaxDiffLines &&
+              productSurfaces <= 1 &&
+              !(titlePrefix === '[backend]' && (touches.dashboard || touches.tachimint)) &&
+              !(titlePrefix === '[frontend]' && touches.backend)
+
+            core.setOutput('run_ci', runCi ? 'true' : 'false')
+            if (!runCi) {
+              core.notice('Skipping heavy CI because this PR does not currently pass scope rules.')
+            }
+
   backend:
     name: Backend tests
+    needs: [scope-gate]
+    if: github.event_name == 'push' || needs.scope-gate.outputs.run_ci == 'true'
     runs-on: ubuntu-latest
     steps:
       - uses: actions/checkout@v4
@@ -24,6 +93,8 @@ jobs:
 
   frontend:
     name: Frontend build
+    needs: [scope-gate]
+    if: github.event_name == 'push' || needs.scope-gate.outputs.run_ci == 'true'
     runs-on: ubuntu-latest
     steps:
       - uses: actions/checkout@v4
@@ -39,6 +110,8 @@ jobs:
 
   dashboard:
     name: Dashboard build
+    needs: [scope-gate]
+    if: github.event_name == 'push' || needs.scope-gate.outputs.run_ci == 'true'
     runs-on: ubuntu-latest
     steps:
       - uses: actions/checkout@v4
