@@ -171,6 +171,32 @@ func TestClaimHandler_MalformedJSON(t *testing.T) {
 	}
 }
 
+func TestClaimHandler_InsufficientBalance_ReturnsWrappedErrorResponse(t *testing.T) {
+	env, r := newClaimTestEnv(t)
+	token, _ := env.registerUser(t, "user7", "user7@example.com", "password123")
+
+	userID := resolveUserID(t, env, "user7@example.com")
+	seedLedgerForHandler(t, env, userID, "ch1", 10)
+
+	body, _ := json.Marshal(map[string]int{"amount": 999})
+	w := httptest.NewRecorder()
+	req, _ := http.NewRequest("POST", "/api/v1/users/me/points/claim", bytes.NewBuffer(body))
+	req.Header.Set("Authorization", "Bearer "+token)
+	req.Header.Set("Content-Type", "application/json")
+	r.ServeHTTP(w, req)
+
+	if w.Code != 422 {
+		t.Fatalf("expected 422, got %d: %s", w.Code, w.Body.String())
+	}
+	resp := parseBody(t, w.Body.Bytes())
+	if resp["success"] != false {
+		t.Fatalf("expected success=false, got %v", resp["success"])
+	}
+	if resp["error"] == "" || resp["error"] == nil {
+		t.Fatalf("expected non-empty error field, got %v", resp["error"])
+	}
+}
+
 func TestClaimHandler_GetBalanceAfterClaim(t *testing.T) {
 	env, r := newClaimTestEnv(t)
 	token, _ := env.registerUser(t, "user5", "user5@example.com", "password123")

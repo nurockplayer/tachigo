@@ -175,7 +175,8 @@ func migrateTestDB(db *gorm.DB) error {
 			user_id TEXT NOT NULL REFERENCES users(id) ON DELETE CASCADE,
 			balance INTEGER NOT NULL DEFAULT 0,
 			updated_at DATETIME NOT NULL DEFAULT CURRENT_TIMESTAMP,
-			UNIQUE (user_id)
+			UNIQUE (user_id),
+			CHECK (balance >= 0)
 		)`,
 	}
 	for _, s := range stmts {

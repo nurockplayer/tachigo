@@ -66,7 +66,7 @@ func (h *ClaimHandler) Claim(c *gin.Context) {
 	newBalance, err := h.claimSvc.Claim(userID, req.Amount)
 	if err != nil {
 		if errors.Is(err, services.ErrClaimInsufficientBalance) {
-			c.JSON(422, gin.H{"error": err.Error()})
+			unprocessableEntity(c, err.Error())
 			return
 		}
 		if errors.Is(err, services.ErrClaimAmountInvalid) {

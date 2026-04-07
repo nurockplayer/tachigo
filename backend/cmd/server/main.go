@@ -67,6 +67,18 @@ func main() {
 		log.Fatalf("migration failed: %v", err)
 	}
 
+	// FK constraint on tachi_balances.user_id — GORM AutoMigrate does not create FK
+	// constraints without an explicit association field, so we add it manually (idempotent).
+	if err := db.Exec(`
+		DO $$ BEGIN
+			ALTER TABLE tachi_balances ADD CONSTRAINT fk_tachi_balances_user_id
+			FOREIGN KEY (user_id) REFERENCES users(id) ON DELETE CASCADE;
+		EXCEPTION WHEN duplicate_object THEN NULL;
+		END $$;
+	`).Error; err != nil {
+		log.Fatalf("failed to create tachi_balances FK: %v", err)
+	}
+
 	// Partial unique index: only one active session per (user_id, channel_id).
 	// GORM AutoMigrate does not support partial indexes via struct tags, so we
 	// create it manually with CREATE INDEX IF NOT EXISTS (idempotent).

@@ -401,6 +401,52 @@ func TestPointsHandler_GetHistory_RequiresChannelID(t *testing.T) {
 	}
 }
 
+func TestPointsHandler_GetHistory_ClaimTransactionMappedToClaimType(t *testing.T) {
+	e := newPointsEnv(t)
+	userID, token := e.registerViewer(t, "history-claim")
+
+	// earn first to create the ledger row
+	if err := e.pointsSvc.AddPoints(userID, "ch_abc", models.TxSourceBits, 100); err != nil {
+		t.Fatalf("seed earn: %v", err)
+	}
+	var ledger models.PointsLedger
+	if err := e.db.Where("user_id = ? AND channel_id = ?", userID, "ch_abc").First(&ledger).Error; err != nil {
+		t.Fatalf("load ledger: %v", err)
+	}
+	// insert claim tx directly — bypasses ClaimService to isolate the handler mapping logic
+	if err := e.db.Create(&models.PointsTransaction{
+		LedgerID:     ledger.ID,
+		Source:       models.TxSourceClaim,
+		Delta:        -100,
+		BalanceAfter: 0,
+	}).Error; err != nil {
+		t.Fatalf("create claim tx: %v", err)
+	}
+
+	req := httptest.NewRequest(http.MethodGet, "/api/v1/users/me/points/history?channel_id=ch_abc", nil)
+	req.Header.Set("Authorization", "Bearer "+token)
+	rec := httptest.NewRecorder()
+	e.router.ServeHTTP(rec, req)
+
+	if rec.Code != http.StatusOK {
+		t.Fatalf("want 200, got %d: %s", rec.Code, rec.Body.String())
+	}
+	resp := parseBody(t, rec.Body.Bytes())
+	data := resp["data"].(map[string]interface{})
+	transactions := data["transactions"].([]interface{})
+	if len(transactions) != 2 {
+		t.Fatalf("want 2 transactions, got %d", len(transactions))
+	}
+	// claim was inserted last → DESC order puts it at [0]
+	first := transactions[0].(map[string]interface{})
+	if first["type"] != "claim" {
+		t.Fatalf("type: want claim, got %v", first["type"])
+	}
+	if first["amount"] != float64(100) {
+		t.Fatalf("amount: want 100, got %v", first["amount"])
+	}
+}
+
 func TestPointsHandler_RequiresJWT(t *testing.T) {
 	e := newPointsEnv(t)
 

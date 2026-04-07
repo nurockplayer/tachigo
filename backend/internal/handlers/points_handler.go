@@ -7,6 +7,7 @@ import (
 	"github.com/google/uuid"
 
 	"github.com/tachigo/tachigo/internal/middleware"
+	"github.com/tachigo/tachigo/internal/models"
 	"github.com/tachigo/tachigo/internal/services"
 )
 
@@ -90,7 +91,12 @@ func (h *PointsHandler) GetHistory(c *gin.Context) {
 			if tx.Delta == math.MinInt64 {
 				continue
 			}
-			txType = "spend"
+			switch tx.Source {
+			case models.TxSourceClaim:
+				txType = "claim"
+			default:
+				txType = "spend"
+			}
 			amount = -tx.Delta
 		}
 		items = append(items, PointsHistoryItem{
