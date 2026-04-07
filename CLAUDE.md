@@ -38,6 +38,16 @@
 - **參考** — 現有的範本檔案路徑
 - **完成條件** — PR merge 前必須達成的條件（checklist）
 
+對於 MVP 邊界、migration / schema、frontend page、docs / design、setup / scaffold 這類容易被擴張範圍的 issue，建議額外補一段 **本票明確不做**，只需列出最常見的外擴方向即可，不必追求完整黑名單。
+
+常用範例：
+
+- 不修改未列於本票的 schema / API contract
+- 不擴張到其他頁面 / 其他角色 / future scope
+- 不把 placeholder、research 或 draft 內容視為正式完成
+- 不補本票依賴但尚未由上游提供的能力
+- 不進行與本票無關的重構
+
 討論票（`[discussion]`）不需要固定格式，但要列出待決定的問題點。
 
 ---
@@ -117,6 +127,31 @@ Type：`feat` / `fix` / `docs` / `chore` / `refactor` / `test`
 
 ---
 
+## AI 分工
+
+本專案使用 Claude Code + Codex CLI 協作開發，以節省 Claude token。
+
+**原則：寫程式、改檔案、跑測試、`gh` 指令原則上交給 Codex。Claude Code 主要負責 `git` 操作、即時決策、和審查結果；只有在極小型且委派成本高於直接處理時，才自行處理。**
+
+| 操作 | 誰執行 | 原因 |
+|---|---|---|
+| `git` 所有指令 | Claude Code | RTK 已處理 token，且需要即時看輸出決策 |
+| 寫程式、改檔案、跑測試 | Codex | 純執行，只需確認最終結果 |
+| `gh` 指令（issue、PR、API） | Codex | 純執行 |
+| 檔案搜尋——定向（知道找什麼） | Claude Code（Glob / Grep） | 規劃階段需要結果判斷下一步 |
+| 檔案搜尋——探索性（不確定在哪） | Codex（`/explore-with-codex`） | 大範圍搜尋只拿摘要回來 |
+| 複雜 bash 腳本、批次操作 | Codex | 純執行 |
+
+**建議快捷指令：**
+
+- `/fix-with-codex <問題>`：debug 並直接修復
+- `/implement-with-codex <需求>`：實作功能
+- `/review-with-codex <範圍>`：以 bug / regression / 測試缺口為主
+- `/explore-with-codex <主題>`：快速摸清程式結構
+- `/test-with-codex <範圍>`：執行測試並收斂失敗原因
+
+---
+
 ## 專案結構
 
 ```
@@ -136,54 +171,6 @@ make down   # 停止所有服務
 # 執行後端測試
 docker compose run --no-deps --rm app go test ./...
 ```
-
-## AI 分工
-
-本專案使用 Claude Code + Codex CLI 協作開發：
-
-| 角色 | 工具 | 職責 |
-|---|---|---|
-| **指揮** | Claude Code | 分析需求、規劃架構、拆解任務、審查結果、決策取捨 |
-| **執行** | Codex CLI | 實際寫程式碼、跑測試、改檔案、執行指令 |
-
-**工作流程：**
-1. Claude Code 理解需求，擬定實作計畫
-2. Claude Code 下指令給 Codex CLI 執行
-3. Codex 完成後回報結果
-4. Claude Code 審查、驗收、或進一步調整指令
-
-**委派原則（節省 Claude token）：**
-
-- 任何涉及寫程式、改檔案、跑測試的任務，一律透過 `codex:rescue` 派給 Codex 執行
-- Claude Code 只負責：理解需求、規劃架構、給 Codex 下指令、審查結果
-- 僅在極簡單的單行修改時，Claude Code 才直接動手
-
-**建議優先使用的快捷指令：**
-
-- `/fix-with-codex <問題>`：debug 並盡量直接修復
-- `/implement-with-codex <需求>`：實作功能並補必要驗證
-- `/review-with-codex <PR/變更範圍>`：以 bug / regression / 測試缺口為主做 review
-- `/explore-with-codex <主題>`：快速摸清程式結構與現況
-- `/plan-with-codex <任務>`：先探索，再輸出短版可執行計畫
-- `/test-with-codex <測試範圍>`：執行最相關測試並收斂失敗原因
-
-這些指令都會刻意限制輸出格式，避免貼完整 diff、冗長 log 或大段原始碼，讓 Claude 只接收高密度摘要。
-
-完整教學請見 [docs/claude-codex-workflow.md](docs/claude-codex-workflow.md)。
-快速版可見 [docs/claude-codex-cheatsheet.md](docs/claude-codex-cheatsheet.md)。
-
-**指令操作的分界：**
-
-| 操作 | 誰執行 | 原因 |
-|---|---|---|
-| `git status` / `git log` / `git diff` | Claude Code | 需要即時看輸出來做決策 |
-| `git commit` / `git push` / `git checkout -b` | Codex | 專案根目錄的 `.codex/config.toml` 已預先授權，可直接執行 |
-| `gh` 指令（issue、PR、API） | Codex | 專案根目錄的 `.codex/config.toml` 已預先授權，可直接執行 |
-| 檔案搜尋——定向（知道找什麼） | Claude Code（用 Glob / Grep 工具） | 規劃階段，需要結果判斷下一步 |
-| 檔案搜尋——探索性（不確定在哪） | Codex（透過 `/explore-with-codex`） | 大範圍搜尋交給 Codex，只拿摘要回來 |
-| 複雜 bash 腳本、批次操作 | Codex | 純執行，只需確認最終結果 |
-
-核心判斷：Claude 需要即時看輸出來決策 → 自己做；純執行 → 交給 Codex
 
 ## Claude Code 設定
 
