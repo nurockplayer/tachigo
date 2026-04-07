@@ -302,6 +302,12 @@ func TestList_AgencySeesOwnOnly(t *testing.T) {
 	if w.Code != http.StatusOK {
 		t.Fatalf("want 200, got %d: %s", w.Code, w.Body.String())
 	}
+	resp := parseBody(t, w.Body.Bytes())
+	data := resp["data"].(map[string]interface{})
+	streamers := data["streamers"].([]interface{})
+	if len(streamers) != 2 {
+		t.Fatalf("want 2 streamers for agency_a, got %d", len(streamers))
+	}
 }
 
 func TestList_AdminSeesAll(t *testing.T) {
@@ -318,6 +324,12 @@ func TestList_AdminSeesAll(t *testing.T) {
 	w := dashboardRequest(t, env.router, http.MethodGet, "/api/v1/dashboard/streamers", adminToken, "")
 	if w.Code != http.StatusOK {
 		t.Fatalf("want 200, got %d: %s", w.Code, w.Body.String())
+	}
+	resp := parseBody(t, w.Body.Bytes())
+	data := resp["data"].(map[string]interface{})
+	streamers := data["streamers"].([]interface{})
+	if len(streamers) != 2 {
+		t.Fatalf("want 2 streamers for admin, got %d", len(streamers))
 	}
 }
 

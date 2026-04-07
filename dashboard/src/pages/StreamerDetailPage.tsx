@@ -71,7 +71,8 @@ export default function StreamerDetailPage() {
           const configData = await getChannelConfig(channelId)
           if (!mounted) return
           setConfig(configData)
-        } catch {
+        } catch (err) {
+          console.error('Failed to load channel config:', err)
           if (!mounted) return
           setConfig(null)
         }
