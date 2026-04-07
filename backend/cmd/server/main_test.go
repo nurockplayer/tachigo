@@ -3,6 +3,8 @@ package main
 import (
 	"strings"
 	"testing"
+
+	"github.com/jackc/pgx/v5/pgconn"
 )
 
 func TestInitializeUserRoleEnumFreshDatabase(t *testing.T) {
@@ -16,22 +18,26 @@ func TestInitializeUserRoleEnumFreshDatabase(t *testing.T) {
 		t.Fatalf("initializeUserRoleEnum returned error: %v", err)
 	}
 
-	if len(statements) != 1 {
-		t.Fatalf("expected 1 statement, got %d", len(statements))
+	if len(statements) != 2 {
+		t.Fatalf("expected 2 statements, got %d", len(statements))
 	}
 	if !strings.Contains(statements[0], "CREATE TYPE user_role AS ENUM ('viewer', 'streamer', 'agency', 'admin')") {
 		t.Fatalf("statement should create enum, got %q", statements[0])
 	}
+	if !strings.Contains(statements[1], "ALTER TYPE user_role ADD VALUE IF NOT EXISTS 'agency'") {
+		t.Fatalf("statement should alter enum, got %q", statements[1])
+	}
 }
 
-func TestInitializeUserRoleEnumExistingDatabaseSkipsAlterType(t *testing.T) {
+func TestInitializeUserRoleEnumExistingDatabase(t *testing.T) {
 	var statements []string
+	callCount := 0
 
 	err := initializeUserRoleEnum(func(query string) error {
-		normalized := normalizeSQL(query)
-		statements = append(statements, normalized)
-		if strings.Contains(normalized, "DO $$ BEGIN") && strings.Contains(normalized, "CREATE TYPE user_role") {
-			return nil
+		statements = append(statements, normalizeSQL(query))
+		callCount++
+		if callCount == 1 {
+			return &pgconn.PgError{Code: "42710"}
 		}
 		return nil
 	})
@@ -39,11 +45,14 @@ func TestInitializeUserRoleEnumExistingDatabaseSkipsAlterType(t *testing.T) {
 		t.Fatalf("initializeUserRoleEnum returned error: %v", err)
 	}
 
-	if len(statements) != 1 {
-		t.Fatalf("expected 1 statement, got %d", len(statements))
+	if len(statements) != 2 {
+		t.Fatalf("expected 2 statements, got %d", len(statements))
 	}
-	if strings.Contains(statements[0], "ALTER TYPE user_role ADD VALUE IF NOT EXISTS 'agency'") {
-		t.Fatalf("ALTER TYPE must not be inside the DO block: %q", statements[0])
+	if !strings.Contains(statements[0], "CREATE TYPE user_role AS ENUM") {
+		t.Fatalf("first statement should create enum, got %q", statements[0])
+	}
+	if !strings.Contains(statements[1], "ALTER TYPE user_role ADD VALUE IF NOT EXISTS 'agency'") {
+		t.Fatalf("second statement should alter enum, got %q", statements[1])
 	}
 }
 

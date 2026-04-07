@@ -14,10 +14,14 @@ import (
 func newTestDB(t *testing.T) *gorm.DB {
 	t.Helper()
 	db, err := gorm.Open(sqlite.Open(":memory:"), &gorm.Config{
-		Logger: logger.Default.LogMode(logger.Silent),
+		Logger:         logger.Default.LogMode(logger.Silent),
+		TranslateError: true,
 	})
 	if err != nil {
 		t.Fatalf("open test db: %v", err)
+	}
+	if err := db.Exec(`PRAGMA foreign_keys = ON`).Error; err != nil {
+		t.Fatalf("enable foreign keys: %v", err)
 	}
 	if err := migrateTestDB(db); err != nil {
 		t.Fatalf("migrate test db: %v", err)
@@ -126,7 +130,7 @@ func migrateTestDB(db *gorm.DB) error {
 		)`,
 		`CREATE TABLE IF NOT EXISTS agency_streamers (
 			id TEXT PRIMARY KEY,
-			agency_id TEXT NOT NULL,
+			agency_id TEXT NOT NULL REFERENCES users(id) ON DELETE CASCADE,
 			channel_id TEXT NOT NULL,
 			created_at DATETIME,
 			UNIQUE (agency_id, channel_id)

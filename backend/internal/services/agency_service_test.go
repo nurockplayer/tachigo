@@ -1,6 +1,7 @@
 package services
 
 import (
+	"errors"
 	"testing"
 
 	"github.com/google/uuid"
@@ -73,5 +74,59 @@ func TestAgencyOwnsChannel_IsolatedByAgency(t *testing.T) {
 	}
 	if owns {
 		t.Fatal("expected other agency to not own channel")
+	}
+}
+
+func TestAgencyStreamerDuplicateRejected(t *testing.T) {
+	db := newTestDB(t)
+	agencyID := seedStreamerUserRow(t, db, models.RoleAgency)
+	channelID := "ch_duplicate"
+
+	first := models.AgencyStreamer{
+		AgencyID:  agencyID,
+		ChannelID: channelID,
+	}
+	if err := db.Create(&first).Error; err != nil {
+		t.Fatalf("first insert failed: %v", err)
+	}
+
+	second := models.AgencyStreamer{
+		AgencyID:  agencyID,
+		ChannelID: channelID,
+	}
+	err := db.Create(&second).Error
+	if err == nil {
+		t.Fatal("expected unique violation on duplicate insert")
+	}
+	if !errors.Is(err, gorm.ErrDuplicatedKey) {
+		t.Fatalf("expected duplicated key error, got %v", err)
+	}
+}
+
+func TestAgencyStreamerCascadeDelete(t *testing.T) {
+	db := newTestDB(t)
+	agencyID := seedStreamerUserRow(t, db, models.RoleAgency)
+	channelID := "ch_cascade"
+
+	relation := models.AgencyStreamer{
+		AgencyID:  agencyID,
+		ChannelID: channelID,
+	}
+	if err := db.Create(&relation).Error; err != nil {
+		t.Fatalf("insert agency streamer failed: %v", err)
+	}
+
+	if err := db.Unscoped().Delete(&models.User{ID: agencyID}).Error; err != nil {
+		t.Fatalf("delete parent agency failed: %v", err)
+	}
+
+	var count int64
+	if err := db.Model(&models.AgencyStreamer{}).
+		Where("agency_id = ? AND channel_id = ?", agencyID, channelID).
+		Count(&count).Error; err != nil {
+		t.Fatalf("count agency streamer failed: %v", err)
+	}
+	if count != 0 {
+		t.Fatalf("expected agency streamer row to be deleted, got %d", count)
 	}
 }

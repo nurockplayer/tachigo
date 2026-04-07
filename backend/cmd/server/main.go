@@ -11,11 +11,13 @@
 package main
 
 import (
+	"errors"
 	"log"
 	"os"
 	"strings"
 
 	"github.com/joho/godotenv"
+	"github.com/jackc/pgx/v5/pgconn"
 
 	_ "github.com/tachigo/tachigo/docs"
 	"github.com/tachigo/tachigo/internal/config"
@@ -117,14 +119,23 @@ func main() {
 }
 
 func initializeUserRoleEnum(exec func(query string) error) error {
-	if err := exec(`
-		DO $$ BEGIN
-			CREATE TYPE user_role AS ENUM ('viewer', 'streamer', 'agency', 'admin');
-		EXCEPTION WHEN duplicate_object THEN NULL;
-		END $$;
-	`); err != nil {
+	if err := exec(`CREATE TYPE user_role AS ENUM ('viewer', 'streamer', 'agency', 'admin')`); err != nil {
+		if !isDuplicateObject(err) {
+			return err
+		}
+	}
+
+	if err := exec(`ALTER TYPE user_role ADD VALUE IF NOT EXISTS 'agency'`); err != nil {
 		return err
 	}
 
 	return nil
+}
+
+func isDuplicateObject(err error) bool {
+	var pgErr *pgconn.PgError
+	if errors.As(err, &pgErr) {
+		return pgErr.Code == "42710"
+	}
+	return false
 }
