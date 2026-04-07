@@ -52,7 +52,18 @@ func (s *AgencyService) Create(name, email string) (*models.User, error) {
 		PasswordHash: nil,
 	}
 
-	if err := s.db.Create(user).Error; err != nil {
+	// Wrap user + email auth_provider in one transaction so we never end up
+	// with a users row but no auth_providers row (or vice-versa).
+	if err := s.db.Transaction(func(tx *gorm.DB) error {
+		if err := tx.Create(user).Error; err != nil {
+			return err
+		}
+		return tx.Create(&models.AuthProvider{
+			UserID:     user.ID,
+			Provider:   models.ProviderEmail,
+			ProviderID: email,
+		}).Error
+	}); err != nil {
 		// Handle race condition: unique violation reached DB despite pre-checks.
 		var pgErr *pgconn.PgError
 		isUniq := errors.Is(err, gorm.ErrDuplicatedKey) ||
@@ -69,14 +80,6 @@ func (s *AgencyService) Create(name, email string) (*models.User, error) {
 		}
 		return nil, err
 	}
-
-	// Create email auth_providers record so /users/me/providers is consistent
-	// with accounts created via standard email registration.
-	s.db.Create(&models.AuthProvider{
-		UserID:     user.ID,
-		Provider:   models.ProviderEmail,
-		ProviderID: email,
-	})
 
 	return user, nil
 }

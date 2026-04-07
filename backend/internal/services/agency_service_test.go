@@ -187,4 +187,13 @@ func TestAgencyService_Create_Success(t *testing.T) {
 	if user.Role != models.RoleAgency {
 		t.Fatalf("expected role agency, got %v", user.Role)
 	}
+
+	// Verify auth_providers row was created atomically with the user.
+	var apCount int64
+	db.Model(&models.AuthProvider{}).
+		Where("user_id = ? AND provider = ?", user.ID, models.ProviderEmail).
+		Count(&apCount)
+	if apCount != 1 {
+		t.Fatalf("expected 1 auth_provider(email) row, got %d", apCount)
+	}
 }
