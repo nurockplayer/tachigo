@@ -178,16 +178,14 @@ func (s *StreamerService) GetChannelStats(channelID string) (*BroadcastStats, er
 }
 
 func (s *StreamerService) GetStats(streamerUserID uuid.UUID) (*StreamerStats, error) {
-	var provider models.AuthProvider
-	if err := s.db.
-		Where("user_id = ? AND provider = ?", streamerUserID, models.ProviderTwitch).
-		First(&provider).Error; err != nil {
+	var streamer models.Streamer
+	if err := s.db.Where("user_id = ?", streamerUserID).First(&streamer).Error; err != nil {
 		if errors.Is(err, gorm.ErrRecordNotFound) {
 			return nil, ErrStreamerNotFound
 		}
 		return nil, err
 	}
-	channelID := provider.ProviderID
+	channelID := streamer.ChannelID
 
 	broadcast, err := s.pointsSvc.GetBroadcastStats(streamerUserID, channelID)
 	if err != nil {

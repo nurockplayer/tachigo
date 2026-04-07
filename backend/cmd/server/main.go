@@ -13,7 +13,6 @@ import (
 	"errors"
 	"log"
 	"os"
-	"path/filepath"
 	"strings"
 
 	"github.com/joho/godotenv"
@@ -105,11 +104,18 @@ func main() {
 	`).Error; err != nil {
 		log.Fatalf("failed to create streamer index: %v", err)
 	}
-	migration008Path := filepath.Join("backend", "migrations", "008_streamers_agency.sql")
-	if contents, err := os.ReadFile(migration008Path); err == nil {
-		if err := db.Exec(string(contents)).Error; err != nil {
-			log.Fatalf("failed to run 008_streamers_agency.sql: %v", err)
-		}
+	if err := db.Exec(`
+		ALTER TABLE streamers ADD COLUMN IF NOT EXISTS agency_user_id UUID REFERENCES users(id);
+		CREATE INDEX IF NOT EXISTS idx_streamers_agency_user_id ON streamers (agency_user_id);
+		UPDATE streamers s
+		SET agency_user_id = (
+			SELECT ag.agency_id FROM agency_streamers ag
+			WHERE ag.channel_id = s.channel_id LIMIT 1
+		)
+		WHERE s.agency_user_id IS NULL
+		  AND (SELECT COUNT(DISTINCT agency_id) FROM agency_streamers ag WHERE ag.channel_id = s.channel_id) = 1;
+	`).Error; err != nil {
+		log.Fatalf("failed to run agency_user_id migration: %v", err)
 	}
 	// Wire services
 	authSvc := services.NewAuthService(db, cfg)
