@@ -11,11 +11,7 @@
     "paths": {
         "/auth/forgot-password": {
             "post": {
-                "security": [
-                    {
-                        "": []
-                    }
-                ],
+                "security": [],
                 "description": "Always returns 200 to prevent user enumeration",
                 "consumes": [
                     "application/json"
@@ -73,11 +69,7 @@
         },
         "/auth/google": {
             "get": {
-                "security": [
-                    {
-                        "": []
-                    }
-                ],
+                "security": [],
                 "produces": [
                     "application/json"
                 ],
@@ -94,11 +86,7 @@
         },
         "/auth/google/callback": {
             "get": {
-                "security": [
-                    {
-                        "": []
-                    }
-                ],
+                "security": [],
                 "produces": [
                     "application/json"
                 ],
@@ -158,11 +146,7 @@
         },
         "/auth/login": {
             "post": {
-                "security": [
-                    {
-                        "": []
-                    }
-                ],
+                "security": [],
                 "consumes": [
                     "application/json"
                 ],
@@ -220,11 +204,7 @@
         },
         "/auth/logout": {
             "post": {
-                "security": [
-                    {
-                        "": []
-                    }
-                ],
+                "security": [],
                 "consumes": [
                     "application/json"
                 ],
@@ -344,11 +324,7 @@
         },
         "/auth/refresh": {
             "post": {
-                "security": [
-                    {
-                        "": []
-                    }
-                ],
+                "security": [],
                 "consumes": [
                     "application/json"
                 ],
@@ -411,11 +387,7 @@
         },
         "/auth/register": {
             "post": {
-                "security": [
-                    {
-                        "": []
-                    }
-                ],
+                "security": [],
                 "consumes": [
                     "application/json"
                 ],
@@ -473,11 +445,7 @@
         },
         "/auth/reset-password": {
             "post": {
-                "security": [
-                    {
-                        "": []
-                    }
-                ],
+                "security": [],
                 "consumes": [
                     "application/json"
                 ],
@@ -537,11 +505,7 @@
         },
         "/auth/twitch": {
             "get": {
-                "security": [
-                    {
-                        "": []
-                    }
-                ],
+                "security": [],
                 "produces": [
                     "application/json"
                 ],
@@ -558,11 +522,7 @@
         },
         "/auth/twitch/callback": {
             "get": {
-                "security": [
-                    {
-                        "": []
-                    }
-                ],
+                "security": [],
                 "produces": [
                     "application/json"
                 ],
@@ -622,11 +582,7 @@
         },
         "/auth/verify-email/confirm": {
             "post": {
-                "security": [
-                    {
-                        "": []
-                    }
-                ],
+                "security": [],
                 "consumes": [
                     "application/json"
                 ],
@@ -731,11 +687,7 @@
         },
         "/auth/web3/nonce": {
             "post": {
-                "security": [
-                    {
-                        "": []
-                    }
-                ],
+                "security": [],
                 "consumes": [
                     "application/json"
                 ],
@@ -798,11 +750,7 @@
         },
         "/auth/web3/verify": {
             "post": {
-                "security": [
-                    {
-                        "": []
-                    }
-                ],
+                "security": [],
                 "consumes": [
                     "application/json"
                 ],
@@ -860,11 +808,7 @@
         },
         "/extension/auth/login": {
             "post": {
-                "security": [
-                    {
-                        "": []
-                    }
-                ],
+                "security": [],
                 "consumes": [
                     "application/json"
                 ],
@@ -927,11 +871,7 @@
         },
         "/extension/bits/complete": {
             "post": {
-                "security": [
-                    {
-                        "": []
-                    }
-                ],
+                "security": [],
                 "consumes": [
                     "application/json"
                 ],
@@ -1428,73 +1368,6 @@
                 }
             }
         },
-        "/users/me/points/claim": {
-            "post": {
-                "security": [
-                    {
-                        "BearerAuth": []
-                    }
-                ],
-                "consumes": [
-                    "application/json"
-                ],
-                "produces": [
-                    "application/json"
-                ],
-                "tags": [
-                    "tachi"
-                ],
-                "summary": "Claim T-Points as $TACHI",
-                "parameters": [
-                    {
-                        "description": "Amount to claim (0 = all)",
-                        "name": "body",
-                        "in": "body",
-                        "schema": {
-                            "$ref": "#/definitions/handlers.claimRequest"
-                        }
-                    }
-                ],
-                "responses": {
-                    "200": {
-                        "description": "OK",
-                        "schema": {
-                            "allOf": [
-                                {
-                                    "$ref": "#/definitions/handlers.Response"
-                                },
-                                {
-                                    "type": "object",
-                                    "properties": {
-                                        "data": {
-                                            "$ref": "#/definitions/handlers.tachiBalanceResponse"
-                                        }
-                                    }
-                                }
-                            ]
-                        }
-                    },
-                    "400": {
-                        "description": "Bad Request",
-                        "schema": {
-                            "$ref": "#/definitions/handlers.Response"
-                        }
-                    },
-                    "401": {
-                        "description": "Unauthorized",
-                        "schema": {
-                            "$ref": "#/definitions/handlers.Response"
-                        }
-                    },
-                    "422": {
-                        "description": "Unprocessable Entity",
-                        "schema": {
-                            "$ref": "#/definitions/handlers.Response"
-                        }
-                    }
-                }
-            }
-        },
         "/users/me/points/history": {
             "get": {
                 "security": [
@@ -1583,48 +1456,6 @@
                                     }
                                 }
                             ]
-                        }
-                    }
-                }
-            }
-        },
-        "/users/me/tachi/balance": {
-            "get": {
-                "security": [
-                    {
-                        "BearerAuth": []
-                    }
-                ],
-                "produces": [
-                    "application/json"
-                ],
-                "tags": [
-                    "tachi"
-                ],
-                "summary": "Get my $TACHI balance",
-                "responses": {
-                    "200": {
-                        "description": "OK",
-                        "schema": {
-                            "allOf": [
-                                {
-                                    "$ref": "#/definitions/handlers.Response"
-                                },
-                                {
-                                    "type": "object",
-                                    "properties": {
-                                        "data": {
-                                            "$ref": "#/definitions/handlers.tachiBalanceResponse"
-                                        }
-                                    }
-                                }
-                            ]
-                        }
-                    },
-                    "401": {
-                        "description": "Unauthorized",
-                        "schema": {
-                            "$ref": "#/definitions/handlers.Response"
                         }
                     }
                 }
@@ -1761,23 +1592,6 @@
             "properties": {
                 "user": {
                     "$ref": "#/definitions/models.User"
-                }
-            }
-        },
-        "handlers.claimRequest": {
-            "type": "object",
-            "properties": {
-                "amount": {
-                    "description": "0 = claim all",
-                    "type": "integer"
-                }
-            }
-        },
-        "handlers.tachiBalanceResponse": {
-            "type": "object",
-            "properties": {
-                "tachi_balance": {
-                    "type": "integer"
                 }
             }
         },
@@ -2052,5 +1866,10 @@
             "name": "Authorization",
             "in": "header"
         }
-    }
+    },
+    "security": [
+        {
+            "BearerAuth": []
+        }
+    ]
 }
