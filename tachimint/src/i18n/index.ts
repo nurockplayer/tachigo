@@ -37,7 +37,7 @@ const lazyCommonNamespaceBackend: BackendModule = {
   },
 }
 
-i18n.use(lazyCommonNamespaceBackend).use(initReactI18next).init({
+void i18n.use(lazyCommonNamespaceBackend).use(initReactI18next).init({
   lng: fallbackLanguage,
   fallbackLng: fallbackLanguage,
   supportedLngs: ['en', 'zh-TW', 'zh-CN'],
@@ -45,6 +45,8 @@ i18n.use(lazyCommonNamespaceBackend).use(initReactI18next).init({
   defaultNS,
   interpolation: { escapeValue: false },
   react: { useSuspense: false },
+}).catch((error: unknown) => {
+  console.warn('Failed to initialize i18n', error)
 })
 
 export default i18n

@@ -6,9 +6,9 @@ export function mapTwitchLocaleToAppLanguage(locale: string): AppLanguage {
   if (normalizedLocale === 'zh-tw' || normalizedLocale === 'zh-hk' || normalizedLocale === 'zh-mo') {
     return 'zh-TW'
   }
-  if (normalizedLocale === 'zh-cn' || normalizedLocale === 'zh-sg' || normalizedLocale === 'zh-hans') {
+  if (normalizedLocale === 'zh-cn' || normalizedLocale === 'zh-sg' || normalizedLocale.startsWith('zh-hans')) {
     return 'zh-CN'
   }
-  if (normalizedLocale === 'zh-hant' || normalizedLocale.startsWith('zh')) return 'zh-TW'
+  if (normalizedLocale.startsWith('zh-hant') || normalizedLocale.startsWith('zh')) return 'zh-TW'
   return 'en'
 }

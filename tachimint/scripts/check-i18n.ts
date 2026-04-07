@@ -21,7 +21,10 @@ const localeCases: Array<[locale: string, language: AppLanguage]> = [
   ['zh_sg', 'zh-CN'],
   ['zh-Hans', 'zh-CN'],
   ['zh_Hans', 'zh-CN'],
+  ['zh-Hans-CN', 'zh-CN'],
+  ['zh_Hans_CN', 'zh-CN'],
   ['zh-Hant', 'zh-TW'],
+  ['zh-Hant-TW', 'zh-TW'],
   [' zh-CN ', 'zh-CN'],
   ['zh', 'zh-TW'],
   ['zh-unknown', 'zh-TW'],
@@ -100,6 +103,10 @@ const i18nSource = readProjectFile('src/i18n/index.ts')
 assert.ok(
   !i18nSource.includes("from './locales/"),
   'i18n initialization should lazy-load locale JSON instead of eager importing all locales',
+)
+assert.ok(
+  /\.init\(\{[\s\S]*?\}\)\s*\.catch\(/.test(i18nSource),
+  'i18n init promise should be caught so lazy locale chunk failures do not become unhandled rejections',
 )
 
 assert.ok(
