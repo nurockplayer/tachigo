@@ -2,6 +2,7 @@ package services
 
 import (
 	"errors"
+	"strings"
 	"testing"
 
 	"github.com/google/uuid"
@@ -128,5 +129,71 @@ func TestAgencyStreamerCascadeDelete(t *testing.T) {
 	}
 	if count != 0 {
 		t.Fatalf("expected agency streamer row to be deleted, got %d", count)
+	}
+}
+
+func TestAgencyService_Create_DuplicateName(t *testing.T) {
+	db := newTestDB(t)
+	svc := NewAgencyService(db)
+
+	if _, err := svc.Create("agency_x", "agency_x_1@example.com"); err != nil {
+		t.Fatalf("first create failed: %v", err)
+	}
+
+	_, err := svc.Create("agency_x", "agency_x_2@example.com")
+	if !errors.Is(err, ErrAgencyNameTaken) {
+		t.Fatalf("expected ErrAgencyNameTaken, got %v", err)
+	}
+}
+
+func TestAgencyService_Create_NameTooLong(t *testing.T) {
+	db := newTestDB(t)
+	svc := NewAgencyService(db)
+
+	_, err := svc.Create(strings.Repeat("a", 51), "agency_long@example.com")
+	if !errors.Is(err, ErrAgencyNameTooLong) {
+		t.Fatalf("expected ErrAgencyNameTooLong, got %v", err)
+	}
+}
+
+func TestAgencyService_Create_DuplicateEmail(t *testing.T) {
+	db := newTestDB(t)
+	svc := NewAgencyService(db)
+
+	if _, err := svc.Create("agency_a", "shared@example.com"); err != nil {
+		t.Fatalf("first create failed: %v", err)
+	}
+
+	_, err := svc.Create("agency_b", "shared@example.com")
+	if !errors.Is(err, ErrAgencyEmailTaken) {
+		t.Fatalf("expected ErrAgencyEmailTaken, got %v", err)
+	}
+}
+
+func TestAgencyService_Create_Success(t *testing.T) {
+	db := newTestDB(t)
+	svc := NewAgencyService(db)
+
+	user, err := svc.Create("test_agency", "test@example.com")
+	if err != nil {
+		t.Fatalf("create failed: %v", err)
+	}
+	if user.ID == uuid.Nil {
+		t.Fatal("expected non-nil user ID")
+	}
+	if user.Username == nil || *user.Username != "test_agency" {
+		t.Fatalf("expected username 'test_agency', got %v", user.Username)
+	}
+	if user.Role != models.RoleAgency {
+		t.Fatalf("expected role agency, got %v", user.Role)
+	}
+
+	// Verify auth_providers row was created atomically with the user.
+	var apCount int64
+	db.Model(&models.AuthProvider{}).
+		Where("user_id = ? AND provider = ?", user.ID, models.ProviderEmail).
+		Count(&apCount)
+	if apCount != 1 {
+		t.Fatalf("expected 1 auth_provider(email) row, got %d", apCount)
 	}
 }

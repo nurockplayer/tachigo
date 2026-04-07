@@ -22,6 +22,7 @@ func New(
 	pointsSvc *services.PointsService,
 	streamerSvc *services.StreamerService,
 	claimSvc *services.ClaimService,
+	agencyHandler *handlers.AgencyHandler,
 	allowedOrigins []string,
 ) *gin.Engine {
 	r := gin.New()
@@ -140,9 +141,7 @@ func New(
 	agencies := v1.Group("/agencies")
 	agencies.Use(middleware.JWTAuth(authSvc))
 	{
-		agencies.POST("", middleware.RequireRole(models.RoleAdmin), func(c *gin.Context) {
-			c.JSON(501, gin.H{"error": "not implemented"})
-		})
+		agencies.POST("", middleware.RequireRole(models.RoleAdmin), agencyHandler.Create)
 		// PUT /agencies/:id/settings — agency or admin
 		agencies.PUT("/:id/settings",
 			middleware.RequireRole(models.RoleAgency, models.RoleAdmin),
