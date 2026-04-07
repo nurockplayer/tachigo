@@ -1,22 +1,50 @@
-import i18n from 'i18next'
+import i18n, { type BackendModule } from 'i18next'
 import { initReactI18next } from 'react-i18next'
 
-import enCommon from './locales/en/common.json'
-import zhCnCommon from './locales/zh-CN/common.json'
-import zhTwCommon from './locales/zh-TW/common.json'
-export { mapTwitchLocaleToAppLanguage } from './locale'
+import { defaultNS } from './resources'
+import { mapTwitchLocaleToAppLanguage, type AppLanguage } from './locale'
+
+export { mapTwitchLocaleToAppLanguage }
 export type { AppLanguage } from './locale'
 
-i18n.use(initReactI18next).init({
-  resources: {
-    en: { common: enCommon },
-    'zh-TW': { common: zhTwCommon },
-    'zh-CN': { common: zhCnCommon },
+const fallbackLanguage: AppLanguage = 'en'
+
+const commonNamespaceLoaders = {
+  en: () => import('./locales/en/common.json'),
+  'zh-TW': () => import('./locales/zh-TW/common.json'),
+  'zh-CN': () => import('./locales/zh-CN/common.json'),
+} satisfies Record<AppLanguage, () => Promise<{ default: Record<string, unknown> }>>
+
+function isAppLanguage(language: string): language is AppLanguage {
+  return language === 'en' || language === 'zh-TW' || language === 'zh-CN'
+}
+
+const lazyCommonNamespaceBackend: BackendModule = {
+  type: 'backend',
+  init() {},
+  read(language, namespace, callback) {
+    if (namespace !== defaultNS) {
+      callback(new Error(`Unsupported namespace: ${namespace}`), null)
+      return
+    }
+
+    const appLanguage = isAppLanguage(language) ? language : fallbackLanguage
+    commonNamespaceLoaders[appLanguage]()
+      .then((resource) => callback(null, resource.default))
+      .catch((error: unknown) => {
+        callback(error instanceof Error ? error : String(error), null)
+      })
   },
-  lng: 'en',
-  fallbackLng: 'en',
-  defaultNS: 'common',
+}
+
+i18n.use(lazyCommonNamespaceBackend).use(initReactI18next).init({
+  lng: fallbackLanguage,
+  fallbackLng: fallbackLanguage,
+  supportedLngs: ['en', 'zh-TW', 'zh-CN'],
+  ns: [defaultNS],
+  defaultNS,
   interpolation: { escapeValue: false },
+  react: { useSuspense: false },
 })
 
 export default i18n

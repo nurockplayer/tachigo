@@ -23,8 +23,6 @@ export default function App() {
     return (
       <div className="ext-loading" role="status" aria-live="polite" aria-busy="true">
         <div className="ext-loading__spinner" />
-        <p>{t('contextLoading.title')}</p>
-        <p>{t('contextLoading.subtitle')}</p>
       </div>
     )
   }

@@ -1,4 +1,5 @@
 import assert from 'node:assert/strict'
+import { existsSync } from 'node:fs'
 import { readFileSync } from 'node:fs'
 
 import {
@@ -70,6 +71,7 @@ const requiredKeys = [
   'contextLoading.subtitle',
   'common.retry',
   'common.initializing',
+  'common.points',
 ]
 
 for (const key of requiredKeys) {
@@ -83,5 +85,37 @@ for (const file of translatedFiles) {
     `${file} should have the same translation keys as ${baseFile}`,
   )
 }
+
+function readProjectFile(file: string): string {
+  return readFileSync(new URL(`../${file}`, import.meta.url), 'utf8')
+}
+
+const appSource = readProjectFile('src/App.tsx')
+assert.ok(
+  !appSource.includes("t('contextLoading.title')") && !appSource.includes("t('contextLoading.subtitle')"),
+  'pre-context loading UI should stay language-neutral until Twitch onContext supplies a locale',
+)
+
+const i18nSource = readProjectFile('src/i18n/index.ts')
+assert.ok(
+  !i18nSource.includes("from './locales/"),
+  'i18n initialization should lazy-load locale JSON instead of eager importing all locales',
+)
+
+assert.ok(
+  existsSync(new URL('../src/i18n/resources.ts', import.meta.url)),
+  'i18n should expose typed resource metadata for translation key checking',
+)
+assert.ok(
+  existsSync(new URL('../src/i18n/i18next.d.ts', import.meta.url)),
+  'i18n should augment i18next types for translation key checking',
+)
+
+const viteConfigSource = readProjectFile('vite.config.ts')
+assert.match(
+  viteConfigSource,
+  /chunkSizeWarningLimit/,
+  'vite config should include a chunk size warning limit for the extension bundle',
+)
 
 console.log(`i18n check passed: ${localeCases.length} locale mappings, ${baseKeys.length} keys`)
