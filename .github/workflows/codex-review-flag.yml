@@ -6,36 +6,53 @@ on:
   pull_request:
     types: [opened, synchronize]
     branches: [main, develop]
+  pull_request_review:
+    types: [submitted]
+    branches: [main, develop]
 
 permissions:
   pull-requests: write
   issues: write
 
 jobs:
-  flag:
-    name: Flag needs-codex-review
+  label-state:
+    name: Manage Codex review labels
     runs-on: ubuntu-latest
     steps:
-      - name: Check and flag
+      - name: Sync labels
         uses: actions/github-script@v7
         with:
           script: |
             const owner = context.repo.owner
             const repo = context.repo.repo
-            const flagLabel = 'needs-codex-review'
+            const reviewLabel = 'needs-codex-review'
+            const changesLabel = 'changes-requested'
             const reviewer = 'nurockplayer'
 
-            const ensureLabel = async () => {
+            const ensureLabel = async (name, color, description) => {
               try {
-                await github.rest.issues.getLabel({ owner, repo, name: flagLabel })
+                await github.rest.issues.getLabel({ owner, repo, name })
               } catch (e) {
                 if (e.status !== 404) throw e
                 await github.rest.issues.createLabel({
                   owner, repo,
-                  name: flagLabel,
-                  color: '0075ca',
-                  description: 'New commits pushed after CHANGES_REQUESTED — pending Codex review',
+                  name,
+                  color,
+                  description,
                 })
+              }
+            }
+
+            const addLabels = async (issue_number, labels) => {
+              if (labels.length === 0) return
+              await github.rest.issues.addLabels({ owner, repo, issue_number, labels })
+            }
+
+            const removeLabel = async (issue_number, name) => {
+              try {
+                await github.rest.issues.removeLabel({ owner, repo, issue_number, name })
+              } catch (e) {
+                if (e.status !== 404) throw e
               }
             }
 
@@ -58,7 +75,44 @@ jobs:
               return lastCommitDate > crDate
             }
 
-            // Collect PRs to check
+            await ensureLabel(
+              reviewLabel,
+              '0075ca',
+              'New commits pushed after CHANGES_REQUESTED — pending Codex review',
+            )
+            await ensureLabel(
+              changesLabel,
+              'd73a4a',
+              'Codex has requested changes — author should update the PR',
+            )
+
+            if (context.eventName === 'pull_request_review') {
+              const pr = context.payload.pull_request
+              const review = context.payload.review
+
+              if (review.user?.login !== reviewer) {
+                core.notice(`Ignoring review from ${review.user?.login || 'unknown reviewer'}.`)
+                return
+              }
+
+              if (review.state === 'changes_requested') {
+                await addLabels(pr.number, [changesLabel])
+                await removeLabel(pr.number, reviewLabel)
+                core.notice(`PR #${pr.number} marked as ${changesLabel}.`)
+                return
+              }
+
+              if (review.state === 'approved') {
+                await removeLabel(pr.number, changesLabel)
+                await removeLabel(pr.number, reviewLabel)
+                core.notice(`PR #${pr.number} cleared review-state labels after approval.`)
+                return
+              }
+
+              core.notice(`No label action for review state: ${review.state}.`)
+              return
+            }
+
             let prs = []
             if (context.eventName === 'pull_request') {
               prs = [context.payload.pull_request]
@@ -68,19 +122,14 @@ jobs:
               })
             }
 
-            await ensureLabel()
-
             for (const pr of prs) {
               const labels = (pr.labels || []).map(l => l.name)
-              if (labels.includes(flagLabel)) continue  // already flagged
-
               const isNewPR = context.eventName === 'pull_request' && context.payload.action === 'opened'
               if (isNewPR || await shouldFlag(pr.number)) {
-                await github.rest.issues.addLabels({
-                  owner, repo,
-                  issue_number: pr.number,
-                  labels: [flagLabel],
-                })
+                if (!labels.includes(reviewLabel)) {
+                  await addLabels(pr.number, [reviewLabel])
+                }
+                await removeLabel(pr.number, changesLabel)
                 core.notice(`PR #${pr.number} flagged for Codex review.`)
               }
             }
