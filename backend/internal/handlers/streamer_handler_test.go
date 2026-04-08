@@ -266,6 +266,23 @@ func TestCreate_AdminOK(t *testing.T) {
 	if w.Code != http.StatusOK {
 		t.Fatalf("want 200, got %d: %s", w.Code, w.Body.String())
 	}
+
+	var created models.Streamer
+	if err := env.db.Where("user_id = ? AND channel_id = ?", streamerUser.ID, "target_ch_id").First(&created).Error; err != nil {
+		t.Fatalf("load created streamer: %v", err)
+	}
+	if created.UserID != streamerUser.ID {
+		t.Fatalf("created streamer user_id: want %s, got %s", streamerUser.ID, created.UserID)
+	}
+	if created.AgencyUserID == nil {
+		t.Fatal("created streamer agency_user_id: want non-nil")
+	}
+	if *created.AgencyUserID != agencyUser.ID {
+		t.Fatalf("created streamer agency_user_id: want %s, got %s", agencyUser.ID, *created.AgencyUserID)
+	}
+	if created.ChannelID != "target_ch_id" {
+		t.Fatalf("created streamer channel_id: want target_ch_id, got %s", created.ChannelID)
+	}
 }
 
 func TestCreate_StreamerForbidden(t *testing.T) {

@@ -61,30 +61,36 @@ func failOnAgencyBackfillConflicts(db *gorm.DB) error {
 }
 
 func backfillStreamerAgencyUserID(db *gorm.DB) error {
-	type mappingRow struct {
-		ChannelID string
-		AgencyID  string
+	sql := `
+		UPDATE streamers
+		SET agency_user_id = (
+			SELECT agency_streamers.agency_id
+			FROM agency_streamers
+			WHERE agency_streamers.channel_id = streamers.channel_id
+			LIMIT 1
+		)
+		WHERE agency_user_id IS NULL
+		  AND EXISTS (
+			SELECT 1
+			FROM agency_streamers
+			WHERE agency_streamers.channel_id = streamers.channel_id
+		)
+	`
+	if db.Dialector.Name() == "postgres" {
+		sql = `
+			UPDATE streamers s
+			SET agency_user_id = src.agency_id
+			FROM (
+				SELECT channel_id, agency_id
+				FROM agency_streamers
+				GROUP BY channel_id, agency_id
+			) AS src
+			WHERE s.channel_id = src.channel_id
+			  AND s.agency_user_id IS NULL
+		`
 	}
-
-	var mappings []mappingRow
-	if err := db.Table("agency_streamers").
-		Select("channel_id, agency_id").
-		Group("channel_id, agency_id").
-		Find(&mappings).Error; err != nil {
-		return err
+	if err := db.Exec(sql).Error; err != nil {
+		return fmt.Errorf("update streamer agency_user_id from legacy mappings: %w", err)
 	}
-
-	for _, mapping := range mappings {
-		if err := db.Exec(
-			`UPDATE streamers
-			 SET agency_user_id = ?
-			 WHERE channel_id = ? AND agency_user_id IS NULL`,
-			mapping.AgencyID,
-			mapping.ChannelID,
-		).Error; err != nil {
-			return err
-		}
-	}
-
 	return nil
 }
