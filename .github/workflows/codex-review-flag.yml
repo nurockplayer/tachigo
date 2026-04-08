@@ -7,7 +7,7 @@ on:
     types: [opened, synchronize]
     branches: [main, develop]
   pull_request_review:
-    types: [submitted]
+    types: [submitted, dismissed]
 
 permissions:
   pull-requests: write
@@ -58,9 +58,9 @@ jobs:
               }
             }
 
-            const shouldFlag = async (prNumber) => {
+            const shouldFlag = async (pr) => {
               const reviews = await github.paginate(github.rest.pulls.listReviews, {
-                owner, repo, pull_number: prNumber, per_page: 100,
+                owner, repo, pull_number: pr.number, per_page: 100,
               })
               const latestStatefulReview = [...reviews]
                 .reverse()
@@ -72,20 +72,17 @@ jobs:
                 return false
               }
 
-              const commits = await github.paginate(github.rest.pulls.listCommits, {
-                owner, repo, pull_number: prNumber, per_page: 100,
-              })
-              if (commits.length === 0) return false
+              if (!pr.head?.sha || !latestStatefulReview.commit_id) {
+                return false
+              }
 
-              const lastCommitDate = new Date(commits[commits.length - 1].commit.committer.date)
-              const crDate = new Date(latestStatefulReview.submitted_at)
-              return lastCommitDate > crDate
+              return pr.head.sha !== latestStatefulReview.commit_id
             }
 
             await ensureLabel(
               reviewLabel,
               '0075ca',
-              'New commits pushed after CHANGES_REQUESTED — pending Codex review',
+              'New PR opened or new commits pushed after CHANGES_REQUESTED — pending Codex review',
             )
             await ensureLabel(
               changesLabel,
@@ -114,10 +111,10 @@ jobs:
                 return
               }
 
-              if (review.state === 'approved') {
+              if (review.state === 'approved' || context.payload.action === 'dismissed') {
                 await removeLabel(pr.number, changesLabel)
                 await removeLabel(pr.number, reviewLabel)
-                core.notice(`PR #${pr.number} cleared review-state labels after approval.`)
+                core.notice(`PR #${pr.number} cleared review-state labels after ${context.payload.action === 'dismissed' ? 'dismissal' : 'approval'}.`)
                 return
               }
 
@@ -141,7 +138,7 @@ jobs:
               }
               const labels = (pr.labels || []).map(l => l.name)
               const isNewPR = context.eventName === 'pull_request' && context.payload.action === 'opened'
-              if (isNewPR || await shouldFlag(pr.number)) {
+              if (isNewPR || await shouldFlag(pr)) {
                 if (!labels.includes(reviewLabel)) {
                   await addLabels(pr.number, [reviewLabel])
                 }
