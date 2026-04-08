@@ -227,6 +227,9 @@ func newTestEnv(t *testing.T) *testEnv {
 	if err != nil {
 		t.Fatalf("open db: %v", err)
 	}
+	if err := db.Exec("PRAGMA foreign_keys = ON").Error; err != nil {
+		t.Fatalf("enable foreign keys: %v", err)
+	}
 	if err := migrateTestDB(db); err != nil {
 		t.Fatalf("migrate db: %v", err)
 	}

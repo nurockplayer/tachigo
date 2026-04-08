@@ -177,9 +177,9 @@ func (s *StreamerService) GetChannelStats(channelID string) (*BroadcastStats, er
 	return s.pointsSvc.GetBroadcastStats(provider.UserID, channelID)
 }
 
-func (s *StreamerService) GetStats(streamerUserID uuid.UUID) (*StreamerStats, error) {
+func (s *StreamerService) GetStats(streamerID uuid.UUID) (*StreamerStats, error) {
 	var streamer models.Streamer
-	if err := s.db.Where("user_id = ?", streamerUserID).First(&streamer).Error; err != nil {
+	if err := s.db.Where("id = ?", streamerID).First(&streamer).Error; err != nil {
 		if errors.Is(err, gorm.ErrRecordNotFound) {
 			return nil, ErrStreamerNotFound
 		}
@@ -187,7 +187,7 @@ func (s *StreamerService) GetStats(streamerUserID uuid.UUID) (*StreamerStats, er
 	}
 	channelID := streamer.ChannelID
 
-	broadcast, err := s.pointsSvc.GetBroadcastStats(streamerUserID, channelID)
+	broadcast, err := s.pointsSvc.GetBroadcastStats(streamer.UserID, channelID)
 	if err != nil {
 		return nil, err
 	}

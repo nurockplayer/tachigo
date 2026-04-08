@@ -133,9 +133,15 @@ func New(
 		dashboard.GET("/streamers/:streamer_id/stats",
 			middleware.RequireRole(models.RoleStreamer, models.RoleAgency, models.RoleAdmin),
 			streamerH.GetStats)
-		dashboard.POST("/streamers/register", streamerH.Register)
-		dashboard.GET("/streamers/channels", streamerH.ListChannels)
-		dashboard.GET("/channels/:channel_id/stats", streamerH.GetChannelStats)
+		dashboard.POST("/streamers/register",
+			middleware.RequireRole(models.RoleStreamer),
+			streamerH.Register)
+		dashboard.GET("/streamers/channels",
+			middleware.RequireRole(models.RoleStreamer),
+			streamerH.ListChannels)
+		dashboard.GET("/channels/:channel_id/stats",
+			middleware.RequireRole(models.RoleAdmin, models.RoleStreamer),
+			streamerH.GetChannelStats)
 		dashboard.GET("/channels/:channel_id/config",
 			middleware.RequireRole(models.RoleAdmin, models.RoleStreamer, models.RoleAgency),
 			channelConfigH.GetChannelConfig)

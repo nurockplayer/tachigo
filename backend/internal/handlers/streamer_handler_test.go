@@ -37,10 +37,18 @@ func newStreamerDashboardEnv(t *testing.T) *dashboardEnv {
 		dashboard.GET("/streamers/:streamer_id/stats",
 			middleware.RequireRole(models.RoleStreamer, models.RoleAgency, models.RoleAdmin),
 			streamerH.GetStats)
-		dashboard.POST("/streamers/register", streamerH.Register)
-		dashboard.GET("/streamers/channels", streamerH.ListChannels)
-		dashboard.GET("/channels/:channel_id/stats", streamerH.GetChannelStats)
-		dashboard.GET("/channels/:channel_id/config", configH.GetChannelConfig)
+		dashboard.POST("/streamers/register",
+			middleware.RequireRole(models.RoleStreamer),
+			streamerH.Register)
+		dashboard.GET("/streamers/channels",
+			middleware.RequireRole(models.RoleStreamer),
+			streamerH.ListChannels)
+		dashboard.GET("/channels/:channel_id/stats",
+			middleware.RequireRole(models.RoleAdmin, models.RoleStreamer),
+			streamerH.GetChannelStats)
+		dashboard.GET("/channels/:channel_id/config",
+			middleware.RequireRole(models.RoleAdmin, models.RoleStreamer, models.RoleAgency),
+			configH.GetChannelConfig)
 		dashboard.PUT("/channels/:channel_id/config", configH.UpdateChannelConfig)
 	}
 
@@ -118,9 +126,9 @@ func seedTwitchProviderForUser(t *testing.T, env *dashboardEnv, userID uuid.UUID
 func seedStreamerRow(t *testing.T, env *dashboardEnv, userID uuid.UUID, agencyUserID *uuid.UUID, channelID string) *models.Streamer {
 	t.Helper()
 	streamer := &models.Streamer{
-		UserID:      userID,
+		UserID:       userID,
 		AgencyUserID: agencyUserID,
-		ChannelID:   channelID,
+		ChannelID:    channelID,
 	}
 	if err := env.db.Create(streamer).Error; err != nil {
 		t.Fatalf("seed streamer: %v", err)
@@ -302,6 +310,19 @@ func TestList_AgencySeesOwnOnly(t *testing.T) {
 	if w.Code != http.StatusOK {
 		t.Fatalf("want 200, got %d: %s", w.Code, w.Body.String())
 	}
+
+	resp := parseBody(t, w.Body.Bytes())
+	data := resp["data"].(map[string]interface{})
+	streamers := data["streamers"].([]interface{})
+	if len(streamers) != 2 {
+		t.Fatalf("agency_a: want 2 streamers, got %d", len(streamers))
+	}
+	for _, s := range streamers {
+		row := s.(map[string]interface{})
+		if row["agency_user_id"] != agencyA.ID.String() {
+			t.Fatalf("agency_a: got streamer with agency_user_id=%v, want %s", row["agency_user_id"], agencyA.ID.String())
+		}
+	}
 }
 
 func TestList_AdminSeesAll(t *testing.T) {
@@ -312,12 +333,31 @@ func TestList_AdminSeesAll(t *testing.T) {
 	streamerA, _ := createDashboardUser(t, env, models.RoleStreamer, "list_streamer_a")
 	streamerB, _ := createDashboardUser(t, env, models.RoleStreamer, "list_streamer_b")
 
-	seedStreamerRow(t, env, streamerA.ID, &agencyA.ID, "admin_a_login")
-	seedStreamerRow(t, env, streamerB.ID, &agencyB.ID, "admin_b_login")
+	seededA := seedStreamerRow(t, env, streamerA.ID, &agencyA.ID, "admin_a_login")
+	seededB := seedStreamerRow(t, env, streamerB.ID, &agencyB.ID, "admin_b_login")
 
 	w := dashboardRequest(t, env.router, http.MethodGet, "/api/v1/dashboard/streamers", adminToken, "")
 	if w.Code != http.StatusOK {
 		t.Fatalf("want 200, got %d: %s", w.Code, w.Body.String())
+	}
+
+	resp := parseBody(t, w.Body.Bytes())
+	data := resp["data"].(map[string]interface{})
+	streamers := data["streamers"].([]interface{})
+	if len(streamers) != 2 {
+		t.Fatalf("admin: want 2 streamers, got %d", len(streamers))
+	}
+
+	ids := make(map[string]bool)
+	for _, s := range streamers {
+		row := s.(map[string]interface{})
+		ids[row["id"].(string)] = true
+	}
+	if !ids[seededA.ID.String()] {
+		t.Fatalf("admin: missing streamer A (id=%s)", seededA.ID)
+	}
+	if !ids[seededB.ID.String()] {
+		t.Fatalf("admin: missing streamer B (id=%s)", seededB.ID)
 	}
 }
 
@@ -340,9 +380,10 @@ func TestGetStats_StreamerOtherForbidden(t *testing.T) {
 	streamer := seedStreamerRow(t, env, otherStreamer.ID, nil, "other_login")
 	_, streamerToken := createDashboardUser(t, env, models.RoleStreamer, "stats_streamer_requester")
 
+	// Non-admin callers receive 404 for unauthorized streamer_ids to prevent existence enumeration.
 	w := dashboardRequest(t, env.router, http.MethodGet, "/api/v1/dashboard/streamers/"+streamer.ID.String()+"/stats", streamerToken, "")
-	if w.Code != http.StatusForbidden {
-		t.Fatalf("want 403, got %d: %s", w.Code, w.Body.String())
+	if w.Code != http.StatusNotFound {
+		t.Fatalf("want 404, got %d: %s", w.Code, w.Body.String())
 	}
 }
 
@@ -367,9 +408,10 @@ func TestGetStats_AgencyOtherForbidden(t *testing.T) {
 	streamer := seedStreamerRow(t, env, streamerUser.ID, &otherAgency.ID, "other_agency_login")
 	_, agencyToken := createDashboardUser(t, env, models.RoleAgency, "stats_agency_requester")
 
+	// Non-admin callers receive 404 for unauthorized streamer_ids to prevent existence enumeration.
 	w := dashboardRequest(t, env.router, http.MethodGet, "/api/v1/dashboard/streamers/"+streamer.ID.String()+"/stats", agencyToken, "")
-	if w.Code != http.StatusForbidden {
-		t.Fatalf("want 403, got %d: %s", w.Code, w.Body.String())
+	if w.Code != http.StatusNotFound {
+		t.Fatalf("want 404, got %d: %s", w.Code, w.Body.String())
 	}
 }
 
@@ -393,5 +435,60 @@ func TestGetStats_NotFound(t *testing.T) {
 	w := dashboardRequest(t, env.router, http.MethodGet, "/api/v1/dashboard/streamers/"+uuid.New().String()+"/stats", adminToken, "")
 	if w.Code != http.StatusNotFound {
 		t.Fatalf("want 404, got %d: %s", w.Code, w.Body.String())
+	}
+}
+
+// TestGetStats_MultiChannelSameUser verifies that GetStats returns stats for
+// the requested streamer_id even when the same user owns multiple channels.
+func TestGetStats_MultiChannelSameUser(t *testing.T) {
+	env := newStreamerDashboardEnv(t)
+	streamerUser, streamerToken := createDashboardUser(t, env, models.RoleStreamer, "multi_ch_streamer")
+	seedTwitchProviderForUser(t, env, streamerUser.ID, "ch_multi_1")
+	seedTwitchProviderForUser(t, env, streamerUser.ID, "ch_multi_2")
+
+	streamer1 := seedStreamerRow(t, env, streamerUser.ID, nil, "ch_multi_1")
+	streamer2 := seedStreamerRow(t, env, streamerUser.ID, nil, "ch_multi_2")
+
+	// Both streamers should return 200 with their own channel_id.
+	w1 := dashboardRequest(t, env.router, http.MethodGet, "/api/v1/dashboard/streamers/"+streamer1.ID.String()+"/stats", streamerToken, "")
+	if w1.Code != http.StatusOK {
+		t.Fatalf("streamer1: want 200, got %d: %s", w1.Code, w1.Body.String())
+	}
+	resp1 := parseBody(t, w1.Body.Bytes())
+	data1 := resp1["data"].(map[string]interface{})
+	if data1["channel_id"] != "ch_multi_1" {
+		t.Fatalf("streamer1: want channel_id=ch_multi_1, got %v", data1["channel_id"])
+	}
+
+	w2 := dashboardRequest(t, env.router, http.MethodGet, "/api/v1/dashboard/streamers/"+streamer2.ID.String()+"/stats", streamerToken, "")
+	if w2.Code != http.StatusOK {
+		t.Fatalf("streamer2: want 200, got %d: %s", w2.Code, w2.Body.String())
+	}
+	resp2 := parseBody(t, w2.Body.Bytes())
+	data2 := resp2["data"].(map[string]interface{})
+	if data2["channel_id"] != "ch_multi_2" {
+		t.Fatalf("streamer2: want channel_id=ch_multi_2, got %v", data2["channel_id"])
+	}
+}
+
+// TestLegacyChannelStats_AgencyForbidden verifies that the legacy
+// GET /dashboard/channels/:channel_id/stats is not accessible to agency role.
+func TestLegacyChannelStats_AgencyForbidden(t *testing.T) {
+	env := newStreamerDashboardEnv(t)
+	agencyUser, agencyToken := createDashboardUser(t, env, models.RoleAgency, "legacy_stats_agency")
+	seedTwitchProviderForUser(t, env, agencyUser.ID, "agency_owned_channel")
+	seedStreamerRow(t, env, agencyUser.ID, nil, "agency_owned_channel")
+	if err := env.db.Create(&models.BroadcastTimeLog{
+		StreamerID: agencyUser.ID,
+		ChannelID:  "agency_owned_channel",
+		Seconds:    15,
+		RecordedAt: time.Now(),
+	}).Error; err != nil {
+		t.Fatalf("seed log: %v", err)
+	}
+
+	w := dashboardRequest(t, env.router, http.MethodGet, "/api/v1/dashboard/channels/agency_owned_channel/stats", agencyToken, "")
+	if w.Code != http.StatusForbidden {
+		t.Fatalf("agency on legacy stats: want 403, got %d: %s", w.Code, w.Body.String())
 	}
 }

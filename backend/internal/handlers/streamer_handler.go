@@ -193,10 +193,12 @@ func (h *StreamerHandler) GetStats(c *gin.Context) {
 	}
 
 	claims := middleware.MustClaims(c)
+	// Non-admin callers get 404 for both unknown and unauthorized streamer_ids
+	// to prevent existence enumeration via 403 vs 404 distinction.
 	switch claims.Role {
 	case models.RoleStreamer:
 		if claims.UserID != streamer.UserID.String() {
-			c.JSON(http.StatusForbidden, Response{Success: false, Error: "forbidden"})
+			notFound(c, "streamer not found")
 			return
 		}
 	case models.RoleAgency:
@@ -211,7 +213,7 @@ func (h *StreamerHandler) GetStats(c *gin.Context) {
 			return
 		}
 		if !owns {
-			c.JSON(http.StatusForbidden, Response{Success: false, Error: "forbidden"})
+			notFound(c, "streamer not found")
 			return
 		}
 	case models.RoleAdmin:
@@ -220,7 +222,7 @@ func (h *StreamerHandler) GetStats(c *gin.Context) {
 		return
 	}
 
-	stats, err := h.streamerSvc.GetStats(streamer.UserID)
+	stats, err := h.streamerSvc.GetStats(streamer.ID)
 	if err != nil {
 		if errors.Is(err, services.ErrStreamerNotFound) {
 			notFound(c, "streamer not found")
