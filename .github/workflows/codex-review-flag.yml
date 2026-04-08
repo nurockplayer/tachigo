@@ -111,10 +111,24 @@ jobs:
                 return
               }
 
-              if (review.state === 'approved' || context.payload.action === 'dismissed') {
+              if (review.state === 'approved') {
                 await removeLabel(pr.number, changesLabel)
                 await removeLabel(pr.number, reviewLabel)
-                core.notice(`PR #${pr.number} cleared review-state labels after ${context.payload.action === 'dismissed' ? 'dismissal' : 'approval'}.`)
+                core.notice(`PR #${pr.number} cleared review-state labels after approval.`)
+                return
+              }
+
+              if (context.payload.action === 'dismissed') {
+                if (await shouldFlag(pr)) {
+                  await addLabels(pr.number, [reviewLabel])
+                  await removeLabel(pr.number, changesLabel)
+                  core.notice(`PR #${pr.number} flagged for Codex review after dismissal.`)
+                  return
+                }
+
+                await removeLabel(pr.number, changesLabel)
+                await removeLabel(pr.number, reviewLabel)
+                core.notice(`PR #${pr.number} cleared review-state labels after dismissal.`)
                 return
               }
 
