@@ -1,9 +1,0 @@
-{
-  "name": "nas-webhook",
-  "version": "1.0.0",
-  "description": "Webhook listener for Claude Code PR review",
-  "main": "server.js",
-  "scripts": {
-    "start": "node server.js"
-  }
-}
