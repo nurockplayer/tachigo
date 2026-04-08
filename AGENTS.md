@@ -64,6 +64,13 @@ Type：`feat` / `fix` / `docs` / `chore` / `refactor` / `test`
 - GitHub 相關的 `gh` 指令（issue、PR、API）與必要的 `git` 指令可由你執行
 - 執行 `git` 時仍需遵守 branch / commit / scope 規範，不得繞過 PR 流程
 
+### PR Label
+
+| Label | 用途 |
+|---|---|
+| `needs-codex-review` | PR 有新 commit，輪到 Codex 重新審查 |
+| `changes-requested` | Codex 已提出 blocker，輪到作者修正 |
+
 ## Scope 邊界
 
 禁止 scope pollution：不要把 issue 沒有明確要求的內容混進同一個 PR。
