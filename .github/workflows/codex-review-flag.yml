@@ -62,10 +62,15 @@ jobs:
               const reviews = await github.paginate(github.rest.pulls.listReviews, {
                 owner, repo, pull_number: prNumber, per_page: 100,
               })
-              const lastCR = [...reviews]
+              const latestStatefulReview = [...reviews]
                 .reverse()
-                .find(r => r.user?.login === reviewer && r.state === 'CHANGES_REQUESTED')
-              if (!lastCR) return false
+                .find(r =>
+                  r.user?.login === reviewer &&
+                  ['CHANGES_REQUESTED', 'APPROVED'].includes(r.state)
+                )
+              if (!latestStatefulReview || latestStatefulReview.state !== 'CHANGES_REQUESTED') {
+                return false
+              }
 
               const commits = await github.paginate(github.rest.pulls.listCommits, {
                 owner, repo, pull_number: prNumber, per_page: 100,
@@ -73,7 +78,7 @@ jobs:
               if (commits.length === 0) return false
 
               const lastCommitDate = new Date(commits[commits.length - 1].commit.committer.date)
-              const crDate = new Date(lastCR.submitted_at)
+              const crDate = new Date(latestStatefulReview.submitted_at)
               return lastCommitDate > crDate
             }
 
