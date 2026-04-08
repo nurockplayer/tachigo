@@ -343,6 +343,65 @@ func TestAirdrop_TodayTotal_UTCDayBoundary(t *testing.T) {
 	}
 }
 
+// TestAirdrop_AnchoredDay_MidnightRegression verifies that when airdropAt is
+// anchored before UTC midnight, the daily-limit check counts only transactions
+// whose created_at falls within that same UTC day — not the next day.
+//
+// Scenario: airdropAt is fixed to 23:59:59 on day D.
+//   - A tx seeded at 23:59:58 on day D (1 s before airdropAt) → counts for day D
+//   - A tx seeded at 00:00:01 on day D+1 → must NOT affect the day-D total
+func TestAirdrop_AnchoredDay_MidnightRegression(t *testing.T) {
+	db := newTestDB(t)
+	watchSvc := NewWatchService(db)
+	pointsSvc := NewPointsService(db, watchSvc)
+	configSvc := NewChannelConfigService(db)
+	svc := NewAirdropService(db, pointsSvc, configSvc)
+
+	channelID := "ch_anchor"
+	userID := seedAirdropViewer(t, db, channelID, 60)
+
+	ledgerID := uuid.New()
+	if err := db.Exec(
+		`INSERT INTO points_ledgers (id, user_id, channel_id, spendable_balance, cumulative_total, created_at, updated_at)
+		 VALUES (?, ?, ?, 0, 0, CURRENT_TIMESTAMP, CURRENT_TIMESTAMP)`,
+		ledgerID, userID, channelID,
+	).Error; err != nil {
+		t.Fatalf("seed ledger: %v", err)
+	}
+
+	// Pick an arbitrary past UTC day to avoid flakiness near real midnight.
+	anchorDay := time.Date(2024, 6, 15, 0, 0, 0, 0, time.UTC)
+	airdropAt := anchorDay.Add(23*time.Hour + 59*time.Minute + 59*time.Second) // 23:59:59 day D
+
+	// Tx 1 s before airdropAt, still within day D — should count.
+	dayDTs := airdropAt.Add(-1 * time.Second)
+	if err := db.Exec(
+		`INSERT INTO points_transactions (ledger_id, source, delta, balance_after, created_at)
+		 VALUES (?, ?, 400, 400, ?)`,
+		ledgerID, models.TxSourceAirdrop, dayDTs,
+	).Error; err != nil {
+		t.Fatalf("seed day-D tx: %v", err)
+	}
+
+	// Tx 2 s after airdropAt, crosses into day D+1 — must NOT count for day D.
+	dayD1Ts := airdropAt.Add(2 * time.Second)
+	if err := db.Exec(
+		`INSERT INTO points_transactions (ledger_id, source, delta, balance_after, created_at)
+		 VALUES (?, ?, 100, 500, ?)`,
+		ledgerID, models.TxSourceAirdrop, dayD1Ts,
+	).Error; err != nil {
+		t.Fatalf("seed day-D+1 tx: %v", err)
+	}
+
+	total, err := svc.todayTotal(db, channelID, airdropAt)
+	if err != nil {
+		t.Fatalf("todayTotal: %v", err)
+	}
+	if total != 400 {
+		t.Fatalf("want 400 (day D only), got %d", total)
+	}
+}
+
 func newConcurrentTestDB(t *testing.T) *gorm.DB {
 	t.Helper()
 

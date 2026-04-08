@@ -71,24 +71,7 @@ func NewAirdropService(db *gorm.DB, pointsSvc *PointsService, configSvc *Channel
 }
 
 func (s *AirdropService) TodayTotal(channelID string) (int64, error) {
-	now := time.Now().UTC()
-	startOfDay := time.Date(now.Year(), now.Month(), now.Day(), 0, 0, 0, 0, time.UTC)
-
-	var total int64
-	err := s.db.Model(&models.PointsTransaction{}).
-		Select("COALESCE(SUM(points_transactions.delta), 0)").
-		Joins("JOIN points_ledgers ON points_ledgers.id = points_transactions.ledger_id").
-		Where(
-			"points_ledgers.channel_id = ? AND points_transactions.source = ? AND points_transactions.created_at >= ?",
-			channelID,
-			models.TxSourceAirdrop,
-			startOfDay,
-		).
-		Scan(&total).Error
-	if err != nil {
-		return 0, err
-	}
-	return total, nil
+	return s.todayTotal(s.db, channelID, time.Now().UTC())
 }
 
 func (s *AirdropService) Execute(req AirdropRequest) (*AirdropResult, error) {
@@ -109,6 +92,11 @@ func (s *AirdropService) Execute(req AirdropRequest) (*AirdropResult, error) {
 
 	var lastErr error
 	for attempt := 0; attempt < maxAirdropTxRetries; attempt++ {
+		// Anchor the UTC day once per attempt so that the daily-limit check and
+		// every points_transaction.created_at within the same attempt share the
+		// same reference time.  If the attempt is retried after a serialization
+		// failure, we capture a fresh anchor for the new attempt.
+		airdropAt := time.Now().UTC()
 		var result *AirdropResult
 
 		lastErr = s.db.Transaction(func(tx *gorm.DB) error {
@@ -124,7 +112,7 @@ func (s *AirdropService) Execute(req AirdropRequest) (*AirdropResult, error) {
 
 			distributeAirdrop(viewers, req.Amount)
 
-			todayTotal, err := s.todayTotal(tx, req.ChannelID)
+			todayTotal, err := s.todayTotal(tx, req.ChannelID, airdropAt)
 			if err != nil {
 				return err
 			}
@@ -149,7 +137,7 @@ func (s *AirdropService) Execute(req AirdropRequest) (*AirdropResult, error) {
 				if viewer.Share <= 0 {
 					continue
 				}
-				if err := s.pointsSvc.addPointsWithMeta(tx, viewer.UserID, req.ChannelID, models.TxSourceAirdrop, viewer.Share, meta); err != nil {
+				if err := s.pointsSvc.addPointsWithMetaAt(tx, airdropAt, viewer.UserID, req.ChannelID, models.TxSourceAirdrop, viewer.Share, meta); err != nil {
 					return err
 				}
 				result.AffectedCount++
@@ -184,19 +172,20 @@ func isRetryableAirdropTxError(err error) bool {
 		strings.Contains(msg, "database table is locked")
 }
 
-func (s *AirdropService) todayTotal(db *gorm.DB, channelID string) (int64, error) {
-	now := time.Now().UTC()
-	startOfDay := time.Date(now.Year(), now.Month(), now.Day(), 0, 0, 0, 0, time.UTC)
+func (s *AirdropService) todayTotal(db *gorm.DB, channelID string, at time.Time) (int64, error) {
+	startOfDay := time.Date(at.Year(), at.Month(), at.Day(), 0, 0, 0, 0, time.UTC)
+	startOfNextDay := startOfDay.Add(24 * time.Hour)
 
 	var total int64
 	err := db.Model(&models.PointsTransaction{}).
 		Select("COALESCE(SUM(points_transactions.delta), 0)").
 		Joins("JOIN points_ledgers ON points_ledgers.id = points_transactions.ledger_id").
 		Where(
-			"points_ledgers.channel_id = ? AND points_transactions.source = ? AND points_transactions.created_at >= ?",
+			"points_ledgers.channel_id = ? AND points_transactions.source = ? AND points_transactions.created_at >= ? AND points_transactions.created_at < ?",
 			channelID,
 			models.TxSourceAirdrop,
 			startOfDay,
+			startOfNextDay,
 		).
 		Scan(&total).Error
 	if err != nil {
