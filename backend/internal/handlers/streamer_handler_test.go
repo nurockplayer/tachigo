@@ -302,9 +302,9 @@ func TestList_AgencySeesOwnOnly(t *testing.T) {
 	streamerA2, _ := createDashboardUser(t, env, models.RoleStreamer, "agency_a_streamer2")
 	streamerB1, _ := createDashboardUser(t, env, models.RoleStreamer, "agency_b_streamer1")
 
-	seedStreamerRow(t, env, streamerA1.ID, &agencyA.ID, "a1_login")
-	seedStreamerRow(t, env, streamerA2.ID, &agencyA.ID, "a2_login")
-	seedStreamerRow(t, env, streamerB1.ID, &agencyB.ID, "b1_login")
+	seededA1 := seedStreamerRow(t, env, streamerA1.ID, &agencyA.ID, "a1_login")
+	seededA2 := seedStreamerRow(t, env, streamerA2.ID, &agencyA.ID, "a2_login")
+	seededB1 := seedStreamerRow(t, env, streamerB1.ID, &agencyB.ID, "b1_login")
 
 	w := dashboardRequest(t, env.router, http.MethodGet, "/api/v1/dashboard/streamers", agencyToken, "")
 	if w.Code != http.StatusOK {
@@ -317,11 +317,34 @@ func TestList_AgencySeesOwnOnly(t *testing.T) {
 	if len(streamers) != 2 {
 		t.Fatalf("agency_a: want 2 streamers, got %d", len(streamers))
 	}
+	expected := map[string]struct {
+		channelID    string
+		agencyUserID string
+	}{
+		seededA1.ID.String(): {channelID: "a1_login", agencyUserID: agencyA.ID.String()},
+		seededA2.ID.String(): {channelID: "a2_login", agencyUserID: agencyA.ID.String()},
+	}
+	seen := make(map[string]bool)
 	for _, s := range streamers {
 		row := s.(map[string]interface{})
-		if row["agency_user_id"] != agencyA.ID.String() {
-			t.Fatalf("agency_a: got streamer with agency_user_id=%v, want %s", row["agency_user_id"], agencyA.ID.String())
+		id := row["id"].(string)
+		want, ok := expected[id]
+		if !ok {
+			t.Fatalf("agency_a: unexpected streamer id=%s (streamer_b1=%s should be excluded)", id, seededB1.ID)
 		}
+		if seen[id] {
+			t.Fatalf("agency_a: duplicate streamer id=%s", id)
+		}
+		seen[id] = true
+		if row["agency_user_id"] != want.agencyUserID {
+			t.Fatalf("agency_a: streamer id=%s got agency_user_id=%v, want %s", id, row["agency_user_id"], want.agencyUserID)
+		}
+		if row["channel_id"] != want.channelID {
+			t.Fatalf("agency_a: streamer id=%s got channel_id=%v, want %s", id, row["channel_id"], want.channelID)
+		}
+	}
+	if seen[seededB1.ID.String()] {
+		t.Fatalf("agency_a: streamer_b1=%s must be excluded", seededB1.ID)
 	}
 }
 
@@ -347,17 +370,36 @@ func TestList_AdminSeesAll(t *testing.T) {
 	if len(streamers) != 2 {
 		t.Fatalf("admin: want 2 streamers, got %d", len(streamers))
 	}
-
-	ids := make(map[string]bool)
+	expected := map[string]struct {
+		channelID    string
+		agencyUserID string
+	}{
+		seededA.ID.String(): {channelID: "admin_a_login", agencyUserID: agencyA.ID.String()},
+		seededB.ID.String(): {channelID: "admin_b_login", agencyUserID: agencyB.ID.String()},
+	}
+	seen := make(map[string]bool)
 	for _, s := range streamers {
 		row := s.(map[string]interface{})
-		ids[row["id"].(string)] = true
+		id := row["id"].(string)
+		want, ok := expected[id]
+		if !ok {
+			t.Fatalf("admin: unexpected streamer id=%s", id)
+		}
+		if seen[id] {
+			t.Fatalf("admin: duplicate streamer id=%s", id)
+		}
+		seen[id] = true
+		if row["agency_user_id"] != want.agencyUserID {
+			t.Fatalf("admin: streamer id=%s got agency_user_id=%v, want %s", id, row["agency_user_id"], want.agencyUserID)
+		}
+		if row["channel_id"] != want.channelID {
+			t.Fatalf("admin: streamer id=%s got channel_id=%v, want %s", id, row["channel_id"], want.channelID)
+		}
 	}
-	if !ids[seededA.ID.String()] {
-		t.Fatalf("admin: missing streamer A (id=%s)", seededA.ID)
-	}
-	if !ids[seededB.ID.String()] {
-		t.Fatalf("admin: missing streamer B (id=%s)", seededB.ID)
+	for id := range expected {
+		if !seen[id] {
+			t.Fatalf("admin: missing streamer id=%s", id)
+		}
 	}
 }
 
@@ -443,13 +485,48 @@ func TestGetStats_NotFound(t *testing.T) {
 func TestGetStats_MultiChannelSameUser(t *testing.T) {
 	env := newStreamerDashboardEnv(t)
 	streamerUser, streamerToken := createDashboardUser(t, env, models.RoleStreamer, "multi_ch_streamer")
+	viewer1, _ := createDashboardUser(t, env, models.RoleViewer, "multi_ch_viewer1")
+	viewer2, _ := createDashboardUser(t, env, models.RoleViewer, "multi_ch_viewer2")
 	seedTwitchProviderForUser(t, env, streamerUser.ID, "ch_multi_1")
 	seedTwitchProviderForUser(t, env, streamerUser.ID, "ch_multi_2")
 
 	streamer1 := seedStreamerRow(t, env, streamerUser.ID, nil, "ch_multi_1")
 	streamer2 := seedStreamerRow(t, env, streamerUser.ID, nil, "ch_multi_2")
 
-	// Both streamers should return 200 with their own channel_id.
+	now := time.Now()
+	if err := env.db.Exec(`
+		INSERT INTO broadcast_time_logs (id, streamer_id, channel_id, seconds, recorded_at)
+		VALUES (?, ?, ?, ?, ?), (?, ?, ?, ?, ?)
+	`,
+		uuid.New(), streamerUser.ID, "ch_multi_1", 11, now,
+		uuid.New(), streamerUser.ID, "ch_multi_2", 29, now,
+	).Error; err != nil {
+		t.Fatalf("seed broadcast logs: %v", err)
+	}
+	if err := env.db.Exec(`
+		INSERT INTO points_ledgers (id, user_id, channel_id, cumulative_total, spendable_balance, created_at, updated_at)
+		VALUES (?, ?, ?, ?, ?, CURRENT_TIMESTAMP, CURRENT_TIMESTAMP),
+		       (?, ?, ?, ?, ?, CURRENT_TIMESTAMP, CURRENT_TIMESTAMP)
+	`,
+		uuid.New(), viewer1.ID, "ch_multi_1", 101, 51,
+		uuid.New(), viewer2.ID, "ch_multi_2", 202, 102,
+	).Error; err != nil {
+		t.Fatalf("seed points ledgers: %v", err)
+	}
+	if err := env.db.Exec(`
+		INSERT INTO watch_sessions (
+			id, user_id, channel_id, accumulated_seconds, rewarded_seconds,
+			last_heartbeat_at, click_cooldown_until, is_active, created_at, updated_at
+		) VALUES
+			(?, ?, ?, ?, 0, CURRENT_TIMESTAMP, CURRENT_TIMESTAMP, 1, CURRENT_TIMESTAMP, CURRENT_TIMESTAMP),
+			(?, ?, ?, ?, 0, CURRENT_TIMESTAMP, CURRENT_TIMESTAMP, 1, CURRENT_TIMESTAMP, CURRENT_TIMESTAMP)
+	`,
+		uuid.New(), viewer1.ID, "ch_multi_1", 5,
+		uuid.New(), viewer2.ID, "ch_multi_2", 17,
+	).Error; err != nil {
+		t.Fatalf("seed watch sessions: %v", err)
+	}
+
 	w1 := dashboardRequest(t, env.router, http.MethodGet, "/api/v1/dashboard/streamers/"+streamer1.ID.String()+"/stats", streamerToken, "")
 	if w1.Code != http.StatusOK {
 		t.Fatalf("streamer1: want 200, got %d: %s", w1.Code, w1.Body.String())
@@ -458,6 +535,16 @@ func TestGetStats_MultiChannelSameUser(t *testing.T) {
 	data1 := resp1["data"].(map[string]interface{})
 	if data1["channel_id"] != "ch_multi_1" {
 		t.Fatalf("streamer1: want channel_id=ch_multi_1, got %v", data1["channel_id"])
+	}
+	stats1 := data1["stats"].(map[string]interface{})
+	if stats1["daily_seconds"] != float64(11) {
+		t.Fatalf("streamer1: want daily_seconds=11, got %v", stats1["daily_seconds"])
+	}
+	if stats1["total_token_minted"] != float64(101) {
+		t.Fatalf("streamer1: want total_token_minted=101, got %v", stats1["total_token_minted"])
+	}
+	if stats1["unique_miners"] != float64(1) {
+		t.Fatalf("streamer1: want unique_miners=1, got %v", stats1["unique_miners"])
 	}
 
 	w2 := dashboardRequest(t, env.router, http.MethodGet, "/api/v1/dashboard/streamers/"+streamer2.ID.String()+"/stats", streamerToken, "")
@@ -468,6 +555,16 @@ func TestGetStats_MultiChannelSameUser(t *testing.T) {
 	data2 := resp2["data"].(map[string]interface{})
 	if data2["channel_id"] != "ch_multi_2" {
 		t.Fatalf("streamer2: want channel_id=ch_multi_2, got %v", data2["channel_id"])
+	}
+	stats2 := data2["stats"].(map[string]interface{})
+	if stats2["daily_seconds"] != float64(29) {
+		t.Fatalf("streamer2: want daily_seconds=29, got %v", stats2["daily_seconds"])
+	}
+	if stats2["total_token_minted"] != float64(202) {
+		t.Fatalf("streamer2: want total_token_minted=202, got %v", stats2["total_token_minted"])
+	}
+	if stats2["unique_miners"] != float64(1) {
+		t.Fatalf("streamer2: want unique_miners=1, got %v", stats2["unique_miners"])
 	}
 }
 
