@@ -1,130 +1,15 @@
 #!/usr/bin/env bash
-# Pre-push hook: warn when diff is too large (mirrors CI hard limits)
-# Hard limits match pr-scope-police.yml
-MAX_FILES=35
-MAX_LINES=1800
-ZERO_SHA=0000000000000000000000000000000000000000
+set -euo pipefail
 
-remote="$1"
-url="$2"
+remote="${1:-origin}"
+script_dir="$(cd "$(dirname "$0")/.." && pwd)"
+checker="$script_dir/scripts/pr-scope-check.sh"
 
-resolve_candidate_ref() {
-  local candidate="$1"
-
-  [ -n "$candidate" ] || return 1
-
-  case "$candidate" in
-    refs/*)
-      git rev-parse --verify --quiet "$candidate^{commit}" >/dev/null || return 1
-      printf '%s\n' "$candidate"
-      return 0
-      ;;
-    *)
-      for ref in \
-        "refs/remotes/$remote/$candidate" \
-        "refs/heads/$candidate" \
-        "$candidate"
-      do
-        git rev-parse --verify --quiet "$ref^{commit}" >/dev/null || continue
-        printf '%s\n' "$ref"
-        return 0
-      done
-      ;;
-  esac
-
-  return 1
-}
-
-detect_base_ref() {
-  local branch_name="$1"
-  local remote_ref="$2"
-  local configured_base merge_ref default_head candidate resolved
-
-  configured_base=$(git config --get "branch.$branch_name.gh-merge-base" 2>/dev/null || true)
-  resolved=$(resolve_candidate_ref "$configured_base" 2>/dev/null || true)
-  if [ -n "$resolved" ]; then
-    printf '%s\n' "$resolved"
-    return 0
-  fi
-
-  merge_ref=$(git config --get "branch.$branch_name.merge" 2>/dev/null || true)
-  if [ -n "$merge_ref" ] && [ "$merge_ref" != "$remote_ref" ]; then
-    resolved=$(resolve_candidate_ref "$merge_ref" 2>/dev/null || true)
-    if [ -n "$resolved" ]; then
-      printf '%s\n' "$resolved"
-      return 0
-    fi
-  fi
-
-  default_head=$(git symbolic-ref "refs/remotes/$remote/HEAD" 2>/dev/null || true)
-  for candidate in "refs/remotes/$remote/develop" "refs/remotes/$remote/main" "$default_head"; do
-    resolved=$(resolve_candidate_ref "$candidate" 2>/dev/null || true)
-    if [ -n "$resolved" ] && [ "$resolved" != "$remote_ref" ]; then
-      printf '%s\n' "$resolved"
-      return 0
-    fi
-  done
-
-  return 1
-}
-
-violations=0
+if [ ! -x "$checker" ]; then
+  chmod +x "$checker"
+fi
 
 while read -r local_ref local_sha remote_ref remote_sha; do
   [ -n "$local_ref" ] || continue
-  [ "$local_sha" != "$ZERO_SHA" ] || continue
-
-  case "$local_ref" in
-    refs/heads/*) ;;
-    *)
-      continue
-      ;;
-  esac
-
-  branch_name="${local_ref#refs/heads/}"
-  base_ref=$(detect_base_ref "$branch_name" "$remote_ref") || continue
-  base_sha=$(git rev-parse "$base_ref^{commit}" 2>/dev/null) || continue
-  base=$(git merge-base "$local_sha" "$base_sha" 2>/dev/null) || continue
-
-  changed_files=$(git diff --name-only "$base" "$local_sha" | wc -l | tr -d ' ')
-  stat_output=$(git diff --shortstat "$base" "$local_sha")
-  diff_lines=$(printf '%s\n' "$stat_output" | grep -oE '[0-9]+ insertion' | grep -oE '[0-9]+') || diff_lines=0
-  deletions=$(printf '%s\n' "$stat_output" | grep -oE '[0-9]+ deletion' | grep -oE '[0-9]+') || deletions=0
-  total_lines=$((diff_lines + deletions))
-
-  if [ "$changed_files" -le "$MAX_FILES" ] && [ "$total_lines" -le "$MAX_LINES" ]; then
-    continue
-  fi
-
-  violations=1
-  echo ""
-  echo "╔══════════════════════════════════════════════════════╗"
-  echo "║  PR Scope Police — pre-push warning                 ║"
-  echo "╠══════════════════════════════════════════════════════╣"
-  printf "║  Branch        : %-36s║\n" "$branch_name"
-  printf "║  Base ref      : %-36s║\n" "${base_ref#refs/remotes/}"
-  printf "║  Changed files : %4d  (limit: %d)%*s║\n" "$changed_files" "$MAX_FILES" $((19 - ${#changed_files})) ""
-  printf "║  Diff lines    : %4d  (limit: %d)%*s║\n" "$total_lines" "$MAX_LINES" $((16 - ${#total_lines})) ""
-  echo "╠══════════════════════════════════════════════════════╣"
-  echo "║  This PR will be blocked by CI; severe violations   ║"
-  echo "║  may also be auto-closed. Split it first.           ║"
-  echo "╚══════════════════════════════════════════════════════╝"
-  echo ""
-
-  if [ ! -t 0 ]; then
-    echo "Non-interactive mode detected; refusing oversized push."
-    exit 1
-  fi
-
-  read -p "Push anyway? [y/N] " -r reply
-  if [[ ! "$reply" =~ ^[Yy]$ ]]; then
-    echo "Push aborted."
-    exit 1
-  fi
+  "$checker" --ref "$local_ref" "$local_sha" "$remote" "$remote_ref"
 done
-
-if [ "$violations" -eq 0 ]; then
-  exit 0
-fi
-
-exit 0

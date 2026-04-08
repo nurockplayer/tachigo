@@ -1,4 +1,4 @@
-.PHONY: setup dev up down logs
+.PHONY: setup dev up down logs pr-check pr-meta-check pr-open
 
 # ── Setup (run once after cloning) ────────────────────────────────────────────
 setup:
@@ -20,3 +20,21 @@ down:
 
 logs:
 	docker compose logs -f
+
+pr-check:
+	@./scripts/pr-scope-check.sh
+
+pr-meta-check:
+	@[ -n "$(TITLE)" ] || (echo "TITLE is required"; exit 2)
+	@[ -n "$(BODY_FILE)" ] || (echo "BODY_FILE is required"; exit 2)
+	@./scripts/pr-metadata-check.sh --title "$(TITLE)" --body-file "$(BODY_FILE)"
+
+pr-open:
+	@[ -n "$(TITLE)" ] || (echo "TITLE is required"; exit 2)
+	@[ -n "$(BODY_FILE)" ] || (echo "BODY_FILE is required"; exit 2)
+	@./scripts/pr-open.sh \
+		--title "$(TITLE)" \
+		--body-file "$(BODY_FILE)" \
+		$(if $(BASE),--base "$(BASE)",) \
+		$(if $(HEAD),--head "$(HEAD)",) \
+		$(if $(DRAFT),--draft,)

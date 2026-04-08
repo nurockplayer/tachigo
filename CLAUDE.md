@@ -70,6 +70,56 @@
 
 3. 在 GitHub 發 PR，目標分支：`develop`（不直接推 `main`）
 
+### Push 前本地強制檢查
+
+- 執行過 `make setup` 後，repo 會把 `core.hooksPath` 指到 `.githooks`
+- 之後每次 `git push` 都會先跑本地 `pre-push`
+- 目前本地會強制阻擋：
+  - diff 檔案數超過 hard limit
+  - diff 行數超過 hard limit
+  - 同時修改多個 product surface（如 `backend/` + `dashboard/`）
+- 也可手動先跑一次：
+
+  ```bash
+  make pr-check
+  ```
+
+### 開 PR 前本地強制檢查
+
+- 建議不要直接手打 `gh pr create`
+- 先準備好 PR body 檔案，再先跑：
+
+  ```bash
+  make pr-meta-check TITLE='[frontend] Dashboard — 實況主數據管理頁面' BODY_FILE=/tmp/pr-body.md
+  ```
+
+- 或直接用 wrapper 開 PR：
+  最簡單可以直接用：
+
+  ```bash
+  make pr-open TITLE='[frontend] Dashboard — 實況主數據管理頁面' BODY_FILE=/tmp/pr-body.md
+  ```
+
+  需要指定 base / head 或開 draft 時：
+
+  ```bash
+  make pr-open \
+    TITLE='[frontend] Dashboard — 實況主數據管理頁面' \
+    BODY_FILE=/tmp/pr-body.md \
+    BASE=develop \
+    HEAD=feat/dashboard-page \
+    DRAFT=1
+  ```
+
+- 這一層會在本地先擋：
+  - PR title prefix 不合法
+  - PR body 缺少 `Source of truth` / `Depends on PR` / `本 PR 明確不做`
+  - `Backend contract already in develop` 沒有正確勾選
+  - `[frontend]` PR 混入 `backend/`
+  - `Depends on PR: #123` 但該 PR 尚未 merge
+  - frontend PR 宣告 backend contract 尚未進 `develop`
+- 若 PR body 有填 `Depends on PR: #123`，需先完成 `gh auth login`，本地檢查才可查 GitHub 上的 merge 狀態
+
 ## Scope 邊界
 
 禁止 scope pollution：不要把 issue 沒有明確要求的內容混進同一個 PR。
