@@ -232,7 +232,7 @@ main() {
       }
       run_check "$1" "$2" "$3" "$4"
       ;;
-    "" )
+    "")
       local_ref=$(git symbolic-ref HEAD 2>/dev/null) || {
         echo "目前不在 branch 上，無法執行 pr-scope-check。" >&2
         exit 2
