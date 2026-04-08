@@ -187,3 +187,51 @@ func TestAirdropHandler_StreamerOwnedChannelAllowed(t *testing.T) {
 		t.Fatalf("want success response, got %s", w.Body.String())
 	}
 }
+
+func TestAirdropHandler_AgencyOwnedChannelAllowed(t *testing.T) {
+	env := newAirdropTestEnv(t)
+	token := (&dashboardEnv{testEnv: env.testEnv}).tokenForRole(t, models.RoleAgency)
+	seedAgencyChannel(t, env, "agency_dashboard@example.com", "channel_agency_owned")
+	seedActiveViewerSession(t, env, "channel_agency_owned", 60)
+
+	w := airdropRequest(t, env.router, token, "channel_agency_owned", `{"amount":100}`)
+	if w.Code != http.StatusOK {
+		t.Fatalf("want 200, got %d: %s", w.Code, w.Body.String())
+	}
+	if !strings.Contains(w.Body.String(), `"affected_count":1`) {
+		t.Fatalf("want affected_count=1, got %s", w.Body.String())
+	}
+}
+
+func TestAirdropHandler_DailyLimitExceeded_ReturnsRemaining(t *testing.T) {
+	env := newAirdropTestEnv(t)
+	token := (&dashboardEnv{testEnv: env.testEnv}).tokenForRole(t, models.RoleAdmin)
+	seedActiveViewerSession(t, env, "channel_limited", 60)
+
+	// Set a tight daily limit.
+	if err := env.db.Exec(
+		`INSERT INTO channel_configs (channel_id, seconds_per_point, multiplier, daily_airdrop_limit, created_at, updated_at)
+		 VALUES ('channel_limited', 60, 1, 500, CURRENT_TIMESTAMP, CURRENT_TIMESTAMP)`,
+	).Error; err != nil {
+		t.Fatalf("seed channel config: %v", err)
+	}
+
+	// First airdrop takes 400 of 500.
+	w := airdropRequest(t, env.router, token, "channel_limited", `{"amount":400}`)
+	if w.Code != http.StatusOK {
+		t.Fatalf("first airdrop want 200, got %d: %s", w.Code, w.Body.String())
+	}
+
+	// Second airdrop of 200 exceeds the remaining 100.
+	w = airdropRequest(t, env.router, token, "channel_limited", `{"amount":200}`)
+	if w.Code != http.StatusBadRequest {
+		t.Fatalf("want 400, got %d: %s", w.Code, w.Body.String())
+	}
+	body := w.Body.String()
+	if !strings.Contains(body, "daily airdrop limit exceeded") {
+		t.Fatalf("want limit exceeded error, got %s", body)
+	}
+	if !strings.Contains(body, `"remaining":100`) {
+		t.Fatalf("want remaining=100 in data, got %s", body)
+	}
+}

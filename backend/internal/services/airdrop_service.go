@@ -79,11 +79,6 @@ func (s *AirdropService) Execute(req AirdropRequest) (*AirdropResult, error) {
 		return nil, ErrInvalidPointsAmount
 	}
 
-	limit, err := s.dailyLimit(req.ChannelID)
-	if err != nil {
-		return nil, err
-	}
-
 	note := req.Note
 	meta := PointsCreditMeta{}
 	if note != "" {
@@ -111,6 +106,14 @@ func (s *AirdropService) Execute(req AirdropRequest) (*AirdropResult, error) {
 			}
 
 			distributeAirdrop(viewers, req.Amount)
+
+			// Read daily_airdrop_limit inside the transaction so that concurrent
+			// updates to channel_configs are visible under SERIALIZABLE isolation
+			// and trigger a retry rather than passing with a stale limit.
+			limit, err := s.dailyLimitInTx(tx, req.ChannelID)
+			if err != nil {
+				return err
+			}
 
 			todayTotal, err := s.todayTotal(tx, req.ChannelID, airdropAt)
 			if err != nil {
@@ -209,11 +212,19 @@ func (s *AirdropService) activeViewersInTx(db *gorm.DB, channelID string) ([]air
 }
 
 func (s *AirdropService) dailyLimit(channelID string) (int64, error) {
-	cfg, err := s.configSvc.Get(channelID)
+	return s.dailyLimitInTx(s.db, channelID)
+}
+
+func (s *AirdropService) dailyLimitInTx(db *gorm.DB, channelID string) (int64, error) {
+	var cfg models.ChannelConfig
+	err := db.Where("channel_id = ?", channelID).First(&cfg).Error
 	if err != nil {
+		if err == gorm.ErrRecordNotFound {
+			return defaultDailyAirdropLimit, nil
+		}
 		return 0, err
 	}
-	if cfg == nil || cfg.DailyAirdropLimit <= 0 {
+	if cfg.DailyAirdropLimit <= 0 {
 		return defaultDailyAirdropLimit, nil
 	}
 	return cfg.DailyAirdropLimit, nil

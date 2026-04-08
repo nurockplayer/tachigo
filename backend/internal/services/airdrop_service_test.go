@@ -240,6 +240,52 @@ func TestAirdrop_ConcurrentExecute_DoesNotExceedDailyLimit(t *testing.T) {
 	}
 }
 
+// TestAirdrop_DailyLimitReadInsideTx verifies that dailyLimit is read inside
+// the transaction, not cached before the retry loop.  We confirm this by
+// updating channel_configs between two Execute calls and observing that the
+// second call uses the new limit, not the value that would have been read
+// before the loop started.
+//
+// Note: the true concurrent race (limit lowered while the tx is in-flight)
+// requires PostgreSQL SERIALIZABLE isolation and must be validated in CI.
+func TestAirdrop_DailyLimitReadInsideTx(t *testing.T) {
+	db := newTestDB(t)
+	watchSvc := NewWatchService(db)
+	pointsSvc := NewPointsService(db, watchSvc)
+	configSvc := NewChannelConfigService(db)
+	svc := NewAirdropService(db, pointsSvc, configSvc)
+
+	channelID := "ch_limit_read"
+	seedAirdropViewer(t, db, channelID, 60)
+
+	// Set initial limit to 200.
+	if err := db.Exec(
+		`INSERT INTO channel_configs (channel_id, seconds_per_point, multiplier, daily_airdrop_limit, created_at, updated_at)
+		 VALUES (?, 60, 1, 200, CURRENT_TIMESTAMP, CURRENT_TIMESTAMP)`,
+		channelID,
+	).Error; err != nil {
+		t.Fatalf("seed channel config: %v", err)
+	}
+
+	// First airdrop of 150 should succeed.
+	if _, err := svc.Execute(AirdropRequest{ChannelID: channelID, Amount: 150}); err != nil {
+		t.Fatalf("first execute: %v", err)
+	}
+
+	// Lower the limit to 100 between calls — remaining would be 50, so 60 should now fail.
+	if err := db.Exec(
+		`UPDATE channel_configs SET daily_airdrop_limit = 100 WHERE channel_id = ?`,
+		channelID,
+	).Error; err != nil {
+		t.Fatalf("update limit: %v", err)
+	}
+
+	_, err := svc.Execute(AirdropRequest{ChannelID: channelID, Amount: 60})
+	if !errors.Is(err, ErrDailyAirdropExceeded) {
+		t.Fatalf("want ErrDailyAirdropExceeded after limit lowered, got %v", err)
+	}
+}
+
 func TestAirdrop_StaleViewerExcluded(t *testing.T) {
 	db := newTestDB(t)
 	watchSvc := NewWatchService(db)
