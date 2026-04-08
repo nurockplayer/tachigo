@@ -240,6 +240,109 @@ func TestAirdrop_ConcurrentExecute_DoesNotExceedDailyLimit(t *testing.T) {
 	}
 }
 
+func TestAirdrop_StaleViewerExcluded(t *testing.T) {
+	db := newTestDB(t)
+	watchSvc := NewWatchService(db)
+	pointsSvc := NewPointsService(db, watchSvc)
+	configSvc := NewChannelConfigService(db)
+	svc := NewAirdropService(db, pointsSvc, configSvc)
+
+	// Seed a fresh viewer.
+	freshUser := seedAirdropViewer(t, db, "ch_stale", 60)
+
+	// Seed a stale viewer: is_active=true but last_heartbeat_at is 5 minutes ago.
+	staleUser := uuid.New()
+	if err := db.Exec(
+		`INSERT INTO users (id, role, is_active, email_verified, created_at, updated_at)
+		 VALUES (?, 'viewer', 1, 0, CURRENT_TIMESTAMP, CURRENT_TIMESTAMP)`,
+		staleUser,
+	).Error; err != nil {
+		t.Fatalf("seed stale user: %v", err)
+	}
+	staleHeartbeat := time.Now().Add(-5 * time.Minute)
+	if err := db.Exec(
+		`INSERT INTO watch_sessions (
+			id, user_id, channel_id, accumulated_seconds, rewarded_seconds,
+			last_heartbeat_at, click_cooldown_until, is_active, created_at, updated_at
+		) VALUES (?, ?, 'ch_stale', 120, 0, ?, '1970-01-01 00:00:00', 1, CURRENT_TIMESTAMP, CURRENT_TIMESTAMP)`,
+		uuid.New(), staleUser, staleHeartbeat,
+	).Error; err != nil {
+		t.Fatalf("seed stale session: %v", err)
+	}
+
+	result, err := svc.Execute(AirdropRequest{ChannelID: "ch_stale", Amount: 100})
+	if err != nil {
+		t.Fatalf("execute: %v", err)
+	}
+	if result.AffectedCount != 1 {
+		t.Fatalf("want 1 recipient (fresh only), got %d", result.AffectedCount)
+	}
+	if result.Distribution[0].UserID != freshUser {
+		t.Fatalf("want freshUser in distribution, got %v", result.Distribution[0].UserID)
+	}
+
+	// Stale viewer should have received no points.
+	staleBalance, err := pointsSvc.GetBalance(staleUser, "ch_stale")
+	if err != nil {
+		t.Fatalf("balance staleUser: %v", err)
+	}
+	if staleBalance.SpendableBalance != 0 {
+		t.Fatalf("stale viewer should have 0 points, got %d", staleBalance.SpendableBalance)
+	}
+}
+
+func TestAirdrop_TodayTotal_UTCDayBoundary(t *testing.T) {
+	db := newTestDB(t)
+	watchSvc := NewWatchService(db)
+	pointsSvc := NewPointsService(db, watchSvc)
+	configSvc := NewChannelConfigService(db)
+	svc := NewAirdropService(db, pointsSvc, configSvc)
+
+	channelID := "ch_boundary"
+	userID := seedAirdropViewer(t, db, channelID, 60)
+
+	// Obtain or create the ledger so we can insert transactions directly.
+	ledgerID := uuid.New()
+	if err := db.Exec(
+		`INSERT INTO points_ledgers (id, user_id, channel_id, spendable_balance, cumulative_total, created_at, updated_at)
+		 VALUES (?, ?, ?, 0, 0, CURRENT_TIMESTAMP, CURRENT_TIMESTAMP)`,
+		ledgerID, userID, channelID,
+	).Error; err != nil {
+		t.Fatalf("seed ledger: %v", err)
+	}
+
+	now := time.Now().UTC()
+	utcMidnight := time.Date(now.Year(), now.Month(), now.Day(), 0, 0, 0, 0, time.UTC)
+
+	// Transaction created 1 second before UTC midnight — should NOT count today.
+	yesterdayTs := utcMidnight.Add(-1 * time.Second)
+	if err := db.Exec(
+		`INSERT INTO points_transactions (ledger_id, source, delta, balance_after, created_at)
+		 VALUES (?, ?, 200, 200, ?)`,
+		ledgerID, models.TxSourceAirdrop, yesterdayTs,
+	).Error; err != nil {
+		t.Fatalf("seed yesterday tx: %v", err)
+	}
+
+	// Transaction created 1 second after UTC midnight — should count today.
+	todayTs := utcMidnight.Add(1 * time.Second)
+	if err := db.Exec(
+		`INSERT INTO points_transactions (ledger_id, source, delta, balance_after, created_at)
+		 VALUES (?, ?, 300, 500, ?)`,
+		ledgerID, models.TxSourceAirdrop, todayTs,
+	).Error; err != nil {
+		t.Fatalf("seed today tx: %v", err)
+	}
+
+	total, err := svc.TodayTotal(channelID)
+	if err != nil {
+		t.Fatalf("TodayTotal: %v", err)
+	}
+	if total != 300 {
+		t.Fatalf("want TodayTotal 300 (today only), got %d", total)
+	}
+}
+
 func newConcurrentTestDB(t *testing.T) *gorm.DB {
 	t.Helper()
 

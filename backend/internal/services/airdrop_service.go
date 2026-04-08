@@ -50,7 +50,6 @@ type AirdropRecipient struct {
 
 type AirdropResult struct {
 	AffectedCount int64              `json:"affected_count"`
-	TotalAmount   int64              `json:"total_amount"`
 	Distribution  []AirdropRecipient `json:"distribution"`
 }
 
@@ -72,16 +71,11 @@ func NewAirdropService(db *gorm.DB, pointsSvc *PointsService, configSvc *Channel
 }
 
 func (s *AirdropService) TodayTotal(channelID string) (int64, error) {
-	location, err := time.LoadLocation("Asia/Taipei")
-	if err != nil {
-		return 0, err
-	}
-
-	now := time.Now().In(location)
-	startOfDay := time.Date(now.Year(), now.Month(), now.Day(), 0, 0, 0, 0, location)
+	now := time.Now().UTC()
+	startOfDay := time.Date(now.Year(), now.Month(), now.Day(), 0, 0, 0, 0, time.UTC)
 
 	var total int64
-	err = s.db.Model(&models.PointsTransaction{}).
+	err := s.db.Model(&models.PointsTransaction{}).
 		Select("COALESCE(SUM(points_transactions.delta), 0)").
 		Joins("JOIN points_ledgers ON points_ledgers.id = points_transactions.ledger_id").
 		Where(
@@ -102,33 +96,34 @@ func (s *AirdropService) Execute(req AirdropRequest) (*AirdropResult, error) {
 		return nil, ErrInvalidPointsAmount
 	}
 
-	viewers, err := s.activeViewers(req.ChannelID)
-	if err != nil {
-		return nil, err
-	}
-	if len(viewers) == 0 {
-		return nil, ErrNoActiveViewers
-	}
-
 	limit, err := s.dailyLimit(req.ChannelID)
 	if err != nil {
 		return nil, err
 	}
 
-	distributeAirdrop(viewers, req.Amount)
 	note := req.Note
 	meta := PointsCreditMeta{}
 	if note != "" {
 		meta.Note = &note
 	}
 
+	var lastErr error
 	for attempt := 0; attempt < maxAirdropTxRetries; attempt++ {
-		result := &AirdropResult{
-			TotalAmount:  req.Amount,
-			Distribution: make([]AirdropRecipient, 0, len(viewers)),
-		}
+		var result *AirdropResult
 
-		err = s.db.Transaction(func(tx *gorm.DB) error {
+		lastErr = s.db.Transaction(func(tx *gorm.DB) error {
+			// Snapshot viewers inside the transaction so each retry reflects
+			// the current session state at commit time.
+			viewers, err := s.activeViewersInTx(tx, req.ChannelID)
+			if err != nil {
+				return err
+			}
+			if len(viewers) == 0 {
+				return ErrNoActiveViewers
+			}
+
+			distributeAirdrop(viewers, req.Amount)
+
 			todayTotal, err := s.todayTotal(tx, req.ChannelID)
 			if err != nil {
 				return err
@@ -144,6 +139,10 @@ func (s *AirdropService) Execute(req AirdropRequest) (*AirdropResult, error) {
 					Requested:  req.Amount,
 					Remaining:  remaining,
 				}
+			}
+
+			result = &AirdropResult{
+				Distribution: make([]AirdropRecipient, 0, len(viewers)),
 			}
 
 			for _, viewer := range viewers {
@@ -162,15 +161,16 @@ func (s *AirdropService) Execute(req AirdropRequest) (*AirdropResult, error) {
 
 			return nil
 		}, &sql.TxOptions{Isolation: sql.LevelSerializable})
-		if err == nil {
+
+		if lastErr == nil {
 			return result, nil
 		}
-		if !isRetryableAirdropTxError(err) {
-			return nil, err
+		if !isRetryableAirdropTxError(lastErr) {
+			return nil, lastErr
 		}
 	}
 
-	return nil, err
+	return nil, lastErr
 }
 
 func isRetryableAirdropTxError(err error) bool {
@@ -185,16 +185,11 @@ func isRetryableAirdropTxError(err error) bool {
 }
 
 func (s *AirdropService) todayTotal(db *gorm.DB, channelID string) (int64, error) {
-	location, err := time.LoadLocation("Asia/Taipei")
-	if err != nil {
-		return 0, err
-	}
-
-	now := time.Now().In(location)
-	startOfDay := time.Date(now.Year(), now.Month(), now.Day(), 0, 0, 0, 0, location)
+	now := time.Now().UTC()
+	startOfDay := time.Date(now.Year(), now.Month(), now.Day(), 0, 0, 0, 0, time.UTC)
 
 	var total int64
-	err = db.Model(&models.PointsTransaction{}).
+	err := db.Model(&models.PointsTransaction{}).
 		Select("COALESCE(SUM(points_transactions.delta), 0)").
 		Joins("JOIN points_ledgers ON points_ledgers.id = points_transactions.ledger_id").
 		Where(
@@ -210,11 +205,15 @@ func (s *AirdropService) todayTotal(db *gorm.DB, channelID string) (int64, error
 	return total, nil
 }
 
-func (s *AirdropService) activeViewers(channelID string) ([]airdropViewer, error) {
+// activeViewersInTx returns viewers with an active, non-stale session.
+// A session is stale if last_heartbeat_at is older than staleThreshold (2 minutes),
+// matching the definition in watch_service.go.
+func (s *AirdropService) activeViewersInTx(db *gorm.DB, channelID string) ([]airdropViewer, error) {
+	freshCutoff := time.Now().Add(-staleThreshold)
 	var viewers []airdropViewer
-	err := s.db.Model(&models.WatchSession{}).
+	err := db.Model(&models.WatchSession{}).
 		Select("user_id, accumulated_seconds").
-		Where("channel_id = ? AND is_active = ?", channelID, true).
+		Where("channel_id = ? AND is_active = ? AND last_heartbeat_at > ?", channelID, true, freshCutoff).
 		Order("accumulated_seconds DESC, user_id ASC").
 		Scan(&viewers).Error
 	return viewers, err
