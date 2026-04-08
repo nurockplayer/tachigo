@@ -554,11 +554,26 @@ func TestGetStats_MultiChannelSameUser(t *testing.T) {
 		t.Fatalf("streamer1: want channel_id=ch_multi_1, got %v", data1["channel_id"])
 	}
 	stats1 := data1["stats"].(map[string]interface{})
+	if stats1["current_session_seconds"] != float64(5) {
+		t.Fatalf("streamer1: want current_session_seconds=5, got %v", stats1["current_session_seconds"])
+	}
 	if stats1["daily_seconds"] != float64(11) {
 		t.Fatalf("streamer1: want daily_seconds=11, got %v", stats1["daily_seconds"])
 	}
+	if stats1["monthly_seconds"] != float64(11) {
+		t.Fatalf("streamer1: want monthly_seconds=11, got %v", stats1["monthly_seconds"])
+	}
+	if stats1["yearly_seconds"] != float64(11) {
+		t.Fatalf("streamer1: want yearly_seconds=11, got %v", stats1["yearly_seconds"])
+	}
+	if stats1["avg_session_seconds"] != float64(5) {
+		t.Fatalf("streamer1: want avg_session_seconds=5, got %v", stats1["avg_session_seconds"])
+	}
 	if stats1["total_token_minted"] != float64(101) {
 		t.Fatalf("streamer1: want total_token_minted=101, got %v", stats1["total_token_minted"])
+	}
+	if stats1["spendable_in_circulation"] != float64(51) {
+		t.Fatalf("streamer1: want spendable_in_circulation=51, got %v", stats1["spendable_in_circulation"])
 	}
 	if stats1["unique_miners"] != float64(1) {
 		t.Fatalf("streamer1: want unique_miners=1, got %v", stats1["unique_miners"])
@@ -574,11 +589,26 @@ func TestGetStats_MultiChannelSameUser(t *testing.T) {
 		t.Fatalf("streamer2: want channel_id=ch_multi_2, got %v", data2["channel_id"])
 	}
 	stats2 := data2["stats"].(map[string]interface{})
+	if stats2["current_session_seconds"] != float64(17) {
+		t.Fatalf("streamer2: want current_session_seconds=17, got %v", stats2["current_session_seconds"])
+	}
 	if stats2["daily_seconds"] != float64(29) {
 		t.Fatalf("streamer2: want daily_seconds=29, got %v", stats2["daily_seconds"])
 	}
+	if stats2["monthly_seconds"] != float64(29) {
+		t.Fatalf("streamer2: want monthly_seconds=29, got %v", stats2["monthly_seconds"])
+	}
+	if stats2["yearly_seconds"] != float64(29) {
+		t.Fatalf("streamer2: want yearly_seconds=29, got %v", stats2["yearly_seconds"])
+	}
+	if stats2["avg_session_seconds"] != float64(17) {
+		t.Fatalf("streamer2: want avg_session_seconds=17, got %v", stats2["avg_session_seconds"])
+	}
 	if stats2["total_token_minted"] != float64(202) {
 		t.Fatalf("streamer2: want total_token_minted=202, got %v", stats2["total_token_minted"])
+	}
+	if stats2["spendable_in_circulation"] != float64(102) {
+		t.Fatalf("streamer2: want spendable_in_circulation=102, got %v", stats2["spendable_in_circulation"])
 	}
 	if stats2["unique_miners"] != float64(1) {
 		t.Fatalf("streamer2: want unique_miners=1, got %v", stats2["unique_miners"])
