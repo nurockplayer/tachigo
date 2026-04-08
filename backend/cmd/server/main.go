@@ -15,8 +15,8 @@ import (
 	"os"
 	"strings"
 
-	"github.com/joho/godotenv"
 	"github.com/jackc/pgx/v5/pgconn"
+	"github.com/joho/godotenv"
 
 	_ "github.com/tachigo/tachigo/docs"
 	"github.com/tachigo/tachigo/internal/config"
@@ -104,11 +104,7 @@ func main() {
 	`).Error; err != nil {
 		log.Fatalf("failed to create streamer index: %v", err)
 	}
-	migration008, err := os.ReadFile("migrations/008_streamers_agency.sql")
-	if err != nil {
-		log.Fatalf("failed to read migration 008: %v", err)
-	}
-	if err := db.Exec(string(migration008)).Error; err != nil {
+	if err := applyStreamerAgencyMigration(db); err != nil {
 		log.Fatalf("failed to run migration 008: %v", err)
 	}
 	// Wire services
