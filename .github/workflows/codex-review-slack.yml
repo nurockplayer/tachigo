@@ -76,6 +76,12 @@ jobs:
               return
             }
 
+            if ((run.run_attempt || 1) > 1) {
+              core.notice(`Skipping PR #${fullPr.number}: CI rerun detected (attempt ${run.run_attempt}).`)
+              core.setOutput('should_notify', 'false')
+              return
+            }
+
             if (run.head_sha !== fullPr.head.sha) {
               core.notice(`Skipping PR #${fullPr.number}: CI run head_sha (${run.head_sha}) does not match PR latest sha (${fullPr.head.sha}); notification suppressed for stale commit.`)
               core.setOutput('should_notify', 'false')
