@@ -18,7 +18,7 @@
 
 ---
 
-## 2. 名詞層次拆分
+## 2. 本輪術語收斂範圍
 
 目前 repo 內實際混在一起的是三種不同層次：
 
@@ -27,6 +27,19 @@
 | 產品形式 | 使用者最終安裝與使用的前端形態 | 尚未有已定案、可實作的 Chrome Extension migration spec |
 | 現行 runtime | 現在程式真正依賴的執行環境 | Twitch-hosted extension |
 | 模組 / API 命名 | `/extension/*`、`ExtensionService`、`extension_jwt` 等名稱 | 已存在於前後端契約與程式結構中 |
+
+以下文件已在本輪 docs 收斂中處理：
+
+- [docs/architecture.md](architecture.md)
+- [docs/feature-discussion.md](feature-discussion.md)
+- [docs/tokenomics.md](tokenomics.md)
+- [docs/watch-to-points-design.md](watch-to-points-design.md)
+- [tachimint/README.md](../tachimint/README.md)
+
+以下文件已另拆處理，不混在本 PR：
+
+- [docs/sequence-diagram.md](sequence-diagram.md) — 流程圖描述現況需單獨評估
+- `docs/extension-ui-prompts.md` — 已移出本 PR，避免 scope 擴張
 
 ---
 
