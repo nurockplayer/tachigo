@@ -87,6 +87,36 @@ func (s *AgencyService) Create(name, email string) (*models.User, error) {
 	return user, nil
 }
 
+func (s *AgencyService) UpdateSettings(agencyID uuid.UUID, name string) error {
+	if utf8.RuneCountInString(name) > 50 {
+		return ErrAgencyNameTooLong
+	}
+
+	var count int64
+	if err := s.db.Model(&models.User{}).
+		Where("id = ? AND role = ?", agencyID, models.RoleAgency).
+		Count(&count).Error; err != nil {
+		return err
+	}
+	if count == 0 {
+		return ErrAgencyNotFound
+	}
+
+	count = 0
+	if err := s.db.Model(&models.User{}).
+		Where("username = ? AND id != ?", name, agencyID).
+		Count(&count).Error; err != nil {
+		return err
+	}
+	if count > 0 {
+		return ErrAgencyNameTaken
+	}
+
+	return s.db.Model(&models.User{}).
+		Where("id = ? AND role = ?", agencyID, models.RoleAgency).
+		Update("username", name).Error
+}
+
 func (s *AgencyService) OwnsChannel(agencyUserID uuid.UUID, channelID string) (bool, error) {
 	var count int64
 	err := s.db.Model(&models.AgencyStreamer{}).

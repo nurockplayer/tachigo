@@ -41,6 +41,10 @@ func newAgencyTestEnv(t *testing.T) (*testEnv, http.Handler) {
 	agencies := v1.Group("/agencies")
 	agencies.Use(middleware.JWTAuth(env.authSvc))
 	agencies.POST("", middleware.RequireRole(models.RoleAdmin), agencyH.Create)
+	agencies.PUT("/:id/settings",
+		middleware.RequireRole(models.RoleAgency, models.RoleAdmin),
+		agencyH.UpdateSettings,
+	)
 	agencies.GET("/:id/streamers",
 		middleware.RequireRole(models.RoleAgency, models.RoleAdmin),
 		agencyH.ListStreamers,
@@ -387,6 +391,134 @@ func TestAgencyHandler_Create_RequiresAdmin(t *testing.T) {
 
 	if w.Code != http.StatusForbidden {
 		t.Fatalf("expected 403, got %d: %s", w.Code, w.Body.String())
+	}
+}
+
+func seedAgencyUser(t *testing.T, db *gorm.DB, name, email string) uuid.UUID {
+	t.Helper()
+	id := uuid.New()
+	if err := db.Exec(
+		`INSERT INTO users (id, username, email, role, is_active, email_verified, created_at, updated_at)
+		 VALUES (?, ?, ?, ?, 1, 1, CURRENT_TIMESTAMP, CURRENT_TIMESTAMP)`,
+		id, name, email, models.RoleAgency,
+	).Error; err != nil {
+		t.Fatalf("seed agency user: %v", err)
+	}
+	return id
+}
+
+func TestAgencyHandler_UpdateSettings_AdminSuccess(t *testing.T) {
+	env, r := newAgencyTestEnv(t)
+	agencyID := seedAgencyUser(t, env.db, "agency-orig", "agency-orig@example.com")
+
+	body, _ := json.Marshal(map[string]string{"name": "agency-renamed"})
+	w := httptest.NewRecorder()
+	req, _ := http.NewRequest("PUT", "/api/v1/agencies/"+agencyID.String()+"/settings", bytes.NewBuffer(body))
+	req.Header.Set("Authorization", "Bearer "+makeAccessToken(t, models.RoleAdmin))
+	req.Header.Set("Content-Type", "application/json")
+	r.ServeHTTP(w, req)
+
+	if w.Code != http.StatusOK {
+		t.Fatalf("expected 200, got %d: %s", w.Code, w.Body.String())
+	}
+	resp := parseBody(t, w.Body.Bytes())
+	if resp["data"].(map[string]interface{})["name"] != "agency-renamed" {
+		t.Fatalf("expected name agency-renamed in response, got %v", resp["data"])
+	}
+}
+
+func TestAgencyHandler_UpdateSettings_AgencyCanUpdateOwn(t *testing.T) {
+	env, r := newAgencyTestEnv(t)
+	agencyID := seedAgencyUser(t, env.db, "agency-self", "agency-self@example.com")
+
+	body, _ := json.Marshal(map[string]string{"name": "agency-self-new"})
+	w := httptest.NewRecorder()
+	req, _ := http.NewRequest("PUT", "/api/v1/agencies/"+agencyID.String()+"/settings", bytes.NewBuffer(body))
+	req.Header.Set("Authorization", "Bearer "+makeAccessTokenForUser(t, agencyID, models.RoleAgency))
+	req.Header.Set("Content-Type", "application/json")
+	r.ServeHTTP(w, req)
+
+	if w.Code != http.StatusOK {
+		t.Fatalf("expected 200, got %d: %s", w.Code, w.Body.String())
+	}
+}
+
+func TestAgencyHandler_UpdateSettings_AgencyCannotUpdateOthers(t *testing.T) {
+	env, r := newAgencyTestEnv(t)
+	agencyID := seedAgencyUser(t, env.db, "agency-other", "agency-other@example.com")
+
+	body, _ := json.Marshal(map[string]string{"name": "hacked"})
+	w := httptest.NewRecorder()
+	req, _ := http.NewRequest("PUT", "/api/v1/agencies/"+agencyID.String()+"/settings", bytes.NewBuffer(body))
+	req.Header.Set("Authorization", "Bearer "+makeAccessTokenForUser(t, uuid.New(), models.RoleAgency))
+	req.Header.Set("Content-Type", "application/json")
+	r.ServeHTTP(w, req)
+
+	if w.Code != http.StatusForbidden {
+		t.Fatalf("expected 403, got %d: %s", w.Code, w.Body.String())
+	}
+}
+
+func TestAgencyHandler_UpdateSettings_NotFound(t *testing.T) {
+	_, r := newAgencyTestEnv(t)
+
+	body, _ := json.Marshal(map[string]string{"name": "ghost"})
+	w := httptest.NewRecorder()
+	req, _ := http.NewRequest("PUT", "/api/v1/agencies/"+uuid.NewString()+"/settings", bytes.NewBuffer(body))
+	req.Header.Set("Authorization", "Bearer "+makeAccessToken(t, models.RoleAdmin))
+	req.Header.Set("Content-Type", "application/json")
+	r.ServeHTTP(w, req)
+
+	if w.Code != http.StatusNotFound {
+		t.Fatalf("expected 404, got %d: %s", w.Code, w.Body.String())
+	}
+}
+
+func TestAgencyHandler_UpdateSettings_NameTaken(t *testing.T) {
+	env, r := newAgencyTestEnv(t)
+	seedAgencyUser(t, env.db, "taken-name", "taken@example.com")
+	agencyID := seedAgencyUser(t, env.db, "agency-b", "agency-b@example.com")
+
+	body, _ := json.Marshal(map[string]string{"name": "taken-name"})
+	w := httptest.NewRecorder()
+	req, _ := http.NewRequest("PUT", "/api/v1/agencies/"+agencyID.String()+"/settings", bytes.NewBuffer(body))
+	req.Header.Set("Authorization", "Bearer "+makeAccessToken(t, models.RoleAdmin))
+	req.Header.Set("Content-Type", "application/json")
+	r.ServeHTTP(w, req)
+
+	if w.Code != http.StatusConflict {
+		t.Fatalf("expected 409, got %d: %s", w.Code, w.Body.String())
+	}
+}
+
+func TestAgencyHandler_UpdateSettings_NameTooLong(t *testing.T) {
+	env, r := newAgencyTestEnv(t)
+	agencyID := seedAgencyUser(t, env.db, "agency-toolong", "agency-toolong@example.com")
+
+	body, _ := json.Marshal(map[string]string{"name": "aaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaa"}) // 51 chars
+	w := httptest.NewRecorder()
+	req, _ := http.NewRequest("PUT", "/api/v1/agencies/"+agencyID.String()+"/settings", bytes.NewBuffer(body))
+	req.Header.Set("Authorization", "Bearer "+makeAccessToken(t, models.RoleAdmin))
+	req.Header.Set("Content-Type", "application/json")
+	r.ServeHTTP(w, req)
+
+	if w.Code != http.StatusBadRequest {
+		t.Fatalf("expected 400, got %d: %s", w.Code, w.Body.String())
+	}
+}
+
+func TestAgencyHandler_UpdateSettings_InvalidID(t *testing.T) {
+	_, r := newAgencyTestEnv(t)
+
+	body, _ := json.Marshal(map[string]string{"name": "x"})
+	w := httptest.NewRecorder()
+	req, _ := http.NewRequest("PUT", "/api/v1/agencies/not-a-uuid/settings", bytes.NewBuffer(body))
+	req.Header.Set("Authorization", "Bearer "+makeAccessToken(t, models.RoleAdmin))
+	req.Header.Set("Content-Type", "application/json")
+	r.ServeHTTP(w, req)
+
+	if w.Code != http.StatusBadRequest {
+		t.Fatalf("expected 400, got %d: %s", w.Code, w.Body.String())
 	}
 }
 

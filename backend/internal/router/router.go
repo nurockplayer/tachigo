@@ -160,7 +160,7 @@ func New(
 		// PUT /agencies/:id/settings — agency or admin
 		agencies.PUT("/:id/settings",
 			middleware.RequireRole(models.RoleAgency, models.RoleAdmin),
-			func(c *gin.Context) { c.JSON(501, gin.H{"error": "not implemented"}) },
+			agencyHandler.UpdateSettings,
 		)
 		// GET /agencies/:id/streamers — agency or admin
 		agencies.GET("/:id/streamers",
