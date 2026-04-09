@@ -41,6 +41,12 @@ jobs:
               pull_number: pr.number,
             })
 
+            if (fullPr.state !== 'open') {
+              core.notice(`Skipping PR #${fullPr.number}: PR is not open.`)
+              core.setOutput('should_notify', 'false')
+              return
+            }
+
             const labels = (fullPr.labels || []).map((label) => label.name)
             const hasReviewLabel = labels.includes(reviewLabel)
             const hasChangesRequestedLabel = labels.includes(changesLabel)
