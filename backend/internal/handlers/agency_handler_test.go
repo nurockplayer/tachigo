@@ -254,6 +254,40 @@ func TestAgencyHandler_Create_MailerFailureStillReturns201(t *testing.T) {
 	}
 }
 
+func TestAgencyHandler_Create_NonMailerForgotPasswordFailureReturns500(t *testing.T) {
+	env := newTestEnv(t)
+
+	agencySvc := services.NewAgencyService(env.db)
+	agencyH := handlers.NewAgencyHandler(agencySvc, env.emailAuthSvc)
+
+	r := gin.New()
+	r.Use(gin.Recovery())
+	v1 := r.Group("/api/v1")
+	agencies := v1.Group("/agencies")
+	agencies.Use(middleware.JWTAuth(env.authSvc))
+	agencies.POST("", middleware.RequireRole(models.RoleAdmin), agencyH.Create)
+
+	// Drop password_resets table so ForgotPassword fails at DB write (before mailer.Send).
+	if err := env.db.Exec("DROP TABLE IF EXISTS password_resets").Error; err != nil {
+		t.Fatalf("drop password_resets: %v", err)
+	}
+
+	body, _ := json.Marshal(map[string]string{
+		"name":  "agency-dbfail",
+		"email": "agency-dbfail@example.com",
+	})
+
+	w := httptest.NewRecorder()
+	req, _ := http.NewRequest("POST", "/api/v1/agencies", bytes.NewBuffer(body))
+	req.Header.Set("Authorization", "Bearer "+makeAccessToken(t, models.RoleAdmin))
+	req.Header.Set("Content-Type", "application/json")
+	r.ServeHTTP(w, req)
+
+	if w.Code != http.StatusInternalServerError {
+		t.Fatalf("expected 500 when password_resets write fails, got %d: %s", w.Code, w.Body.String())
+	}
+}
+
 func TestAgencyHandler_Create_DuplicateEmail(t *testing.T) {
 	_, r := newAgencyTestEnv(t)
 

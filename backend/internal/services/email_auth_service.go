@@ -14,9 +14,10 @@ import (
 )
 
 var (
-	ErrAlreadyVerified   = errors.New("email already verified")
-	ErrInvalidVerifyToken = errors.New("invalid or expired verification token")
-	ErrInvalidResetToken  = errors.New("invalid or expired password reset token")
+	ErrAlreadyVerified          = errors.New("email already verified")
+	ErrInvalidVerifyToken        = errors.New("invalid or expired verification token")
+	ErrInvalidResetToken         = errors.New("invalid or expired password reset token")
+	ErrPasswordResetEmailSend    = errors.New("failed to send password reset email")
 )
 
 const (
@@ -121,7 +122,10 @@ func (s *EmailAuthService) ForgotPassword(email string) error {
 
 	link := fmt.Sprintf("%s/reset-password?token=%s", s.cfg.App.FrontendURL, rawToken)
 	body := passwordResetEmailBody(link)
-	return s.mailer.Send(email, "Reset your Tachigo password", body)
+	if err := s.mailer.Send(email, "Reset your Tachigo password", body); err != nil {
+		return fmt.Errorf("%w: %w", ErrPasswordResetEmailSend, err)
+	}
+	return nil
 }
 
 // ResetPassword validates the token and updates the user's password.

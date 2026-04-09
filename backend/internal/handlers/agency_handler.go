@@ -64,7 +64,13 @@ func (h *AgencyHandler) Create(c *gin.Context) {
 	}
 
 	if err := h.emailAuthSvc.ForgotPassword(*user.Email); err != nil {
-		log.Printf("agency create: failed to send password setup email for user %s: %v", user.ID, err)
+		if errors.Is(err, services.ErrPasswordResetEmailSend) {
+			log.Printf("agency create: failed to send password setup email for user %s: %v", user.ID, err)
+		} else {
+			log.Printf("agency create: password reset setup failed for user %s: %v", user.ID, err)
+			internal(c)
+			return
+		}
 	}
 
 	created(c, createAgencyResponse{
