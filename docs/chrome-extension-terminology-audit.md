@@ -1,191 +1,106 @@
-# Chrome Extension 名詞清理盤點
+# Chrome Extension 名詞盤點
 
-> 用途：釐清本專案中 `Chrome Extension` 與 `Twitch Extension` 的混用情況，避免產品定位、技術實作與歷史命名混為一談。
-> 狀態：盤點文件，供後續拆 issue / PR 使用。
-> 最後更新：2026-04-09
-
----
-
-## 1. 結論摘要
-
-本專案目前需要明確區分三件事：
-
-1. **產品定位**
-   `tachimint` 的產品方向應統一表述為 **Chrome Extension**
-
-2. **現有實作命名**
-   程式碼中仍保留許多 `extension`、`Twitch Extension`、`extension_jwt`、`ExtensionService` 等名稱，這些多半反映的是既有 API 與驗證流程，而不是產品形式
-
-3. **外部平台依賴**
-   某些程式碼與 mock 仍直接依賴 `window.Twitch.ext` 或 Twitch 提供的 JWT / helper，這已超出單純文件命名問題，屬於實作與架構層的議題
-
-簡單說：
-
-- 文件中的產品描述應優先統一成 `Chrome Extension`
-- API / service / payload 命名是否要跟著改，應另開 issue 評估
-- 若未來真的不再依賴 Twitch Extension runtime，則需要獨立整理 migration 計畫
+> 用途：盤點 repo 內 `Chrome Extension`、`Twitch Extension` 與泛用 `extension` 命名的混用情況。
+> 狀態：盤點文件，不是 migration spec，也不是「已完成 Chrome Extension 轉換」的宣告。
+> 最後更新：2026-04-10
 
 ---
 
-## 2. 已完成的文件層修正
+## 1. 目前可確認的 source of truth
 
-以下文件已先統一產品定位為 `Chrome Extension`：
+依目前 repo 既有文件與程式碼現況，可先確認以下事實：
 
-- [docs/architecture.md](architecture.md)
-- [docs/feature-discussion.md](feature-discussion.md)
-- [docs/tokenomics.md](tokenomics.md)
-- [docs/sequence-diagram.md](sequence-diagram.md)
-- [docs/watch-to-points-design.md](watch-to-points-design.md)
-- [docs/extension-ui-prompts.md](extension-ui-prompts.md)
-- [tachimint/README.md](../tachimint/README.md)
+1. `tachimint` 的可運作實作目前仍是 **Twitch-hosted extension runtime**
+2. 前端與後端仍依賴 `window.Twitch.ext`、`extension_jwt`、Twitch helper script 等流程
+3. 若要正式改成 Chrome Extension，必須先有獨立的架構決策或 migration spec
+
+因此，這份文件的用途是「盤點與拆題」，不是把 Chrome Extension 寫成既定現況。
 
 ---
 
-## 3. 目前仍殘留的命名類型
+## 2. 名詞層次拆分
 
-### A. 文件 / 說明文字仍帶有 Twitch Extension 表述
+目前 repo 內實際混在一起的是三種不同層次：
 
-這類通常可以視為下一輪文件清理範圍：
+| 類別 | 代表什麼 | 目前狀態 |
+|---|---|---|
+| 產品形式 | 使用者最終安裝與使用的前端形態 | 尚未有已定案、可實作的 Chrome Extension migration spec |
+| 現行 runtime | 現在程式真正依賴的執行環境 | Twitch-hosted extension |
+| 模組 / API 命名 | `/extension/*`、`ExtensionService`、`extension_jwt` 等名稱 | 已存在於前後端契約與程式結構中 |
 
-- [backend/.env.example](../backend/.env.example)
-  `# Twitch Extension`
-- [backend/cmd/server/main.go](../backend/cmd/server/main.go)
-  swagger description 仍寫 `Twitch extension + Web3 rewards platform`
-- [backend/docs/swagger.yaml](../backend/docs/swagger.yaml)
-  description / summary 仍有 `Twitch Extension JWT`
-- [backend/docs/swagger.json](../backend/docs/swagger.json)
-  description / summary 仍有 `Twitch Extension JWT`
-- [backend/docs/docs.go](../backend/docs/docs.go)
-  產生出的 swagger 內容仍有 `Twitch Extension JWT`
+---
+
+## 3. 盤點結果
+
+### A. 已明確依賴 Twitch runtime 的地方
+
+這些項目不是單純改字詞就能處理：
+
+- [tachimint/index.html](../tachimint/index.html)
+  - 仍載入 Twitch Extension Helper
+- [tachimint/src/mock/twitch-ext.ts](../tachimint/src/mock/twitch-ext.ts)
+  - 本地開發使用 `window.Twitch.ext` mock
+- [tachimint/src/types/twitch-ext.d.ts](../tachimint/src/types/twitch-ext.d.ts)
+  - 型別直接綁定 Twitch helper
+- [tachimint/src/services/api.ts](../tachimint/src/services/api.ts)
+  - 使用 `extension_jwt`、`loginWithTwitchExtension`
 
 ### B. 實作層泛用 `extension` 命名
 
-這類不一定要立刻改，因為它們可能只是模組名，而不是產品定位錯誤：
+這些名稱未必錯，但要先區分它們是模組名還是產品名：
 
-- [backend/internal/services/extension_service.go](../backend/internal/services/extension_service.go)
-  `ExtensionService`
-- [backend/internal/handlers/extension_handler.go](../backend/internal/handlers/extension_handler.go)
-  `ExtensionHandler`
-- [backend/internal/router/router.go](../backend/internal/router/router.go)
-  `/extension/*` 路由群組
-- [backend/internal/middleware/ext_auth.go](../backend/internal/middleware/ext_auth.go)
-  `ExtJWTAuth`
+- backend `ExtensionService`
+- backend `/extension/*` routes
+- `ExtJWTAuth`
+- request body `extension_jwt`
 
-這一層的問題不是 `extension` 這個字，而是裡面是否還把「產品 = Twitch Extension」寫死。
+如果只是要改產品描述，不需要在同一張 PR 內一併重命名這些程式項目。
 
-### C. Twitch-specific payload / runtime 命名
+### C. 文件中容易造成誤解的地方
 
-這類已不是單純改字詞，而是與實際串接方式有關：
-
-- [tachimint/src/services/api.ts](../tachimint/src/services/api.ts)
-  `extension_jwt`、`loginWithTwitchExtension`
-- [tachimint/src/mock/twitch-ext.ts](../tachimint/src/mock/twitch-ext.ts)
-  `window.Twitch.ext` mock
-- [tachimint/src/types/twitch-ext.d.ts](../tachimint/src/types/twitch-ext.d.ts)
-  Twitch helper type declarations
-- [tachimint/index.html](../tachimint/index.html)
-  `Twitch Extension Helper`
-- [backend/internal/services/extension_service.go](../backend/internal/services/extension_service.go)
-  `Twitch Extension JWT`
-- [backend/internal/handlers/extension_handler.go](../backend/internal/handlers/extension_handler.go)
-  request body `extension_jwt`
-
-這些名稱反映的不只是文案，而是目前系統仍假設某種 Twitch helper / JWT 存在。
+目前 repo 內多數架構與設計文件仍以 Twitch Extension 為現況描述，這與程式 reality 一致。
+若未來要引入 Chrome Extension 的產品方向，應明確標示為「未來規劃」或「待定 migration」，不能直接覆寫現況描述。
 
 ---
 
-## 4. 建議的拆分方式
+## 4. 建議拆票方式
 
-### 第一層：文件與對外說明清理
-
-目標：
-
-- 所有產品描述統一為 `Chrome Extension`
-- README / architecture / tokenomics / swagger description 不再誤導
-
-適合項目：
-
-- `docs/*`
-- `README`
-- swagger summary / description
-- `.env.example` 註解
-
-風險：
-
-- 低
-- 主要是文字修正
-
-### 第二層：程式碼命名清理
+### 第一類：文件 truth 校正
 
 目標：
+- 明確標示目前是 Twitch-hosted implementation
+- 避免把尚未定案的 Chrome Extension migration 寫成既定事實
 
-- 評估是否將 `ExtensionService`、`extension_jwt`、`loginWithTwitchExtension` 等名稱改為較中性的命名
+適合放進同一張 docs PR 的內容：
+- README 說明補強
+- 名詞盤點文件
+- 未來 migration 需要回答的問題列表
 
-適合項目：
+### 第二類：Chrome Extension migration spec
 
-- handler / service / middleware 名稱
-- request / response payload 欄位
-- swagger schema 名稱
+這必須是獨立 issue / spec：
+- 身份來源是否仍依賴 Twitch
+- `extension_jwt` 的替代方案是什麼
+- Bits / viewer context / broadcaster context 如何取得
+- `window.Twitch.ext` mock 與 hosted 測試流程如何替換
 
-風險：
+### 第三類：程式碼命名清理
 
-- 中
-- 可能牽涉前後端契約、測試、文件同步
-
-### 第三層：架構與平台依賴清理
-
-目標：
-
-- 釐清 `tachimint` 是否仍依賴 Twitch 提供的 helper、JWT 與嵌入環境
-- 若產品已改為 Chrome Extension，定義新的身份來源與授權流程
-
-適合項目：
-
-- `window.Twitch.ext` 替代方案
-- `extension_jwt` 來源替代方案
-- auth/login 流程重設計
-- bits / Twitch-specific capabilities 的新邊界
-
-風險：
-
-- 高
-- 這是實作與產品邏輯變更，不應和單純文案 PR 混在一起
+這是另外一張 refactor / contract 導向 PR：
+- `ExtensionService`
+- `ExtJWTAuth`
+- `extension_jwt`
+- Swagger description / schema wording
 
 ---
 
-## 5. 建議後續 issue 題目
+## 5. 後續需要明確回答的問題
 
-可拆成以下幾個獨立 issue：
+在開始任何 Chrome Extension migration 前，至少要先定義：
 
-1. `docs: replace remaining Twitch Extension product wording with Chrome Extension`
-   範圍：文件、README、swagger description、`.env.example` 註解
+1. `tachimint` 現在是否仍以 Twitch-hosted extension 為唯一可運作實作？
+2. Chrome Extension 是已定案產品方向，還是僅為探索中的可能形態？
+3. 若要遷移，誰提供 viewer identity、channel context、Bits 相關能力？
+4. 哪些文件是新的 source of truth？
 
-2. `refactor: audit extension naming in backend/frontend interfaces`
-   範圍：`ExtensionService`、`ExtJWTAuth`、`extension_jwt`、`loginWithTwitchExtension`
-
-3. `research: define auth/runtime model for Chrome Extension version of tachimint`
-   範圍：Twitch helper、JWT 來源、Chrome Extension 身份模型、相容策略
-
-4. `docs: define terminology policy for Chrome Extension vs Twitch integration`
-   範圍：整理一份術語表，說明哪些詞代表產品、哪些詞代表串接來源、哪些詞是 legacy 命名
-
----
-
-## 6. 術語建議
-
-建議未來統一使用：
-
-| 類別 | 建議用詞 | 說明 |
-|---|---|---|
-| 產品形式 | `Chrome Extension` | 指使用者實際安裝與使用的前端產品 |
-| Twitch 串接 | `Twitch integration` | 指 Twitch API、身份、Bits、直播資料等外部依賴 |
-| 前端模組 | `extension` | 可保留作為中性模組名稱 |
-| 舊驗證名稱 | `legacy extension_jwt` | 若短期內不能改欄位名，可在文件中這樣註記 |
-| 舊 helper | `legacy Twitch helper` | 指 `window.Twitch.ext` 相關相容層 |
-
-避免再直接把以下兩者混成同一件事：
-
-- `Chrome Extension`
-- `Twitch Extension`
-
-前者是產品形式，後者若仍存在，只能代表歷史命名或特定串接機制。
+在這些問題被正式回答前，建議 repo 文件保持「現況真實」優先。
