@@ -125,6 +125,7 @@ func migrateTestDB(db *gorm.DB) error {
 			channel_id TEXT PRIMARY KEY,
 			seconds_per_point INTEGER NOT NULL DEFAULT 60,
 			multiplier INTEGER NOT NULL DEFAULT 1,
+			daily_airdrop_limit INTEGER NOT NULL DEFAULT 5000,
 			created_at DATETIME,
 			updated_at DATETIME
 		)`,
@@ -138,6 +139,7 @@ func migrateTestDB(db *gorm.DB) error {
 		`CREATE TABLE IF NOT EXISTS streamers (
 			id TEXT PRIMARY KEY,
 			user_id TEXT NOT NULL REFERENCES users(id),
+			agency_user_id TEXT REFERENCES users(id),
 			channel_id TEXT NOT NULL,
 			display_name TEXT,
 			created_at DATETIME,
@@ -145,6 +147,8 @@ func migrateTestDB(db *gorm.DB) error {
 		)`,
 		`CREATE UNIQUE INDEX IF NOT EXISTS idx_streamers_user_channel
 			ON streamers (user_id, channel_id)`,
+		`CREATE INDEX IF NOT EXISTS idx_streamers_agency_user_id
+			ON streamers (agency_user_id)`,
 		`CREATE TABLE IF NOT EXISTS points_ledgers (
 			id TEXT PRIMARY KEY,
 			user_id TEXT NOT NULL,

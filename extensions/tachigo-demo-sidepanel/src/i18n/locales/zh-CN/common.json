@@ -1,0 +1,44 @@
+{
+  "loading": {
+    "text": "加载中..."
+  },
+  "login": {
+    "usernamePlaceholder": "账号",
+    "passwordPlaceholder": "密码",
+    "required": "必填",
+    "button": "登录",
+    "buttonLoading": "登录中...",
+    "forgotPassword": "忘记密码？"
+  },
+  "hud": {
+    "watching": "观看中",
+    "idle": "待机",
+    "cumulativeTotal": "累计总计",
+    "nextIn": "下次 {{count}} 秒",
+    "clicksLeft": "剩 {{count}} 次",
+    "clicksExhausted": "本轮已达上限"
+  },
+  "nonViewer": {
+    "titleLine1": "您的观众正在此频道",
+    "titleHighlight": "累积观看积分",
+    "hintLine1": "观众只要观看直播",
+    "hintLine2": "即可自动累积挖矿积分"
+  },
+  "error": {
+    "account": {
+      "title": "尚未创建账号",
+      "message": "请先创建 tachigo 账号",
+      "hint": "前往 tachigo.gg 创建账号后，刷新即可开始挖矿"
+    },
+    "backend": {
+      "title": "服务暂时不可用",
+      "message": "服务暂时不可用，请稍后再试",
+      "hint": "我们正在处理问题，请等几分钟后刷新"
+    },
+    "session": {
+      "title": "连接建立失败",
+      "message": "观看连接建立失败，请刷新",
+      "hint": "请确认网络连接是否正常后刷新页面"
+    }
+  }
+}

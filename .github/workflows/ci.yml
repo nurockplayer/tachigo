@@ -109,6 +109,29 @@ jobs:
       - name: Run tests
         run: docker compose run --no-deps --rm app go test ./...
 
+  backend-integration:
+    name: Backend integration tests
+    runs-on: ubuntu-latest
+    needs: backend
+    steps:
+      - uses: actions/checkout@v4
+
+      - name: Build image
+        run: docker compose build app
+
+      - name: Start PostgreSQL
+        run: docker compose up -d --wait postgres
+
+      - name: Run integration build
+        run: docker compose run --rm app go build -tags integration ./...
+
+      - name: Run integration tests
+        run: docker compose run --rm app go test -tags integration ./internal/services -run TestAirdrop_ConcurrentSERIALIZABLE -count=1
+
+      - name: Stop services
+        if: always()
+        run: docker compose down -v
+
   frontend:
     name: Frontend build
     needs: [scope-gate]
@@ -142,3 +165,24 @@ jobs:
 
       - name: Build
         run: docker compose run --no-deps --rm dashboard pnpm build
+
+  contracts:
+    name: Contracts build
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+
+      - name: Install Foundry
+        uses: foundry-rs/foundry-toolchain@v1
+
+      - name: Install dependencies
+        working-directory: contracts
+        run: forge install OpenZeppelin/openzeppelin-contracts@v5.6.1 --no-git
+
+      - name: Build
+        working-directory: contracts
+        run: forge build
+
+      - name: Test
+        working-directory: contracts
+        run: forge test

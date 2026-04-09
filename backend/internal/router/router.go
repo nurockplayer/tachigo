@@ -20,7 +20,9 @@ func New(
 	watchSvc *services.WatchService,
 	channelConfigSvc *services.ChannelConfigService,
 	pointsSvc *services.PointsService,
+	airdropSvc *services.AirdropService,
 	streamerSvc *services.StreamerService,
+	agencySvc *services.AgencyService,
 	claimSvc *services.ClaimService,
 	agencyHandler *handlers.AgencyHandler,
 	allowedOrigins []string,
@@ -39,6 +41,7 @@ func New(
 	pointsH := handlers.NewPointsHandler(pointsSvc)
 	streamerH := handlers.NewStreamerHandler(streamerSvc)
 	claimH := handlers.NewClaimHandler(claimSvc)
+	airdropH := handlers.NewAirdropHandler(airdropSvc, agencySvc, streamerSvc)
 
 	r.GET("/health", func(c *gin.Context) {
 		c.JSON(200, gin.H{"status": "ok"})
@@ -129,11 +132,33 @@ func New(
 	dashboard.Use(middleware.JWTAuth(authSvc))
 	dashboard.Use(middleware.RequireRole(models.RoleAdmin, models.RoleStreamer))
 	{
-		dashboard.POST("/streamers/register", streamerH.Register)
-		dashboard.GET("/streamers/channels", streamerH.ListChannels)
-		dashboard.GET("/channels/:channel_id/stats", streamerH.GetChannelStats)
-		dashboard.GET("/channels/:channel_id/config", channelConfigH.GetChannelConfig)
-		dashboard.PUT("/channels/:channel_id/config", channelConfigH.UpdateChannelConfig)
+		dashboard.POST("/streamers", middleware.RequireRole(models.RoleAdmin), streamerH.Create)
+		dashboard.GET("/streamers", middleware.RequireRole(models.RoleAgency, models.RoleAdmin), streamerH.List)
+		dashboard.GET("/streamers/:streamer_id/stats",
+			middleware.RequireRole(models.RoleStreamer, models.RoleAgency, models.RoleAdmin),
+			streamerH.GetStats)
+		dashboard.POST("/streamers/register",
+			middleware.RequireRole(models.RoleStreamer),
+			streamerH.Register)
+		dashboard.GET("/streamers/channels",
+			middleware.RequireRole(models.RoleStreamer),
+			streamerH.ListChannels)
+		dashboard.GET("/channels/:channel_id/stats",
+			middleware.RequireRole(models.RoleAdmin, models.RoleStreamer),
+			streamerH.GetChannelStats)
+		dashboard.GET("/channels/:channel_id/config",
+			middleware.RequireRole(models.RoleAdmin, models.RoleStreamer, models.RoleAgency),
+			channelConfigH.GetChannelConfig)
+		dashboard.PUT("/channels/:channel_id/config",
+			middleware.RequireRole(models.RoleAdmin, models.RoleStreamer),
+			channelConfigH.UpdateChannelConfig)
+	}
+
+	dashboardAirdrop := v1.Group("/dashboard/channels/:channel_id")
+	dashboardAirdrop.Use(middleware.JWTAuth(authSvc))
+	dashboardAirdrop.Use(middleware.RequireRole(models.RoleAdmin, models.RoleStreamer, models.RoleAgency))
+	{
+		dashboardAirdrop.POST("/airdrop", airdropH.Airdrop)
 	}
 
 	// ── Agency management ─────────────────────────────────────────────────
@@ -145,12 +170,12 @@ func New(
 		// PUT /agencies/:id/settings — agency or admin
 		agencies.PUT("/:id/settings",
 			middleware.RequireRole(models.RoleAgency, models.RoleAdmin),
-			func(c *gin.Context) { c.JSON(501, gin.H{"error": "not implemented"}) },
+			agencyHandler.UpdateSettings,
 		)
 		// GET /agencies/:id/streamers — agency or admin
 		agencies.GET("/:id/streamers",
 			middleware.RequireRole(models.RoleAgency, models.RoleAdmin),
-			func(c *gin.Context) { c.JSON(501, gin.H{"error": "not implemented"}) },
+			agencyHandler.ListStreamers,
 		)
 	}
 

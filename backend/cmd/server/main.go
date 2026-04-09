@@ -105,6 +105,9 @@ func main() {
 	`).Error; err != nil {
 		log.Fatalf("failed to create streamer index: %v", err)
 	}
+	if err := applyStreamerAgencyMigration(db); err != nil {
+		log.Fatalf("failed to run migration 008: %v", err)
+	}
 	// Wire services
 	authSvc := services.NewAuthService(db, cfg)
 	userSvc := services.NewUserService(db)
@@ -116,9 +119,10 @@ func main() {
 	channelConfigSvc := services.NewChannelConfigService(db)
 	pointsSvc := services.NewPointsService(db, watchSvc)
 	streamerSvc := services.NewStreamerService(db, pointsSvc)
-	claimSvc := services.NewClaimService(db)
 	agencySvc := services.NewAgencyService(db)
-	agencyH := handlers.NewAgencyHandler(agencySvc)
+	airdropSvc := services.NewAirdropService(db, pointsSvc, channelConfigSvc)
+	claimSvc := services.NewClaimService(db)
+	agencyH := handlers.NewAgencyHandler(agencySvc, emailAuthSvc)
 
 	// CORS origins from env, default to localhost for dev
 	originsEnv := os.Getenv("ALLOWED_ORIGINS")
@@ -127,7 +131,7 @@ func main() {
 		allowedOrigins = strings.Split(originsEnv, ",")
 	}
 
-	r := router.New(authSvc, userSvc, addrSvc, extSvc, emailAuthSvc, watchSvc, channelConfigSvc, pointsSvc, streamerSvc, claimSvc, agencyH, allowedOrigins)
+	r := router.New(authSvc, userSvc, addrSvc, extSvc, emailAuthSvc, watchSvc, channelConfigSvc, pointsSvc, airdropSvc, streamerSvc, agencySvc, claimSvc, agencyH, allowedOrigins)
 
 	addr := ":" + cfg.Server.Port
 	log.Printf("server starting on %s (env=%s)", addr, cfg.Server.Env)

@@ -17,7 +17,7 @@ func seedWatchUser(t *testing.T, svc *WatchService) uuid.UUID {
 	id := uuid.New()
 	if err := svc.db.Exec(
 		`INSERT INTO users (id, role, is_active, email_verified, created_at, updated_at)
-		 VALUES (?, 'viewer', 1, 0, CURRENT_TIMESTAMP, CURRENT_TIMESTAMP)`,
+		 VALUES (?, 'viewer', TRUE, FALSE, CURRENT_TIMESTAMP, CURRENT_TIMESTAMP)`,
 		id,
 	).Error; err != nil {
 		t.Fatalf("seed user: %v", err)

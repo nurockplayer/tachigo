@@ -26,7 +26,7 @@ func seedViewer(t *testing.T, svc *PointsService) uuid.UUID {
 	id := uuid.New()
 	if err := svc.db.Exec(
 		`INSERT INTO users (id, role, is_active, email_verified, created_at, updated_at)
-		 VALUES (?, 'viewer', 1, 0, CURRENT_TIMESTAMP, CURRENT_TIMESTAMP)`, id,
+		 VALUES (?, 'viewer', TRUE, FALSE, CURRENT_TIMESTAMP, CURRENT_TIMESTAMP)`, id,
 	).Error; err != nil {
 		t.Fatalf("seed viewer: %v", err)
 	}
@@ -39,7 +39,7 @@ func seedStreamer(t *testing.T, svc *PointsService, channelID string) uuid.UUID 
 	id := uuid.New()
 	if err := svc.db.Exec(
 		`INSERT INTO users (id, role, is_active, email_verified, created_at, updated_at)
-		 VALUES (?, 'streamer', 1, 0, CURRENT_TIMESTAMP, CURRENT_TIMESTAMP)`, id,
+		 VALUES (?, 'streamer', TRUE, FALSE, CURRENT_TIMESTAMP, CURRENT_TIMESTAMP)`, id,
 	).Error; err != nil {
 		t.Fatalf("seed streamer user: %v", err)
 	}
@@ -545,5 +545,37 @@ func TestPointsService_GetBroadcastStats_TimeWindows(t *testing.T) {
 	}
 	if stats.YearlySeconds != 60+120+180 {
 		t.Errorf("yearly: want 360, got %d", stats.YearlySeconds)
+	}
+}
+
+func TestGetBroadcastStats_ReturnsCurrentSessionQueryError(t *testing.T) {
+	svc, _ := newPointsSvc(t)
+
+	if err := svc.db.Exec("DROP TABLE watch_sessions").Error; err != nil {
+		t.Fatalf("drop watch_sessions: %v", err)
+	}
+
+	_, err := svc.GetBroadcastStats(uuid.New(), "ch_missing_table")
+	if err == nil {
+		t.Fatal("want error when watch_sessions is missing, got nil")
+	}
+	if !strings.Contains(err.Error(), "query current broadcast session seconds") {
+		t.Fatalf("error = %v, want context 'query current broadcast session seconds'", err)
+	}
+}
+
+func TestGetBroadcastStats_ReturnsLogQueryError(t *testing.T) {
+	svc, _ := newPointsSvc(t)
+
+	if err := svc.db.Exec("DROP TABLE broadcast_time_logs").Error; err != nil {
+		t.Fatalf("drop broadcast_time_logs: %v", err)
+	}
+
+	_, err := svc.GetBroadcastStats(uuid.New(), "ch_any")
+	if err == nil {
+		t.Fatal("want error when broadcast_time_logs is missing, got nil")
+	}
+	if !strings.Contains(err.Error(), "broadcast seconds") {
+		t.Fatalf("error = %v, want context containing 'broadcast seconds'", err)
 	}
 }

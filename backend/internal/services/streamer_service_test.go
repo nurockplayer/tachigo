@@ -16,7 +16,7 @@ func seedStreamerUserRow(t *testing.T, db *gorm.DB, role models.UserRole) uuid.U
 	id := uuid.New()
 	if err := db.Exec(
 		`INSERT INTO users (id, role, is_active, email_verified, created_at, updated_at)
-		 VALUES (?, ?, 1, 0, CURRENT_TIMESTAMP, CURRENT_TIMESTAMP)`,
+		 VALUES (?, ?, TRUE, FALSE, CURRENT_TIMESTAMP, CURRENT_TIMESTAMP)`,
 		id, role,
 	).Error; err != nil {
 		t.Fatalf("seed user: %v", err)
