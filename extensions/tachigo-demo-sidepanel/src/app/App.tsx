@@ -6,14 +6,17 @@ import {
   defaultDemoState,
   normalizeAppLanguage,
   type DemoScreen,
+  type HudDemoState,
 } from '../extension/types';
 import type { AppLanguage } from '../i18n';
 import { LoadingScreen } from './components/LoadingScreen';
 import { LoginScreen } from './components/LoginScreen';
 import { LanguageSwitcher } from './components/LanguageSwitcher';
+import { MarioHUD } from './components/MarioHUD';
 
 export default function App() {
   const { i18n } = useTranslation()
+  const isPopupMode = typeof window !== 'undefined' && window.location.pathname.endsWith('/popup.html')
   const [currentLanguage, setCurrentLanguage] = useState<AppLanguage>(defaultDemoState.language);
   const useZpixLanguage = currentLanguage === 'zh-TW' || currentLanguage === 'zh-CN'
   const fontVariables = {
@@ -26,6 +29,7 @@ export default function App() {
   } as CSSProperties
   const [isHydrated, setIsHydrated] = useState(false);
   const [screen, setScreen] = useState<DemoScreen>(defaultDemoState.screen);
+  const [hudState, setHudState] = useState<HudDemoState>(defaultDemoState.hud);
 
   useEffect(() => {
     let isActive = true
@@ -37,6 +41,7 @@ export default function App() {
         }
 
         setScreen(storedState.screen)
+        setHudState(storedState.hud)
 
         const targetLanguage = normalizeAppLanguage(storedState.language)
         setCurrentLanguage(targetLanguage)
@@ -71,13 +76,19 @@ export default function App() {
       void saveDemoState({
         screen,
         language: currentLanguage,
+        hud: hudState,
       }).catch((error: unknown) => {
         console.warn('Failed to persist extension demo state', error)
       })
     }, 120)
 
     return () => window.clearTimeout(persistTimer)
-  }, [currentLanguage, isHydrated, screen])
+  }, [currentLanguage, hudState, isHydrated, screen])
+
+  const openPopupMode = () => {
+    const popupUrl = globalThis.chrome?.runtime?.getURL('popup.html') ?? `${window.location.origin}/popup.html`
+    window.open(popupUrl, 'tachigo-demo-popup', 'popup=yes,width=430,height=820,resizable=yes')
+  }
 
   const handleLanguageChange = (language: AppLanguage) => {
     setCurrentLanguage(language)
@@ -87,6 +98,7 @@ export default function App() {
     void saveDemoState({
       screen,
       language,
+      hud: hudState,
     }).catch((error: unknown) => {
       console.warn('Failed to persist language switch', error)
     })
@@ -158,9 +170,13 @@ export default function App() {
           position: 'relative',
         }}
       >
-        {screen === 'login'
-          ? <LoginScreen onLogin={() => setScreen('loading')} />
-          : <LoadingScreen />}
+        {screen === 'login' ? (
+          <LoginScreen onLogin={() => setScreen('loading')} />
+        ) : screen === 'loading' ? (
+          <LoadingScreen onComplete={() => setScreen('hud')} />
+        ) : (
+          <MarioHUD state={hudState} onStateChange={setHudState} />
+        )}
       </div>
 
       {/* Demo controls */}
@@ -212,6 +228,22 @@ export default function App() {
             LOAD
           </button>
           <span style={{ fontSize: 10, color: 'rgba(100,100,140,0.3)', fontFamily: 'var(--pixel-font-family)' }}>·</span>
+          <button
+            onClick={() => setScreen('hud')}
+            style={{
+              padding: '4px 12px',
+              borderRadius: 4,
+              border: '1px solid rgba(255,255,255,0.1)',
+              background: screen === 'hud' ? 'rgba(200,168,73,0.15)' : 'transparent',
+              color: screen === 'hud' ? 'rgba(200,168,73,0.8)' : 'rgba(100,100,140,0.4)',
+              fontSize: 9,
+              fontFamily: 'var(--pixel-font-family)',
+              cursor: 'pointer',
+              letterSpacing: '0.08em',
+            }}
+          >
+            HUD
+          </button>
           <span style={{ fontSize: 9, color: 'rgba(100,100,140,0.3)', fontFamily: 'var(--pixel-font-family)', marginLeft: 6 }}>
             320 × 600
           </span>
@@ -221,6 +253,27 @@ export default function App() {
             currentLanguage={currentLanguage}
             onChangeLanguage={handleLanguageChange}
           />
+          {!isPopupMode && (
+            <>
+              <span style={{ fontSize: 10, color: 'rgba(100,100,140,0.3)', fontFamily: 'var(--pixel-font-family)' }}>·</span>
+              <button
+                onClick={openPopupMode}
+                style={{
+                  padding: '4px 10px',
+                  borderRadius: 4,
+                  border: '1px solid rgba(255,255,255,0.1)',
+                  background: 'transparent',
+                  color: 'rgba(145,70,255,0.85)',
+                  fontSize: 9,
+                  fontFamily: 'var(--pixel-font-family)',
+                  cursor: 'pointer',
+                  letterSpacing: '0.08em',
+                }}
+              >
+                POPUP
+              </button>
+            </>
+          )}
         </div>
       </div>
     </div>
