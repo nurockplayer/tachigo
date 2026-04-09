@@ -1,7 +1,6 @@
 import React, { useEffect, useRef, useState } from 'react';
 import { useTranslation } from 'react-i18next'
 
-// ─── Cute front-facing capybara (redesigned from scratch) ─────
 function CuteCapybaraLogin() {
   return (
     <svg
@@ -10,29 +9,15 @@ function CuteCapybaraLogin() {
       height="230"
       style={{ display: 'block' }}
     >
-      {/* ── Body (barely peeking, gets cropped at bottom) ── */}
       <ellipse cx="160" cy="225" rx="138" ry="42" fill="#7A5228" />
       <ellipse cx="160" cy="215" rx="100" ry="28" fill="#8B6038" fillOpacity="0.6" />
-
-      {/* ── Neck ── */}
       <rect x="118" y="185" width="84" height="50" rx="24" fill="#905A30" />
-
-      {/* ── Head (wider than tall — capybara head shape) ── */}
       <rect x="52" y="82" width="216" height="138" rx="54" fill="#C07A3C" />
-
-      {/* ── Face center lighter patch ── */}
       <ellipse cx="160" cy="168" rx="94" ry="54" fill="#D4904E" fillOpacity="0.48" />
-
-      {/* ── Left ear ── */}
       <ellipse cx="62" cy="100" rx="30" ry="26" fill="#A86030" />
       <ellipse cx="63" cy="104" rx="17" ry="14" fill="#E09A5A" />
-
-      {/* ── Right ear ── */}
       <ellipse cx="258" cy="100" rx="30" ry="26" fill="#A86030" />
       <ellipse cx="257" cy="104" rx="17" ry="14" fill="#E09A5A" />
-
-      {/* ════ GOLD MINING HELMET ════ */}
-      {/* Dome — clipped to above brim */}
       <defs>
         <clipPath id="hatClipLogin">
           <rect x="0" y="0" width="320" height="100" />
@@ -43,97 +28,60 @@ function CuteCapybaraLogin() {
         fill="#F5C842"
         clipPath="url(#hatClipLogin)"
       />
-      {/* Dome shine */}
       <ellipse
         cx="146" cy="52" rx="52" ry="26"
         fill="#FFE95A"
         fillOpacity="0.52"
         clipPath="url(#hatClipLogin)"
       />
-      {/* Brim */}
       <rect x="47" y="97" width="226" height="15" rx="7.5" fill="#C8A010" />
       <rect x="49" y="97" width="224" height="5" rx="2.5" fill="#F0C820" fillOpacity="0.38" />
-
-      {/* ── Headlamp ── */}
       <ellipse cx="216" cy="76" rx="20" ry="14" fill="#FFF8CC" />
       <ellipse cx="216" cy="76" rx="13" ry="9" fill="#FFE820" />
       <circle cx="216" cy="76" r="5.5" fill="white" fillOpacity="0.95" />
-      {/* Lamp rays */}
       <line x1="232" y1="69" x2="252" y2="56" stroke="#FFF5AA" strokeWidth="2.5"
             strokeOpacity="0.42" strokeLinecap="round" />
       <line x1="234" y1="76" x2="256" y2="71" stroke="#FFF5AA" strokeWidth="2"
             strokeOpacity="0.28" strokeLinecap="round" />
       <line x1="232" y1="83" x2="250" y2="88" stroke="#FFF5AA" strokeWidth="1.5"
             strokeOpacity="0.18" strokeLinecap="round" />
-
-      {/* ════ EYES — the key to cute ════ */}
-
-      {/* Left eye group with blink animation */}
       <g className="capy-eye-blink" style={{ transformOrigin: '110px 136px' }}>
-        {/* Left eye — white sclera (large, round) */}
         <ellipse cx="110" cy="136" rx="33" ry="35" fill="white" />
-        {/* Subtle under-eye warmth */}
         <ellipse cx="110" cy="148" rx="30" ry="22" fill="rgba(192,120,60,0.09)" />
-        {/* Iris (dark ring) */}
         <ellipse cx="112" cy="139" rx="23" ry="25" fill="#1C0A00" />
-        {/* Iris color */}
         <ellipse cx="112" cy="139" rx="16" ry="18" fill="#5E3010" />
-        {/* Pupil */}
         <ellipse cx="114" cy="141" rx="10" ry="11" fill="#050100" />
-        {/* Main sparkle highlight */}
         <ellipse cx="122" cy="128" rx="9.5" ry="8.5" fill="white" />
-        {/* Small secondary highlight */}
         <ellipse cx="113" cy="124" rx="4" ry="3.5" fill="white" fillOpacity="0.68" />
       </g>
-
-      {/* Right eye group with blink animation */}
       <g className="capy-eye-blink" style={{ transformOrigin: '210px 136px' }}>
-        {/* Right eye — white sclera */}
         <ellipse cx="210" cy="136" rx="33" ry="35" fill="white" />
         <ellipse cx="210" cy="148" rx="30" ry="22" fill="rgba(192,120,60,0.09)" />
-        {/* Iris */}
         <ellipse cx="208" cy="139" rx="23" ry="25" fill="#1C0A00" />
         <ellipse cx="208" cy="139" rx="16" ry="18" fill="#5E3010" />
-        {/* Pupil */}
         <ellipse cx="206" cy="141" rx="10" ry="11" fill="#050100" />
-        {/* Main sparkle */}
         <ellipse cx="198" cy="128" rx="9.5" ry="8.5" fill="white" />
         <ellipse cx="207" cy="124" rx="4" ry="3.5" fill="white" fillOpacity="0.68" />
       </g>
-
-      {/* ── Gentle eyebrows (hopeful / welcoming expression) ── */}
       <path d="M82,112 Q110,102 136,107" stroke="#8B4A20"
             strokeWidth="4" fill="none" strokeLinecap="round" strokeOpacity="0.62" />
       <path d="M184,107 Q210,102 238,112" stroke="#8B4A20"
             strokeWidth="4" fill="none" strokeLinecap="round" strokeOpacity="0.62" />
-
-      {/* ── Rosy cheeks (essential for cute!) ── */}
       <ellipse cx="78" cy="172" rx="32" ry="21" fill="#FF8888" fillOpacity="0.24" />
       <ellipse cx="242" cy="172" rx="32" ry="21" fill="#FF8888" fillOpacity="0.24" />
-
-      {/* ── Snout — wide & flat (capybara's signature look, done cute) ── */}
       <rect x="106" y="166" width="108" height="46" rx="23" fill="#9A5A28" />
       <rect x="116" y="173" width="88" height="30" rx="15" fill="#AA6A38" />
-      {/* Nose shine */}
       <ellipse cx="160" cy="177" rx="28" ry="7" fill="rgba(255,200,150,0.18)" />
-      {/* Nostrils (wide oval — capybara characteristic) */}
       <ellipse cx="141" cy="184" rx="11" ry="7.5" fill="#6A3618" fillOpacity="0.78" />
       <ellipse cx="179" cy="184" rx="11" ry="7.5" fill="#6A3618" fillOpacity="0.78" />
-
-      {/* ── Mouth — friendly smile ── */}
       <path d="M137,207 Q160,220 183,207" stroke="#7A3E18"
             strokeWidth="3.5" fill="none" strokeLinecap="round" />
-      {/* Two little front teeth peaking (capybara style, very cute) */}
       <rect x="150" y="209" width="8" height="7" rx="2" fill="white" fillOpacity="0.82" />
       <rect x="162" y="209" width="8" height="7" rx="2" fill="white" fillOpacity="0.82" />
-
-      {/* ── Ground shadow ── */}
       <ellipse cx="160" cy="228" rx="120" ry="10" fill="rgba(0,0,0,0.25)" />
     </svg>
   );
 }
-
-// ─── Login Screen (Mario Design Philosophy) ──────────────────
 export function LoginScreen({ onLogin }: { onLogin?: () => void }) {
   const { t } = useTranslation()
   const [username, setUsername]   = useState('');
