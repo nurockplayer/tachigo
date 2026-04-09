@@ -5,7 +5,7 @@
 │                           CLIENT LAYER                             │
 │                                                                    │
 │  ┌──────────────────┐  ┌──────────────────┐  ┌──────────────────┐  │
-│  │ Twitch Extension │  │  Dashboard [TBD] │  │  Wallet [Phs.2]  │  │
+│  │ Chrome Extension │  │  Dashboard [TBD] │  │  Wallet [Phs.2]  │  │
 │  │   (tachimint)    │  │  Agency/Streamer │  │  Claim on-chain  │  │
 │  │ React+TypeScript │  │  Mgmt Interface  │  │                  │  │
 │  └────────┬─────────┘  └────────┬─────────┘  └────────┬─────────┘  │
@@ -50,6 +50,8 @@
 ```
 
 ## 主要資料流
+
+> **名詞統一：** 本文件中的前端 extension 指的是 **Chrome Extension**。程式碼中若仍保留 `Twitch Extension` 或 `/extension/*` 等命名，屬於現有實作與串接細節，不應解讀為產品形式。
 
 ```
 觀眾觀看直播（定時 Heartbeat）

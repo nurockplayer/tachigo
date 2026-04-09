@@ -1,6 +1,6 @@
 # tachimint
 
-Twitch Extension frontend for tachigo.
+Chrome Extension frontend for tachigo.
 Built with React + TypeScript + Vite.
 
 ## Dev
@@ -11,8 +11,8 @@ Run from the repo root:
 make dev          # starts Vite dev server at http://localhost:5173
 ```
 
-`window.Twitch.ext` is automatically mocked in dev mode.
-No Twitch Developer Rig needed for UI development.
+`window.Twitch.ext` is automatically mocked in dev mode as a legacy compatibility layer.
+No Twitch Developer Rig is required for current UI development.
 
 ## Build
 
@@ -21,4 +21,4 @@ docker compose run --no-deps --rm frontend npm run build
 # output → dist/
 ```
 
-Upload `dist/` to the Twitch Developer Console to test as a hosted extension.
+Current product direction is Chrome Extension. If legacy Twitch-hosted testing notes still appear elsewhere, treat them as outdated documentation rather than the target delivery format.

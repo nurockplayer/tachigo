@@ -394,7 +394,7 @@ $TACHI 為 Soulbound（不可自由轉讓），但競標結算、投資分潤、
 | 功能 | 狀態 | 說明 | 相關 Issue |
 |------|------|------|-----------|
 | Auth Service（Twitch / Google / SIWE） | ✅ 已完成 | Web3 前端登入支援 | — |
-| Twitch Extension tachimint（React / TS） | ✅ 已完成 | 前端 Extension | — |
+| Chrome Extension tachimint（React / TS） | ✅ 已完成 | 前端 Extension | — |
 | Extension Service（JWT 驗證） | ✅ 已完成 | — | — |
 | PostgreSQL 基礎 Schema | ✅ 已完成 | users / auth_providers / refresh_tokens | — |
 | WebSocket Heartbeat + stale 偵測 | ✅ 已完成 | `<20s` 忽略、`>2m` 判 stale | #59 #64 |

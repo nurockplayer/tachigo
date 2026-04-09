@@ -7,7 +7,9 @@
 
 ## 概述
 
-觀眾在 Twitch Extension 觀看直播時定時發送 heartbeat（每 30 秒），後端累積觀看秒數並依頻道設定的速率發點。點數記錄在 **per-channel 帳本**（`points_ledgers`），每位觀眾在每個頻道各有獨立餘額，頻道點數彼此不互通。兌換時才將頻道點數轉換為統一平台幣並上鏈 mint（Phase 2）。
+觀眾在 Chrome Extension 觀看直播時定時發送 heartbeat（每 30 秒），後端累積觀看秒數並依頻道設定的速率發點。點數記錄在 **per-channel 帳本**（`points_ledgers`），每位觀眾在每個頻道各有獨立餘額，頻道點數彼此不互通。兌換時才將頻道點數轉換為統一平台幣並上鏈 mint（Phase 2）。
+
+> **名詞統一：** 本文件中的 extension 指的是 **Chrome Extension**。目前程式與 API 仍保留 `/extension/*`、`ExtensionService`、`extension_jwt` 等命名，屬於現行實作名稱；若有提到 `Twitch Extension JWT`，應理解為既有驗證流程中的 legacy 命名，而非產品形式定義。
 
 ---
 
@@ -32,7 +34,7 @@
 
 **補充：**
 
-- Twitch Extension JWT 內仍會帶 `opaque_user_id`，但它是 extension-scoped identifier，不再作為登入識別鍵
+- 既有驗證流程中的 extension JWT 內仍會帶 `opaque_user_id`，但它是 extension-scoped identifier，不再作為登入識別鍵
 - 若觀眾沒有授權分享身分，`user_id` 會是空字串，後端直接視為未授權並回 401
 
 **為什麼必須先登入 tachigo 再授權 Twitch：**
@@ -327,7 +329,7 @@ PR #62（`users.role` VARCHAR → ENUM）也改動了 `backend/cmd/server/main.g
 |---|---|---|---|
 | 觀眾識別鍵 | `twitch_user_id VARCHAR(255)` | `user_id UUID FK → users.id` | 流程是「先登入才授權」，帳號主體是 tachigo `users`，Twitch 是附掛的 auth provider |
 | 點數帳本範圍 | 全平台共用一本 | 每個觀眾 × 每個頻道各自獨立 | 每個實況主的點數互不流通，`points_ledgers` 唯一鍵改為 `(user_id, channel_id)` |
-| Watch 路由 middleware | `ExtJWTAuth`（驗 Extension JWT） | `JWTAuth`（驗 tachigo JWT） | watch 端點已要求先登入取得 tachigo JWT，Extension JWT 不再適用 |
+| Watch 路由 middleware | `ExtJWTAuth`（驗 extension JWT，legacy 命名） | `JWTAuth`（驗 tachigo JWT） | watch 端點已要求先登入取得 tachigo JWT，extension JWT 不再適用 |
 | `channel_id` 來源 | 從 Extension JWT claims 直接取出 | 由前端透過 request body 傳入 | tachigo JWT 不含頻道資訊；`balance` 端點用 query param |
 | `WatchService` 參數型別 | `twitchUserID string` | `userID uuid.UUID` | 對應識別鍵型別變更，與 `users.id` FK 一致 |
 | `GetBalance` 簽名 | `GetBalance(twitchUserID string)` | `GetBalance(userID uuid.UUID, channelID string)` | 帳本改為 per-channel，查詢時需同時提供 user 與 channel |

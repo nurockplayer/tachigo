@@ -8,7 +8,7 @@
 
 ## 1. 專案概述
 
-tachigo 是一個整合 Twitch Extension 的 Web3 忠誠點數平台，讓觀眾透過觀看直播（定時 Heartbeat 回報）累積鏈上忠誠代幣，並可用於tachiya商城折扣、虛擬頭像客製化、投票/賭博等消費場景。
+tachigo 是一個整合 Chrome Extension 的 Web3 忠誠點數平台，讓觀眾透過觀看直播（定時 Heartbeat 回報）累積鏈上忠誠代幣，並可用於 tachiya 商城折扣、虛擬頭像客製化、投票 / 賭博等消費場景。
 
 ---
 
@@ -32,7 +32,7 @@ tachigo 是一個整合 Twitch Extension 的 Web3 忠誠點數平台，讓觀眾
 ### 功能 1：點數系統
 
 **這個功能在幹嘛？**
-> 觀眾在 Twitch Extension 上觀看直播時，定時回報 Heartbeat → 後端驗證在線狀態 → 更新雙帳本（cumulative_total 增加、spendable_balance 增加）。
+> 觀眾在 Chrome Extension 上觀看直播時，定時回報 Heartbeat → 後端驗證在線狀態 → 更新雙帳本（cumulative_total 增加、spendable_balance 增加）。
 
 **這筆資料需要上鏈嗎？**
 > MVP 階段不需要，存在後端 PostgreSQL 即可。Phase 2 才將鏈下累積結果 mint 成 Soulbound ERC-20。
@@ -259,7 +259,7 @@ Phase 3：
 
 | 層級 | 技術選擇 | 備註 |
 |------|---------|------|
-| **前端框架** | React 19 + TypeScript + Vite | Twitch Extension（tachimint） |
+| **前端框架** | React 19 + TypeScript + Vite | Chrome Extension（tachimint） |
 | **樣式** | TBD | |
 | **後端框架** | Go + Gin + GORM | |
 | **資料庫** | PostgreSQL 16 | Docker Compose 本地開發 |

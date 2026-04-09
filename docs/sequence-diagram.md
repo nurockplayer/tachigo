@@ -7,7 +7,7 @@
 ```mermaid
 sequenceDiagram
     actor Viewer as 觀眾
-    participant FE as Twitch Extension<br/>(前端)
+    participant FE as Chrome Extension<br/>(前端)
     participant API as tachigo API<br/>(Go)
     participant DB as PostgreSQL
 
@@ -30,8 +30,8 @@ sequenceDiagram
     %% ── 2. Extension 開啟 ────────────────────────────
     rect rgb(255, 248, 240)
         Note over Viewer,DB: 開啟 Extension（需已登入 tachigo 並連結 Twitch）
-        Viewer->>FE: 在 Twitch 開啟 Extension
-        FE->>API: POST /extension/auth/login（帶 Twitch Extension JWT）
+        Viewer->>FE: 開啟 Chrome Extension
+        FE->>API: POST /extension/auth/login（帶 extension JWT）
         API->>DB: 查 auth_providers WHERE provider=twitch AND provider_id=?
         alt 找到對應帳號
             DB-->>API: user record
