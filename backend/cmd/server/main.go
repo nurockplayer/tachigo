@@ -105,6 +105,9 @@ func main() {
 	`).Error; err != nil {
 		log.Fatalf("failed to create streamer index: %v", err)
 	}
+	if err := applyStreamerAgencyMigration(db); err != nil {
+		log.Fatalf("failed to run migration 008: %v", err)
+	}
 	// Wire services
 	authSvc := services.NewAuthService(db, cfg)
 	userSvc := services.NewUserService(db)

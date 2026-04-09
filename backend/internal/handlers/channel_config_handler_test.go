@@ -31,10 +31,14 @@ func newDashboardTestEnv(t *testing.T) *dashboardEnv {
 	v1 := base.router.Group("/api/v1")
 	dashboard := v1.Group("/dashboard")
 	dashboard.Use(middleware.JWTAuth(base.authSvc))
-	dashboard.Use(middleware.RequireRole(models.RoleAdmin, models.RoleStreamer))
+	dashboard.Use(middleware.RequireRole(models.RoleAdmin, models.RoleStreamer, models.RoleAgency))
 	{
-		dashboard.GET("/channels/:channel_id/config", configH.GetChannelConfig)
-		dashboard.PUT("/channels/:channel_id/config", configH.UpdateChannelConfig)
+		dashboard.GET("/channels/:channel_id/config",
+			middleware.RequireRole(models.RoleAdmin, models.RoleStreamer, models.RoleAgency),
+			configH.GetChannelConfig)
+		dashboard.PUT("/channels/:channel_id/config",
+			middleware.RequireRole(models.RoleAdmin, models.RoleStreamer),
+			configH.UpdateChannelConfig)
 	}
 
 	return &dashboardEnv{testEnv: base}
@@ -114,6 +118,35 @@ func seedOwnedStreamerChannel(t *testing.T, env *dashboardEnv, email, channelID 
 	}
 }
 
+func seedAgencyOwnedStreamerChannel(t *testing.T, env *dashboardEnv, agencyEmail, channelID string) {
+	t.Helper()
+
+	var agency models.User
+	if err := env.db.Where("email = ?", agencyEmail).First(&agency).Error; err != nil {
+		t.Fatalf("load agency by email: %v", err)
+	}
+
+	streamerUser, _, err := env.authSvc.Register(services.RegisterInput{
+		Username: "agency_owned_streamer_" + channelID,
+		Email:    "agency_owned_streamer_" + channelID + "@example.com",
+		Password: "password123",
+	})
+	if err != nil {
+		t.Fatalf("register agency-owned streamer: %v", err)
+	}
+	if err := env.db.Model(streamerUser).Update("role", models.RoleStreamer).Error; err != nil {
+		t.Fatalf("set streamer role: %v", err)
+	}
+	if err := env.db.Create(&models.Streamer{
+		UserID:       streamerUser.ID,
+		AgencyUserID: &agency.ID,
+		ChannelID:    channelID,
+		DisplayName:  "Agency owned channel",
+	}).Error; err != nil {
+		t.Fatalf("seed agency streamer ownership: %v", err)
+	}
+}
+
 func TestUpdateChannelConfig_NoToken(t *testing.T) {
 	env := newDashboardTestEnv(t)
 
@@ -138,8 +171,9 @@ func TestUpdateChannelConfig_ViewerForbidden(t *testing.T) {
 func TestUpdateChannelConfig_AgencyForbidden(t *testing.T) {
 	env := newDashboardTestEnv(t)
 	token := env.tokenForRole(t, models.RoleAgency)
+	seedAgencyOwnedStreamerChannel(t, env, "agency_dashboard@example.com", "agency_owned_channel")
 
-	w := updateChannelConfig(t, env.router, token, "channel_123", `{"seconds_per_point":45}`)
+	w := updateChannelConfig(t, env.router, token, "agency_owned_channel", `{"seconds_per_point":45}`)
 
 	if w.Code != http.StatusForbidden {
 		t.Fatalf("want 403, got %d: %s", w.Code, w.Body.String())
@@ -182,6 +216,17 @@ func TestGetChannelConfig_StreamerForbidden(t *testing.T) {
 	w := getChannelConfig(t, env.router, token, "channel_other")
 	if w.Code != http.StatusForbidden {
 		t.Fatalf("want 403, got %d: %s", w.Code, w.Body.String())
+	}
+}
+
+func TestGetChannelConfig_AgencyOwned(t *testing.T) {
+	env := newDashboardTestEnv(t)
+	token := env.tokenForRole(t, models.RoleAgency)
+	seedAgencyOwnedStreamerChannel(t, env, "agency_dashboard@example.com", "agency_owned_channel")
+
+	w := getChannelConfig(t, env.router, token, "agency_owned_channel")
+	if w.Code != http.StatusOK {
+		t.Fatalf("want 200, got %d: %s", w.Code, w.Body.String())
 	}
 }
 

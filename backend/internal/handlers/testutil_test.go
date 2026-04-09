@@ -105,6 +105,7 @@ func migrateTestDB(db *gorm.DB) error {
 		`CREATE TABLE IF NOT EXISTS streamers (
 			id TEXT PRIMARY KEY,
 			user_id TEXT NOT NULL REFERENCES users(id),
+			agency_user_id TEXT REFERENCES users(id),
 			channel_id TEXT NOT NULL,
 			display_name TEXT,
 			created_at DATETIME,
@@ -112,6 +113,8 @@ func migrateTestDB(db *gorm.DB) error {
 		)`,
 		`CREATE UNIQUE INDEX IF NOT EXISTS idx_streamers_user_channel
 			ON streamers (user_id, channel_id)`,
+		`CREATE INDEX IF NOT EXISTS idx_streamers_agency_user_id
+			ON streamers (agency_user_id)`,
 		`CREATE TABLE IF NOT EXISTS watch_sessions (
 			id TEXT PRIMARY KEY,
 			user_id TEXT NOT NULL REFERENCES users(id),
@@ -223,6 +226,9 @@ func newTestEnv(t *testing.T) *testEnv {
 	})
 	if err != nil {
 		t.Fatalf("open db: %v", err)
+	}
+	if err := db.Exec("PRAGMA foreign_keys = ON").Error; err != nil {
+		t.Fatalf("enable foreign keys: %v", err)
 	}
 	if err := migrateTestDB(db); err != nil {
 		t.Fatalf("migrate db: %v", err)

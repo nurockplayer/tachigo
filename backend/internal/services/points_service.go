@@ -2,6 +2,7 @@ package services
 
 import (
 	"errors"
+	"fmt"
 	"time"
 	"unicode/utf8"
 
@@ -285,11 +286,13 @@ func (s *PointsService) GetBroadcastStats(streamerID uuid.UUID, channelID string
 	var currentSession struct {
 		AccumulatedSeconds int64
 	}
-	s.db.Raw(`
+	if err := s.db.Raw(`
 		SELECT COALESCE(SUM(accumulated_seconds), 0) AS accumulated_seconds
 		FROM watch_sessions
 		WHERE channel_id = ? AND is_active = true
-	`, channelID).Scan(&currentSession)
+	`, channelID).Scan(&currentSession).Error; err != nil {
+		return nil, fmt.Errorf("query current broadcast session seconds: %w", err)
+	}
 
 	startOfDay := time.Date(now.Year(), now.Month(), now.Day(), 0, 0, 0, 0, now.Location())
 	startOfMonth := time.Date(now.Year(), now.Month(), 1, 0, 0, 0, 0, now.Location())
@@ -302,16 +305,31 @@ func (s *PointsService) GetBroadcastStats(streamerID uuid.UUID, channelID string
 		WHERE streamer_id = ? AND channel_id = ? AND recorded_at >= ?
 	`
 
-	fetch := func(since time.Time) int64 {
+	fetch := func(label string, since time.Time) (int64, error) {
 		var r struct{ Total int64 }
-		s.db.Raw(logQuery, streamerID, channelID, since).Scan(&r)
-		return r.Total
+		if err := s.db.Raw(logQuery, streamerID, channelID, since).Scan(&r).Error; err != nil {
+			return 0, fmt.Errorf("query %s broadcast seconds: %w", label, err)
+		}
+		return r.Total, nil
+	}
+
+	dailySeconds, err := fetch("daily", startOfDay)
+	if err != nil {
+		return nil, err
+	}
+	monthlySeconds, err := fetch("monthly", startOfMonth)
+	if err != nil {
+		return nil, err
+	}
+	yearlySeconds, err := fetch("yearly", startOfYear)
+	if err != nil {
+		return nil, err
 	}
 
 	return &BroadcastStats{
 		CurrentSessionSeconds: currentSession.AccumulatedSeconds,
-		DailySeconds:          fetch(startOfDay),
-		MonthlySeconds:        fetch(startOfMonth),
-		YearlySeconds:         fetch(startOfYear),
+		DailySeconds:          dailySeconds,
+		MonthlySeconds:        monthlySeconds,
+		YearlySeconds:         yearlySeconds,
 	}, nil
 }
