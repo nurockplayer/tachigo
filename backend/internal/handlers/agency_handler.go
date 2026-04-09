@@ -14,11 +14,12 @@ import (
 )
 
 type AgencyHandler struct {
-	agencySvc *services.AgencyService
+	agencySvc    *services.AgencyService
+	emailAuthSvc *services.EmailAuthService
 }
 
-func NewAgencyHandler(agencySvc *services.AgencyService) *AgencyHandler {
-	return &AgencyHandler{agencySvc: agencySvc}
+func NewAgencyHandler(agencySvc *services.AgencyService, emailAuthSvc *services.EmailAuthService) *AgencyHandler {
+	return &AgencyHandler{agencySvc: agencySvc, emailAuthSvc: emailAuthSvc}
 }
 
 type createAgencyRequest struct {
@@ -61,6 +62,16 @@ func (h *AgencyHandler) Create(c *gin.Context) {
 		log.Printf("agency create: unexpected error: %v", err)
 		internal(c)
 		return
+	}
+
+	if err := h.emailAuthSvc.ForgotPassword(*user.Email); err != nil {
+		// Agency is already committed; ForgotPassword failure is non-fatal.
+		// Admin can re-trigger via POST /auth/forgot-password if needed.
+		if errors.Is(err, services.ErrPasswordResetEmailSend) {
+			log.Printf("agency create: password setup email not delivered for user %s: %v", user.ID, err)
+		} else {
+			log.Printf("agency create: password reset token setup failed for user %s: %v", user.ID, err)
+		}
 	}
 
 	created(c, createAgencyResponse{
