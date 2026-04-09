@@ -14,11 +14,12 @@ import (
 )
 
 type AgencyHandler struct {
-	agencySvc *services.AgencyService
+	agencySvc    *services.AgencyService
+	emailAuthSvc *services.EmailAuthService
 }
 
-func NewAgencyHandler(agencySvc *services.AgencyService) *AgencyHandler {
-	return &AgencyHandler{agencySvc: agencySvc}
+func NewAgencyHandler(agencySvc *services.AgencyService, emailAuthSvc *services.EmailAuthService) *AgencyHandler {
+	return &AgencyHandler{agencySvc: agencySvc, emailAuthSvc: emailAuthSvc}
 }
 
 type createAgencyRequest struct {
@@ -60,6 +61,10 @@ func (h *AgencyHandler) Create(c *gin.Context) {
 		log.Printf("agency create: unexpected error: %v", err)
 		internal(c)
 		return
+	}
+
+	if err := h.emailAuthSvc.ForgotPassword(*user.Email); err != nil {
+		log.Printf("agency create: failed to send password setup email to %s: %v", *user.Email, err)
 	}
 
 	created(c, createAgencyResponse{

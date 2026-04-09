@@ -25,7 +25,7 @@ func newAgencyTestEnv(t *testing.T) (*testEnv, http.Handler) {
 
 	env := newTestEnv(t)
 	agencySvc := services.NewAgencyService(env.db)
-	agencyH := handlers.NewAgencyHandler(agencySvc)
+	agencyH := handlers.NewAgencyHandler(agencySvc, env.emailAuthSvc)
 
 	r := env.router
 	v1 := r.Group("/api/v1")
@@ -152,6 +152,35 @@ func TestAgencyHandler_Create_Success(t *testing.T) {
 	}
 	if data["name"] != "agency-one" {
 		t.Fatalf("expected name agency-one, got %v", data["name"])
+	}
+}
+
+func TestAgencyHandler_Create_TriggersPasswordReset(t *testing.T) {
+	env, r := newAgencyTestEnv(t)
+
+	body, _ := json.Marshal(map[string]string{
+		"name":  "agency-onboard",
+		"email": "agency-onboard@example.com",
+	})
+
+	w := httptest.NewRecorder()
+	req, _ := http.NewRequest("POST", "/api/v1/agencies", bytes.NewBuffer(body))
+	req.Header.Set("Authorization", "Bearer "+makeAccessToken(t, models.RoleAdmin))
+	req.Header.Set("Content-Type", "application/json")
+	r.ServeHTTP(w, req)
+
+	if w.Code != http.StatusCreated {
+		t.Fatalf("expected 201, got %d: %s", w.Code, w.Body.String())
+	}
+
+	var count int64
+	if err := env.db.Table("password_resets").
+		Where("email = ?", "agency-onboard@example.com").
+		Count(&count).Error; err != nil {
+		t.Fatalf("query password_resets: %v", err)
+	}
+	if count != 1 {
+		t.Fatalf("expected 1 password_resets row, got %d", count)
 	}
 }
 

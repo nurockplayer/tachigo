@@ -118,7 +118,7 @@ func main() {
 	streamerSvc := services.NewStreamerService(db, pointsSvc)
 	claimSvc := services.NewClaimService(db)
 	agencySvc := services.NewAgencyService(db)
-	agencyH := handlers.NewAgencyHandler(agencySvc)
+	agencyH := handlers.NewAgencyHandler(agencySvc, emailAuthSvc)
 
 	// CORS origins from env, default to localhost for dev
 	originsEnv := os.Getenv("ALLOWED_ORIGINS")
