@@ -60,6 +60,18 @@ func failOnAgencyBackfillConflicts(db *gorm.DB) error {
 	)
 }
 
+const postgresBackfillStreamerAgencyUserIDSQL = `
+	UPDATE streamers s
+	SET agency_user_id = src.agency_id
+	FROM (
+		SELECT DISTINCT ON (channel_id) channel_id, agency_id
+		FROM agency_streamers
+		ORDER BY channel_id
+	) AS src
+	WHERE s.channel_id = src.channel_id
+	  AND s.agency_user_id IS NULL
+`
+
 func backfillStreamerAgencyUserID(db *gorm.DB) error {
 	sql := `
 		UPDATE streamers
@@ -77,17 +89,7 @@ func backfillStreamerAgencyUserID(db *gorm.DB) error {
 		)
 	`
 	if db.Dialector.Name() == "postgres" {
-		sql = `
-			UPDATE streamers s
-			SET agency_user_id = src.agency_id
-			FROM (
-				SELECT channel_id, agency_id
-				FROM agency_streamers
-				GROUP BY channel_id, agency_id
-			) AS src
-			WHERE s.channel_id = src.channel_id
-			  AND s.agency_user_id IS NULL
-		`
+		sql = postgresBackfillStreamerAgencyUserIDSQL
 	}
 	if err := db.Exec(sql).Error; err != nil {
 		return fmt.Errorf("update streamer agency_user_id from legacy mappings: %w", err)

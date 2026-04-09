@@ -83,6 +83,17 @@ func TestFailOnAgencyBackfillConflicts_MultiAgencyChannel(t *testing.T) {
 	}
 }
 
+func TestPostgresBackfillUsesDeterministicChannelSource(t *testing.T) {
+	sql := postgresBackfillStreamerAgencyUserIDSQL
+
+	if !strings.Contains(sql, "DISTINCT ON (channel_id)") {
+		t.Fatalf("postgres backfill SQL must use DISTINCT ON (channel_id):\n%s", sql)
+	}
+	if !strings.Contains(sql, "ORDER BY channel_id") {
+		t.Fatalf("postgres backfill SQL must order its DISTINCT ON source:\n%s", sql)
+	}
+}
+
 func newAgencyMigrationTestDB(t *testing.T) *gorm.DB {
 	t.Helper()
 
