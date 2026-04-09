@@ -2,6 +2,7 @@
 
 > 用途：盤點 repo 內 `Chrome Extension`、`Twitch Extension` 與泛用 `extension` 命名的混用情況。
 > 狀態：盤點文件，不是 migration spec，也不是「已完成 Chrome Extension 轉換」的宣告。
+> 最後更新：2026-04-10
 
 ---
 
@@ -37,8 +38,8 @@
 
 以下文件已另拆處理，不混在本 PR：
 
-- [docs/sequence-diagram.md](sequence-diagram.md) — 流程圖描述現況需單獨評估
-- `docs/extension-ui-prompts.md` — 已移出本 PR，避免 scope 擴張
+- [docs/sequence-diagram.md](sequence-diagram.md) - 另拆 PR 處理，流程圖描述現況需單獨評估
+- [docs/extension-ui-prompts.md](extension-ui-prompts.md) - 已拆至 #154，避免超出 terminology cleanup / audit 邊界
 
 ---
 

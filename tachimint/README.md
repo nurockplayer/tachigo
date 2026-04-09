@@ -21,7 +21,7 @@ No Twitch Developer Rig needed for UI development.
 
 ```bash
 docker compose run --no-deps --rm frontend npm run build
-# output → dist/
+# output -> dist/
 ```
 
 Upload `dist/` to the Twitch Developer Console to test as a hosted extension.
