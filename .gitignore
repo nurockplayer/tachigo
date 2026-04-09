@@ -31,3 +31,8 @@ dashboard/*.local
 
 # OS
 .DS_Store
+
+# Foundry
+contracts/out/
+contracts/cache/
+contracts/lib/

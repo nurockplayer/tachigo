@@ -142,3 +142,24 @@ jobs:
 
       - name: Build
         run: docker compose run --no-deps --rm dashboard pnpm build
+
+  contracts:
+    name: Contracts build
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+
+      - name: Install Foundry
+        uses: foundry-rs/foundry-toolchain@v1
+
+      - name: Install dependencies
+        working-directory: contracts
+        run: forge install OpenZeppelin/openzeppelin-contracts@v5.6.1 --no-git
+
+      - name: Build
+        working-directory: contracts
+        run: forge build
+
+      - name: Test
+        working-directory: contracts
+        run: forge test
