@@ -15,6 +15,8 @@ import (
 var ErrAgencyEmailTaken = errors.New("email already registered")
 var ErrAgencyNameTaken = errors.New("name already taken")
 var ErrAgencyNameTooLong = errors.New("agency name exceeds 50 characters")
+var ErrAgencyNotFound = errors.New("agency not found")
+var ErrDuplicateChannelID = errors.New("channel_id maps to multiple streamer users")
 
 type AgencyService struct {
 	db *gorm.DB
@@ -90,4 +92,55 @@ func (s *AgencyService) OwnsChannel(agencyUserID uuid.UUID, channelID string) (b
 		Where("agency_id = ? AND channel_id = ?", agencyUserID, channelID).
 		Count(&count).Error
 	return count > 0, err
+}
+
+func (s *AgencyService) ListStreamers(agencyID uuid.UUID) ([]models.AgencyStreamer, error) {
+	var streamers []models.AgencyStreamer
+	if err := s.db.
+		Where("agency_id = ?", agencyID).
+		Order("created_at ASC").
+		Find(&streamers).Error; err != nil {
+		return nil, err
+	}
+	if len(streamers) == 0 {
+		var count int64
+		if err := s.db.Model(&models.User{}).
+			Where("id = ? AND role = ?", agencyID, models.RoleAgency).
+			Count(&count).Error; err != nil {
+			return nil, err
+		}
+		if count == 0 {
+			return nil, ErrAgencyNotFound
+		}
+	}
+	return streamers, nil
+}
+
+func (s *AgencyService) ListStreamerUserIDs(channelIDs []string) (map[string]uuid.UUID, error) {
+	type streamerUserRow struct {
+		ChannelID string
+		UserID    uuid.UUID
+	}
+
+	if len(channelIDs) == 0 {
+		return map[string]uuid.UUID{}, nil
+	}
+
+	var rows []streamerUserRow
+	if err := s.db.Model(&models.Streamer{}).
+		Select("channel_id, user_id").
+		Where("channel_id IN ?", channelIDs).
+		Find(&rows).Error; err != nil {
+		return nil, err
+	}
+
+	userIDs := make(map[string]uuid.UUID, len(rows))
+	for _, row := range rows {
+		if _, exists := userIDs[row.ChannelID]; exists {
+			return nil, ErrDuplicateChannelID
+		}
+		userIDs[row.ChannelID] = row.UserID
+	}
+
+	return userIDs, nil
 }
