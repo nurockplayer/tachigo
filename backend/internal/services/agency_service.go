@@ -87,6 +87,30 @@ func (s *AgencyService) Create(name, email string) (*models.User, error) {
 	return user, nil
 }
 
+func (s *AgencyService) UpdateSettings(agencyID uuid.UUID, name string) error {
+	if utf8.RuneCountInString(name) > 50 {
+		return ErrAgencyNameTooLong
+	}
+
+	res := s.db.Model(&models.User{}).
+		Where("id = ? AND role = ?", agencyID, models.RoleAgency).
+		Update("username", name)
+	if res.Error != nil {
+		var pgErr *pgconn.PgError
+		isUniq := errors.Is(res.Error, gorm.ErrDuplicatedKey) ||
+			(errors.As(res.Error, &pgErr) && pgErr.Code == "23505") ||
+			strings.Contains(res.Error.Error(), "UNIQUE constraint failed")
+		if isUniq {
+			return ErrAgencyNameTaken
+		}
+		return res.Error
+	}
+	if res.RowsAffected == 0 {
+		return ErrAgencyNotFound
+	}
+	return nil
+}
+
 func (s *AgencyService) OwnsChannel(agencyUserID uuid.UUID, channelID string) (bool, error) {
 	var count int64
 	err := s.db.Model(&models.AgencyStreamer{}).

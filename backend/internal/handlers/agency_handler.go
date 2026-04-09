@@ -81,6 +81,50 @@ func (h *AgencyHandler) Create(c *gin.Context) {
 	})
 }
 
+type updateAgencySettingsRequest struct {
+	Name string `json:"name" binding:"required"`
+}
+
+func (h *AgencyHandler) UpdateSettings(c *gin.Context) {
+	agencyID, err := uuid.Parse(c.Param("id"))
+	if err != nil {
+		badRequest(c, "invalid agency id")
+		return
+	}
+
+	claims := middleware.MustClaims(c)
+	if claims.Role == models.RoleAgency && claims.UserID != agencyID.String() {
+		c.JSON(http.StatusForbidden, Response{Success: false, Error: "forbidden"})
+		return
+	}
+
+	var req updateAgencySettingsRequest
+	if err := c.ShouldBindJSON(&req); err != nil {
+		badRequest(c, err.Error())
+		return
+	}
+
+	if err := h.agencySvc.UpdateSettings(agencyID, req.Name); err != nil {
+		if errors.Is(err, services.ErrAgencyNotFound) {
+			notFound(c, "agency not found")
+			return
+		}
+		if errors.Is(err, services.ErrAgencyNameTaken) {
+			conflict(c, err.Error())
+			return
+		}
+		if errors.Is(err, services.ErrAgencyNameTooLong) {
+			badRequest(c, err.Error())
+			return
+		}
+		log.Printf("agency update settings: unexpected error: %v", err)
+		internal(c)
+		return
+	}
+
+	ok(c, gin.H{"name": req.Name})
+}
+
 func (h *AgencyHandler) ListStreamers(c *gin.Context) {
 	agencyID, err := uuid.Parse(c.Param("id"))
 	if err != nil {
