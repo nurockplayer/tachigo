@@ -128,7 +128,7 @@ func seedAgencyStreamerListData(t *testing.T, db *gorm.DB, agencyID uuid.UUID) [
 }
 
 func TestAgencyHandler_Create_Success(t *testing.T) {
-	_, r := newAgencyTestEnv(t)
+	env, r := newAgencyTestEnv(t)
 
 	body, _ := json.Marshal(map[string]string{
 		"name":  "agency-one",
@@ -152,6 +152,21 @@ func TestAgencyHandler_Create_Success(t *testing.T) {
 	}
 	if data["name"] != "agency-one" {
 		t.Fatalf("expected name agency-one, got %v", data["name"])
+	}
+	if data["email"] != "agency-one@example.com" {
+		t.Fatalf("expected email agency-one@example.com, got %v", data["email"])
+	}
+
+	// email_verified must be true for admin-created accounts.
+	var emailVerified bool
+	if err := env.db.Table("users").
+		Where("email = ?", "agency-one@example.com").
+		Select("email_verified").
+		Scan(&emailVerified).Error; err != nil {
+		t.Fatalf("query email_verified: %v", err)
+	}
+	if !emailVerified {
+		t.Fatal("expected email_verified = true for admin-created agency")
 	}
 }
 
