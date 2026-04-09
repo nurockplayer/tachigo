@@ -3,20 +3,29 @@ package handlers_test
 import (
 	"bytes"
 	"encoding/json"
+	"errors"
 	"net/http"
 	"net/http/httptest"
 	"testing"
 	"time"
 
+	"github.com/gin-gonic/gin"
 	"github.com/golang-jwt/jwt/v5"
 	"github.com/google/uuid"
 	"gorm.io/gorm"
 
+	"github.com/tachigo/tachigo/internal/config"
 	"github.com/tachigo/tachigo/internal/handlers"
 	"github.com/tachigo/tachigo/internal/middleware"
 	"github.com/tachigo/tachigo/internal/models"
 	"github.com/tachigo/tachigo/internal/services"
 )
+
+type failingMailer struct{}
+
+func (m *failingMailer) Send(to, subject, body string) error {
+	return errors.New("smtp: connection refused")
+}
 
 const agencyTestAccessSecret = "test-access-secret-at-least-32-chars!"
 
@@ -181,6 +190,67 @@ func TestAgencyHandler_Create_TriggersPasswordReset(t *testing.T) {
 	}
 	if count != 1 {
 		t.Fatalf("expected 1 password_resets row, got %d", count)
+	}
+}
+
+func TestAgencyHandler_Create_MailerFailureStillReturns201(t *testing.T) {
+	env := newTestEnv(t)
+
+	// Wire up an EmailAuthService backed by a mailer that always fails.
+	testCfg := &config.Config{
+		JWT: config.JWTConfig{
+			AccessSecret:  "test-access-secret-at-least-32-chars!",
+			RefreshSecret: "test-refresh-secret",
+			AccessTTL:     15 * time.Minute,
+			RefreshTTL:    30 * 24 * time.Hour,
+		},
+	}
+	failSvc := services.NewEmailAuthService(env.db, testCfg, &failingMailer{})
+	agencySvc := services.NewAgencyService(env.db)
+	agencyH := handlers.NewAgencyHandler(agencySvc, failSvc)
+
+	r := gin.New()
+	r.Use(gin.Recovery())
+	v1 := r.Group("/api/v1")
+	agencies := v1.Group("/agencies")
+	agencies.Use(middleware.JWTAuth(env.authSvc))
+	agencies.POST("", middleware.RequireRole(models.RoleAdmin), agencyH.Create)
+
+	body, _ := json.Marshal(map[string]string{
+		"name":  "agency-mailfail",
+		"email": "agency-mailfail@example.com",
+	})
+
+	w := httptest.NewRecorder()
+	req, _ := http.NewRequest("POST", "/api/v1/agencies", bytes.NewBuffer(body))
+	req.Header.Set("Authorization", "Bearer "+makeAccessToken(t, models.RoleAdmin))
+	req.Header.Set("Content-Type", "application/json")
+	r.ServeHTTP(w, req)
+
+	if w.Code != http.StatusCreated {
+		t.Fatalf("expected 201 even when mailer fails, got %d: %s", w.Code, w.Body.String())
+	}
+
+	// Agency user must exist.
+	var userCount int64
+	if err := env.db.Table("users").
+		Where("email = ? AND role = ?", "agency-mailfail@example.com", models.RoleAgency).
+		Count(&userCount).Error; err != nil {
+		t.Fatalf("query users: %v", err)
+	}
+	if userCount != 1 {
+		t.Fatalf("expected 1 agency user, got %d", userCount)
+	}
+
+	// password_resets token must still be written (token is persisted before mailer.Send).
+	var resetCount int64
+	if err := env.db.Table("password_resets").
+		Where("email = ?", "agency-mailfail@example.com").
+		Count(&resetCount).Error; err != nil {
+		t.Fatalf("query password_resets: %v", err)
+	}
+	if resetCount != 1 {
+		t.Fatalf("expected 1 password_resets row even on mailer failure, got %d", resetCount)
 	}
 }
 
