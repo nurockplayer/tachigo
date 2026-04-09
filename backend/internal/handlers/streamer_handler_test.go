@@ -49,7 +49,9 @@ func newStreamerDashboardEnv(t *testing.T) *dashboardEnv {
 		dashboard.GET("/channels/:channel_id/config",
 			middleware.RequireRole(models.RoleAdmin, models.RoleStreamer, models.RoleAgency),
 			configH.GetChannelConfig)
-		dashboard.PUT("/channels/:channel_id/config", configH.UpdateChannelConfig)
+		dashboard.PUT("/channels/:channel_id/config",
+			middleware.RequireRole(models.RoleAdmin, models.RoleStreamer),
+			configH.UpdateChannelConfig)
 	}
 
 	return &dashboardEnv{testEnv: base}
