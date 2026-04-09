@@ -26,7 +26,7 @@ func seedViewer(t *testing.T, svc *PointsService) uuid.UUID {
 	id := uuid.New()
 	if err := svc.db.Exec(
 		`INSERT INTO users (id, role, is_active, email_verified, created_at, updated_at)
-		 VALUES (?, 'viewer', 1, 0, CURRENT_TIMESTAMP, CURRENT_TIMESTAMP)`, id,
+		 VALUES (?, 'viewer', TRUE, FALSE, CURRENT_TIMESTAMP, CURRENT_TIMESTAMP)`, id,
 	).Error; err != nil {
 		t.Fatalf("seed viewer: %v", err)
 	}
@@ -39,7 +39,7 @@ func seedStreamer(t *testing.T, svc *PointsService, channelID string) uuid.UUID 
 	id := uuid.New()
 	if err := svc.db.Exec(
 		`INSERT INTO users (id, role, is_active, email_verified, created_at, updated_at)
-		 VALUES (?, 'streamer', 1, 0, CURRENT_TIMESTAMP, CURRENT_TIMESTAMP)`, id,
+		 VALUES (?, 'streamer', TRUE, FALSE, CURRENT_TIMESTAMP, CURRENT_TIMESTAMP)`, id,
 	).Error; err != nil {
 		t.Fatalf("seed streamer user: %v", err)
 	}

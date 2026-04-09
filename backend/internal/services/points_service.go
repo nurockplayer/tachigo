@@ -151,35 +151,62 @@ func (s *PointsService) AddPointsWithMeta(
 		return ErrInvalidSKU
 	}
 	return s.db.Transaction(func(tx *gorm.DB) error {
-		ledgerID := newUUID()
-		now := time.Now()
-
-		if err := tx.Exec(`
-			INSERT INTO points_ledgers (id, user_id, channel_id, spendable_balance, cumulative_total, created_at, updated_at)
-			VALUES (?, ?, ?, ?, ?, ?, ?)
-			ON CONFLICT (user_id, channel_id) DO UPDATE SET
-				spendable_balance = points_ledgers.spendable_balance + EXCLUDED.spendable_balance,
-				cumulative_total  = points_ledgers.cumulative_total  + EXCLUDED.cumulative_total,
-				updated_at        = ?
-		`, ledgerID, userID, channelID, amount, amount, now, now, now).Error; err != nil {
-			return err
-		}
-
-		var ledger models.PointsLedger
-		if err := tx.Where("user_id = ? AND channel_id = ?", userID, channelID).First(&ledger).Error; err != nil {
-			return err
-		}
-
-		txRecord := &models.PointsTransaction{
-			LedgerID:     ledger.ID,
-			Source:       source,
-			Delta:        amount,
-			BalanceAfter: ledger.SpendableBalance,
-			SKU:          meta.SKU,
-			Note:         meta.Note,
-		}
-		return tx.Create(txRecord).Error
+		return s.addPointsWithMeta(tx, userID, channelID, source, amount, meta)
 	})
+}
+
+func (s *PointsService) addPointsWithMeta(
+	tx *gorm.DB,
+	userID uuid.UUID,
+	channelID string,
+	source models.TxSource,
+	amount int64,
+	meta PointsCreditMeta,
+) error {
+	return s.addPointsWithMetaAt(tx, time.Now(), userID, channelID, source, amount, meta)
+}
+
+// addPointsWithMetaAt is like addPointsWithMeta but uses the caller-supplied
+// timestamp for both the ledger update and the transaction record's CreatedAt.
+// Use this when the caller needs the recorded time to match a pre-anchored
+// reference (e.g. the start of an airdrop attempt) rather than wall-clock now.
+func (s *PointsService) addPointsWithMetaAt(
+	tx *gorm.DB,
+	at time.Time,
+	userID uuid.UUID,
+	channelID string,
+	source models.TxSource,
+	amount int64,
+	meta PointsCreditMeta,
+) error {
+	ledgerID := newUUID()
+
+	if err := tx.Exec(`
+		INSERT INTO points_ledgers (id, user_id, channel_id, spendable_balance, cumulative_total, created_at, updated_at)
+		VALUES (?, ?, ?, ?, ?, ?, ?)
+		ON CONFLICT (user_id, channel_id) DO UPDATE SET
+			spendable_balance = points_ledgers.spendable_balance + EXCLUDED.spendable_balance,
+			cumulative_total  = points_ledgers.cumulative_total  + EXCLUDED.cumulative_total,
+			updated_at        = ?
+	`, ledgerID, userID, channelID, amount, amount, at, at, at).Error; err != nil {
+		return err
+	}
+
+	var ledger models.PointsLedger
+	if err := tx.Where("user_id = ? AND channel_id = ?", userID, channelID).First(&ledger).Error; err != nil {
+		return err
+	}
+
+	txRecord := &models.PointsTransaction{
+		LedgerID:     ledger.ID,
+		Source:       source,
+		Delta:        amount,
+		BalanceAfter: ledger.SpendableBalance,
+		SKU:          meta.SKU,
+		Note:         meta.Note,
+		CreatedAt:    at,
+	}
+	return tx.Create(txRecord).Error
 }
 
 func validatePositivePointsAmount(amount int64) error {

@@ -20,7 +20,9 @@ func New(
 	watchSvc *services.WatchService,
 	channelConfigSvc *services.ChannelConfigService,
 	pointsSvc *services.PointsService,
+	airdropSvc *services.AirdropService,
 	streamerSvc *services.StreamerService,
+	agencySvc *services.AgencyService,
 	claimSvc *services.ClaimService,
 	agencyHandler *handlers.AgencyHandler,
 	allowedOrigins []string,
@@ -39,6 +41,7 @@ func New(
 	pointsH := handlers.NewPointsHandler(pointsSvc)
 	streamerH := handlers.NewStreamerHandler(streamerSvc)
 	claimH := handlers.NewClaimHandler(claimSvc)
+	airdropH := handlers.NewAirdropHandler(airdropSvc, agencySvc, streamerSvc)
 
 	r.GET("/health", func(c *gin.Context) {
 		c.JSON(200, gin.H{"status": "ok"})
@@ -127,7 +130,7 @@ func New(
 
 	dashboard := v1.Group("/dashboard")
 	dashboard.Use(middleware.JWTAuth(authSvc))
-	dashboard.Use(middleware.RequireRole(models.RoleAdmin, models.RoleStreamer, models.RoleAgency))
+	dashboard.Use(middleware.RequireRole(models.RoleAdmin, models.RoleStreamer))
 	{
 		dashboard.POST("/streamers", middleware.RequireRole(models.RoleAdmin), streamerH.Create)
 		dashboard.GET("/streamers", middleware.RequireRole(models.RoleAgency, models.RoleAdmin), streamerH.List)
@@ -149,6 +152,13 @@ func New(
 		dashboard.PUT("/channels/:channel_id/config",
 			middleware.RequireRole(models.RoleAdmin, models.RoleStreamer),
 			channelConfigH.UpdateChannelConfig)
+	}
+
+	dashboardAirdrop := v1.Group("/dashboard/channels/:channel_id")
+	dashboardAirdrop.Use(middleware.JWTAuth(authSvc))
+	dashboardAirdrop.Use(middleware.RequireRole(models.RoleAdmin, models.RoleStreamer, models.RoleAgency))
+	{
+		dashboardAirdrop.POST("/airdrop", airdropH.Airdrop)
 	}
 
 	// ── Agency management ─────────────────────────────────────────────────
