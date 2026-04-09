@@ -105,8 +105,6 @@ func (s *AirdropService) Execute(req AirdropRequest) (*AirdropResult, error) {
 				return ErrNoActiveViewers
 			}
 
-			distributeAirdrop(viewers, req.Amount)
-
 			// Read daily_airdrop_limit inside the transaction so that concurrent
 			// updates to channel_configs are visible under SERIALIZABLE isolation
 			// and trigger a retry rather than passing with a stale limit.
@@ -131,6 +129,8 @@ func (s *AirdropService) Execute(req AirdropRequest) (*AirdropResult, error) {
 					Remaining:  remaining,
 				}
 			}
+
+			distributeAirdrop(viewers, req.Amount)
 
 			result = &AirdropResult{
 				Distribution: make([]AirdropRecipient, 0, len(viewers)),

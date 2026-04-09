@@ -2,6 +2,7 @@ package services
 
 import (
 	"errors"
+	"math"
 	"sync"
 	"testing"
 	"time"
@@ -87,6 +88,47 @@ func TestAirdrop_DailyLimitExceeded(t *testing.T) {
 	}
 	if exceededErr.Remaining != 500 {
 		t.Fatalf("want remaining 500, got %d", exceededErr.Remaining)
+	}
+}
+
+func TestAirdrop_RejectsAmountAboveDailyLimitBeforeDistribution(t *testing.T) {
+	db := newTestDB(t)
+	watchSvc := NewWatchService(db)
+	pointsSvc := NewPointsService(db, watchSvc)
+	configSvc := NewChannelConfigService(db)
+	svc := NewAirdropService(db, pointsSvc, configSvc)
+
+	channelID := "ch_huge_amount"
+	seedAirdropViewer(t, db, channelID, math.MaxInt64)
+	seedAirdropViewer(t, db, channelID, math.MaxInt64)
+
+	if err := db.Exec(
+		`INSERT INTO channel_configs (channel_id, seconds_per_point, multiplier, daily_airdrop_limit, created_at, updated_at)
+		 VALUES (?, 60, 1, 5000, CURRENT_TIMESTAMP, CURRENT_TIMESTAMP)`,
+		channelID,
+	).Error; err != nil {
+		t.Fatalf("seed channel config: %v", err)
+	}
+
+	_, err := svc.Execute(AirdropRequest{ChannelID: channelID, Amount: math.MaxInt64})
+	if !errors.Is(err, ErrDailyAirdropExceeded) {
+		t.Fatalf("want ErrDailyAirdropExceeded, got %v", err)
+	}
+
+	var exceededErr *DailyAirdropExceededError
+	if !errors.As(err, &exceededErr) {
+		t.Fatalf("want DailyAirdropExceededError, got %T", err)
+	}
+	if exceededErr.Remaining != 5000 {
+		t.Fatalf("want remaining 5000, got %d", exceededErr.Remaining)
+	}
+
+	todayTotal, err := svc.TodayTotal(channelID)
+	if err != nil {
+		t.Fatalf("today total: %v", err)
+	}
+	if todayTotal != 0 {
+		t.Fatalf("want today total 0 after rejected request, got %d", todayTotal)
 	}
 }
 
