@@ -92,29 +92,23 @@ func (s *AgencyService) UpdateSettings(agencyID uuid.UUID, name string) error {
 		return ErrAgencyNameTooLong
 	}
 
-	var count int64
-	if err := s.db.Model(&models.User{}).
+	res := s.db.Model(&models.User{}).
 		Where("id = ? AND role = ?", agencyID, models.RoleAgency).
-		Count(&count).Error; err != nil {
-		return err
+		Update("username", name)
+	if res.Error != nil {
+		var pgErr *pgconn.PgError
+		isUniq := errors.Is(res.Error, gorm.ErrDuplicatedKey) ||
+			(errors.As(res.Error, &pgErr) && pgErr.Code == "23505") ||
+			strings.Contains(res.Error.Error(), "UNIQUE constraint failed")
+		if isUniq {
+			return ErrAgencyNameTaken
+		}
+		return res.Error
 	}
-	if count == 0 {
+	if res.RowsAffected == 0 {
 		return ErrAgencyNotFound
 	}
-
-	count = 0
-	if err := s.db.Model(&models.User{}).
-		Where("username = ? AND id != ?", name, agencyID).
-		Count(&count).Error; err != nil {
-		return err
-	}
-	if count > 0 {
-		return ErrAgencyNameTaken
-	}
-
-	return s.db.Model(&models.User{}).
-		Where("id = ? AND role = ?", agencyID, models.RoleAgency).
-		Update("username", name).Error
+	return nil
 }
 
 func (s *AgencyService) OwnsChannel(agencyUserID uuid.UUID, channelID string) (bool, error) {
