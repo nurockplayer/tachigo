@@ -285,3 +285,30 @@
 .pickaxe-big-mining {
   animation: capy-hud-big-mining-pickaxe 500ms ease-in-out;
 }
+
+@media (prefers-reduced-motion: reduce) {
+  .capy-wrapper,
+  .capy-idle,
+  .capy-mining,
+  .capy-big-mining,
+  .capy-success,
+  .capy-error,
+  .capy-loading,
+  .pickaxe-mining,
+  .pickaxe-big-mining,
+  .capy-eye-blink,
+  .float-reward,
+  .sparkle,
+  .balance-bump,
+  .capsule-glow,
+  .capsule-glow-active,
+  .slide-down,
+  .passive-dot,
+  .passive-dot-error,
+  .screen-enter,
+  .loading-dot,
+  .btn-mine-ready {
+    animation: none !important;
+    transition: none !important;
+  }
+}

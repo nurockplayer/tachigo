@@ -22,6 +22,7 @@ export function LanguageSwitcher({ currentLanguage, onChangeLanguage }: Language
           <button
             type="button"
             onClick={() => onChangeLanguage(lang.code)}
+            aria-pressed={currentLanguage === lang.code}
             style={{
               padding: '5px 10px',
               borderRadius: 4,

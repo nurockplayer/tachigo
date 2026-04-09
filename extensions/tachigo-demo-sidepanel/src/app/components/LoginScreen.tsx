@@ -1,4 +1,4 @@
-import React, { useState } from 'react';
+import React, { useEffect, useRef, useState } from 'react';
 import { useTranslation } from 'react-i18next'
 
 // ─── Cute front-facing capybara (redesigned from scratch) ─────
@@ -142,18 +142,37 @@ export function LoginScreen({ onLogin }: { onLogin?: () => void }) {
   const [loading, setLoading]     = useState(false);
   const [focusedUser, setFocusedUser] = useState(false);
   const [focusedPass, setFocusedPass] = useState(false);
+  const unlockTimerRef = useRef<number | null>(null)
 
   const hasInput = username.length > 0 && pass.length > 0;
 
+  useEffect(() => {
+    return () => {
+      if (unlockTimerRef.current !== null) {
+        window.clearTimeout(unlockTimerRef.current)
+      }
+    }
+  }, [])
+
   const handleUnlock = () => {
+    if (loading) {
+      return;
+    }
+
     if (!hasInput) {
       setError(true);
       return;
     }
+
+    if (unlockTimerRef.current !== null) {
+      window.clearTimeout(unlockTimerRef.current)
+    }
+
     setLoading(true);
     setError(false);
-    setTimeout(() => {
+    unlockTimerRef.current = window.setTimeout(() => {
       setLoading(false);
+      unlockTimerRef.current = null
       onLogin?.();
     }, 1300);
   };
@@ -314,6 +333,7 @@ export function LoginScreen({ onLogin }: { onLogin?: () => void }) {
         {/* ── CTA Button ── */}
         <button
           onClick={handleUnlock}
+          disabled={loading}
           style={{
             width: '100%',
             marginTop: error ? 10 : 12,

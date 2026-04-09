@@ -2,6 +2,10 @@ import { loadDemoState, saveDemoState } from './storage'
 import { defaultDemoState } from './types'
 
 describe('demo storage', () => {
+  beforeEach(() => {
+    window.localStorage.clear()
+  })
+
   it('returns english defaults on first launch', async () => {
     await expect(loadDemoState()).resolves.toEqual(defaultDemoState)
   })

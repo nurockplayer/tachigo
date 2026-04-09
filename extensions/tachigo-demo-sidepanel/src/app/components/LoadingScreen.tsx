@@ -1,4 +1,4 @@
-import React, { useState, useEffect } from 'react';
+import React, { useEffect, useRef, useState } from 'react';
 import { useTranslation } from 'react-i18next'
 import logoImage from '../../assets/242a2b8162b4542ca6839e84ad45ad4a36c0257c.png';
 
@@ -6,22 +6,47 @@ import logoImage from '../../assets/242a2b8162b4542ca6839e84ad45ad4a36c0257c.png
 export function LoadingScreen({ onComplete }: { onComplete?: () => void }) {
   const { t } = useTranslation()
   const [progress, setProgress] = useState(0);
+  const onCompleteRef = useRef(onComplete)
+  const intervalRef = useRef<number | null>(null)
+  const completeTimeoutRef = useRef<number | null>(null)
 
-  // Simulate loading progress
   useEffect(() => {
-    const interval = setInterval(() => {
-      setProgress(prev => {
-        if (prev >= 100) {
-          clearInterval(interval);
-          setTimeout(() => onComplete?.(), 300);
-          return 100;
-        }
-        return prev + 2;
-      });
-    }, 50);
+    onCompleteRef.current = onComplete
+  }, [onComplete])
 
-    return () => clearInterval(interval);
-  }, [onComplete]);
+  useEffect(() => {
+    intervalRef.current = window.setInterval(() => {
+      setProgress((prev) => Math.min(prev + 2, 100))
+    }, 50)
+
+    return () => {
+      if (intervalRef.current !== null) {
+        window.clearInterval(intervalRef.current)
+      }
+      if (completeTimeoutRef.current !== null) {
+        window.clearTimeout(completeTimeoutRef.current)
+      }
+    }
+  }, [])
+
+  useEffect(() => {
+    if (progress < 100) {
+      return
+    }
+
+    if (intervalRef.current !== null) {
+      window.clearInterval(intervalRef.current)
+      intervalRef.current = null
+    }
+
+    if (completeTimeoutRef.current !== null) {
+      window.clearTimeout(completeTimeoutRef.current)
+    }
+
+    completeTimeoutRef.current = window.setTimeout(() => {
+      onCompleteRef.current?.()
+    }, 300)
+  }, [progress])
 
   return (
     <div

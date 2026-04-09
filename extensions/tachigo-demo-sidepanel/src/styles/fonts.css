@@ -7,7 +7,7 @@
 }
 
 @font-face {
-  font-family: 'Zpix';
+  font-family: Zpix;
   src: url('../assets/fonts/Zpix.ttf') format('truetype');
   font-weight: normal;
   font-style: normal;
@@ -15,7 +15,7 @@
 }
 
 @font-face {
-  font-family: 'Zpix CJK';
+  font-family: Zpix CJK;
   src: url('../assets/fonts/Zpix.ttf') format('truetype');
   font-weight: normal;
   font-style: normal;
