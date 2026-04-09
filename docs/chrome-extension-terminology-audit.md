@@ -31,13 +31,13 @@
 
 以下文件已先統一產品定位為 `Chrome Extension`：
 
-- [docs/architecture.md](/Users/tachikoma/Documents/Web3/tachigo/docs/architecture.md)
-- [docs/feature-discussion.md](/Users/tachikoma/Documents/Web3/tachigo/docs/feature-discussion.md)
-- [docs/tokenomics.md](/Users/tachikoma/Documents/Web3/tachigo/docs/tokenomics.md)
-- [docs/sequence-diagram.md](/Users/tachikoma/Documents/Web3/tachigo/docs/sequence-diagram.md)
-- [docs/watch-to-points-design.md](/Users/tachikoma/Documents/Web3/tachigo/docs/watch-to-points-design.md)
-- [docs/extension-ui-prompts.md](/Users/tachikoma/Documents/Web3/tachigo/docs/extension-ui-prompts.md)
-- [tachimint/README.md](/Users/tachikoma/Documents/Web3/tachigo/tachimint/README.md)
+- [docs/architecture.md](architecture.md)
+- [docs/feature-discussion.md](feature-discussion.md)
+- [docs/tokenomics.md](tokenomics.md)
+- [docs/sequence-diagram.md](sequence-diagram.md)
+- [docs/watch-to-points-design.md](watch-to-points-design.md)
+- [docs/extension-ui-prompts.md](extension-ui-prompts.md)
+- [tachimint/README.md](../tachimint/README.md)
 
 ---
 
@@ -47,28 +47,28 @@
 
 這類通常可以視為下一輪文件清理範圍：
 
-- [backend/.env.example](/Users/tachikoma/Documents/Web3/tachigo/backend/.env.example)
+- [backend/.env.example](../backend/.env.example)
   `# Twitch Extension`
-- [backend/cmd/server/main.go](/Users/tachikoma/Documents/Web3/tachigo/backend/cmd/server/main.go)
+- [backend/cmd/server/main.go](../backend/cmd/server/main.go)
   swagger description 仍寫 `Twitch extension + Web3 rewards platform`
-- [backend/docs/swagger.yaml](/Users/tachikoma/Documents/Web3/tachigo/backend/docs/swagger.yaml)
+- [backend/docs/swagger.yaml](../backend/docs/swagger.yaml)
   description / summary 仍有 `Twitch Extension JWT`
-- [backend/docs/swagger.json](/Users/tachikoma/Documents/Web3/tachigo/backend/docs/swagger.json)
+- [backend/docs/swagger.json](../backend/docs/swagger.json)
   description / summary 仍有 `Twitch Extension JWT`
-- [backend/docs/docs.go](/Users/tachikoma/Documents/Web3/tachigo/backend/docs/docs.go)
+- [backend/docs/docs.go](../backend/docs/docs.go)
   產生出的 swagger 內容仍有 `Twitch Extension JWT`
 
 ### B. 實作層泛用 `extension` 命名
 
 這類不一定要立刻改，因為它們可能只是模組名，而不是產品定位錯誤：
 
-- [backend/internal/services/extension_service.go](/Users/tachikoma/Documents/Web3/tachigo/backend/internal/services/extension_service.go)
+- [backend/internal/services/extension_service.go](../backend/internal/services/extension_service.go)
   `ExtensionService`
-- [backend/internal/handlers/extension_handler.go](/Users/tachikoma/Documents/Web3/tachigo/backend/internal/handlers/extension_handler.go)
+- [backend/internal/handlers/extension_handler.go](../backend/internal/handlers/extension_handler.go)
   `ExtensionHandler`
-- [backend/internal/router/router.go](/Users/tachikoma/Documents/Web3/tachigo/backend/internal/router/router.go)
+- [backend/internal/router/router.go](../backend/internal/router/router.go)
   `/extension/*` 路由群組
-- [backend/internal/middleware/ext_auth.go](/Users/tachikoma/Documents/Web3/tachigo/backend/internal/middleware/ext_auth.go)
+- [backend/internal/middleware/ext_auth.go](../backend/internal/middleware/ext_auth.go)
   `ExtJWTAuth`
 
 這一層的問題不是 `extension` 這個字，而是裡面是否還把「產品 = Twitch Extension」寫死。
@@ -77,17 +77,17 @@
 
 這類已不是單純改字詞，而是與實際串接方式有關：
 
-- [tachimint/src/services/api.ts](/Users/tachikoma/Documents/Web3/tachigo/tachimint/src/services/api.ts)
+- [tachimint/src/services/api.ts](../tachimint/src/services/api.ts)
   `extension_jwt`、`loginWithTwitchExtension`
-- [tachimint/src/mock/twitch-ext.ts](/Users/tachikoma/Documents/Web3/tachigo/tachimint/src/mock/twitch-ext.ts)
+- [tachimint/src/mock/twitch-ext.ts](../tachimint/src/mock/twitch-ext.ts)
   `window.Twitch.ext` mock
-- [tachimint/src/types/twitch-ext.d.ts](/Users/tachikoma/Documents/Web3/tachigo/tachimint/src/types/twitch-ext.d.ts)
+- [tachimint/src/types/twitch-ext.d.ts](../tachimint/src/types/twitch-ext.d.ts)
   Twitch helper type declarations
-- [tachimint/index.html](/Users/tachikoma/Documents/Web3/tachigo/tachimint/index.html)
+- [tachimint/index.html](../tachimint/index.html)
   `Twitch Extension Helper`
-- [backend/internal/services/extension_service.go](/Users/tachikoma/Documents/Web3/tachigo/backend/internal/services/extension_service.go)
+- [backend/internal/services/extension_service.go](../backend/internal/services/extension_service.go)
   `Twitch Extension JWT`
-- [backend/internal/handlers/extension_handler.go](/Users/tachikoma/Documents/Web3/tachigo/backend/internal/handlers/extension_handler.go)
+- [backend/internal/handlers/extension_handler.go](../backend/internal/handlers/extension_handler.go)
   request body `extension_jwt`
 
 這些名稱反映的不只是文案，而是目前系統仍假設某種 Twitch helper / JWT 存在。
@@ -189,4 +189,3 @@
 - `Twitch Extension`
 
 前者是產品形式，後者若仍存在，只能代表歷史命名或特定串接機制。
-
