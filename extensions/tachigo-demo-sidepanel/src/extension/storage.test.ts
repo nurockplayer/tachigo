@@ -8,13 +8,27 @@ describe('demo storage', () => {
 
   it('persists the selected language and hud state in localStorage fallback', async () => {
     await saveDemoState({
-      screen: 'loading',
+      screen: 'hud',
       language: 'zh-TW',
+      hud: {
+        points: 120,
+        totalPoints: 13000,
+        countdown: 18,
+        isWatching: true,
+        clickCount: 7,
+      },
     })
 
     await expect(loadDemoState()).resolves.toEqual({
-      screen: 'loading',
+      screen: 'hud',
       language: 'zh-TW',
+      hud: {
+        points: 120,
+        totalPoints: 13000,
+        countdown: 18,
+        isWatching: true,
+        clickCount: 7,
+      },
     })
   })
 })

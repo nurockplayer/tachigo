@@ -1,12 +1,13 @@
 # Tachigo Demo Side Panel Extension
 
-Chrome / Brave MV3 side panel demo for the Tachigo login and loading flow.
+Final demo Chrome / Brave MV3 extension for the Tachigo login, loading, and HUD flow.
 
 ## What This Is
 
 - Side panel-first demo extension
-- Demo-only local flow: `login -> loading`
-- Local persistence for current screen and language
+- Popup window demo mode is also available from the panel controls
+- Demo-only local flow: `login -> loading -> hud`
+- Local persistence for current screen, language, and HUD demo state
 
 ## Local Development
 
