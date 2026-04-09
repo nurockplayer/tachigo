@@ -34,10 +34,13 @@
 - [docs/architecture.md](architecture.md)
 - [docs/feature-discussion.md](feature-discussion.md)
 - [docs/tokenomics.md](tokenomics.md)
-- [docs/sequence-diagram.md](sequence-diagram.md)
 - [docs/watch-to-points-design.md](watch-to-points-design.md)
-- [docs/extension-ui-prompts.md](extension-ui-prompts.md)
 - [tachimint/README.md](../tachimint/README.md)
+
+以下文件已在獨立 PR 處理：
+
+- [docs/sequence-diagram.md](sequence-diagram.md) — 另拆 PR 處理（流程圖描述現況需單獨評估）
+- [docs/extension-ui-prompts.md](extension-ui-prompts.md) — 已拆至 #154（新增 UI 設計提示詞）
 
 ---
 
