@@ -547,3 +547,35 @@ func TestPointsService_GetBroadcastStats_TimeWindows(t *testing.T) {
 		t.Errorf("yearly: want 360, got %d", stats.YearlySeconds)
 	}
 }
+
+func TestGetBroadcastStats_ReturnsCurrentSessionQueryError(t *testing.T) {
+	svc, _ := newPointsSvc(t)
+
+	if err := svc.db.Exec("DROP TABLE watch_sessions").Error; err != nil {
+		t.Fatalf("drop watch_sessions: %v", err)
+	}
+
+	_, err := svc.GetBroadcastStats(uuid.New(), "ch_missing_table")
+	if err == nil {
+		t.Fatal("want error when watch_sessions is missing, got nil")
+	}
+	if !strings.Contains(err.Error(), "query current broadcast session seconds") {
+		t.Fatalf("error = %v, want context 'query current broadcast session seconds'", err)
+	}
+}
+
+func TestGetBroadcastStats_ReturnsLogQueryError(t *testing.T) {
+	svc, _ := newPointsSvc(t)
+
+	if err := svc.db.Exec("DROP TABLE broadcast_time_logs").Error; err != nil {
+		t.Fatalf("drop broadcast_time_logs: %v", err)
+	}
+
+	_, err := svc.GetBroadcastStats(uuid.New(), "ch_any")
+	if err == nil {
+		t.Fatal("want error when broadcast_time_logs is missing, got nil")
+	}
+	if !strings.Contains(err.Error(), "broadcast seconds") {
+		t.Fatalf("error = %v, want context containing 'broadcast seconds'", err)
+	}
+}
