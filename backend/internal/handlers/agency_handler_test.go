@@ -328,6 +328,92 @@ func TestAgencyHandler_ListStreamers_OrphanChannelReturns500(t *testing.T) {
 	}
 }
 
+func TestAgencyHandler_ListStreamers_EmptyAgency(t *testing.T) {
+	env, r := newAgencyTestEnv(t)
+	agencyID := uuid.New()
+
+	// Seed a real agency user so the agency exists, but with no streamers.
+	if err := env.db.Exec(
+		`INSERT INTO users (id, username, email, role, is_active, email_verified, created_at, updated_at)
+		 VALUES (?, ?, ?, ?, 1, 1, CURRENT_TIMESTAMP, CURRENT_TIMESTAMP)`,
+		agencyID, "agency-empty", "agency-empty@example.com", models.RoleAgency,
+	).Error; err != nil {
+		t.Fatalf("seed agency user: %v", err)
+	}
+
+	w := httptest.NewRecorder()
+	req, _ := http.NewRequest("GET", "/api/v1/agencies/"+agencyID.String()+"/streamers", nil)
+	req.Header.Set("Authorization", "Bearer "+makeAccessToken(t, models.RoleAdmin))
+	r.ServeHTTP(w, req)
+
+	if w.Code != http.StatusOK {
+		t.Fatalf("expected 200, got %d: %s", w.Code, w.Body.String())
+	}
+
+	resp := parseBody(t, w.Body.Bytes())
+	data := resp["data"].(map[string]interface{})
+	streamers := data["streamers"].([]interface{})
+	if len(streamers) != 0 {
+		t.Fatalf("expected empty streamers, got %d", len(streamers))
+	}
+}
+
+func TestAgencyHandler_ListStreamers_NotFound(t *testing.T) {
+	_, r := newAgencyTestEnv(t)
+
+	w := httptest.NewRecorder()
+	req, _ := http.NewRequest("GET", "/api/v1/agencies/"+uuid.NewString()+"/streamers", nil)
+	req.Header.Set("Authorization", "Bearer "+makeAccessToken(t, models.RoleAdmin))
+	r.ServeHTTP(w, req)
+
+	if w.Code != http.StatusNotFound {
+		t.Fatalf("expected 404, got %d: %s", w.Code, w.Body.String())
+	}
+}
+
+func TestAgencyHandler_ListStreamers_DuplicateChannelReturns500(t *testing.T) {
+	env, r := newAgencyTestEnv(t)
+	agencyID := uuid.New()
+
+	// Insert two different streamer users that both claim the same channel_id.
+	// streamers has UNIQUE(user_id, channel_id) but NOT UNIQUE(channel_id),
+	// so this is valid at the DB level and must be caught at the service layer.
+	for i, email := range []string{"dup-a@example.com", "dup-b@example.com"} {
+		userID := uuid.New()
+		username := email
+		if err := env.db.Exec(
+			`INSERT INTO users (id, username, email, role, is_active, email_verified, created_at, updated_at)
+			 VALUES (?, ?, ?, ?, 1, 1, CURRENT_TIMESTAMP, CURRENT_TIMESTAMP)`,
+			userID, username, email, models.RoleStreamer,
+		).Error; err != nil {
+			t.Fatalf("seed streamer user %d: %v", i, err)
+		}
+		if err := env.db.Exec(
+			`INSERT INTO streamers (id, user_id, channel_id, display_name, created_at, updated_at)
+			 VALUES (?, ?, ?, ?, CURRENT_TIMESTAMP, CURRENT_TIMESTAMP)`,
+			uuid.New(), userID, "ch_dup", username,
+		).Error; err != nil {
+			t.Fatalf("seed streamer row %d: %v", i, err)
+		}
+	}
+	if err := env.db.Exec(
+		`INSERT INTO agency_streamers (id, agency_id, channel_id, created_at)
+		 VALUES (?, ?, ?, CURRENT_TIMESTAMP)`,
+		uuid.New(), agencyID, "ch_dup",
+	).Error; err != nil {
+		t.Fatalf("seed agency streamer: %v", err)
+	}
+
+	w := httptest.NewRecorder()
+	req, _ := http.NewRequest("GET", "/api/v1/agencies/"+agencyID.String()+"/streamers", nil)
+	req.Header.Set("Authorization", "Bearer "+makeAccessToken(t, models.RoleAdmin))
+	r.ServeHTTP(w, req)
+
+	if w.Code != http.StatusInternalServerError {
+		t.Fatalf("expected 500 for duplicate channel_id, got %d: %s", w.Code, w.Body.String())
+	}
+}
+
 func TestAgencyHandler_ListStreamers_RequiresAuth(t *testing.T) {
 	_, r := newAgencyTestEnv(t)
 

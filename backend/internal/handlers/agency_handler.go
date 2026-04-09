@@ -83,6 +83,10 @@ func (h *AgencyHandler) ListStreamers(c *gin.Context) {
 
 	streamers, err := h.agencySvc.ListStreamers(agencyID)
 	if err != nil {
+		if errors.Is(err, services.ErrAgencyNotFound) {
+			notFound(c, "agency not found")
+			return
+		}
 		log.Printf("agency list streamers: unexpected error: %v", err)
 		internal(c)
 		return
