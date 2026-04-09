@@ -8,6 +8,7 @@ Viewers spend Bits to earn on-chain tokens; streamers manage rewards from the da
 ```
 tachigo/
 ├── backend/      # Go API (Gin + GORM + PostgreSQL)
+├── extensions/   # Demo / standalone browser extensions
 ├── tachimint/    # Twitch Extension frontend (React + TypeScript + Vite)
 └── dashboard/    # Admin dashboard (React + TypeScript + Vite)
 ```
@@ -67,6 +68,18 @@ docker compose run --no-deps --rm app go test ./...
 
 ```bash
 docker compose run --no-deps --rm frontend npm run build   # production build
+```
+
+### Demo Extension (`extensions/tachigo-demo-sidepanel/`)
+
+- Chrome / Brave MV3 side panel demo for final presentation use
+- Includes login / loading / HUD demo flow with local persistence
+- Build locally, then load the generated `dist/` folder as an unpacked extension
+
+```bash
+cd extensions/tachigo-demo-sidepanel
+pnpm install
+pnpm build
 ```
 
 ## Environment variables

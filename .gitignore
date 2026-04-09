@@ -21,6 +21,12 @@ dashboard/.env
 dashboard/.env.local
 dashboard/*.local
 
+extensions/tachigo-demo-sidepanel/node_modules/
+extensions/tachigo-demo-sidepanel/dist/
+extensions/tachigo-demo-sidepanel/.env
+extensions/tachigo-demo-sidepanel/.env.local
+extensions/tachigo-demo-sidepanel/*.local
+
 # pnpm
 .pnpm-store/
 
