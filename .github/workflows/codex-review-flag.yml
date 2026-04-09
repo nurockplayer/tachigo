@@ -71,23 +71,32 @@ jobs:
             // It re-evaluates:
             // 1. PRs stuck with `changes-requested` that have received new commits
             //    since the last review.
-            // 2. PRs with no review-state labels and no Codex review history yet,
-            //    as a fallback if the original `opened` event was missed.
+            // 2. PRs with no Codex review history yet, as a fallback if the
+            //    original `opened` event was missed.
+            // 3. PRs previously reviewed by Codex that have new commits since
+            //    that review, but currently lack the review label because a
+            //    `synchronize` event was missed.
             const shouldFlag = async (pr) => {
               const labels = (pr.labels || []).map(l => l.name)
+              if (labels.includes(reviewLabel)) return false
 
               const lastReview = await getLastReviewBySelf(pr)
 
-              // No labels + no prior Codex review means the PR likely missed the
-              // original flagging event and should be put into the review queue.
-              if (!labels.includes(changesLabel) && !labels.includes(reviewLabel)) {
-                return !lastReview
+              // No prior Codex review means the PR likely missed the original
+              // flagging event and should be put into the review queue.
+              if (!lastReview) {
+                return !labels.includes(changesLabel)
               }
 
-              if (!labels.includes(changesLabel)) return false
-              if (!lastReview || !pr.head?.sha || !lastReview.commit_id) return false
+              if (!pr.head?.sha) return false
 
-              return pr.head.sha !== lastReview.commit_id
+              if (lastReview.commit_id) {
+                return pr.head.sha !== lastReview.commit_id
+              }
+
+              if (!lastReview.submitted_at || !pr.updated_at) return false
+
+              return Date.parse(pr.updated_at) > Date.parse(lastReview.submitted_at)
             }
 
             await ensureLabel(
@@ -158,8 +167,9 @@ jobs:
 
               const action = context.payload.action
 
-              if (context.eventName === 'pull_request' && pr.draft) {
-                core.notice(`Skipping PR #${pr.number} (${action}): draft PR.`)
+              if (pr.draft) {
+                const reason = context.eventName === 'pull_request' ? `${action}` : 'schedule'
+                core.notice(`Skipping PR #${pr.number} (${reason}): draft PR.`)
                 continue
               }
 

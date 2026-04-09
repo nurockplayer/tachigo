@@ -6,7 +6,7 @@ on:
     types: [completed]
 
 permissions:
-  actions: read
+  actions: write
   pull-requests: read
   issues: read
 
@@ -16,9 +16,18 @@ jobs:
     runs-on: ubuntu-latest
     if: github.event.workflow_run.conclusion == 'success'
     steps:
+      - name: Restore notification dedup cache
+        id: dedup-cache
+        uses: actions/cache/restore@v4
+        with:
+          path: ${{ runner.temp }}/codex-review-slack/${{ github.event.workflow_run.id }}
+          key: codex-review-slack-${{ github.repository }}-${{ github.event.workflow_run.id }}
+
       - name: Evaluate PR readiness
         id: evaluate
         uses: actions/github-script@v7
+        env:
+          CACHE_HIT: ${{ steps.dedup-cache.outputs.cache-hit }}
         with:
           script: |
             const run = context.payload.workflow_run
@@ -76,8 +85,8 @@ jobs:
               return
             }
 
-            if ((run.run_attempt || 1) > 1) {
-              core.notice(`Skipping PR #${fullPr.number}: CI rerun detected (attempt ${run.run_attempt}).`)
+            if (process.env.CACHE_HIT === 'true') {
+              core.notice(`Skipping PR #${fullPr.number}: Slack notification already sent for workflow run ${run.id}.`)
               core.setOutput('should_notify', 'false')
               return
             }
@@ -153,4 +162,13 @@ jobs:
             echo "Slack webhook POST failed (non-2xx response): $RESPONSE"
             exit 1
           }
+          mkdir -p "${RUNNER_TEMP}/codex-review-slack/${{ github.event.workflow_run.id }}"
+          touch "${RUNNER_TEMP}/codex-review-slack/${{ github.event.workflow_run.id }}/sent"
           echo "Slack webhook response: $RESPONSE"
+
+      - name: Persist notification dedup cache
+        if: steps.evaluate.outputs.should_notify == 'true'
+        uses: actions/cache/save@v4
+        with:
+          path: ${{ runner.temp }}/codex-review-slack/${{ github.event.workflow_run.id }}
+          key: codex-review-slack-${{ github.repository }}-${{ github.event.workflow_run.id }}
