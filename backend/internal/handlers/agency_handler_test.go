@@ -254,7 +254,11 @@ func TestAgencyHandler_Create_MailerFailureStillReturns201(t *testing.T) {
 	}
 }
 
-func TestAgencyHandler_Create_NonMailerForgotPasswordFailureReturns500(t *testing.T) {
+// TestAgencyHandler_Create_PartialSuccess_TokenWriteFailure verifies that
+// POST /agencies returns 201 and the agency user is created even when the
+// password_resets write fails (partial success: agency committed, setup incomplete).
+// Admin can re-trigger password setup via POST /auth/forgot-password.
+func TestAgencyHandler_Create_PartialSuccess_TokenWriteFailure(t *testing.T) {
 	env := newTestEnv(t)
 
 	agencySvc := services.NewAgencyService(env.db)
@@ -283,8 +287,21 @@ func TestAgencyHandler_Create_NonMailerForgotPasswordFailureReturns500(t *testin
 	req.Header.Set("Content-Type", "application/json")
 	r.ServeHTTP(w, req)
 
-	if w.Code != http.StatusInternalServerError {
-		t.Fatalf("expected 500 when password_resets write fails, got %d: %s", w.Code, w.Body.String())
+	// Partial success: agency is created, password setup failed, but caller gets 201
+	// so they don't retry and hit duplicate email/name errors.
+	if w.Code != http.StatusCreated {
+		t.Fatalf("expected 201 (partial success), got %d: %s", w.Code, w.Body.String())
+	}
+
+	// Agency user must exist — the core operation succeeded.
+	var userCount int64
+	if err := env.db.Table("users").
+		Where("email = ? AND role = ?", "agency-dbfail@example.com", models.RoleAgency).
+		Count(&userCount).Error; err != nil {
+		t.Fatalf("query users: %v", err)
+	}
+	if userCount != 1 {
+		t.Fatalf("expected agency user to exist after partial success, got %d", userCount)
 	}
 }
 

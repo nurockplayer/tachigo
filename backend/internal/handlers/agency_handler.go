@@ -64,12 +64,12 @@ func (h *AgencyHandler) Create(c *gin.Context) {
 	}
 
 	if err := h.emailAuthSvc.ForgotPassword(*user.Email); err != nil {
+		// Agency is already committed; ForgotPassword failure is non-fatal.
+		// Admin can re-trigger via POST /auth/forgot-password if needed.
 		if errors.Is(err, services.ErrPasswordResetEmailSend) {
-			log.Printf("agency create: failed to send password setup email for user %s: %v", user.ID, err)
+			log.Printf("agency create: password setup email not delivered for user %s: %v", user.ID, err)
 		} else {
-			log.Printf("agency create: password reset setup failed for user %s: %v", user.ID, err)
-			internal(c)
-			return
+			log.Printf("agency create: password reset token setup failed for user %s: %v", user.ID, err)
 		}
 	}
 
