@@ -313,6 +313,34 @@ func TestCreate_AgencyForbidden(t *testing.T) {
 	}
 }
 
+func TestCreate_RejectsAgencyUserIDForNonAgencyUser(t *testing.T) {
+	env := newStreamerDashboardEnv(t)
+	_, adminToken := createDashboardUser(t, env, models.RoleAdmin, "admin_non_agency")
+	streamerUser, _ := createDashboardUser(t, env, models.RoleStreamer, "streamer_non_agency_target")
+	viewerUser, _ := createDashboardUser(t, env, models.RoleViewer, "viewer_not_agency")
+	seedTwitchProviderForUser(t, env, streamerUser.ID, "non_agency_target_ch")
+
+	body := `{"user_id":"` + streamerUser.ID.String() + `","agency_user_id":"` + viewerUser.ID.String() + `","channel_id":"non_agency_target_ch"}`
+	w := dashboardRequest(t, env.router, http.MethodPost, "/api/v1/dashboard/streamers", adminToken, body)
+	if w.Code != http.StatusBadRequest {
+		t.Fatalf("want 400, got %d: %s", w.Code, w.Body.String())
+	}
+}
+
+func TestCreate_RejectsUnknownAgencyUserID(t *testing.T) {
+	env := newStreamerDashboardEnv(t)
+	_, adminToken := createDashboardUser(t, env, models.RoleAdmin, "admin_unknown_agency")
+	streamerUser, _ := createDashboardUser(t, env, models.RoleStreamer, "streamer_unknown_agency_target")
+	seedTwitchProviderForUser(t, env, streamerUser.ID, "unknown_agency_target_ch")
+
+	unknownAgencyID := uuid.New()
+	body := `{"user_id":"` + streamerUser.ID.String() + `","agency_user_id":"` + unknownAgencyID.String() + `","channel_id":"unknown_agency_target_ch"}`
+	w := dashboardRequest(t, env.router, http.MethodPost, "/api/v1/dashboard/streamers", adminToken, body)
+	if w.Code != http.StatusBadRequest {
+		t.Fatalf("want 400, got %d: %s", w.Code, w.Body.String())
+	}
+}
+
 func TestList_AgencySeesOwnOnly(t *testing.T) {
 	env := newStreamerDashboardEnv(t)
 	agencyA, agencyToken := createDashboardUser(t, env, models.RoleAgency, "agency_a")

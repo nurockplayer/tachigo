@@ -83,6 +83,10 @@ func (h *StreamerHandler) Create(c *gin.Context) {
 			c.JSON(http.StatusForbidden, Response{Success: false, Error: "channel_id does not match user's Twitch account"})
 			return
 		}
+		if errors.Is(err, services.ErrAgencyUserInvalid) {
+			badRequest(c, "agency_user_id must reference an agency user")
+			return
+		}
 		internal(c)
 		return
 	}

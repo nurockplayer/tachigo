@@ -10,8 +10,9 @@ import (
 )
 
 var (
-	ErrStreamerNotFound = errors.New("streamer not found")
-	ErrChannelNotOwned  = errors.New("channel not owned by user")
+	ErrStreamerNotFound  = errors.New("streamer not found")
+	ErrChannelNotOwned   = errors.New("channel not owned by user")
+	ErrAgencyUserInvalid = errors.New("agency user invalid")
 )
 
 type StreamerService struct {
@@ -71,6 +72,19 @@ func (s *StreamerService) Create(userID uuid.UUID, agencyUserID *uuid.UUID, chan
 	}
 	if count == 0 {
 		return nil, ErrChannelNotOwned
+	}
+
+	if agencyUserID != nil {
+		var agency models.User
+		if err := s.db.Select("id", "role").Where("id = ?", *agencyUserID).First(&agency).Error; err != nil {
+			if errors.Is(err, gorm.ErrRecordNotFound) {
+				return nil, ErrAgencyUserInvalid
+			}
+			return nil, err
+		}
+		if agency.Role != models.RoleAgency {
+			return nil, ErrAgencyUserInvalid
+		}
 	}
 
 	streamer := &models.Streamer{
