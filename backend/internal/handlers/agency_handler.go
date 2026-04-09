@@ -27,8 +27,9 @@ type createAgencyRequest struct {
 }
 
 type createAgencyResponse struct {
-	ID   uuid.UUID `json:"id"`
-	Name string    `json:"name"`
+	ID    uuid.UUID `json:"id"`
+	Name  string    `json:"name"`
+	Email string    `json:"email"`
 }
 
 type agencyStreamerResponse struct {
@@ -63,8 +64,9 @@ func (h *AgencyHandler) Create(c *gin.Context) {
 	}
 
 	created(c, createAgencyResponse{
-		ID:   user.ID,
-		Name: req.Name,
+		ID:    user.ID,
+		Name:  req.Name,
+		Email: req.Email,
 	})
 }
 

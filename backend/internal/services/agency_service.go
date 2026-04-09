@@ -48,10 +48,11 @@ func (s *AgencyService) Create(name, email string) (*models.User, error) {
 	}
 
 	user := &models.User{
-		Username:     &name,
-		Email:        &email,
-		Role:         models.RoleAgency,
-		PasswordHash: nil,
+		Username:      &name,
+		Email:         &email,
+		Role:          models.RoleAgency,
+		PasswordHash:  nil,
+		EmailVerified: true,
 	}
 
 	// Wrap user + email auth_provider in one transaction so we never end up
