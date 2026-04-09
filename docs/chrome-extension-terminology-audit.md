@@ -2,7 +2,6 @@
 
 > 用途：盤點 repo 內 `Chrome Extension`、`Twitch Extension` 與泛用 `extension` 命名的混用情況。
 > 狀態：盤點文件，不是 migration spec，也不是「已完成 Chrome Extension 轉換」的宣告。
-> 最後更新：2026-04-10
 
 ---
 
