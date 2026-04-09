@@ -70,6 +70,12 @@ jobs:
               return
             }
 
+            if (run.head_sha !== fullPr.head.sha) {
+              core.notice(`Skipping PR #${fullPr.number}: CI run head_sha (${run.head_sha}) does not match PR latest sha (${fullPr.head.sha}); notification suppressed for stale commit.`)
+              core.setOutput('should_notify', 'false')
+              return
+            }
+
             const shortSha = (run.head_sha || '').slice(0, 7)
             const payload = {
               text: `PR #${fullPr.number} is ready for Codex review`,
@@ -128,7 +134,11 @@ jobs:
             exit 0
           fi
 
-          curl -sS -X POST \
+          RESPONSE=$(curl -sS --fail-with-body -X POST \
             -H 'Content-type: application/json' \
             --data "$SLACK_PAYLOAD" \
-            "$SLACK_WEBHOOK_URL"
+            "$SLACK_WEBHOOK_URL") || {
+            echo "Slack webhook POST failed (non-2xx response): $RESPONSE"
+            exit 1
+          }
+          echo "Slack webhook response: $RESPONSE"
