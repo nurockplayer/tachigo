@@ -21,7 +21,7 @@ func seedAirdropViewer(t *testing.T, db *gorm.DB, channelID string, accumulatedS
 	userID := uuid.New()
 	if err := db.Exec(
 		`INSERT INTO users (id, role, is_active, email_verified, created_at, updated_at)
-		 VALUES (?, 'viewer', 1, 0, CURRENT_TIMESTAMP, CURRENT_TIMESTAMP)`,
+		 VALUES (?, 'viewer', TRUE, FALSE, CURRENT_TIMESTAMP, CURRENT_TIMESTAMP)`,
 		userID,
 	).Error; err != nil {
 		t.Fatalf("seed viewer user: %v", err)
@@ -31,7 +31,7 @@ func seedAirdropViewer(t *testing.T, db *gorm.DB, channelID string, accumulatedS
 		`INSERT INTO watch_sessions (
 			id, user_id, channel_id, accumulated_seconds, rewarded_seconds,
 			last_heartbeat_at, click_cooldown_until, is_active, created_at, updated_at
-		) VALUES (?, ?, ?, ?, 0, ?, '1970-01-01 00:00:00', 1, CURRENT_TIMESTAMP, CURRENT_TIMESTAMP)`,
+		) VALUES (?, ?, ?, ?, 0, ?, '1970-01-01 00:00:00', TRUE, CURRENT_TIMESTAMP, CURRENT_TIMESTAMP)`,
 		uuid.New(), userID, channelID, accumulatedSeconds, time.Now(),
 	).Error; err != nil {
 		t.Fatalf("seed watch session: %v", err)
@@ -342,7 +342,7 @@ func TestAirdrop_StaleViewerExcluded(t *testing.T) {
 	staleUser := uuid.New()
 	if err := db.Exec(
 		`INSERT INTO users (id, role, is_active, email_verified, created_at, updated_at)
-		 VALUES (?, 'viewer', 1, 0, CURRENT_TIMESTAMP, CURRENT_TIMESTAMP)`,
+		 VALUES (?, 'viewer', TRUE, FALSE, CURRENT_TIMESTAMP, CURRENT_TIMESTAMP)`,
 		staleUser,
 	).Error; err != nil {
 		t.Fatalf("seed stale user: %v", err)
@@ -352,7 +352,7 @@ func TestAirdrop_StaleViewerExcluded(t *testing.T) {
 		`INSERT INTO watch_sessions (
 			id, user_id, channel_id, accumulated_seconds, rewarded_seconds,
 			last_heartbeat_at, click_cooldown_until, is_active, created_at, updated_at
-		) VALUES (?, ?, 'ch_stale', 120, 0, ?, '1970-01-01 00:00:00', 1, CURRENT_TIMESTAMP, CURRENT_TIMESTAMP)`,
+		) VALUES (?, ?, 'ch_stale', 120, 0, ?, '1970-01-01 00:00:00', TRUE, CURRENT_TIMESTAMP, CURRENT_TIMESTAMP)`,
 		uuid.New(), staleUser, staleHeartbeat,
 	).Error; err != nil {
 		t.Fatalf("seed stale session: %v", err)
