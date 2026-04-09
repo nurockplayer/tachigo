@@ -45,9 +45,11 @@ func failOnAgencyBackfillConflicts(db *gorm.DB) error {
 
 	var conflicts []conflictRow
 	if err := db.Table("agency_streamers").
-		Select("channel_id").
-		Group("channel_id").
-		Having("COUNT(DISTINCT agency_id) > 1").
+		Select("agency_streamers.channel_id").
+		Joins("JOIN streamers ON streamers.channel_id = agency_streamers.channel_id").
+		Where("streamers.agency_user_id IS NULL").
+		Group("agency_streamers.channel_id").
+		Having("COUNT(DISTINCT agency_streamers.agency_id) > 1").
 		Find(&conflicts).Error; err != nil {
 		return fmt.Errorf("detect agency backfill conflicts: %w", err)
 	}

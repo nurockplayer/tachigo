@@ -67,8 +67,11 @@ func TestBackfillStreamerAgencyUserID_SingleAgencyChannel(t *testing.T) {
 func TestFailOnAgencyBackfillConflicts_MultiAgencyChannel(t *testing.T) {
 	db := newAgencyMigrationTestDB(t)
 
-	if err := db.Exec(`INSERT INTO users (id) VALUES ('agency-1'), ('agency-2')`).Error; err != nil {
+	if err := db.Exec(`INSERT INTO users (id) VALUES ('agency-1'), ('agency-2'), ('streamer-1')`).Error; err != nil {
 		t.Fatalf("seed users: %v", err)
+	}
+	if err := db.Exec(`INSERT INTO streamers (id, user_id, agency_user_id, channel_id) VALUES ('streamer-row-1', 'streamer-1', NULL, 'channel-1')`).Error; err != nil {
+		t.Fatalf("seed streamer needing backfill: %v", err)
 	}
 	if err := db.Exec(`INSERT INTO agency_streamers (id, agency_id, channel_id) VALUES ('link-1', 'agency-1', 'channel-1'), ('link-2', 'agency-2', 'channel-1')`).Error; err != nil {
 		t.Fatalf("seed agency_streamers: %v", err)
@@ -80,6 +83,42 @@ func TestFailOnAgencyBackfillConflicts_MultiAgencyChannel(t *testing.T) {
 	}
 	if err.Error() != "agency backfill conflict: 1 channel(s) map to multiple agencies in agency_streamers; resolve before deploying" {
 		t.Fatalf("unexpected error: %v", err)
+	}
+}
+
+func TestFailOnAgencyBackfillConflicts_IgnoresLegacyChannelOutsideBackfillScope(t *testing.T) {
+	db := newAgencyMigrationTestDB(t)
+
+	if err := db.Exec(`INSERT INTO users (id) VALUES ('agency-1'), ('agency-2'), ('streamer-1')`).Error; err != nil {
+		t.Fatalf("seed users: %v", err)
+	}
+	if err := db.Exec(`INSERT INTO streamers (id, user_id, agency_user_id, channel_id) VALUES ('streamer-row-1', 'streamer-1', NULL, 'channel-ok')`).Error; err != nil {
+		t.Fatalf("seed streamer needing backfill: %v", err)
+	}
+	if err := db.Exec(`INSERT INTO agency_streamers (id, agency_id, channel_id) VALUES ('link-1', 'agency-1', 'legacy-conflict'), ('link-2', 'agency-2', 'legacy-conflict')`).Error; err != nil {
+		t.Fatalf("seed unrelated legacy conflict: %v", err)
+	}
+
+	if err := failOnAgencyBackfillConflicts(db); err != nil {
+		t.Fatalf("unexpected conflict for unrelated legacy channel: %v", err)
+	}
+}
+
+func TestFailOnAgencyBackfillConflicts_IgnoresAlreadyBackfilledStreamer(t *testing.T) {
+	db := newAgencyMigrationTestDB(t)
+
+	if err := db.Exec(`INSERT INTO users (id) VALUES ('agency-1'), ('agency-2'), ('streamer-1')`).Error; err != nil {
+		t.Fatalf("seed users: %v", err)
+	}
+	if err := db.Exec(`INSERT INTO streamers (id, user_id, agency_user_id, channel_id) VALUES ('streamer-row-1', 'streamer-1', 'agency-1', 'channel-already-filled')`).Error; err != nil {
+		t.Fatalf("seed already-backfilled streamer: %v", err)
+	}
+	if err := db.Exec(`INSERT INTO agency_streamers (id, agency_id, channel_id) VALUES ('link-1', 'agency-1', 'channel-already-filled'), ('link-2', 'agency-2', 'channel-already-filled')`).Error; err != nil {
+		t.Fatalf("seed legacy conflict for already-filled streamer: %v", err)
+	}
+
+	if err := failOnAgencyBackfillConflicts(db); err != nil {
+		t.Fatalf("unexpected conflict for already-backfilled streamer: %v", err)
 	}
 }
 
