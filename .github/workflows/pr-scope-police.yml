@@ -31,6 +31,7 @@ jobs:
               isSameRepoHead &&
               pr.base?.ref === 'main' &&
               pr.head?.ref === 'develop'
+            const isDependabotPr = pr.user?.login === 'dependabot[bot]'
 
             const bypassLabels = new Set(['scope-exception'])
             const labels = (pr.labels || []).map((label) => label.name)
@@ -85,62 +86,65 @@ jobs:
 
             const allowedPrefixes = ['[backend]', '[frontend]', '[contract]', '[discussion]', '[release]']
             const titlePrefix = allowedPrefixes.find((prefix) => title.startsWith(prefix))
-            if (!titlePrefix) {
-              policyFailures.push(
-                `PR title must start with one of: ${allowedPrefixes.join(', ')}. Current title: "${title}".`,
-              )
-            }
-
-            if (isReleasePromotionPr && titlePrefix !== '[release]') {
-              policyFailures.push('`develop -> main` release PR must use the `[release]` title prefix.')
-            }
-
-            if (!isReleasePromotionPr && titlePrefix === '[release]') {
-              policyFailures.push('`[release]` PR is reserved for formal `develop -> main` promotion PRs only.')
-            }
-
-            if (!isReleasePromotionPr && !/#\d+/.test(body)) {
-              policyFailures.push('PR body must reference at least one issue or PR number such as `#123`.')
-            }
-
-            if (!body.includes('Source of truth：') && !body.includes('Source of truth:')) {
-              policyFailures.push('PR body must include a `Source of truth` line in the Scope 對齊 section.')
-            }
-
-            if (!body.includes('本 PR 明確不做')) {
-              policyFailures.push('PR body must include a `本 PR 明確不做` section.')
-            }
-
             const dependsOnMatch = body.match(/Depends on PR[：:]\s*(.+)/i)
             const dependsOnRaw = dependsOnMatch?.[1]?.trim()
-            if (!dependsOnRaw) {
-              policyFailures.push('PR body must include a `Depends on PR` line with `none` or `#123`.')
-            }
-
             const dependsOnNone = dependsOnRaw?.toLowerCase() === 'none'
             const dependsOnPrMatch = dependsOnRaw?.match(/^#(\d+)$/)
-            if (dependsOnRaw && !dependsOnNone && !dependsOnPrMatch) {
-              policyFailures.push('`Depends on PR` must be `none` or a single PR number such as `#123`.')
-            }
-
             const backendContractYes = /Backend contract already in develop:[\s\S]*?- \[[xX]\] yes/i.test(body)
             const backendContractNo = /Backend contract already in develop:[\s\S]*?- \[[xX]\] no/i.test(body)
-            if (!backendContractYes && !backendContractNo) {
-              policyFailures.push('PR body must mark whether the backend contract is already in `develop`.')
-            }
-            if (backendContractYes && backendContractNo) {
-              policyFailures.push('`Backend contract already in develop` cannot select both yes and no.')
-            }
-            if (isReleasePromotionPr && !backendContractYes) {
-              policyFailures.push('Formal `[release]` PR must mark `Backend contract already in develop` as yes.')
-            }
-
             const stackedOnDependency = /If no, this PR is:[\s\S]*?- \[[xX]\] stacked on dependency branch/i.test(body)
             const intentionallyBlocked = /If no, this PR is:[\s\S]*?- \[[xX]\] intentionally blocked until dependency merges/i.test(body)
-            if (backendContractNo && !stackedOnDependency && !intentionallyBlocked) {
-              policyFailures.push(
-                'When backend contract is not yet in `develop`, PR body must mark this PR as stacked or intentionally blocked.',
-              )
+
+            if (!isDependabotPr) {
+              if (!titlePrefix) {
+                policyFailures.push(
+                  `PR title must start with one of: ${allowedPrefixes.join(', ')}. Current title: "${title}".`,
+                )
+              }
+
+              if (isReleasePromotionPr && titlePrefix !== '[release]') {
+                policyFailures.push('`develop -> main` release PR must use the `[release]` title prefix.')
+              }
+
+              if (!isReleasePromotionPr && titlePrefix === '[release]') {
+                policyFailures.push('`[release]` PR is reserved for formal `develop -> main` promotion PRs only.')
+              }
+
+              if (!isReleasePromotionPr && !/#\d+/.test(body)) {
+                policyFailures.push('PR body must reference at least one issue or PR number such as `#123`.')
+              }
+
+              if (!body.includes('Source of truth：') && !body.includes('Source of truth:')) {
+                policyFailures.push('PR body must include a `Source of truth` line in the Scope 對齊 section.')
+              }
+
+              if (!body.includes('本 PR 明確不做')) {
+                policyFailures.push('PR body must include a `本 PR 明確不做` section.')
+              }
+
+              if (!dependsOnRaw) {
+                policyFailures.push('PR body must include a `Depends on PR` line with `none` or `#123`.')
+              }
+
+              if (dependsOnRaw && !dependsOnNone && !dependsOnPrMatch) {
+                policyFailures.push('`Depends on PR` must be `none` or a single PR number such as `#123`.')
+              }
+
+              if (!backendContractYes && !backendContractNo) {
+                policyFailures.push('PR body must mark whether the backend contract is already in `develop`.')
+              }
+              if (backendContractYes && backendContractNo) {
+                policyFailures.push('`Backend contract already in develop` cannot select both yes and no.')
+              }
+              if (isReleasePromotionPr && !backendContractYes) {
+                policyFailures.push('Formal `[release]` PR must mark `Backend contract already in develop` as yes.')
+              }
+
+              if (backendContractNo && !stackedOnDependency && !intentionallyBlocked) {
+                policyFailures.push(
+                  'When backend contract is not yet in `develop`, PR body must mark this PR as stacked or intentionally blocked.',
+                )
+              }
             }
 
             if (titlePrefix === '[frontend]' && dependsOnPrMatch && backendContractNo) {
@@ -250,6 +254,14 @@ jobs:
               for (const warning of warnings) {
                 summaryLines.push(`- ${warning}`)
               }
+            }
+
+            if (isDependabotPr) {
+              summaryLines.push('')
+              summaryLines.push('### Dependabot Mode')
+              summaryLines.push('- Template policy checks are skipped for Dependabot maintenance PRs.')
+              summaryLines.push('- Scope and size checks still apply.')
+              summaryLines.push('- Dependency gate is not evaluated for Dependabot PRs.')
             }
 
             summaryLines.push('')
