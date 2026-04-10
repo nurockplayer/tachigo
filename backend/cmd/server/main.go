@@ -126,9 +126,14 @@ func main() {
 	agencySvc := services.NewAgencyService(db)
 	airdropSvc := services.NewAirdropService(db, pointsSvc, channelConfigSvc)
 	// TODO: move Sepolia RPC URL into config.Contract.RPCEndpoint once config schema is extended.
-	ethClient, err := ethclient.DialContext(context.Background(), defaultSepoliaRPCURL)
-	if err != nil {
-		log.Fatalf("failed to connect Sepolia RPC: %v", err)
+	var ethClient *ethclient.Client
+	if cfg.Contract.TachiContractAddress != "" && cfg.Contract.SepoliaSignerKey != "" {
+		var err error
+		ethClient, err = ethclient.DialContext(context.Background(), defaultSepoliaRPCURL)
+		if err != nil {
+			log.Printf("warning: failed to connect Sepolia RPC: %v", err)
+			ethClient = nil
+		}
 	}
 	claimSvc := services.NewClaimService(db, cfg.Contract, ethClient)
 	agencyH := handlers.NewAgencyHandler(agencySvc, emailAuthSvc)

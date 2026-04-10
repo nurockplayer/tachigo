@@ -67,27 +67,27 @@ func (s *ClaimService) GetTachiBalance(userID uuid.UUID) (int64, error) {
 // amount == 0 means claim all available spendable_balance.
 // Returns the new tachi_balances.balance after the claim.
 func (s *ClaimService) Claim(userID uuid.UUID, amount int64) (int64, error) {
-	claimAmount, err := s.calculateClaimAmount(s.db, userID, amount, false)
-	if err != nil {
-		return 0, err
-	}
-
-	toAddr, err := s.resolveWalletAddress(userID)
-	if err != nil {
-		return 0, err
-	}
-
 	mintCaller := s.mintCaller
 	if mintCaller == nil {
 		mintCaller = s
 	}
 
-	if _, err := mintCaller.MintOnChain(context.Background(), toAddr, claimAmount); err != nil {
-		return 0, err
-	}
-
 	var newBalance int64
-	err = s.db.Transaction(func(tx *gorm.DB) error {
+	err := s.db.Transaction(func(tx *gorm.DB) error {
+		claimAmount, err := s.calculateClaimAmount(tx, userID, amount, true)
+		if err != nil {
+			return err
+		}
+
+		toAddr, err := s.resolveWalletAddress(tx, userID)
+		if err != nil {
+			return err
+		}
+
+		if _, err := mintCaller.MintOnChain(context.Background(), toAddr, claimAmount); err != nil {
+			return err
+		}
+
 		var applyErr error
 		newBalance, applyErr = s.applyClaim(tx, userID, claimAmount)
 		return applyErr
@@ -168,12 +168,7 @@ func (s *ClaimService) applyClaim(tx *gorm.DB, userID uuid.UUID, claimAmount int
 		return 0, err
 	}
 
-	currentAmount, err := s.calculateClaimAmount(tx, userID, claimAmount, false)
-	if err != nil {
-		return 0, err
-	}
-
-	remaining := currentAmount
+	remaining := claimAmount
 	now := time.Now()
 	for _, ledger := range ledgers {
 		if remaining == 0 {
@@ -208,7 +203,7 @@ func (s *ClaimService) applyClaim(tx *gorm.DB, userID uuid.UUID, claimAmount int
 		ON CONFLICT (user_id) DO UPDATE SET
 			balance    = tachi_balances.balance + EXCLUDED.balance,
 			updated_at = EXCLUDED.updated_at
-	`, newUUID(), userID, currentAmount, now).Error; err != nil {
+	`, newUUID(), userID, claimAmount, now).Error; err != nil {
 		return 0, err
 	}
 
@@ -220,9 +215,9 @@ func (s *ClaimService) applyClaim(tx *gorm.DB, userID uuid.UUID, claimAmount int
 	return tb.Balance, nil
 }
 
-func (s *ClaimService) resolveWalletAddress(userID uuid.UUID) (string, error) {
+func (s *ClaimService) resolveWalletAddress(db *gorm.DB, userID uuid.UUID) (string, error) {
 	var authProvider models.AuthProvider
-	err := s.db.Where("user_id = ? AND provider = ?", userID, models.ProviderWeb3).
+	err := db.Where("user_id = ? AND provider = ?", userID, models.ProviderWeb3).
 		Order("created_at ASC").
 		First(&authProvider).Error
 	if err != nil {

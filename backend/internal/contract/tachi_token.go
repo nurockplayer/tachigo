@@ -6,6 +6,7 @@ import (
 	"fmt"
 	"math/big"
 	"strings"
+	"sync"
 
 	ethereum "github.com/ethereum/go-ethereum"
 	"github.com/ethereum/go-ethereum/accounts/abi"
@@ -21,6 +22,7 @@ type TachiToken struct {
 	address common.Address
 	abi     abi.ABI
 	client  *ethclient.Client
+	mu      sync.Mutex
 }
 
 func NewTachiToken(address common.Address, client *ethclient.Client) (*TachiToken, error) {
@@ -37,6 +39,9 @@ func NewTachiToken(address common.Address, client *ethclient.Client) (*TachiToke
 }
 
 func (t *TachiToken) Mint(ctx context.Context, toAddr common.Address, amount *big.Int, signerKey *ecdsa.PrivateKey) (string, error) {
+	t.mu.Lock()
+	defer t.mu.Unlock()
+
 	if t.client == nil {
 		return "", fmt.Errorf("eth client is nil")
 	}
@@ -109,6 +114,7 @@ func (t *TachiToken) Mint(ctx context.Context, toAddr common.Address, amount *bi
 	if err := t.client.SendTransaction(ctx, signedTx); err != nil {
 		return "", fmt.Errorf("send mint tx: %w", err)
 	}
+	// TODO: wait for receipt status == 1 before committing DB (fire-and-forget for now)
 
 	return signedTx.Hash().Hex(), nil
 }
