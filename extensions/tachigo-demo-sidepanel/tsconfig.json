@@ -7,7 +7,7 @@
     "jsx": "react-jsx",
     "strict": true,
     "noEmit": true,
-    "types": ["chrome", "vite/client"]
+    "types": ["chrome", "vite/client", "vitest/globals"]
   },
   "include": ["src"]
 }
