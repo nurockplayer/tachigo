@@ -76,6 +76,7 @@ anvil
 # 複製環境變數範本
 cp .env.example .env
 # 填入 DEPLOYER_PRIVATE_KEY、SEPOLIA_RPC_URL、ETHERSCAN_API_KEY
+source .env
 
 # 部署到 Sepolia（含 Etherscan 驗證）
 forge script script/Deploy.s.sol:Deploy \
