@@ -2,4 +2,4 @@
 -- Adds channel-level daily airdrop limit configuration.
 
 ALTER TABLE channel_configs
-    ADD COLUMN daily_airdrop_limit INT NOT NULL DEFAULT 5000;
+    ADD COLUMN IF NOT EXISTS daily_airdrop_limit INT NOT NULL DEFAULT 5000;
