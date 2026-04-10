@@ -1,3 +1,89 @@
+import { useEffect, useState } from 'react'
+import { useNavigate } from 'react-router'
+import { Skeleton } from '@/components/ui/skeleton'
+import { getCurrentUserRole } from '@/services/auth'
+import { getStreamers, type Streamer } from '@/services/channels'
+
 export default function StreamersPage() {
-  return <h1 className="text-2xl font-bold text-foreground">實況主管理</h1>
+  const navigate = useNavigate()
+  const role = getCurrentUserRole()
+  const [streamers, setStreamers] = useState<Streamer[]>([])
+  const [loading, setLoading] = useState(true)
+  const [error, setError] = useState(false)
+
+  useEffect(() => {
+    let mounted = true
+
+    getStreamers()
+      .then((data) => {
+        if (!mounted) return
+        setStreamers(data)
+      })
+      .catch(() => {
+        if (!mounted) return
+        setError(true)
+      })
+      .finally(() => {
+        if (!mounted) return
+        setLoading(false)
+      })
+
+    return () => {
+      mounted = false
+    }
+  }, [])
+
+  useEffect(() => {
+    if (loading || role !== 'streamer') return
+    const first = streamers[0]
+    if (!first) return
+    navigate(`/streamers/${first.id}`, { replace: true })
+  }, [loading, navigate, role, streamers])
+
+  return (
+    <div className="space-y-6">
+      <h1 className="text-2xl font-bold text-foreground">實況主管理</h1>
+
+      {loading ? (
+        <div className="space-y-3">
+          {Array.from({ length: 3 }).map((_, index) => (
+            <Skeleton key={index} className="h-11 w-full" />
+          ))}
+        </div>
+      ) : error ? (
+        <div className="rounded-lg border border-destructive/20 bg-destructive/5 px-4 py-3 text-sm text-destructive">
+          無法載入實況主資料
+        </div>
+      ) : streamers.length === 0 ? (
+        <div className="rounded-lg border border-border bg-secondary/20 px-4 py-8 text-center text-sm text-muted-foreground">
+          目前沒有可顯示的實況主資料
+        </div>
+      ) : (
+        <div className="overflow-hidden rounded-lg border border-border">
+          <table className="w-full text-sm">
+            <thead>
+              <tr className="border-b border-border bg-secondary/50">
+                <th className="px-4 py-3 text-left font-medium text-muted-foreground">實況主名稱</th>
+                <th className="px-4 py-3 text-left font-medium text-muted-foreground">Channel ID</th>
+              </tr>
+            </thead>
+            <tbody>
+              {streamers.map((streamer, index) => (
+                <tr
+                  key={streamer.id}
+                  className={`cursor-pointer border-b border-border transition-colors last:border-0 hover:bg-accent/30 ${index % 2 === 0 ? '' : 'bg-secondary/20'}`}
+                  onClick={() => navigate(`/streamers/${streamer.id}`)}
+                >
+                  <td className="px-4 py-3 font-medium text-foreground">
+                    {streamer.display_name || streamer.channel_id}
+                  </td>
+                  <td className="px-4 py-3 text-muted-foreground">{streamer.channel_id}</td>
+                </tr>
+              ))}
+            </tbody>
+          </table>
+        </div>
+      )}
+    </div>
+  )
 }
