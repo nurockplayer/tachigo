@@ -42,6 +42,24 @@ repo 目前有一個 GitHub Actions workflow：
 - `[contract]` PR 不可修改 `backend/` / `dashboard/` / `tachimint/`
 - `[frontend]` PR 若依賴尚未 merge 的 backend contract，會被 dependency gate 擋下
 
+### Dependabot maintenance PR
+
+對 `dependabot[bot]` 開的 maintenance PR，`PR Scope Police` 會保留真正有意義的自動檢查：
+
+- product surface 不可混雜
+- diff / changed files 不可超過硬上限
+- dependency gate 仍照常生效
+
+但不再要求 Dependabot PR 補齊人工模板欄位，例如：
+
+- title prefix
+- `Source of truth`
+- `Depends on PR`
+- `Backend contract already in develop`
+- `本 PR 明確不做`
+
+原因是這些欄位主要服務人工撰寫的 feature / release PR；對 Dependabot dependency bump 而言，持續人工補 metadata 成本高、訊號低，也容易讓 reviewer 浪費時間在固定格式而非實際風險。
+
 ## 正式 release PR
 
 以下情況視為正式支援的 release promotion PR，而不是 scope exception：
