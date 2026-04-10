@@ -465,3 +465,91 @@ func TestInternalRouter_SkipsRouteWhenSharedSecretMissing(t *testing.T) {
 		t.Fatalf("want 404 when internal secret missing, got %d: %s", rec.Code, rec.Body.String())
 	}
 }
+
+func TestInternalRouter_WithSecretSet_MiddlewareRejectsAndRouteRegistered(t *testing.T) {
+	dbName := strings.NewReplacer("/", "_", " ", "_").Replace(t.Name())
+	dsn := fmt.Sprintf("file:%s?mode=memory&cache=shared", dbName)
+	db, err := gorm.Open(sqlite.Open(dsn), &gorm.Config{
+		Logger: logger.Default.LogMode(logger.Silent),
+	})
+	if err != nil {
+		t.Fatalf("open db: %v", err)
+	}
+	sqlDB, err := db.DB()
+	if err != nil {
+		t.Fatalf("db handle: %v", err)
+	}
+	sqlDB.SetMaxOpenConns(1)
+	t.Cleanup(func() {
+		_ = sqlDB.Close()
+	})
+	if err := db.Exec("PRAGMA foreign_keys = ON").Error; err != nil {
+		t.Fatalf("enable foreign keys: %v", err)
+	}
+	if err := migrateTestDB(db); err != nil {
+		t.Fatalf("migrate db: %v", err)
+	}
+
+	const secret = "test-internal-secret"
+	cfg := &config.Config{
+		JWT: config.JWTConfig{
+			AccessSecret:  "test-access-secret-at-least-32-chars!",
+			RefreshSecret: "test-refresh-secret",
+			AccessTTL:     15 * time.Minute,
+			RefreshTTL:    30 * 24 * time.Hour,
+		},
+		App:      config.AppConfig{FrontendURL: "http://localhost:3000"},
+		Internal: config.InternalConfig{TachiyaSharedSecret: secret},
+	}
+
+	authSvc := services.NewAuthService(db, cfg)
+	userSvc := services.NewUserService(db)
+	addrSvc := services.NewAddressService(db)
+	emailAuthSvc := services.NewEmailAuthService(db, cfg, &mockMailer{})
+	extSvc := services.NewExtensionService(db, cfg, authSvc)
+	watchSvc := services.NewWatchService(db)
+	channelConfigSvc := services.NewChannelConfigService(db)
+	pointsSvc := services.NewPointsService(db, watchSvc)
+	airdropSvc := services.NewAirdropService(db, pointsSvc, channelConfigSvc)
+	streamerSvc := services.NewStreamerService(db, pointsSvc)
+	agencySvc := services.NewAgencyService(db)
+	claimSvc := services.NewClaimService(db)
+	agencyHandler := handlers.NewAgencyHandler(agencySvc, emailAuthSvc)
+
+	engine := router.New(
+		authSvc,
+		userSvc,
+		addrSvc,
+		extSvc,
+		emailAuthSvc,
+		watchSvc,
+		channelConfigSvc,
+		pointsSvc,
+		airdropSvc,
+		streamerSvc,
+		agencySvc,
+		claimSvc,
+		agencyHandler,
+		[]string{"http://localhost:3000"},
+		router.InternalRouterConfig{DB: db, Config: cfg},
+	)
+
+	const path = "/api/v1/internal/tachiya/users/points/balance?email=nobody@example.com"
+
+	// Without the secret header: middleware should reject with 401.
+	reqNoHeader := httptest.NewRequest(http.MethodGet, path, nil)
+	recNoHeader := httptest.NewRecorder()
+	engine.ServeHTTP(recNoHeader, reqNoHeader)
+	if recNoHeader.Code != http.StatusUnauthorized {
+		t.Fatalf("want 401 without secret header, got %d: %s", recNoHeader.Code, recNoHeader.Body.String())
+	}
+
+	// With the correct secret header: route is registered; unknown user → 404 from handler.
+	reqWithHeader := httptest.NewRequest(http.MethodGet, path, nil)
+	reqWithHeader.Header.Set("X-Tachiya-Internal-Secret", secret)
+	recWithHeader := httptest.NewRecorder()
+	engine.ServeHTTP(recWithHeader, reqWithHeader)
+	if recWithHeader.Code != http.StatusNotFound {
+		t.Fatalf("want 404 (user not found) with valid secret header, got %d: %s", recWithHeader.Code, recWithHeader.Body.String())
+	}
+}
