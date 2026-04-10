@@ -13,6 +13,12 @@ type Config struct {
 	OAuth    OAuthConfig
 	SMTP     SMTPConfig
 	App      AppConfig
+	Contract ContractConfig
+}
+
+type ContractConfig struct {
+	TachiContractAddress string // TACHI_CONTRACT_ADDRESS
+	SepoliaSignerKey     string // SEPOLIA_SIGNER_KEY — never log or expose
 }
 
 type SMTPConfig struct {
@@ -102,6 +108,10 @@ func Load() *Config {
 				ClientSecret: getEnv("GOOGLE_CLIENT_SECRET", ""),
 				RedirectURL:  getEnv("GOOGLE_REDIRECT_URL", "http://localhost:8080/api/v1/auth/google/callback"),
 			},
+		},
+		Contract: ContractConfig{
+			TachiContractAddress: getEnv("TACHI_CONTRACT_ADDRESS", ""),
+			SepoliaSignerKey:     getEnv("SEPOLIA_SIGNER_KEY", ""),
 		},
 	}
 }
