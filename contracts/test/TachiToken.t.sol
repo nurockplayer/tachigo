@@ -46,8 +46,6 @@ contract TachiTokenTest is Test {
 
     function test_transferFrom_reverts() public {
         token.mint(alice, 1_000e18);
-        vm.prank(alice);
-        token.approve(bob, 100e18);
         vm.prank(bob);
         vm.expectRevert(bytes("TachiToken: soulbound"));
         token.transferFrom(alice, bob, 100e18);
@@ -83,12 +81,12 @@ contract TachiTokenTest is Test {
         assertEq(token.balanceOf(alice), 1_000e18);
     }
 
-    // --- approve ---
+    // --- approve (Soulbound) ---
 
-    function test_approve_succeeds_even_though_transfer_blocked() public {
+    function test_approve_reverts() public {
         token.mint(alice, 1_000e18);
         vm.prank(alice);
+        vm.expectRevert(bytes("TachiToken: soulbound"));
         token.approve(bob, 500e18);
-        assertEq(token.allowance(alice, bob), 500e18);
     }
 }
