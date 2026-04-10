@@ -52,7 +52,6 @@ async function getReadyCtx(ctxRef: { current: AudioContext | null }): Promise<Au
   }
   return ctx;
 }
-
 // ── 3 Variant 礦石敲擊合成 ───────────────────────────────────
 const VARIANT_PARAMS = {
   light:    { pitchMult: 1.15, gainMult: 0.55, duration: 0.06, thumpGain: 0.15, sparkleGain: 0.00, noiseDecay: 0.05 },
