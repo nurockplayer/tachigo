@@ -178,6 +178,7 @@ export function useSound() {
   const ctxRef     = useRef<AudioContext | null>(null);
   const bgTimerRef = useRef<ReturnType<typeof setTimeout> | null>(null);
   const bgStepRef  = useRef(0);
+  const bgSessionRef = useRef(0);
   const [bridgeStatus, setBridgeStatus] = useState<'ready' | 'unsupported'>('ready');
 
   const sendBridgeSound = useCallback(async (type: SoundType, variant?: HitVariant) => {
@@ -264,11 +265,20 @@ export function useSound() {
   // ── 背景音樂（原創 8-bit 冒險主題）──────────────────────
   const startBgMusic = useCallback(() => {
     if (bgTimerRef.current !== null) return;
+    const sessionId = bgSessionRef.current + 1;
+    bgSessionRef.current = sessionId;
     void (async () => {
       if (await sendBridgeSound('start-bg-music')) return;
       const ctx = await getReadyCtx(ctxRef);
+      if (bgSessionRef.current !== sessionId || bgTimerRef.current !== null) {
+        return;
+      }
 
       const playStep = () => {
+        if (bgSessionRef.current !== sessionId) {
+          return;
+        }
+
         const [freq, durMs] = BG_NOTES[bgStepRef.current % BG_NOTES.length];
         bgStepRef.current++;
 
@@ -291,6 +301,7 @@ export function useSound() {
   }, [sendBridgeSound]);
 
   const stopBgMusic = useCallback(() => {
+    bgSessionRef.current += 1;
     if (bgTimerRef.current !== null) {
       clearTimeout(bgTimerRef.current);
       bgTimerRef.current = null;

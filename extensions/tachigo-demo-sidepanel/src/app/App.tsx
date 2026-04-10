@@ -88,9 +88,14 @@ export default function App() {
   }, [currentLanguage, hudState, isHydrated, screen])
 
   const handleClaim = (cpcAmount: number) => {
-    const tcgGained = parseFloat((cpcAmount * 0.1).toFixed(2))
-    setHudState(s => ({ ...s, points: Math.max(0, s.points - cpcAmount) }))
-    setTcgBalance(t => parseFloat((t + tcgGained).toFixed(2)))
+    const claimable = Math.max(0, Math.min(cpcAmount, hudState.points))
+    if (claimable === 0) {
+      return
+    }
+
+    const tcgGained = Number((claimable * 0.1).toFixed(2))
+    setHudState((s) => ({ ...s, points: s.points - claimable }))
+    setTcgBalance((t) => Number((t + tcgGained).toFixed(2)))
   }
 
   const openPopupMode = () => {

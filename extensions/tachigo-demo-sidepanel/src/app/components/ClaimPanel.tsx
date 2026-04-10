@@ -56,7 +56,7 @@ function TokenBlock({ label, tokenSymbol, balance, balanceLabel, value, readOnly
             letterSpacing: '0.05em',
           }}
         >
-          {balanceLabel.replace('{{amount}}', balance.toLocaleString())}
+          {balanceLabel}
         </span>
       </div>
 

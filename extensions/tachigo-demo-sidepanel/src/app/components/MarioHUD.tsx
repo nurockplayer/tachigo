@@ -621,7 +621,9 @@ export function MarioHUD({ state, onStateChange, onNavigate }: MarioHUDProps) {
         </div>
 
         {/* CLAIM 旋轉金幣按鈕 */}
-        <SpinningCoin ariaLabel={t('claim.title')} onClick={() => onNavigate?.('claim')} />
+        {onNavigate && (
+          <SpinningCoin ariaLabel={t('claim.title')} onClick={() => onNavigate('claim')} />
+        )}
 
         {/* Total cumulative (small gray) */}
         <div

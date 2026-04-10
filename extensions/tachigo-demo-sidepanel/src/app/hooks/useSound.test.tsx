@@ -1,4 +1,4 @@
-import { renderHook, waitFor } from '@testing-library/react'
+import { act, renderHook, waitFor } from '@testing-library/react'
 
 import { useSound } from './useSound'
 
@@ -37,12 +37,18 @@ class MockBiquadFilterNode extends MockAudioNode {
 
 class MockAudioContext {
   static instances: MockAudioContext[] = []
+  static initialState: AudioContextState = 'running'
+  static resumeImpl: (ctx: MockAudioContext) => Promise<void> | void = (ctx) => {
+    ctx.state = 'running'
+  }
 
   currentTime = 0
   sampleRate = 44100
-  state: AudioContextState = 'running'
+  state: AudioContextState = MockAudioContext.initialState
   destination = {}
-  resume = vi.fn(async () => undefined)
+  resume = vi.fn(async () => {
+    await MockAudioContext.resumeImpl(this)
+  })
   createOscillator = vi.fn(() => new MockOscillatorNode())
   createGain = vi.fn(() => new MockGainNode())
   createBuffer = vi.fn((_channels: number, length: number) => ({
@@ -62,6 +68,10 @@ describe('useSound bridge behavior', () => {
 
   beforeEach(() => {
     MockAudioContext.instances = []
+    MockAudioContext.initialState = 'running'
+    MockAudioContext.resumeImpl = (ctx) => {
+      ctx.state = 'running'
+    }
     query.mockResolvedValue([{ id: 123 }])
     sendMessage.mockResolvedValue(undefined)
 
@@ -101,5 +111,51 @@ describe('useSound bridge behavior', () => {
     expect(sendMessage).toHaveBeenCalled()
     expect(MockAudioContext.instances).toHaveLength(1)
     expect(MockAudioContext.instances[0]?.createOscillator).toHaveBeenCalled()
+  })
+
+  it('cancels a pending local bgm start when stop is called before audio resumes', async () => {
+    vi.useFakeTimers()
+    MockAudioContext.initialState = 'suspended'
+    sendMessage.mockRejectedValue(new Error('Cannot access contents of the page'))
+
+    let resumePending: Promise<void> | null = null
+    let resolveResume: (() => void) | undefined
+    MockAudioContext.resumeImpl = (ctx) => {
+      resumePending = new Promise<void>((resolve) => {
+        resolveResume = () => {
+          ctx.state = 'running'
+          resolve()
+        }
+      })
+
+      return resumePending
+    }
+
+    const { result } = renderHook(() => useSound())
+
+    act(() => {
+      result.current.startBgMusic()
+    })
+
+    await act(async () => {
+      await Promise.resolve()
+      await Promise.resolve()
+    })
+
+    expect(MockAudioContext.instances).toHaveLength(1)
+
+    act(() => {
+      result.current.stopBgMusic()
+    })
+
+    await act(async () => {
+      resolveResume?.()
+      await resumePending
+      await Promise.resolve()
+      await Promise.resolve()
+    })
+
+    expect(MockAudioContext.instances[0]?.createOscillator).not.toHaveBeenCalled()
+    vi.useRealTimers()
   })
 })

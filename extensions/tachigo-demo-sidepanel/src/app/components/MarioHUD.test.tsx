@@ -26,6 +26,12 @@ describe('MarioHUD bridge status', () => {
   it('renders a claim control when navigation is available', () => {
     render(<MarioHUD onNavigate={vi.fn()} />)
 
-    expect(screen.getByRole('button', { name: /claim/i })).toBeInTheDocument()
+    expect(screen.getByRole('button', { name: i18n.t('claim.title') })).toBeInTheDocument()
+  })
+
+  it('does not render a claim control when navigation is unavailable', () => {
+    render(<MarioHUD />)
+
+    expect(screen.queryByRole('button', { name: i18n.t('claim.title') })).not.toBeInTheDocument()
   })
 })
