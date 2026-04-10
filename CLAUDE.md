@@ -70,7 +70,16 @@
    git push -u origin feat/points-service
    ```
 
-3. 在 GitHub 發 PR，目標分支：`develop`（不直接推 `main`）
+3. 在 GitHub 發 PR，日常 feature PR 目標分支：`develop`
+
+4. 正式 release 流程走 Git Flow：
+
+   - `main` 不接受日常 feature PR
+   - 每兩週由 `develop` 開一張正式 release PR 到 `main`
+   - release PR 使用 `[release]` title prefix
+   - `develop -> main` release PR 屬於正式 promotion 流程，不視為 scope exception
+   - 目前暫不使用 `release/*` branch
+   - 等未來有正式部署、freeze window、hotfix/backport 需求時，再升級為 release branch 流程
 
 ## Scope 邊界
 
@@ -91,11 +100,15 @@
 
 ### PR 不得依賴未 merge 的 PR
 
-禁止在 PR body 中宣告對其他尚未 merge 的 PR 的依賴（例如「依賴：#123 需先 merge」）。
+禁止在一般 feature PR body 中宣告對其他尚未 merge 的 PR 的依賴（例如「依賴：#123 需先 merge」）。
 
 - 若前置 PR 尚未 merge，後續 PR 不應開出來
 - 若真有順序依賴，先等前置 PR merge，再從最新 `develop` 拉新 branch 開發
 - scope police 會自動偵測 `依賴：#xxx` 或 `depends on #xxx` 語法，若引用的 PR 仍為 open 狀態，該 PR 會被自動關閉
+
+例外：
+
+- 正式 `[release]` 的 `develop -> main` promotion PR 不屬於這條規則的限制對象
 
 ### 遇到岔路時怎麼做
 

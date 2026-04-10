@@ -4,8 +4,12 @@
 ## 為什麼
 <!-- 背景、需求，或關聯的 issue（e.g. closes #123） -->
 
+## Release Context
+<!-- 若這是正式 release PR，請填：`develop -> main`；否則填 `n/a` -->
+- Release type：<!-- `develop -> main` 或 `n/a` -->
+
 ## Scope 對齊
-<!-- 若 PR 超過約 35 個檔案、diff 過大、同時改多個 product surface，或依賴尚未 merge 的 backend contract，會被 PR Scope Police 自動擋下；嚴重 scope 違規會自動加 label 並關閉 PR -->
+<!-- 一般 feature PR 若超過約 35 個檔案、diff 過大、同時改多個 product surface，或依賴尚未 merge 的 backend contract，會被 PR Scope Police 自動擋下。正式 `develop -> main` release PR 請使用 `[release]` title prefix，並在上方 Release Context 填 `develop -> main`。 -->
 - Source of truth：<!-- issue / PR / 文件，例如 #115 -->
 - Depends on PR：<!-- `none` 或 `#123` -->
 - Backend contract already in develop:

@@ -25,6 +25,13 @@ jobs:
               return
             }
 
+            const isSameRepoHead =
+              pr.head?.repo?.full_name === `${context.repo.owner}/${context.repo.repo}`
+            const isReleasePromotionPr =
+              isSameRepoHead &&
+              pr.base?.ref === 'main' &&
+              pr.head?.ref === 'develop'
+
             const bypassLabels = new Set(['scope-exception'])
             const labels = (pr.labels || []).map((label) => label.name)
             const bypassed = labels.some((label) => bypassLabels.has(label))
@@ -76,7 +83,7 @@ jobs:
             const severeFailures = []
             const warnings = []
 
-            const allowedPrefixes = ['[backend]', '[frontend]', '[contract]', '[discussion]']
+            const allowedPrefixes = ['[backend]', '[frontend]', '[contract]', '[discussion]', '[release]']
             const titlePrefix = allowedPrefixes.find((prefix) => title.startsWith(prefix))
             if (!titlePrefix) {
               policyFailures.push(
@@ -84,7 +91,15 @@ jobs:
               )
             }
 
-            if (!/#\d+/.test(body)) {
+            if (isReleasePromotionPr && titlePrefix !== '[release]') {
+              policyFailures.push('`develop -> main` release PR must use the `[release]` title prefix.')
+            }
+
+            if (!isReleasePromotionPr && titlePrefix === '[release]') {
+              policyFailures.push('`[release]` PR is reserved for formal `develop -> main` promotion PRs only.')
+            }
+
+            if (!isReleasePromotionPr && !/#\d+/.test(body)) {
               policyFailures.push('PR body must reference at least one issue or PR number such as `#123`.')
             }
 
@@ -116,6 +131,9 @@ jobs:
             if (backendContractYes && backendContractNo) {
               policyFailures.push('`Backend contract already in develop` cannot select both yes and no.')
             }
+            if (isReleasePromotionPr && !backendContractYes) {
+              policyFailures.push('Formal `[release]` PR must mark `Backend contract already in develop` as yes.')
+            }
 
             const stackedOnDependency = /If no, this PR is:[\s\S]*?- \[[xX]\] stacked on dependency branch/i.test(body)
             const intentionallyBlocked = /If no, this PR is:[\s\S]*?- \[[xX]\] intentionally blocked until dependency merges/i.test(body)
@@ -141,41 +159,41 @@ jobs:
               dependencyFailures.push(message)
             }
 
-            if (filenames.length > hardMaxChangedFiles) {
+            if (!isReleasePromotionPr && filenames.length > hardMaxChangedFiles) {
               const message =
                 `PR changes ${filenames.length} files, which exceeds the hard limit of ${hardMaxChangedFiles}. Split the PR before review.`
               failures.push(message)
               severeFailures.push(message)
             }
 
-            if (diffLines > hardMaxDiffLines) {
+            if (!isReleasePromotionPr && diffLines > hardMaxDiffLines) {
               const message =
                 `PR diff size is ${diffLines} lines (+/-), which exceeds the hard limit of ${hardMaxDiffLines}. Split the PR before review.`
               failures.push(message)
               severeFailures.push(message)
             }
 
-            if (productSurfaces.length > 1) {
+            if (!isReleasePromotionPr && productSurfaces.length > 1) {
               const message =
                 `PR touches multiple product surfaces (${productSurfaces.join(', ')}). Keep one PR to one surface only.`
               failures.push(message)
               severeFailures.push(message)
             }
 
-            if (titlePrefix === '[backend]' && (touches.dashboard || touches.tachimint)) {
+            if (!isReleasePromotionPr && titlePrefix === '[backend]' && (touches.dashboard || touches.tachimint)) {
               const message = '[backend] PR must not change dashboard/ or tachimint/.'
               failures.push(message)
               severeFailures.push(message)
             }
 
-            if (titlePrefix === '[frontend]' && touches.backend) {
+            if (!isReleasePromotionPr && titlePrefix === '[frontend]' && touches.backend) {
               const message =
                 '[frontend] PR must not change backend/. Move backend prerequisites into a separate PR.'
               failures.push(message)
               severeFailures.push(message)
             }
 
-            if (titlePrefix === '[contract]' && (touches.backend || touches.dashboard || touches.tachimint)) {
+            if (!isReleasePromotionPr && titlePrefix === '[contract]' && (touches.backend || touches.dashboard || touches.tachimint)) {
               const message = '[contract] PR must not change backend/, dashboard/, or tachimint/.'
               failures.push(message)
               severeFailures.push(message)
@@ -236,6 +254,7 @@ jobs:
 
             summaryLines.push('')
             summaryLines.push('### Snapshot')
+            summaryLines.push(`- Mode: ${isReleasePromotionPr ? 'release promotion (develop -> main)' : 'standard PR'}`)
             summaryLines.push(`- Changed files: ${filenames.length}`)
             summaryLines.push(`- Diff lines (+/-): ${diffLines}`)
             summaryLines.push(
