@@ -60,7 +60,11 @@ Type：`feat` / `fix` / `docs` / `chore` / `refactor` / `test`
 
 ### 注意事項
 
-- **不要** 直接推 `main`，PR 目標分支是 `develop`
+- **不要** 直接推 `main`
+- 日常 feature PR 目標分支是 `develop`
+- 正式 release 依 Git Flow 由 `develop` 開 PR 到 `main`
+- 目前暫不使用 `release/*` branch
+- 未來若有正式部署、freeze window、hotfix/backport 需求，再升級 release 流程
 - GitHub 相關的 `gh` 指令（issue、PR、API）與必要的 `git` 指令可由你執行
 - 執行 `git` 時仍需遵守 branch / commit / scope 規範，不得繞過 PR 流程
 

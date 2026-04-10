@@ -28,6 +28,13 @@ jobs:
               return
             }
 
+            const isSameRepoHead =
+              pr.head?.repo?.full_name === `${context.repo.owner}/${context.repo.repo}`
+            const isReleasePromotionPr =
+              isSameRepoHead &&
+              pr.base?.ref === 'main' &&
+              pr.head?.ref === 'develop'
+
             const bypassLabels = new Set(['scope-exception'])
             const labels = (pr.labels || []).map((label) => label.name)
             if (labels.some((label) => bypassLabels.has(label))) {
@@ -52,7 +59,7 @@ jobs:
             const diffLines = files.reduce((sum, file) => sum + file.additions + file.deletions, 0)
             const body = pr.body || ''
             const title = pr.title || ''
-            const allowedPrefixes = ['[backend]', '[frontend]', '[contract]', '[discussion]']
+            const allowedPrefixes = ['[backend]', '[frontend]', '[contract]', '[discussion]', '[release]']
             const titlePrefix = allowedPrefixes.find((prefix) => title.startsWith(prefix))
             const touches = {
               backend: filenames.some((name) => name.startsWith('backend/')),
@@ -74,20 +81,34 @@ jobs:
               backendContractNo &&
               !backendContractYes
 
-            const runCi =
+            const releaseBodyValid =
+              titlePrefix === '[release]' &&
+              (body.includes('Source of truth：') || body.includes('Source of truth:')) &&
+              Boolean(dependsOnRaw) &&
+              (dependsOnNone || Boolean(dependsOnPrMatch)) &&
+              body.includes('本 PR 明確不做') &&
+              backendContractYes &&
+              !backendContractNo
+
+            const standardBodyValid =
               Boolean(titlePrefix) &&
+              titlePrefix !== '[release]' &&
               /#\d+/.test(body) &&
               (body.includes('Source of truth：') || body.includes('Source of truth:')) &&
               Boolean(dependsOnRaw) &&
               (dependsOnNone || Boolean(dependsOnPrMatch)) &&
               (backendContractYes !== backendContractNo) &&
-              body.includes('本 PR 明確不做') &&
-              filenames.length <= hardMaxChangedFiles &&
-              diffLines <= hardMaxDiffLines &&
-              productSurfaces <= 1 &&
-              !(titlePrefix === '[backend]' && (touches.dashboard || touches.tachimint)) &&
-              !(titlePrefix === '[frontend]' && touches.backend) &&
-              !(titlePrefix === '[contract]' && (touches.backend || touches.dashboard || touches.tachimint)) &&
+              body.includes('本 PR 明確不做')
+
+            const runCi =
+              (isReleasePromotionPr && releaseBodyValid) ||
+              standardBodyValid &&
+              (isReleasePromotionPr || filenames.length <= hardMaxChangedFiles) &&
+              (isReleasePromotionPr || diffLines <= hardMaxDiffLines) &&
+              (isReleasePromotionPr || productSurfaces <= 1) &&
+              (isReleasePromotionPr || !(titlePrefix === '[backend]' && (touches.dashboard || touches.tachimint))) &&
+              (isReleasePromotionPr || !(titlePrefix === '[frontend]' && touches.backend)) &&
+              (isReleasePromotionPr || !(titlePrefix === '[contract]' && (touches.backend || touches.dashboard || touches.tachimint))) &&
               !dependencyBlocked
 
             core.setOutput('run_ci', runCi ? 'true' : 'false')

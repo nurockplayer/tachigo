@@ -2,6 +2,14 @@
 
 這份文件說明 `tachigo` 的 PR 邊界規則，以及 GitHub 上需要如何設定，避免再次出現超大包、跨 scope、review 失焦，或前端建立在未落地 backend contract 上的 PR。
 
+另外，repo 採用 Git Flow：
+
+- 日常功能開發與功能 PR 一律先進 `develop`
+- `main` 只接受正式 release promotion
+- 預設 cadence 為每兩週一次 `develop -> main` release PR
+- 目前暫不使用 `release/*` branch
+- 待未來有正式部署、freeze window、hotfix/backport 需求時，再升級為完整 release branch 流程
+
 ## 目標
 
 - 一個 PR 只做一個明確問題
@@ -17,8 +25,8 @@ repo 目前有一個 GitHub Actions workflow：
 
 它會在 PR 開啟、更新、編輯時檢查以下規則：
 
-- PR title 必須以 `[backend]` / `[frontend]` / `[contract]` / `[discussion]` 開頭
-- PR body 必須包含 issue / PR 編號，例如 `#123`
+- PR title 必須以 `[backend]` / `[frontend]` / `[contract]` / `[discussion]` / `[release]` 開頭
+- 一般 feature PR 的 body 必須包含 issue / PR 編號，例如 `#123`
 - PR body 必須包含 `Source of truth`
 - PR body 必須包含 `Depends on PR`
 - PR body 必須明確標記 backend contract 是否已經在 `develop`
@@ -33,6 +41,24 @@ repo 目前有一個 GitHub Actions workflow：
 - `[frontend]` PR 不可修改 `backend/`
 - `[contract]` PR 不可修改 `backend/` / `dashboard/` / `tachimint/`
 - `[frontend]` PR 若依賴尚未 merge 的 backend contract，會被 dependency gate 擋下
+
+## 正式 release PR
+
+以下情況視為正式支援的 release promotion PR，而不是 scope exception：
+
+- base branch = `main`
+- head branch = `develop`
+- title prefix = `[release]`
+
+這類 PR 的性質是把已在 `develop` 收斂完成的內容整批 promotion 到 `main`，因此：
+
+- 不套用一般 feature PR 的檔案數上限 `35`
+- 不套用一般 feature PR 的 diff 行數上限 `1800`
+- 不套用單一 product surface 限制
+- 不會因為大包而被 `PR Scope Police` 自動關閉
+- 仍會要求 PR body 補齊基本資訊，例如 `Source of truth`、`Depends on PR`、`Backend contract already in develop`、`本 PR 明確不做`
+
+換句話說，超大包 `develop -> main` PR 在這個流程裡是正式合法路徑，但其他分支組合仍照一般 scope 規則檢查。
 
 ## 自動處置
 
@@ -68,6 +94,11 @@ repo 目前有一個 GitHub Actions workflow：
 - 只有在「同一張票的必要前置真的無法拆開」時才使用
 - 不能把它當成超大包 PR 的常態逃生門
 
+注意：
+
+- 正式 `develop -> main` release PR 不需要使用 `scope-exception`
+- `scope-exception` 只保留給非正式 release promotion 的特殊情況
+
 ## CI Gate
 
 repo 的 CI 目前改成：
@@ -76,6 +107,7 @@ repo 的 CI 目前改成：
 - `.github/workflows/ci.yml` 也會直接跑在 PR 上，但會先經過一個輕量 `Scope gate`
 - 只有目前符合同一套 scope 規則、且沒有被 dependency gate 擋住的 PR，才會繼續跑 backend / frontend / dashboard 的 docker build 與測試
 - 若 `[frontend]` PR 依賴尚未 merge 的 backend contract，重型 CI 會直接跳過
+- 若 PR 是正式 `[release]` 的 `develop -> main` promotion，重型 CI 會照常執行，不因 diff 過大而被 scope gate 跳過
 
 ## GitHub 設定
 
@@ -92,6 +124,11 @@ repo 的 CI 目前改成：
 - Block direct push
 - Block force push
 - Block branch deletion
+
+建議補充：
+
+- `main` 僅允許來自 `develop` 的正式 release PR 合併
+- release PR title 使用 `[release]`
 
 ### Required Checks
 
@@ -116,6 +153,11 @@ repo 的 CI 目前改成：
 - 若是 dependency block，先要求作者等依賴 merge，或改成 stacked PR
 - 只有在 maintainer 明確決定加 `scope-exception` 時，才進一步 review
 
+若 PR 是正式 `[release]` 的 `develop -> main` promotion：
+
+- 不要用 feature PR 的檔案數 / diff 大小標準要求它拆 PR
+- review 重點改成 release readiness：CI、branch protection、是否包含不該進版的內容、是否需要延後到下個 release cycle
+
 若 PR 雖然通過自動檢查，但 reviewer 仍判斷 scope 已混掉：
 
 - 可以直接要求拆 PR
@@ -136,6 +178,7 @@ repo 的 CI 目前改成：
 - `[backend]` PR 只改 `backend/`，且有清楚的 source of truth
 - `[frontend]` PR 只改 `dashboard/`，必要測試一起補齊
 - `[discussion]` PR 只改文件，不碰產品程式碼
+- `[release]` PR 從 `develop` 整批 promotion 到 `main`
 
 ## 後續調整
 
