@@ -13,6 +13,10 @@
   "hud": {
     "watching": "WATCHING",
     "idle": "IDLE",
+    "bgmLabel": "BGM",
+    "bgmOn": "♪ ON",
+    "bgmOff": "♪ OFF",
+    "tabAudioUnavailable": "TAB AUDIO OFF",
     "cumulativeTotal": "CUMULATIVE TOTAL",
     "nextIn": "NEXT IN {{count}}S",
     "clicksLeft": "{{count}} / 30 CLICKS",
@@ -23,6 +27,16 @@
     "titleHighlight": "accumulating watch points",
     "hintLine1": "Viewers just need to watch the stream",
     "hintLine2": "to automatically earn mining points"
+  },
+  "claim": {
+    "title": "CLAIM",
+    "from": "FROM",
+    "to": "TO",
+    "balance": "Balance: {{amount}}",
+    "max": "MAX",
+    "rate": "1 CPC = 0.1 TCG",
+    "button": "CLAIM $TCG",
+    "success": "CLAIMED!"
   },
   "error": {
     "account": {
