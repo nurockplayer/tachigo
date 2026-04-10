@@ -1,8 +1,10 @@
 package router_test
 
 import (
+	"fmt"
 	"net/http"
 	"net/http/httptest"
+	"strings"
 	"testing"
 	"time"
 
@@ -37,12 +39,22 @@ type routerTestEnv struct {
 func newRouterTestEnv(t *testing.T) *routerTestEnv {
 	t.Helper()
 
-	db, err := gorm.Open(sqlite.Open(":memory:"), &gorm.Config{
+	dbName := strings.NewReplacer("/", "_", " ", "_").Replace(t.Name())
+	dsn := fmt.Sprintf("file:%s?mode=memory&cache=shared", dbName)
+	db, err := gorm.Open(sqlite.Open(dsn), &gorm.Config{
 		Logger: logger.Default.LogMode(logger.Silent),
 	})
 	if err != nil {
 		t.Fatalf("open db: %v", err)
 	}
+	sqlDB, err := db.DB()
+	if err != nil {
+		t.Fatalf("db handle: %v", err)
+	}
+	sqlDB.SetMaxOpenConns(1)
+	t.Cleanup(func() {
+		_ = sqlDB.Close()
+	})
 	if err := db.Exec("PRAGMA foreign_keys = ON").Error; err != nil {
 		t.Fatalf("enable foreign keys: %v", err)
 	}
@@ -358,5 +370,22 @@ func TestDashboardRouter_AgencyOwnedChannelConfigAccessible(t *testing.T) {
 
 	if rec.Code != http.StatusOK {
 		t.Fatalf("want 200, got %d: %s", rec.Code, rec.Body.String())
+	}
+}
+
+func TestDashboardRouter_AgencyNonOwnedChannelConfigForbidden(t *testing.T) {
+	env := newRouterTestEnv(t)
+	_, token := env.tokenForRole(t, models.RoleAgency, "agency_router")
+	otherAgencyEmail, _ := env.tokenForRole(t, models.RoleAgency, "other_agency_router")
+	seedAgencyOwnedStreamerChannel(t, env, otherAgencyEmail, "other_agency_owned_channel")
+
+	req := httptest.NewRequest(http.MethodGet, "/api/v1/dashboard/channels/other_agency_owned_channel/config", nil)
+	req.Header.Set("Authorization", "Bearer "+token)
+
+	rec := httptest.NewRecorder()
+	env.router.ServeHTTP(rec, req)
+
+	if rec.Code != http.StatusForbidden {
+		t.Fatalf("want 403, got %d: %s", rec.Code, rec.Body.String())
 	}
 }
