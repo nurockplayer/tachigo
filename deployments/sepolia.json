@@ -1,0 +1,7 @@
+{
+  "network": "sepolia",
+  "contractAddress": "0x0000000000000000000000000000000000000000",
+  "txHash": "0x",
+  "blockNumber": 0,
+  "deployedAt": "YYYY-MM-DDTHH:MM:SSZ"
+}

@@ -72,8 +72,22 @@ anvil
 
 ### Deploy
 
-```shell
-forge script script/<YourScript>.s.sol:<YourScriptContract> --rpc-url <your_rpc_url> --private-key <your_private_key>
+```bash
+# 複製環境變數範本
+cp .env.example .env
+# 填入 DEPLOYER_PRIVATE_KEY、SEPOLIA_RPC_URL、ETHERSCAN_API_KEY
+
+# 部署到 Sepolia（含 Etherscan 驗證）
+forge script script/Deploy.s.sol:Deploy \
+  --rpc-url $SEPOLIA_RPC_URL \
+  --broadcast \
+  --verify \
+  --etherscan-api-key $ETHERSCAN_API_KEY
+
+# 若部署時未加 --verify，事後單獨驗證
+forge verify-contract <CONTRACT_ADDRESS> src/TachiToken.sol:TachiToken \
+  --chain sepolia \
+  --etherscan-api-key $ETHERSCAN_API_KEY
 ```
 
 ### Cast
