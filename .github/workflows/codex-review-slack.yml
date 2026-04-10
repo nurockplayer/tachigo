@@ -4,6 +4,8 @@ on:
   workflow_run:
     workflows: ["CI"]
     types: [completed]
+  pull_request:
+    types: [labeled]
 
 permissions:
   actions: write
@@ -11,144 +13,200 @@ permissions:
   issues: read
 
 jobs:
-  notify:
-    name: Slack notify when PR is ready for Codex review
+  evaluate:
+    name: Evaluate Codex review Slack notifications
     runs-on: ubuntu-latest
-    if: github.event.workflow_run.conclusion == 'success'
+    outputs:
+      has_notifications: ${{ steps.evaluate.outputs.has_notifications }}
+      notifications: ${{ steps.evaluate.outputs.notifications }}
     steps:
-      - name: Restore notification dedup cache
-        id: dedup-cache
-        uses: actions/cache/restore@v4
-        with:
-          path: ${{ runner.temp }}/codex-review-slack/${{ github.event.workflow_run.id }}
-          key: codex-review-slack-${{ github.repository }}-${{ github.event.workflow_run.id }}
-
       - name: Evaluate PR readiness
         id: evaluate
         uses: actions/github-script@v7
-        env:
-          CACHE_HIT: ${{ steps.dedup-cache.outputs.cache-hit }}
         with:
           script: |
-            const run = context.payload.workflow_run
             const owner = context.repo.owner
             const repo = context.repo.repo
             const reviewLabel = 'needs-codex-review'
             const changesLabel = 'changes-requested'
             const targetBaseBranches = new Set(['main', 'develop'])
-
-            const pr = run.pull_requests?.[0]
-            if (!pr) {
-              core.notice('No pull request is associated with this CI run.')
-              core.setOutput('should_notify', 'false')
-              return
+            async function getFullPr(pullNumber) {
+              const { data } = await github.rest.pulls.get({
+                owner,
+                repo,
+                pull_number: pullNumber,
+              })
+              return data
             }
 
-            const { data: fullPr } = await github.rest.pulls.get({
-              owner,
-              repo,
-              pull_number: pr.number,
-            })
+            async function getSuccessfulCiRun(headSha) {
+              const { data } = await github.rest.actions.listWorkflowRunsForRepo({
+                owner,
+                repo,
+                head_sha: headSha,
+                status: 'completed',
+                per_page: 100,
+              })
 
-            if (fullPr.state !== 'open') {
-              core.notice(`Skipping PR #${fullPr.number}: PR is not open.`)
-              core.setOutput('should_notify', 'false')
-              return
+              return data.workflow_runs.find((workflowRun) =>
+                workflowRun.name === 'CI' && workflowRun.conclusion === 'success'
+              )
             }
 
-            const labels = (fullPr.labels || []).map((label) => label.name)
-            const hasReviewLabel = labels.includes(reviewLabel)
-            const hasChangesRequestedLabel = labels.includes(changesLabel)
-            const isTargetBase = targetBaseBranches.has(fullPr.base?.ref)
-
-            if (!isTargetBase) {
-              core.notice(`Skipping PR #${fullPr.number}: unsupported base branch ${fullPr.base?.ref || 'unknown'}.`)
-              core.setOutput('should_notify', 'false')
-              return
-            }
-
-            if (fullPr.draft) {
-              core.notice(`Skipping PR #${fullPr.number}: draft PR.`)
-              core.setOutput('should_notify', 'false')
-              return
-            }
-
-            if (!hasReviewLabel) {
-              core.notice(`Skipping PR #${fullPr.number}: missing ${reviewLabel} label.`)
-              core.setOutput('should_notify', 'false')
-              return
-            }
-
-            if (hasChangesRequestedLabel) {
-              core.notice(`Skipping PR #${fullPr.number}: ${changesLabel} label is still present.`)
-              core.setOutput('should_notify', 'false')
-              return
-            }
-
-            if (process.env.CACHE_HIT === 'true') {
-              core.notice(`Skipping PR #${fullPr.number}: Slack notification already sent for workflow run ${run.id}.`)
-              core.setOutput('should_notify', 'false')
-              return
-            }
-
-            if (run.head_sha !== fullPr.head.sha) {
-              core.notice(`Skipping PR #${fullPr.number}: CI run head_sha (${run.head_sha}) does not match PR latest sha (${fullPr.head.sha}); notification suppressed for stale commit.`)
-              core.setOutput('should_notify', 'false')
-              return
-            }
-
-            const shortSha = (run.head_sha || '').slice(0, 7)
-            const payload = {
-              text: `PR #${fullPr.number} is ready for Codex review`,
-              blocks: [
-                {
-                  type: 'section',
-                  text: {
-                    type: 'mrkdwn',
-                    text: `*PR ready for Codex review*\n<${fullPr.html_url}|#${fullPr.number} ${fullPr.title}>`,
+            function buildPayload(fullPr, sourceRun) {
+              const shortSha = (fullPr.head?.sha || sourceRun.head_sha || '').slice(0, 7)
+              return {
+                text: `PR #${fullPr.number} is ready for Codex review`,
+                blocks: [
+                  {
+                    type: 'section',
+                    text: {
+                      type: 'mrkdwn',
+                      text: `*PR ready for Codex review*\n<${fullPr.html_url}|#${fullPr.number} ${fullPr.title}>`,
+                    },
                   },
-                },
-                {
-                  type: 'section',
-                  fields: [
-                    {
-                      type: 'mrkdwn',
-                      text: `*Author*\n${fullPr.user?.login || 'unknown'}`,
-                    },
-                    {
-                      type: 'mrkdwn',
-                      text: `*Base branch*\n${fullPr.base?.ref || 'unknown'}`,
-                    },
-                    {
-                      type: 'mrkdwn',
-                      text: `*Head SHA*\n${shortSha || 'unknown'}`,
-                    },
-                    {
-                      type: 'mrkdwn',
-                      text: `*CI run*\n<${run.html_url}|workflow_run #${run.run_number}>`,
-                    },
-                  ],
-                },
-                {
-                  type: 'context',
-                  elements: [
-                    {
-                      type: 'mrkdwn',
-                      text: 'Triggered only when CI is green and the PR is labeled needs-codex-review.',
-                    },
-                  ],
-                },
-              ],
+                  {
+                    type: 'section',
+                    fields: [
+                      {
+                        type: 'mrkdwn',
+                        text: `*Author*\n${fullPr.user?.login || 'unknown'}`,
+                      },
+                      {
+                        type: 'mrkdwn',
+                        text: `*Base branch*\n${fullPr.base?.ref || 'unknown'}`,
+                      },
+                      {
+                        type: 'mrkdwn',
+                        text: `*Head SHA*\n${shortSha || 'unknown'}`,
+                      },
+                      {
+                        type: 'mrkdwn',
+                        text: `*CI run*\n<${sourceRun.html_url}|workflow_run #${sourceRun.run_number}>`,
+                      },
+                    ],
+                  },
+                  {
+                    type: 'context',
+                    elements: [
+                      {
+                        type: 'mrkdwn',
+                        text: 'Triggered when CI is green and the PR is labeled needs-codex-review.',
+                      },
+                    ],
+                  },
+                ],
+              }
             }
 
-            core.setOutput('should_notify', 'true')
-            core.setOutput('payload', JSON.stringify(payload))
+            async function collectNotification(fullPr, sourceRun) {
+              if (fullPr.state !== 'open') {
+                core.notice(`Skipping PR #${fullPr.number}: PR is not open.`)
+                return null
+              }
+
+              const labels = (fullPr.labels || []).map((label) => label.name)
+              const hasReviewLabel = labels.includes(reviewLabel)
+              const hasChangesRequestedLabel = labels.includes(changesLabel)
+              const isTargetBase = targetBaseBranches.has(fullPr.base?.ref)
+
+              if (!isTargetBase) {
+                core.notice(`Skipping PR #${fullPr.number}: unsupported base branch ${fullPr.base?.ref || 'unknown'}.`)
+                return null
+              }
+
+              if (fullPr.draft) {
+                core.notice(`Skipping PR #${fullPr.number}: draft PR.`)
+                return null
+              }
+
+              if (!hasReviewLabel) {
+                core.notice(`Skipping PR #${fullPr.number}: missing ${reviewLabel} label.`)
+                return null
+              }
+
+              if (hasChangesRequestedLabel) {
+                core.notice(`Skipping PR #${fullPr.number}: ${changesLabel} label is still present.`)
+                return null
+              }
+
+              if (sourceRun.head_sha !== fullPr.head.sha) {
+                core.notice(`Skipping PR #${fullPr.number}: CI run head_sha (${sourceRun.head_sha}) does not match PR latest sha (${fullPr.head.sha}); notification suppressed for stale commit.`)
+                return null
+              }
+
+              return {
+                dedup_key: `${sourceRun.id}-${fullPr.number}`,
+                payload: JSON.stringify(buildPayload(fullPr, sourceRun)),
+              }
+            }
+
+            const notifications = []
+
+            if (context.eventName === 'workflow_run') {
+              const run = context.payload.workflow_run
+              if (run.conclusion !== 'success') {
+                core.notice(`Skipping workflow_run ${run.id}: conclusion is ${run.conclusion || 'unknown'}.`)
+              } else {
+                const pullNumbers = [...new Set((run.pull_requests || []).map((pr) => pr.number).filter(Boolean))]
+                if (pullNumbers.length === 0) {
+                  core.notice('No pull requests are associated with this CI run.')
+                }
+
+                for (const pullNumber of pullNumbers) {
+                  const fullPr = await getFullPr(pullNumber)
+                  const notification = await collectNotification(fullPr, run)
+                  if (notification) {
+                    notifications.push(notification)
+                  }
+                }
+              }
+            } else if (context.eventName === 'pull_request') {
+              const labelName = context.payload.label?.name
+              if (labelName !== reviewLabel) {
+                core.notice(`Skipping pull_request labeled event: label ${labelName || 'unknown'} is not ${reviewLabel}.`)
+              } else {
+                const fullPr = await getFullPr(context.payload.pull_request.number)
+                const sourceRun = await getSuccessfulCiRun(fullPr.head.sha)
+
+                if (!sourceRun) {
+                  core.notice(`Skipping PR #${fullPr.number}: no successful CI workflow run found for head sha ${fullPr.head.sha}.`)
+                } else {
+                  const notification = await collectNotification(fullPr, sourceRun)
+                  if (notification) {
+                    notifications.push(notification)
+                  }
+                }
+              }
+            } else {
+              core.notice(`Unsupported event: ${context.eventName}`)
+            }
+
+            core.setOutput('has_notifications', notifications.length > 0 ? 'true' : 'false')
+            core.setOutput('notifications', JSON.stringify(notifications))
+
+  notify:
+    name: Slack notify when PR is ready for Codex review
+    needs: evaluate
+    if: needs.evaluate.outputs.has_notifications == 'true'
+    runs-on: ubuntu-latest
+    strategy:
+      fail-fast: false
+      matrix:
+        notification: ${{ fromJson(needs.evaluate.outputs.notifications) }}
+    steps:
+      - name: Restore notification dedup cache
+        id: dedup-cache
+        uses: actions/cache/restore@v4
+        with:
+          path: ${{ runner.temp }}/codex-review-slack/${{ matrix.notification.dedup_key }}
+          key: codex-review-slack-${{ github.repository }}-${{ matrix.notification.dedup_key }}
 
       - name: Send Slack notification
-        if: steps.evaluate.outputs.should_notify == 'true'
+        if: steps.dedup-cache.outputs.cache-hit != 'true'
         env:
           SLACK_WEBHOOK_URL: ${{ secrets.SLACK_CODEX_REVIEW_WEBHOOK_URL }}
-          SLACK_PAYLOAD: ${{ steps.evaluate.outputs.payload }}
+          SLACK_PAYLOAD: ${{ matrix.notification.payload }}
         run: |
           if [ -z "$SLACK_WEBHOOK_URL" ]; then
             echo "SLACK_CODEX_REVIEW_WEBHOOK_URL is not configured; skipping Slack notification."
@@ -162,13 +220,13 @@ jobs:
             echo "Slack webhook POST failed (non-2xx response): $RESPONSE"
             exit 1
           }
-          mkdir -p "${RUNNER_TEMP}/codex-review-slack/${{ github.event.workflow_run.id }}"
-          touch "${RUNNER_TEMP}/codex-review-slack/${{ github.event.workflow_run.id }}/sent"
+          mkdir -p "${RUNNER_TEMP}/codex-review-slack/${{ matrix.notification.dedup_key }}"
+          touch "${RUNNER_TEMP}/codex-review-slack/${{ matrix.notification.dedup_key }}/sent"
           echo "Slack webhook response: $RESPONSE"
 
       - name: Persist notification dedup cache
-        if: steps.evaluate.outputs.should_notify == 'true'
+        if: steps.dedup-cache.outputs.cache-hit != 'true'
         uses: actions/cache/save@v4
         with:
-          path: ${{ runner.temp }}/codex-review-slack/${{ github.event.workflow_run.id }}
-          key: codex-review-slack-${{ github.repository }}-${{ github.event.workflow_run.id }}
+          path: ${{ runner.temp }}/codex-review-slack/${{ matrix.notification.dedup_key }}
+          key: codex-review-slack-${{ github.repository }}-${{ matrix.notification.dedup_key }}
