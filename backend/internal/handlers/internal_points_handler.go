@@ -2,6 +2,7 @@ package handlers
 
 import (
 	"errors"
+	"strings"
 
 	"github.com/gin-gonic/gin"
 	"gorm.io/gorm"
@@ -18,14 +19,14 @@ func NewInternalPointsHandler(db *gorm.DB) *InternalPointsHandler {
 }
 
 func (h *InternalPointsHandler) GetUserPointsBalance(c *gin.Context) {
-	email := c.Query("email")
+	email := strings.ToLower(strings.TrimSpace(c.Query("email")))
 	if email == "" {
 		badRequest(c, "email is required")
 		return
 	}
 
 	var user models.User
-	if err := h.db.Where("email = ?", email).First(&user).Error; err != nil {
+	if err := h.db.Where("LOWER(email) = ?", email).First(&user).Error; err != nil {
 		if errors.Is(err, gorm.ErrRecordNotFound) {
 			notFound(c, "user not found")
 			return
@@ -51,7 +52,7 @@ func (h *InternalPointsHandler) GetUserPointsBalance(c *gin.Context) {
 
 	ok(c, gin.H{
 		"user_id":           user.ID,
-		"email":             email,
+		"email":             user.Email,
 		"spendable_balance": balance.SpendableBalance,
 		"cumulative_total":  balance.CumulativeTotal,
 	})

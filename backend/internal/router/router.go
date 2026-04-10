@@ -169,7 +169,10 @@ func New(
 		dashboardAirdrop.POST("/airdrop", airdropH.Airdrop)
 	}
 
-	if len(internalRouterConfig) > 0 && internalRouterConfig[0].DB != nil && internalRouterConfig[0].Config != nil {
+	if len(internalRouterConfig) > 0 &&
+		internalRouterConfig[0].DB != nil &&
+		internalRouterConfig[0].Config != nil &&
+		internalRouterConfig[0].Config.Internal.TachiyaSharedSecret != "" {
 		internalPointsH := handlers.NewInternalPointsHandler(internalRouterConfig[0].DB)
 		internal := v1.Group("/internal/tachiya")
 		internal.Use(middleware.TachiyaInternalAuth(internalRouterConfig[0].Config))
