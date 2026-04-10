@@ -1,6 +1,7 @@
 package services
 
 import (
+	"context"
 	"errors"
 	"testing"
 
@@ -9,6 +10,25 @@ import (
 
 	"github.com/tachigo/tachigo/internal/models"
 )
+
+type mockMintCaller struct {
+	txHash string
+	err    error
+	calls  []mintCall
+}
+
+type mintCall struct {
+	toAddr string
+	amount int64
+}
+
+func (m *mockMintCaller) MintOnChain(_ context.Context, toAddr string, amount int64) (string, error) {
+	m.calls = append(m.calls, mintCall{toAddr: toAddr, amount: amount})
+	if m.err != nil {
+		return "", m.err
+	}
+	return m.txHash, nil
+}
 
 // seedLedger inserts a points_ledger row and returns its id.
 func seedLedger(t *testing.T, db *gorm.DB, userID uuid.UUID, channelID string, spendable int64) uuid.UUID {
@@ -28,9 +48,20 @@ func userIDForClaim(t *testing.T, db *gorm.DB) uuid.UUID {
 	return seedStreamerUserRow(t, db, models.RoleViewer)
 }
 
+func seedWeb3Provider(t *testing.T, db *gorm.DB, userID uuid.UUID, addr string) {
+	t.Helper()
+	if err := db.Create(&models.AuthProvider{
+		UserID:     userID,
+		Provider:   models.ProviderWeb3,
+		ProviderID: addr,
+	}).Error; err != nil {
+		t.Fatalf("seedWeb3Provider: %v", err)
+	}
+}
+
 func TestGetTachiBalance_Zero(t *testing.T) {
 	db := newTestDB(t)
-	svc := NewClaimService(db)
+	svc := &ClaimService{db: db}
 	userID := userIDForClaim(t, db)
 
 	bal, err := svc.GetTachiBalance(userID)
@@ -44,8 +75,10 @@ func TestGetTachiBalance_Zero(t *testing.T) {
 
 func TestClaim_All(t *testing.T) {
 	db := newTestDB(t)
-	svc := NewClaimService(db)
+	mintCaller := &mockMintCaller{txHash: "0xabc"}
+	svc := &ClaimService{db: db, mintCaller: mintCaller}
 	userID := userIDForClaim(t, db)
+	seedWeb3Provider(t, db, userID, "0xd8dA6BF26964aF9D7eEd9e03E53415D37aA96045")
 	seedLedger(t, db, userID, "ch1", 100)
 	seedLedger(t, db, userID, "ch2", 50)
 
@@ -63,12 +96,20 @@ func TestClaim_All(t *testing.T) {
 	if total != 0 {
 		t.Fatalf("expected spendable_balance=0, got %d", total)
 	}
+	if len(mintCaller.calls) != 1 {
+		t.Fatalf("expected 1 mint call, got %d", len(mintCaller.calls))
+	}
+	if mintCaller.calls[0].amount != 150 {
+		t.Fatalf("expected mint amount=150, got %d", mintCaller.calls[0].amount)
+	}
 }
 
 func TestClaim_PartialAmount(t *testing.T) {
 	db := newTestDB(t)
-	svc := NewClaimService(db)
+	mintCaller := &mockMintCaller{txHash: "0xdef"}
+	svc := &ClaimService{db: db, mintCaller: mintCaller}
 	userID := userIDForClaim(t, db)
+	seedWeb3Provider(t, db, userID, "0xd8dA6BF26964aF9D7eEd9e03E53415D37aA96045")
 	seedLedger(t, db, userID, "ch1", 100)
 
 	newBal, err := svc.Claim(userID, 40)
@@ -88,7 +129,7 @@ func TestClaim_PartialAmount(t *testing.T) {
 
 func TestClaim_InsufficientBalance(t *testing.T) {
 	db := newTestDB(t)
-	svc := NewClaimService(db)
+	svc := &ClaimService{db: db}
 	userID := userIDForClaim(t, db)
 	seedLedger(t, db, userID, "ch1", 30)
 
@@ -103,7 +144,7 @@ func TestClaim_InsufficientBalance(t *testing.T) {
 
 func TestClaim_NoLedgers(t *testing.T) {
 	db := newTestDB(t)
-	svc := NewClaimService(db)
+	svc := &ClaimService{db: db}
 	userID := userIDForClaim(t, db)
 
 	// amount=0 with no ledgers → claimAmount=0 → ErrClaimAmountInvalid
@@ -115,8 +156,10 @@ func TestClaim_NoLedgers(t *testing.T) {
 
 func TestClaim_AccumulatesOnSecondClaim(t *testing.T) {
 	db := newTestDB(t)
-	svc := NewClaimService(db)
+	mintCaller := &mockMintCaller{txHash: "0x987"}
+	svc := &ClaimService{db: db, mintCaller: mintCaller}
 	userID := userIDForClaim(t, db)
+	seedWeb3Provider(t, db, userID, "0xd8dA6BF26964aF9D7eEd9e03E53415D37aA96045")
 	seedLedger(t, db, userID, "ch1", 200)
 
 	bal1, err1 := svc.Claim(userID, 100)
@@ -132,5 +175,66 @@ func TestClaim_AccumulatesOnSecondClaim(t *testing.T) {
 	}
 	if newBal != 150 {
 		t.Fatalf("expected tachi_balance=150, got %d", newBal)
+	}
+}
+
+func TestClaim_MintSuccessUpdatesDB(t *testing.T) {
+	db := newTestDB(t)
+	mintCaller := &mockMintCaller{txHash: "0x123"}
+	svc := &ClaimService{db: db, mintCaller: mintCaller}
+	userID := userIDForClaim(t, db)
+	seedWeb3Provider(t, db, userID, "0xd8dA6BF26964aF9D7eEd9e03E53415D37aA96045")
+	seedLedger(t, db, userID, "ch1", 80)
+
+	newBal, err := svc.Claim(userID, 50)
+	if err != nil {
+		t.Fatalf("unexpected error: %v", err)
+	}
+	if newBal != 50 {
+		t.Fatalf("expected tachi_balance=50, got %d", newBal)
+	}
+	if len(mintCaller.calls) != 1 {
+		t.Fatalf("expected 1 mint call, got %d", len(mintCaller.calls))
+	}
+	if mintCaller.calls[0].toAddr != "0xd8dA6BF26964aF9D7eEd9e03E53415D37aA96045" {
+		t.Fatalf("unexpected mint address: %s", mintCaller.calls[0].toAddr)
+	}
+
+	var remaining int64
+	if err := db.Raw("SELECT spendable_balance FROM points_ledgers WHERE user_id = ? AND channel_id = 'ch1'", userID).Scan(&remaining).Error; err != nil {
+		t.Fatalf("query remaining: %v", err)
+	}
+	if remaining != 30 {
+		t.Fatalf("expected remaining spendable=30, got %d", remaining)
+	}
+}
+
+func TestClaim_MintFailureLeavesDBUnchanged(t *testing.T) {
+	db := newTestDB(t)
+	mintCaller := &mockMintCaller{err: errors.New("mint reverted")}
+	svc := &ClaimService{db: db, mintCaller: mintCaller}
+	userID := userIDForClaim(t, db)
+	seedWeb3Provider(t, db, userID, "0xd8dA6BF26964aF9D7eEd9e03E53415D37aA96045")
+	seedLedger(t, db, userID, "ch1", 80)
+
+	_, err := svc.Claim(userID, 50)
+	if err == nil {
+		t.Fatal("expected error but got nil")
+	}
+
+	var remaining int64
+	if err := db.Raw("SELECT spendable_balance FROM points_ledgers WHERE user_id = ? AND channel_id = 'ch1'", userID).Scan(&remaining).Error; err != nil {
+		t.Fatalf("query remaining: %v", err)
+	}
+	if remaining != 80 {
+		t.Fatalf("expected remaining spendable=80, got %d", remaining)
+	}
+
+	var balanceCount int64
+	if err := db.Raw("SELECT COUNT(*) FROM tachi_balances WHERE user_id = ?", userID).Scan(&balanceCount).Error; err != nil {
+		t.Fatalf("query balances: %v", err)
+	}
+	if balanceCount != 0 {
+		t.Fatalf("expected no tachi balance rows, got %d", balanceCount)
 	}
 }
