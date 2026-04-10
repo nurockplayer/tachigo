@@ -3,7 +3,11 @@
   "name": "Tachigo Demo Side Panel",
   "description": "Demo side panel extension for the Tachigo login and loading flow.",
   "version": "0.0.1",
-  "permissions": ["sidePanel", "storage"],
+  "permissions": ["sidePanel", "storage", "tabs"],
+  "content_scripts": [{
+    "matches": ["<all_urls>"],
+    "js": ["assets/content.js"]
+  }],
   "icons": {
     "16": "icon.png",
     "32": "icon.png",

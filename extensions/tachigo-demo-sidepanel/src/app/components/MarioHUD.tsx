@@ -2,6 +2,7 @@ import React, { useState, useEffect, useRef, useCallback } from 'react';
 import { useTranslation } from 'react-i18next'
 
 import type { HudDemoState } from '../../extension/types'
+import { useSound } from '../hooks/useSound'
 
 // ─── Types ────────────────────────────────────────────────────
 interface FloatItem { id: number; amount: number; offsetX: number }
@@ -218,6 +219,7 @@ interface MarioHUDProps {
 
 export function MarioHUD({ state, onStateChange }: MarioHUDProps) {
   const { t } = useTranslation()
+  const { playMiningClick, playRewardComplete, playMaxClicks, playToggleWatch, startBgMusic, stopBgMusic } = useSound()
   const [points, setPoints]               = useState(state?.points ?? 0);
   const [totalPoints, setTotalPoints]     = useState(state?.totalPoints ?? 12847);
   const [countdown, setCountdown]         = useState(state?.countdown ?? 60);
@@ -227,6 +229,7 @@ export function MarioHUD({ state, onStateChange }: MarioHUDProps) {
   const [clickCount, setClickCount]       = useState(state?.clickCount ?? 0);
   const [showSuccess, setShowSuccess]     = useState(false);
   const [capyState, setCapyState]         = useState<'idle' | 'mining' | 'big-mining'>('idle');
+  const [bgMusicOn, setBgMusicOn]         = useState(false);
 
   const floatId = useRef(0);
 
@@ -278,6 +281,7 @@ export function MarioHUD({ state, onStateChange }: MarioHUDProps) {
       setCountdown(c => {
         if (c <= 1) {
           awardPoints(100);
+          playRewardComplete();
           setClickCount(0);
           return CYCLE;
         }
@@ -285,7 +289,13 @@ export function MarioHUD({ state, onStateChange }: MarioHUDProps) {
       });
     }, 1000);
     return () => clearInterval(tick);
-  }, [isWatching, awardPoints]);
+  }, [isWatching, awardPoints, playRewardComplete]);
+
+  // ── 背景音樂：watching 且 bgMusicOn 時才播放 ─────────────
+  useEffect(() => {
+    if (isWatching && bgMusicOn) startBgMusic();
+    else stopBgMusic();
+  }, [isWatching, bgMusicOn, startBgMusic, stopBgMusic]);
 
   useEffect(() => {
     onStateChange?.({
@@ -299,10 +309,15 @@ export function MarioHUD({ state, onStateChange }: MarioHUDProps) {
 
   // ── Click handler (awards +1, 30 clicks per cycle) ───────
   const handleCapybaraClick = useCallback(() => {
-    if (!isWatching || clickCount >= MAX_CLICKS_PER_CYCLE) return;
+    if (!isWatching) return;
+    if (clickCount >= MAX_CLICKS_PER_CYCLE) {
+      playMaxClicks();
+      return;
+    }
+    playMiningClick();
     awardPoints(1);
     setClickCount(c => c + 1);
-  }, [isWatching, clickCount, awardPoints]);
+  }, [isWatching, clickCount, awardPoints, playMiningClick, playMaxClicks]);
 
   const progress = (CYCLE - countdown) / CYCLE;
 
@@ -389,7 +404,7 @@ export function MarioHUD({ state, onStateChange }: MarioHUDProps) {
 
         {/* Demo toggle */}
         <button
-          onClick={() => setIsWatching(w => !w)}
+          onClick={() => { playToggleWatch(); setIsWatching(w => !w); }}
           style={{
             padding: '2px 6px',
             borderRadius: 2,
@@ -524,6 +539,38 @@ export function MarioHUD({ state, onStateChange }: MarioHUDProps) {
             ? t('hud.clicksExhausted')
             : t('hud.clicksLeft', { count: MAX_CLICKS_PER_CYCLE - clickCount })}
         </div>
+      </div>
+
+      {/* ════════════════════════════════════════════
+          BGM 獨立控制列（HUD 主內容以外）
+      ════════════════════════════════════════════ */}
+      <div
+        style={{
+          borderTop: '1px solid rgba(145,70,255,0.15)',
+          padding: '6px 16px',
+          display: 'flex',
+          alignItems: 'center',
+          justifyContent: 'space-between',
+          background: 'rgba(0,0,0,0.3)',
+        }}
+      >
+        <span style={{ fontSize: 6, color: '#444', letterSpacing: '0.1em' }}>BGM</span>
+        <button
+          onClick={() => setBgMusicOn(v => !v)}
+          style={{
+            padding: '3px 8px',
+            borderRadius: 2,
+            border: `1px solid ${bgMusicOn ? '#9146FF' : 'rgba(145,70,255,0.2)'}`,
+            background: bgMusicOn ? 'rgba(145,70,255,0.15)' : 'transparent',
+            color: bgMusicOn ? '#9146FF' : '#444',
+            fontSize: 7,
+            cursor: 'pointer',
+            fontFamily: 'var(--pixel-font-family)',
+            letterSpacing: '0.08em',
+          }}
+        >
+          {bgMusicOn ? '♪ ON' : '♪ OFF'}
+        </button>
       </div>
     </div>
   );

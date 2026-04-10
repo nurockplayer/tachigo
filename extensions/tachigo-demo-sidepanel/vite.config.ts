@@ -16,11 +16,12 @@ export default defineConfig({
         sidepanel: path.resolve(__dirname, 'sidepanel.html'),
         popup: path.resolve(__dirname, 'popup.html'),
         background: path.resolve(__dirname, 'src/extension/background.ts'),
+        content: path.resolve(__dirname, 'src/extension/content.ts'),
       },
       output: {
         entryFileNames: (chunkInfo) => (
-          chunkInfo.name === 'background'
-            ? 'assets/background.js'
+          chunkInfo.name === 'background' || chunkInfo.name === 'content'
+            ? 'assets/[name].js'
             : 'assets/[name]-[hash].js'
         ),
       },
