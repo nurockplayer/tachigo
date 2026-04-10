@@ -136,6 +136,44 @@ function synthesizeMiningHit(ctx: AudioContext, variant: HitVariant = 'normal') 
   }
 }
 
+// ── 提領獎勵音效（金屬幣擊 + 上行確認 + shimmer 收尾）────────
+function synthesizeClaimReward(ctx: AudioContext) {
+  const now = ctx.currentTime;
+
+  // Layer 1: Metallic coin hit（triangle，快速衰減）
+  const osc1 = ctx.createOscillator(); const g1 = ctx.createGain();
+  osc1.type = 'triangle';
+  osc1.frequency.setValueAtTime(1400, now);
+  osc1.frequency.exponentialRampToValueAtTime(1100, now + 0.05);
+  g1.gain.setValueAtTime(0, now);
+  g1.gain.linearRampToValueAtTime(0.35, now + 0.003);
+  g1.gain.exponentialRampToValueAtTime(0.001, now + 0.09);
+  osc1.connect(g1); g1.connect(ctx.destination);
+  osc1.start(now); osc1.stop(now + 0.09);
+
+  // Layer 2: Upward confirmation tone（sine 滑音，上揚感）
+  const osc2 = ctx.createOscillator(); const g2 = ctx.createGain();
+  osc2.type = 'sine';
+  osc2.frequency.setValueAtTime(800, now + 0.02);
+  osc2.frequency.exponentialRampToValueAtTime(1400, now + 0.12);
+  g2.gain.setValueAtTime(0, now + 0.02);
+  g2.gain.linearRampToValueAtTime(0.22, now + 0.025);
+  g2.gain.exponentialRampToValueAtTime(0.001, now + 0.18);
+  osc2.connect(g2); g2.connect(ctx.destination);
+  osc2.start(now + 0.02); osc2.stop(now + 0.18);
+
+  // Layer 3: High shimmer tail（cyber retro 收尾）
+  const osc3 = ctx.createOscillator(); const g3 = ctx.createGain();
+  osc3.type = 'sine';
+  osc3.frequency.setValueAtTime(3200, now + 0.05);
+  osc3.frequency.linearRampToValueAtTime(3600, now + 0.18);
+  g3.gain.setValueAtTime(0, now + 0.05);
+  g3.gain.linearRampToValueAtTime(0.09, now + 0.055);
+  g3.gain.exponentialRampToValueAtTime(0.001, now + 0.22);
+  osc3.connect(g3); g3.connect(ctx.destination);
+  osc3.start(now + 0.05); osc3.stop(now + 0.22);
+}
+
 export function useSound() {
   const ctxRef     = useRef<AudioContext | null>(null);
   const bgTimerRef = useRef<ReturnType<typeof setTimeout> | null>(null);
@@ -260,7 +298,15 @@ export function useSound() {
     void sendBridgeSound('stop-bg-music');
   }, [sendBridgeSound]);
 
+  // ── 提領音效（不走 bridge，直接本地合成）────────────────────
+  const playClaimSound = useCallback(() => {
+    void (async () => {
+      const ctx = await getReadyCtx(ctxRef);
+      synthesizeClaimReward(ctx);
+    })();
+  }, []);
+
   useEffect(() => () => stopBgMusic(), [stopBgMusic]);
 
-  return { playMiningClick, playRewardComplete, playMaxClicks, playToggleWatch, startBgMusic, stopBgMusic, bridgeStatus };
+  return { playMiningClick, playRewardComplete, playMaxClicks, playToggleWatch, startBgMusic, stopBgMusic, bridgeStatus, playClaimSound };
 }

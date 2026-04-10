@@ -11,6 +11,47 @@ interface FloatItem { id: number; amount: number; offsetX: number }
 const CYCLE = 60;           // seconds per passive reward cycle
 const MAX_CLICKS_PER_CYCLE = 30;
 
+// ─── Cave background SVG (computed once at module load) ───────
+const CAVE_SVG_BG = (() => {
+  const svg = [
+    '<svg xmlns="http://www.w3.org/2000/svg" width="320" height="600">',
+    // ── Left cave wall (jagged polygon, stays in left 22%) ──
+    '<path d="M0 0L65 0L42 62L70 128L30 194L60 258L24 322L56 385L16 445L48 500L0 560Z" fill="rgba(20,10,50,0.90)"/>',
+    // ── Right cave wall (mirrored) ──
+    '<path d="M320 0L255 0L278 68L252 136L284 198L256 262L290 324L262 388L298 448L266 502L320 562Z" fill="rgba(20,10,50,0.90)"/>',
+    // ── Top ceiling (rock overhang) ──
+    '<path d="M0 0L320 0L320 68L292 44L250 78L205 48L162 70L120 44L82 72L40 42L0 68Z" fill="rgba(6,2,18,0.97)"/>',
+    // ── Bottom floor ──
+    '<path d="M0 600L320 600L320 574L292 582L258 562L224 580L188 562L154 578L118 562L84 580L48 562L12 578Z" fill="rgba(4,1,12,0.95)"/>',
+    // ── Gold ore left bottom (3 angular shards + inner glow) ──
+    '<polygon points="2,478 20,456 36,467 42,492 31,512 6,516 0,499" fill="rgba(195,138,20,0.46)"/>',
+    '<polygon points="0,516 18,501 29,518 21,540 4,544 0,534" fill="rgba(170,118,14,0.38)"/>',
+    '<polygon points="28,454 44,434 58,444 62,464 48,478 30,482" fill="rgba(215,158,30,0.40)"/>',
+    '<polygon points="12,482 26,469 36,475 39,494 30,508 14,510" fill="rgba(242,188,48,0.20)"/>',
+    // ── Gold ore right bottom ──
+    '<polygon points="299,474 316,455 320,467 320,491 307,499 292,492" fill="rgba(195,138,20,0.42)"/>',
+    '<polygon points="280,495 298,481 316,490 320,514 300,520 278,512" fill="rgba(170,118,14,0.35)"/>',
+    '<polygon points="304,452 320,434 320,456 320,468 315,474 304,474" fill="rgba(215,158,30,0.34)"/>',
+    '<polygon points="288,498 304,488 316,497 318,514 302,520 284,512" fill="rgba(242,188,48,0.18)"/>',
+    // ── Purple crystals left mid ──
+    '<polygon points="0,204 24,181 40,200 33,228 14,236 0,227" fill="rgba(102,58,210,0.30)"/>',
+    '<polygon points="0,248 20,232 32,250 25,271 0,276" fill="rgba(84,46,185,0.24)"/>',
+    '<polygon points="6,210 20,196 30,210 26,222 8,226" fill="rgba(155,100,252,0.18)"/>',
+    // ── Purple crystals right mid ──
+    '<polygon points="320,154 302,135 292,156 299,180 320,184" fill="rgba(102,58,210,0.28)"/>',
+    '<polygon points="320,196 306,182 299,200 307,220 320,224" fill="rgba(84,46,185,0.22)"/>',
+    // ── Rock bump upper-left (with crack detail) ──
+    '<path d="M0 90L58 67L76 90L64 126L40 138L0 126Z" fill="rgba(15,7,40,0.90)"/>',
+    '<line x1="25" y1="95" x2="58" y2="112" stroke="rgba(35,16,72,0.70)" stroke-width="1.5"/>',
+    '<line x1="38" y1="70" x2="60" y2="84" stroke="rgba(35,16,72,0.55)" stroke-width="1"/>',
+    // ── Rock bump upper-right ──
+    '<path d="M320 100L270 78L256 100L268 128L288 140L320 128Z" fill="rgba(15,7,40,0.90)"/>',
+    '<line x1="295" y1="105" x2="268" y2="120" stroke="rgba(35,16,72,0.65)" stroke-width="1.5"/>',
+    '</svg>',
+  ].join('')
+  return `url("data:image/svg+xml,${encodeURIComponent(svg)}")`
+})()
+
 // ─── Simple Capybara Character (front-facing, clickable) ─────
 function ClickableCapybara({
   onClick,
@@ -211,6 +252,103 @@ function ClickableCapybara({
   );
 }
 
+// ─── Spinning Coin (CLAIM button) ────────────────────────────
+function SpinningCoin({ onClick }: { onClick: () => void }) {
+  // 8 幀：3 幀正面（延長正面停留）
+  const FRAME_HWS   = [1, 6, 14, 20, 20, 20, 14, 6]
+  // 圓形輪廓：10 列掃描半寬（依圓方程式計算，max=20）
+  const OUTLINE_HWS = [9, 14, 17, 19, 20, 20, 19, 17, 14, 9]
+  const [frame, setFrame] = useState(0)
+
+  useEffect(() => {
+    const t = setInterval(() => setFrame(f => (f + 1) % 8), 160)
+    return () => clearInterval(t)
+  }, [])
+
+  const fhw      = FRAME_HWS[frame]
+  const maxHw    = 20
+  const cx       = 26
+  const showFace = fhw >= 14
+
+  return (
+    <button
+      onClick={onClick}
+      style={{
+        background: 'none',
+        border: 'none',
+        cursor: 'pointer',
+        display: 'flex',
+        alignItems: 'center',
+        justifyContent: 'center',
+        margin: '12px auto 0',
+        padding: '4px 8px',
+      }}
+    >
+      <svg
+        width="52"
+        height="44"
+        viewBox="0 0 52 44"
+        shapeRendering="crispEdges"
+        style={{ imageRendering: 'pixelated' }}
+      >
+        <defs>
+          {/* 裁切範圍跟隨幣寬，y=2 起始（10列×4px=40px 置中於 44px SVG） */}
+          <clipPath id="sc-clip">
+            <rect x={cx - fhw} y={2} width={fhw * 2} height={40} />
+          </clipPath>
+        </defs>
+        {/* 掃描列：rect 像素風，y 從 2 起始保持圓形置中 */}
+        {OUTLINE_HWS.map((ohw, i) => {
+          const hw  = Math.max(1, Math.round(ohw * fhw / maxHw))
+          const iHw = showFace ? Math.max(0, Math.round((ohw - 4) * fhw / maxHw)) : 0
+          const x   = cx - hw
+          const y   = i * 4 + 2
+          return (
+            <g key={i}>
+              {/* 陰影列 */}
+              <rect x={x + 1} y={y + 1} width={hw * 2} height={4} fill="#A06800" />
+              {/* 幣面列 */}
+              <rect x={x} y={y} width={hw * 2} height={4} fill="#FFB000" />
+              {/* 內環列 */}
+              {showFace && iHw > 0 && (
+                <rect x={cx - iHw} y={y} width={iHw * 2} height={4} fill="#E09800" />
+              )}
+            </g>
+          )
+        })}
+        {/* 高光（左上角第 1 列內） */}
+        {showFace && (
+          <rect
+            x={cx - Math.round(6 * fhw / maxHw)}
+            y={6}
+            width={Math.max(1, Math.round(6 * fhw / maxHw))}
+            height={5}
+            fill="#FFE870"
+            opacity={0.75}
+          />
+        )}
+        {/* CLAIM 文字（粗體，裁切在幣形內，y=22 為圓心） */}
+        {showFace && (
+          <text
+            x={cx}
+            y={22}
+            textAnchor="middle"
+            dominantBaseline="middle"
+            fontSize="4"
+            fontFamily="var(--pixel-font-family)"
+            fontWeight="bold"
+            letterSpacing="0.8"
+            fill="#7A4E00"
+            clipPath="url(#sc-clip)"
+          >
+            CLAIM
+          </text>
+        )}
+      </svg>
+    </button>
+  )
+}
+
 // ─── Main HUD Component ───────────────────────────────────────
 interface MarioHUDProps {
   state?: HudDemoState
@@ -220,7 +358,7 @@ interface MarioHUDProps {
 
 export function MarioHUD({ state, onStateChange, onNavigate }: MarioHUDProps) {
   const { t } = useTranslation()
-  const { playMiningClick, playRewardComplete, playMaxClicks, playToggleWatch, startBgMusic, stopBgMusic, bridgeStatus } = useSound()
+  const { playMiningClick, playRewardComplete, playMaxClicks, playToggleWatch, startBgMusic, stopBgMusic } = useSound()
   const [points, setPoints]               = useState(state?.points ?? 0);
   const [totalPoints, setTotalPoints]     = useState(state?.totalPoints ?? 12847);
   const [countdown, setCountdown]         = useState(state?.countdown ?? 60);
@@ -328,7 +466,28 @@ export function MarioHUD({ state, onStateChange, onNavigate }: MarioHUDProps) {
       style={{
         width: 320,
         height: 600,
-        background: '#0d0d1a',
+        background: [
+          // 中心深暗核心：保持 UI 元素背後乾淨
+          'radial-gradient(ellipse 54% 44% at 50% 42%, #0d0d1a 28%, transparent 100%)',
+          // SVG 洞穴形狀：岩壁、金礦石、水晶（邊緣區）
+          `${CAVE_SVG_BG} center/100% 100% no-repeat`,
+          // 左側洞穴壁：紫色環境光
+          'radial-gradient(ellipse 48% 65% at -8% 62%, rgba(82,34,152,0.42) 0%, transparent 55%)',
+          // 右側洞穴壁：紫色環境光
+          'radial-gradient(ellipse 44% 60% at 108% 38%, rgba(65,27,135,0.36) 0%, transparent 55%)',
+          // 頂部天花板陰影
+          'radial-gradient(ellipse 95% 32% at 50% -8%, rgba(4,2,12,0.95) 0%, transparent 78%)',
+          // 底部地面深度
+          'radial-gradient(ellipse 100% 28% at 50% 108%, rgba(10,4,25,0.82) 0%, transparent 70%)',
+          // 金礦石暈光：左下
+          'radial-gradient(ellipse 24% 15% at 4% 84%, rgba(198,148,20,0.30) 0%, transparent 62%)',
+          // 金礦石暈光：右下
+          'radial-gradient(ellipse 20% 12% at 96% 80%, rgba(178,128,16,0.24) 0%, transparent 62%)',
+          // 整體紫色深度氛圍
+          'radial-gradient(ellipse 130% 85% at 50% 30%, rgba(28,12,68,0.30) 0%, transparent 70%)',
+          // 底層深夜藍基色
+          'linear-gradient(170deg, #0e0d22 0%, #060510 45%, #0a0818 100%)',
+        ].join(', '),
         display: 'flex',
         flexDirection: 'column',
         position: 'relative',
@@ -421,19 +580,6 @@ export function MarioHUD({ state, onStateChange, onNavigate }: MarioHUDProps) {
         </button>
       </div>
 
-      {bridgeStatus === 'unsupported' && (
-        <div
-          style={{
-            padding: '6px 16px 0',
-            fontSize: 6,
-            color: '#FFB000',
-            letterSpacing: '0.08em',
-            textAlign: 'right',
-          }}
-        >
-          {t('hud.tabAudioUnavailable')}
-        </div>
-      )}
 
       {/* ════════════════════════════════════════════
           POINTS DISPLAY (最大字)
@@ -458,6 +604,9 @@ export function MarioHUD({ state, onStateChange, onNavigate }: MarioHUDProps) {
         >
           {formatPts(points)}
         </div>
+
+        {/* CLAIM 旋轉金幣按鈕 */}
+        <SpinningCoin onClick={() => onNavigate?.('claim')} />
 
         {/* Total cumulative (small gray) */}
         <div
@@ -569,25 +718,27 @@ export function MarioHUD({ state, onStateChange, onNavigate }: MarioHUDProps) {
           background: 'rgba(0,0,0,0.3)',
         }}
       >
-        <span style={{ fontSize: 6, color: '#444', letterSpacing: '0.1em' }}>
-          {t('hud.bgmLabel')}
-        </span>
-        <button
-          onClick={() => setBgMusicOn(v => !v)}
-          style={{
-            padding: '3px 8px',
-            borderRadius: 2,
-            border: `1px solid ${bgMusicOn ? '#9146FF' : 'rgba(145,70,255,0.2)'}`,
-            background: bgMusicOn ? 'rgba(145,70,255,0.15)' : 'transparent',
-            color: bgMusicOn ? '#9146FF' : '#444',
-            fontSize: 7,
-            cursor: 'pointer',
-            fontFamily: 'var(--pixel-font-family)',
-            letterSpacing: '0.08em',
-          }}
-        >
-          {bgMusicOn ? t('hud.bgmOn') : t('hud.bgmOff')}
-        </button>
+        <div style={{ display: 'flex', alignItems: 'center', gap: 6 }}>
+          <span style={{ fontSize: 6, color: '#444', letterSpacing: '0.1em' }}>
+            {t('hud.bgmLabel')}
+          </span>
+          <button
+            onClick={() => setBgMusicOn(v => !v)}
+            style={{
+              padding: '3px 8px',
+              borderRadius: 2,
+              border: `1px solid ${bgMusicOn ? '#9146FF' : 'rgba(145,70,255,0.2)'}`,
+              background: bgMusicOn ? 'rgba(145,70,255,0.15)' : 'transparent',
+              color: bgMusicOn ? '#9146FF' : '#444',
+              fontSize: 7,
+              cursor: 'pointer',
+              fontFamily: 'var(--pixel-font-family)',
+              letterSpacing: '0.08em',
+            }}
+          >
+            {bgMusicOn ? t('hud.bgmOn') : t('hud.bgmOff')}
+          </button>
+        </div>
       </div>
     </div>
   );
