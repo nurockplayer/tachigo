@@ -61,6 +61,13 @@ contract TachiTokenTest is Test {
         assertEq(token.balanceOf(alice), 600e18);
     }
 
+    function test_burn_nonOwner_reverts() public {
+        token.mint(alice, 1_000e18);
+        vm.prank(alice);
+        vm.expectRevert(); // OZ OwnableUnauthorizedAccount custom error，不適用 bytes()
+        token.burn(alice, 1e18);
+    }
+
     // --- zero address ---
 
     function test_mint_zeroAddress_reverts() public {
