@@ -14,7 +14,6 @@ interface LoginResponse {
     user: Record<string, unknown>
     tokens: {
       access_token: string
-      refresh_token: string
     }
   }
 }
@@ -54,7 +53,6 @@ export async function login(email: string, password: string): Promise<void> {
 
   accessToken = data.data.tokens.access_token
   currentUserSession = session
-  localStorage.setItem('refresh_token', data.data.tokens.refresh_token)
 
   if (session) {
     localStorage.setItem('current_user', JSON.stringify(session))
@@ -66,14 +64,10 @@ export async function login(email: string, password: string): Promise<void> {
 }
 
 export async function logout(): Promise<void> {
-  const refreshToken = localStorage.getItem('refresh_token')
-  if (refreshToken) {
-    await client.post('/api/v1/auth/logout', { refresh_token: refreshToken }).catch(() => {})
-  }
+  await client.post('/api/v1/auth/logout').catch(() => {})
 
   accessToken = null
   currentUserSession = null
-  localStorage.removeItem('refresh_token')
   localStorage.removeItem('current_user')
   clearAuthToken()
 }

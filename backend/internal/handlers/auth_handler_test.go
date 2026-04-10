@@ -212,8 +212,8 @@ func TestLogoutHandler_MissingToken(t *testing.T) {
 	w := httptest.NewRecorder()
 	env.router.ServeHTTP(w, req)
 
-	if w.Code != http.StatusBadRequest {
-		t.Errorf("want 400, got %d", w.Code)
+	if w.Code != http.StatusOK {
+		t.Errorf("want 200, got %d", w.Code)
 	}
 }
 

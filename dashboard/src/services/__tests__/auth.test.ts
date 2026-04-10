@@ -48,6 +48,21 @@ describe('auth service session storage', () => {
       id: 'user-123',
       role: 'streamer',
     })
+    expect(localStorage.getItem('refresh_token')).toBeNull()
     expect(setAuthTokenMock).toHaveBeenCalledWith('access-token')
+  })
+
+  it('logout clears session without requiring a persisted refresh token', async () => {
+    postMock.mockResolvedValue({})
+    localStorage.setItem('current_user', JSON.stringify({ id: 'user-123', role: 'streamer' }))
+
+    const { logout } = await import('@/services/auth')
+
+    await logout()
+
+    expect(postMock).toHaveBeenCalledWith('/api/v1/auth/logout')
+    expect(localStorage.getItem('current_user')).toBeNull()
+    expect(localStorage.getItem('refresh_token')).toBeNull()
+    expect(clearAuthTokenMock).toHaveBeenCalledTimes(1)
   })
 })
