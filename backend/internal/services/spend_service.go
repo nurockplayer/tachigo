@@ -132,12 +132,19 @@ func (s *SpendService) reserveSpend(tx *gorm.DB, userID uuid.UUID, amount int64)
 }
 
 func (s *SpendService) rollbackSpendReservation(tx *gorm.DB, userID uuid.UUID, amount int64) error {
-	return tx.Model(&models.TachiBalance{}).
+	result := tx.Model(&models.TachiBalance{}).
 		Where("user_id = ?", userID).
 		Updates(map[string]interface{}{
 			"balance":    gorm.Expr("balance + ?", amount),
 			"updated_at": time.Now(),
-		}).Error
+		})
+	if result.Error != nil {
+		return result.Error
+	}
+	if result.RowsAffected == 0 {
+		return fmt.Errorf("rollback found no balance row for user %s", userID)
+	}
+	return nil
 }
 
 func (s *SpendService) resolveWalletAddress(db *gorm.DB, userID uuid.UUID) (string, error) {
