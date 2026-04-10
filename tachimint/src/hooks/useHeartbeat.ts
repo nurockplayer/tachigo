@@ -14,6 +14,7 @@ export function useHeartbeat(channelId: string | undefined, options: UseHeartbea
   const [error, setError] = useState<string | null>(null)
   const lastBalanceRef = useRef<number | null>(null)
   const stopAnimationTimerRef = useRef<number | null>(null)
+  const previousChannelIdRef = useRef<string | undefined>(channelId)
   const clearAnimationTimer = useCallback(() => {
     if (stopAnimationTimerRef.current !== null) {
       window.clearTimeout(stopAnimationTimerRef.current)
@@ -29,6 +30,18 @@ export function useHeartbeat(channelId: string | undefined, options: UseHeartbea
     setIsAnimating(false)
     setError(null)
   }, [clearAnimationTimer])
+
+  useEffect(() => {
+    if (previousChannelIdRef.current !== channelId) {
+      const resetTimer = window.setTimeout(() => {
+        resetSession()
+      }, 0)
+      previousChannelIdRef.current = channelId
+      return () => {
+        window.clearTimeout(resetTimer)
+      }
+    }
+  }, [channelId, resetSession])
 
   useEffect(() => {
     if (enabled && channelId) {
@@ -50,7 +63,7 @@ export function useHeartbeat(channelId: string | undefined, options: UseHeartbea
 
     const runHeartbeat = async () => {
       try {
-        const data = await sendHeartbeat(channelId)
+        const data = await sendHeartbeat(channelId, lastBalanceRef.current)
         if (isDisposed) return
 
         const nextBalance = data.balance
@@ -96,6 +109,7 @@ export function useHeartbeat(channelId: string | undefined, options: UseHeartbea
       if (heartbeatTimer !== null) {
         window.clearTimeout(heartbeatTimer)
       }
+      lastBalanceRef.current = null
       clearAnimationTimer()
     }
   }, [channelId, clearAnimationTimer, enabled, intervalMs])

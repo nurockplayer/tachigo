@@ -208,3 +208,113 @@ test('sendClick ensures the watch session exists before sending click rewards', 
     },
   )
 })
+
+test('sendHeartbeat re-authenticates after 401 and falls back to previous balance when balance read fails', async () => {
+  let heartbeatAttempts = 0
+
+  await withApiServer(
+    (requests) => async (req, res) => {
+      const body = await readJsonBody(req)
+      requests.push({
+        method: req.method ?? 'GET',
+        url: req.url ?? '/',
+        authorization: req.headers.authorization,
+        body,
+      })
+
+      if (req.method === 'POST' && req.url === '/api/v1/extension/watch/start') {
+        res.writeHead(200, { 'Content-Type': 'application/json' })
+        res.end(JSON.stringify({ success: true, data: { started: true } }))
+        return
+      }
+
+      if (req.method === 'POST' && req.url === '/api/v1/extension/auth/login') {
+        res.writeHead(200, { 'Content-Type': 'application/json' })
+        res.end(JSON.stringify({ success: true, data: { tokens: { access_token: 'refreshed-access-token' } } }))
+        return
+      }
+
+      if (req.method === 'POST' && req.url === '/api/v1/extension/watch/heartbeat') {
+        heartbeatAttempts += 1
+        if (heartbeatAttempts === 1) {
+          res.writeHead(401, { 'Content-Type': 'application/json' })
+          res.end(JSON.stringify({ success: false, error: 'expired' }))
+          return
+        }
+
+        res.writeHead(200, { 'Content-Type': 'application/json' })
+        res.end(JSON.stringify({ success: true, data: { points_earned: 2 } }))
+        return
+      }
+
+      if (req.method === 'GET' && req.url === '/api/v1/extension/watch/balance?channel_id=channel-123') {
+        res.writeHead(503, { 'Content-Type': 'application/json' })
+        res.end(JSON.stringify({ success: false, error: 'temporary unavailable' }))
+        return
+      }
+
+      res.writeHead(404, { 'Content-Type': 'application/json' })
+      res.end(JSON.stringify({ success: false, error: 'not found' }))
+    },
+    async (baseUrl, requests) => {
+      const originalBaseUrl = process.env.VITE_TACHIGO_API_URL
+      process.env.VITE_TACHIGO_API_URL = baseUrl
+
+      try {
+        const api = await import(`./api.ts?recover=${Date.now()}`)
+
+        api.setExtensionJwtForRecovery('extension-jwt')
+        api.setAuthToken('expired-access-token')
+        const result = await api.sendHeartbeat('channel-123', 40)
+
+        assert.equal(result.balance, 42)
+        assert.deepEqual(
+          requests.map(({ method, url, authorization, body }) => ({
+            method,
+            url,
+            authorization,
+            body,
+          })),
+          [
+            {
+              method: 'POST',
+              url: '/api/v1/extension/watch/start',
+              authorization: 'Bearer expired-access-token',
+              body: { channel_id: 'channel-123' },
+            },
+            {
+              method: 'POST',
+              url: '/api/v1/extension/watch/heartbeat',
+              authorization: 'Bearer expired-access-token',
+              body: { channel_id: 'channel-123' },
+            },
+            {
+              method: 'POST',
+              url: '/api/v1/extension/auth/login',
+              authorization: 'Bearer expired-access-token',
+              body: { extension_jwt: 'extension-jwt' },
+            },
+            {
+              method: 'POST',
+              url: '/api/v1/extension/watch/heartbeat',
+              authorization: 'Bearer refreshed-access-token',
+              body: { channel_id: 'channel-123' },
+            },
+            {
+              method: 'GET',
+              url: '/api/v1/extension/watch/balance?channel_id=channel-123',
+              authorization: 'Bearer refreshed-access-token',
+              body: null,
+            },
+          ],
+        )
+      } finally {
+        if (originalBaseUrl === undefined) {
+          delete process.env.VITE_TACHIGO_API_URL
+        } else {
+          process.env.VITE_TACHIGO_API_URL = originalBaseUrl
+        }
+      }
+    },
+  )
+})
