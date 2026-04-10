@@ -1,25 +1,33 @@
 import { act } from 'react'
 import { createRoot, type Root } from 'react-dom/client'
-import { MemoryRouter, Route, Routes } from 'react-router'
+import { MemoryRouter, Route, Routes, useParams } from 'react-router'
 import { afterEach, beforeEach, describe, expect, it, vi } from 'vitest'
 import StreamersPage from '@/pages/StreamersPage'
 
 const getStreamersMock = vi.fn()
+const getMyChannelsMock = vi.fn()
 const getCurrentUserRoleMock = vi.fn()
 
 vi.mock('@/services/channels', () => ({
   getStreamers: (...args: unknown[]) => getStreamersMock(...args),
+  getMyChannels: (...args: unknown[]) => getMyChannelsMock(...args),
 }))
 
 vi.mock('@/services/auth', () => ({
   getCurrentUserRole: () => getCurrentUserRoleMock(),
 }))
 
+function DetailRouteProbe() {
+  const { streamerId } = useParams()
+
+  return <div data-testid="detail-page">{streamerId}</div>
+}
+
 function RoutedApp() {
   return (
     <Routes>
       <Route path="/streamers" element={<StreamersPage />} />
-      <Route path="/streamers/:streamerId" element={<div data-testid="detail-page">detail page</div>} />
+      <Route path="/streamers/:streamerId" element={<DetailRouteProbe />} />
     </Routes>
   )
 }
@@ -56,6 +64,7 @@ function cleanupRoot(root: Root, container: HTMLDivElement) {
 describe('StreamersPage', () => {
   beforeEach(() => {
     getStreamersMock.mockReset()
+    getMyChannelsMock.mockReset()
     getCurrentUserRoleMock.mockReset()
     getCurrentUserRoleMock.mockReturnValue('admin')
   })
@@ -79,15 +88,56 @@ describe('StreamersPage', () => {
     cleanupRoot(root, container)
   })
 
+  it('列表列可用 Enter 鍵進入詳細頁', async () => {
+    getStreamersMock.mockResolvedValue([
+      { id: 'uuid-1', channel_id: 'channel-1', display_name: 'Alice' },
+      { id: 'uuid-2', channel_id: 'channel-2', display_name: 'Bob' },
+    ])
+
+    const { container, root } = await renderAt('/streamers')
+    await flush()
+
+    const firstRow = container.querySelector('tbody tr')
+    expect(firstRow).toBeTruthy()
+
+    act(() => {
+      firstRow?.dispatchEvent(
+        new KeyboardEvent('keydown', { key: 'Enter', bubbles: true }),
+      )
+    })
+
+    expect(container.querySelector('[data-testid="detail-page"]')?.textContent).toBe('uuid-1')
+
+    cleanupRoot(root, container)
+  })
+
   it('streamer 角色載入後會直接導向自己的詳細頁', async () => {
     getCurrentUserRoleMock.mockReturnValue('streamer')
-    getStreamersMock.mockResolvedValue([{ id: 'uuid-1', channel_id: 'channel-1', display_name: 'Alice' }])
+    getMyChannelsMock.mockResolvedValue([{ id: 'uuid-1', channel_id: 'channel-1', display_name: 'Alice' }])
 
     const { container, root } = await renderAt('/streamers')
     await flush()
     await flush()
 
-    expect(container.querySelector('[data-testid="detail-page"]')?.textContent).toContain('detail page')
+    expect(getStreamersMock).not.toHaveBeenCalled()
+    expect(getMyChannelsMock).toHaveBeenCalledTimes(1)
+    expect(container.querySelector('[data-testid="detail-page"]')?.textContent).toBe('uuid-1')
+
+    cleanupRoot(root, container)
+  })
+
+  it('streamer 角色在沒有自己的頻道時停留於空狀態', async () => {
+    getCurrentUserRoleMock.mockReturnValue('streamer')
+    getMyChannelsMock.mockResolvedValue([])
+
+    const { container, root } = await renderAt('/streamers')
+    await flush()
+    await flush()
+
+    expect(getStreamersMock).not.toHaveBeenCalled()
+    expect(getMyChannelsMock).toHaveBeenCalledTimes(1)
+    expect(container.querySelector('[data-testid="detail-page"]')).toBeNull()
+    expect(container.textContent).toContain('目前沒有可顯示的實況主資料')
 
     cleanupRoot(root, container)
   })

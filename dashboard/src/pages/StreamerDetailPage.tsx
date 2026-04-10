@@ -54,8 +54,8 @@ export default function StreamerDetailPage() {
   const role = getCurrentUserRole()
   const [stats, setStats] = useState<StreamerStats | null>(null)
   const [config, setConfig] = useState<ChannelConfig | null>(null)
-  const [loading, setLoading] = useState(Boolean(streamerId))
-  const [error, setError] = useState(false)
+  const [resolvedStreamerId, setResolvedStreamerId] = useState<string | null>(null)
+  const [failedStreamerId, setFailedStreamerId] = useState<string | null>(null)
 
   useEffect(() => {
     if (!streamerId) return
@@ -75,20 +75,23 @@ export default function StreamerDetailPage() {
           if (!mounted) return
           setConfig(null)
         }
+
+        if (!mounted) return
+        setFailedStreamerId(null)
+        setResolvedStreamerId(streamerId)
       })
       .catch(() => {
         if (!mounted) return
-        setError(true)
-      })
-      .finally(() => {
-        if (!mounted) return
-        setLoading(false)
+        setFailedStreamerId(streamerId)
       })
 
     return () => {
       mounted = false
     }
   }, [streamerId])
+
+  const loading = Boolean(streamerId) && resolvedStreamerId !== streamerId && failedStreamerId !== streamerId
+  const error = failedStreamerId === streamerId
 
   const timeCards = [
     { label: '本次', value: formatHours(stats?.current_session_seconds) },

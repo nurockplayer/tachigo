@@ -2,7 +2,7 @@ import { useEffect, useState } from 'react'
 import { useNavigate } from 'react-router'
 import { Skeleton } from '@/components/ui/skeleton'
 import { getCurrentUserRole } from '@/services/auth'
-import { getStreamers, type Streamer } from '@/services/channels'
+import { getMyChannels, getStreamers, type Streamer } from '@/services/channels'
 
 export default function StreamersPage() {
   const navigate = useNavigate()
@@ -11,10 +11,15 @@ export default function StreamersPage() {
   const [loading, setLoading] = useState(true)
   const [error, setError] = useState(false)
 
+  function openStreamer(streamerId: string) {
+    navigate(`/streamers/${streamerId}`)
+  }
+
   useEffect(() => {
     let mounted = true
+    const loadStreamers = role === 'streamer' ? getMyChannels : getStreamers
 
-    getStreamers()
+    loadStreamers()
       .then((data) => {
         if (!mounted) return
         setStreamers(data)
@@ -31,7 +36,7 @@ export default function StreamersPage() {
     return () => {
       mounted = false
     }
-  }, [])
+  }, [role])
 
   useEffect(() => {
     if (loading || role !== 'streamer') return
@@ -71,8 +76,17 @@ export default function StreamersPage() {
               {streamers.map((streamer, index) => (
                 <tr
                   key={streamer.id}
-                  className={`cursor-pointer border-b border-border transition-colors last:border-0 hover:bg-accent/30 ${index % 2 === 0 ? '' : 'bg-secondary/20'}`}
-                  onClick={() => navigate(`/streamers/${streamer.id}`)}
+                  tabIndex={0}
+                  role="button"
+                  aria-label={`查看 ${streamer.display_name || streamer.channel_id} 的詳細資料`}
+                  className={`cursor-pointer border-b border-border transition-colors last:border-0 hover:bg-accent/30 focus-visible:outline-2 focus-visible:outline-offset-[-2px] focus-visible:outline-primary ${index % 2 === 0 ? '' : 'bg-secondary/20'}`}
+                  onClick={() => openStreamer(streamer.id)}
+                  onKeyDown={(event) => {
+                    if (event.key === 'Enter' || event.key === ' ') {
+                      event.preventDefault()
+                      openStreamer(streamer.id)
+                    }
+                  }}
                 >
                   <td className="px-4 py-3 font-medium text-foreground">
                     {streamer.display_name || streamer.channel_id}

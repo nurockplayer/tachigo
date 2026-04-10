@@ -1,6 +1,6 @@
 import { act } from 'react'
 import { createRoot, type Root } from 'react-dom/client'
-import { MemoryRouter, Route, Routes } from 'react-router'
+import { MemoryRouter, Route, Routes, useNavigate } from 'react-router'
 import { afterEach, beforeEach, describe, expect, it, vi } from 'vitest'
 import StreamerDetailPage from '@/pages/StreamerDetailPage'
 
@@ -26,6 +26,26 @@ function RoutedApp() {
   )
 }
 
+function DetailRouteWithNavigation() {
+  const navigate = useNavigate()
+
+  return (
+    <>
+      <button onClick={() => navigate('/streamers/uuid-2')}>go-second</button>
+      <StreamerDetailPage />
+    </>
+  )
+}
+
+function NavigableRoutedApp() {
+  return (
+    <Routes>
+      <Route path="/streamers/:streamerId" element={<DetailRouteWithNavigation />} />
+      <Route path="/streamers" element={<div data-testid="list-page">list page</div>} />
+    </Routes>
+  )
+}
+
 async function renderAt(path: string) {
   const container = document.createElement('div')
   document.body.appendChild(container)
@@ -35,6 +55,22 @@ async function renderAt(path: string) {
     root.render(
       <MemoryRouter initialEntries={[path]}>
         <RoutedApp />
+      </MemoryRouter>,
+    )
+  })
+
+  return { container, root }
+}
+
+async function renderNavigableAt(path: string) {
+  const container = document.createElement('div')
+  document.body.appendChild(container)
+  const root = createRoot(container)
+
+  await act(async () => {
+    root.render(
+      <MemoryRouter initialEntries={[path]}>
+        <NavigableRoutedApp />
       </MemoryRouter>,
     )
   })
@@ -138,6 +174,57 @@ describe('StreamerDetailPage', () => {
     expect(container.textContent).toContain('1.5 小時')
     expect(container.textContent).toContain('挖礦倍率設定')
     expect(container.textContent).toContain('—')
+
+    cleanupRoot(root, container)
+  })
+
+  it('streamerId 變更時會先清掉舊資料並回到 loading 狀態', async () => {
+    let resolveSecond: ((value: { stats: typeof defaultStats; channelId: string }) => void) | null = null
+
+    getStreamerStatsMock.mockImplementation((streamerId: string) => {
+      if (streamerId === 'uuid-1') {
+        return Promise.resolve({
+          stats: defaultStats,
+          channelId: 'channel-1',
+        })
+      }
+
+      return new Promise((resolve) => {
+        resolveSecond = resolve
+      })
+    })
+
+    const { container, root } = await renderNavigableAt('/streamers/uuid-1')
+    await flush()
+    await flush()
+
+    expect(container.textContent).toContain('1.5 小時')
+
+    const navigateButton = Array.from(container.querySelectorAll('button')).find(
+      (button) => button.textContent === 'go-second',
+    )
+    expect(navigateButton).toBeTruthy()
+
+    await act(async () => {
+      navigateButton?.dispatchEvent(new MouseEvent('click', { bubbles: true }))
+    })
+
+    expect(container.textContent).not.toContain('1.5 小時')
+    expect(container.textContent).toContain('調整倍率')
+
+    await act(async () => {
+      resolveSecond?.({
+        stats: {
+          ...defaultStats,
+          current_session_seconds: 7200,
+        },
+        channelId: 'channel-2',
+      })
+    })
+    await flush()
+    await flush()
+
+    expect(container.textContent).toContain('2.0 小時')
 
     cleanupRoot(root, container)
   })

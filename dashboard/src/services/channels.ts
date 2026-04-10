@@ -42,16 +42,25 @@ export async function getStreamers(): Promise<Streamer[]> {
   return data.data.streamers
 }
 
+export async function getMyChannels(): Promise<Streamer[]> {
+  const { data } = await client.get<ApiResponse<{ channels: Streamer[] }>>(
+    '/api/v1/dashboard/streamers/channels',
+  )
+  return data.data.channels
+}
+
 export async function getStreamerStats(streamerId: string): Promise<StreamerStatsResponse> {
+  const encodedStreamerId = encodeURIComponent(streamerId)
   const { data } = await client.get<ApiResponse<{ stats: StreamerStats; channel_id: string }>>(
-    `/api/v1/dashboard/streamers/${streamerId}/stats`,
+    `/api/v1/dashboard/streamers/${encodedStreamerId}/stats`,
   )
   return { stats: data.data.stats, channelId: data.data.channel_id }
 }
 
 export async function getChannelConfig(channelId: string): Promise<ChannelConfig> {
+  const encodedChannelId = encodeURIComponent(channelId)
   const { data } = await client.get<ApiResponse<{ config: ChannelConfig }>>(
-    `/api/v1/dashboard/channels/${channelId}/config`,
+    `/api/v1/dashboard/channels/${encodedChannelId}/config`,
   )
   return data.data.config
 }
