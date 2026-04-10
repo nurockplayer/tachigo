@@ -13,6 +13,10 @@
   "hud": {
     "watching": "觀看中",
     "idle": "待機",
+    "bgmLabel": "背景音樂",
+    "bgmOn": "♪ 開",
+    "bgmOff": "♪ 關",
+    "tabAudioUnavailable": "分頁音訊不可用",
     "cumulativeTotal": "累計總計",
     "nextIn": "下次 {{count}} 秒",
     "clicksLeft": "剩 {{count}} 次",
@@ -23,6 +27,16 @@
     "titleHighlight": "累積觀看點數",
     "hintLine1": "觀眾只要觀看直播",
     "hintLine2": "即可自動累積挖礦點數"
+  },
+  "claim": {
+    "title": "提領",
+    "from": "來源",
+    "to": "目標",
+    "balance": "餘額：{{amount}}",
+    "max": "最大",
+    "rate": "1 CPC = 0.1 TCG",
+    "button": "提領 $TCG",
+    "success": "已提領！"
   },
   "error": {
     "account": {
