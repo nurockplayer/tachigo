@@ -7,7 +7,7 @@ import "@openzeppelin/contracts/access/Ownable.sol";
 /// @title TachiToken
 /// @notice Soulbound ERC-20；持有者不可自由轉讓，所有流動操作須透過平台 Router Contract。
 contract TachiToken is ERC20, Ownable {
-    uint256 public constant MAX_SUPPLY = 1_000_000_000 * 10 ** 18;
+    uint256 public constant MAX_SUPPLY = 1_000_000_000 * 10 ** 18; // 10 億枚，單位為 wei（最小單位）
 
     constructor() ERC20("Tachi", "TACHI") Ownable(msg.sender) {}
 
