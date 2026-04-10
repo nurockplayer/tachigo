@@ -1,3 +1,6 @@
+-- migrations/011_streamers_agency.sql
+-- Backfills and constrains streamers.agency_user_id.
+
 ALTER TABLE streamers ADD COLUMN IF NOT EXISTS agency_user_id UUID;
 
 DO $$

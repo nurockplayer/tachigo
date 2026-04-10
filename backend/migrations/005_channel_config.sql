@@ -1,4 +1,4 @@
--- migrations/004_channel_config.sql
+-- migrations/005_channel_config.sql
 -- Per-channel watch-time earning configuration.
 
 CREATE TABLE IF NOT EXISTS channel_configs (

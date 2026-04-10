@@ -1,1 +1,0 @@
-ALTER TABLE channel_configs ADD COLUMN IF NOT EXISTS multiplier INT NOT NULL DEFAULT 1;
