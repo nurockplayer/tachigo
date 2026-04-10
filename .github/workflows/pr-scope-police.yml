@@ -260,7 +260,8 @@ jobs:
               summaryLines.push('')
               summaryLines.push('### Dependabot Mode')
               summaryLines.push('- Template policy checks are skipped for Dependabot maintenance PRs.')
-              summaryLines.push('- Scope, dependency, and size checks still apply.')
+              summaryLines.push('- Scope and size checks still apply.')
+              summaryLines.push('- Dependency gate is not evaluated for Dependabot PRs.')
             }
 
             summaryLines.push('')

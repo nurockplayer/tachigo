@@ -48,9 +48,11 @@ repo 目前有一個 GitHub Actions workflow：
 
 - product surface 不可混雜
 - diff / changed files 不可超過硬上限
-- dependency gate 仍照常生效
+- 不再要求人工模板欄位
 
-但不再要求 Dependabot PR 補齊人工模板欄位，例如：
+Dependabot maintenance PR 目前不會套用 frontend/backend 依賴關係用的 dependency gate。這條 gate 依賴人工填寫的 PR 模板欄位（例如 `Depends on PR` 與 `Backend contract already in develop`），而這次規則調整的目的正是不要再要求 bot 補這類 metadata。
+
+因此 Dependabot PR 目前只保留 scope / size 類型的自動檢查，不再要求補齊人工模板欄位，例如：
 
 - title prefix
 - `Source of truth`
