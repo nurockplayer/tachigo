@@ -15,6 +15,7 @@ import (
 	"log"
 	"os"
 	"strings"
+	"time"
 
 	"github.com/ethereum/go-ethereum/ethclient"
 	"github.com/jackc/pgx/v5/pgconn"
@@ -129,7 +130,9 @@ func main() {
 	var ethClient *ethclient.Client
 	if cfg.Contract.TachiContractAddress != "" && cfg.Contract.SepoliaSignerKey != "" {
 		var err error
-		ethClient, err = ethclient.DialContext(context.Background(), defaultSepoliaRPCURL)
+		dialCtx, dialCancel := context.WithTimeout(context.Background(), 10*time.Second)
+		defer dialCancel()
+		ethClient, err = ethclient.DialContext(dialCtx, defaultSepoliaRPCURL)
 		if err != nil {
 			log.Printf("warning: failed to connect Sepolia RPC: %v", err)
 			ethClient = nil

@@ -2,6 +2,7 @@ package handlers_test
 
 import (
 	"bytes"
+	"context"
 	"encoding/json"
 	"net/http"
 	"net/http/httptest"
@@ -10,15 +11,36 @@ import (
 	"github.com/gin-gonic/gin"
 	"github.com/google/uuid"
 
+	"github.com/tachigo/tachigo/internal/config"
 	"github.com/tachigo/tachigo/internal/handlers"
 	"github.com/tachigo/tachigo/internal/middleware"
+	"github.com/tachigo/tachigo/internal/models"
 	"github.com/tachigo/tachigo/internal/services"
 )
+
+// mockMintOK always succeeds; used to bypass on-chain call in handler tests.
+type mockMintOK struct{}
+
+func (m *mockMintOK) MintOnChain(_ context.Context, _ string, _ int64) (string, error) {
+	return "0xtesthash", nil
+}
+
+func seedWeb3ProviderForHandler(t *testing.T, env *testEnv, userID uuid.UUID) {
+	t.Helper()
+	if err := env.db.Create(&models.AuthProvider{
+		UserID:     userID,
+		Provider:   models.ProviderWeb3,
+		ProviderID: "0xd8dA6BF26964aF9D7eEd9e03E53415D37aA96045",
+	}).Error; err != nil {
+		t.Fatalf("seedWeb3Provider: %v", err)
+	}
+}
 
 func newClaimTestEnv(t *testing.T) (*testEnv, *gin.Engine) {
 	t.Helper()
 	env := newTestEnv(t)
-	claimSvc := services.NewClaimService(env.db)
+	claimSvc := services.NewClaimService(env.db, config.ContractConfig{}, nil)
+	claimSvc.SetMintCallerForTest(&mockMintOK{})
 	claimH := handlers.NewClaimHandler(claimSvc)
 
 	r := env.router
@@ -83,6 +105,7 @@ func TestClaimHandler_ClaimAll(t *testing.T) {
 	token, _ := env.registerUser(t, "user2", "user2@example.com", "password123")
 
 	userID := resolveUserID(t, env, "user2@example.com")
+	seedWeb3ProviderForHandler(t, env, userID)
 	seedLedgerForHandler(t, env, userID, "ch1", 200)
 
 	w := httptest.NewRecorder()
@@ -106,6 +129,7 @@ func TestClaimHandler_ClaimPartial(t *testing.T) {
 	token, _ := env.registerUser(t, "user3", "user3@example.com", "password123")
 
 	userID := resolveUserID(t, env, "user3@example.com")
+	seedWeb3ProviderForHandler(t, env, userID)
 	seedLedgerForHandler(t, env, userID, "ch1", 100)
 
 	body, _ := json.Marshal(map[string]int{"amount": 60})
@@ -202,6 +226,7 @@ func TestClaimHandler_GetBalanceAfterClaim(t *testing.T) {
 	token, _ := env.registerUser(t, "user5", "user5@example.com", "password123")
 
 	userID := resolveUserID(t, env, "user5@example.com")
+	seedWeb3ProviderForHandler(t, env, userID)
 	seedLedgerForHandler(t, env, userID, "ch1", 300)
 
 	// Claim 100 and assert success first

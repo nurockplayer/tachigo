@@ -35,7 +35,7 @@ type MintCaller interface {
 type ClaimService struct {
 	db          *gorm.DB
 	contractCfg config.ContractConfig
-	ethClient   *ethclient.Client
+	tachiToken  *contractpkg.TachiToken // shared instance — mutex inside is effective
 	mintCaller  MintCaller
 }
 
@@ -43,11 +43,18 @@ func NewClaimService(db *gorm.DB, contractCfg config.ContractConfig, ethClient *
 	svc := &ClaimService{
 		db:          db,
 		contractCfg: contractCfg,
-		ethClient:   ethClient,
+	}
+	if ethClient != nil && contractCfg.TachiContractAddress != "" && contractCfg.SepoliaSignerKey != "" {
+		if t, err := contractpkg.NewTachiToken(common.HexToAddress(contractCfg.TachiContractAddress), ethClient); err == nil {
+			svc.tachiToken = t
+		}
 	}
 	svc.mintCaller = svc
 	return svc
 }
+
+// SetMintCallerForTest replaces the mint caller; use only in tests.
+func (s *ClaimService) SetMintCallerForTest(mc MintCaller) { s.mintCaller = mc }
 
 // GetTachiBalance returns the user's current $TACHI balance.
 // Returns 0 if no balance record exists yet.
@@ -66,7 +73,7 @@ func (s *ClaimService) GetTachiBalance(userID uuid.UUID) (int64, error) {
 // Claim converts T-Points from all channels into $TACHI balance.
 // amount == 0 means claim all available spendable_balance.
 // Returns the new tachi_balances.balance after the claim.
-func (s *ClaimService) Claim(userID uuid.UUID, amount int64) (int64, error) {
+func (s *ClaimService) Claim(ctx context.Context, userID uuid.UUID, amount int64) (int64, error) {
 	mintCaller := s.mintCaller
 	if mintCaller == nil {
 		mintCaller = s
@@ -84,7 +91,9 @@ func (s *ClaimService) Claim(userID uuid.UUID, amount int64) (int64, error) {
 			return err
 		}
 
-		if _, err := mintCaller.MintOnChain(context.Background(), toAddr, claimAmount); err != nil {
+		mintCtx, cancel := context.WithTimeout(ctx, 30*time.Second)
+		defer cancel()
+		if _, err := mintCaller.MintOnChain(mintCtx, toAddr, claimAmount); err != nil {
 			return err
 		}
 
@@ -100,14 +109,8 @@ func (s *ClaimService) Claim(userID uuid.UUID, amount int64) (int64, error) {
 }
 
 func (s *ClaimService) MintOnChain(ctx context.Context, toAddr string, amount int64) (string, error) {
-	if s.contractCfg.TachiContractAddress == "" || s.contractCfg.SepoliaSignerKey == "" {
+	if s.tachiToken == nil {
 		return "", ErrClaimContractConfig
-	}
-	if s.ethClient == nil {
-		return "", ErrClaimContractConfig
-	}
-	if !common.IsHexAddress(s.contractCfg.TachiContractAddress) {
-		return "", fmt.Errorf("invalid contract address: %s", s.contractCfg.TachiContractAddress)
 	}
 	if !common.IsHexAddress(toAddr) {
 		return "", fmt.Errorf("invalid wallet address: %s", toAddr)
@@ -121,12 +124,8 @@ func (s *ClaimService) MintOnChain(ctx context.Context, toAddr string, amount in
 		return "", err
 	}
 
-	token, err := contractpkg.NewTachiToken(common.HexToAddress(s.contractCfg.TachiContractAddress), s.ethClient)
-	if err != nil {
-		return "", err
-	}
-
-	return token.Mint(ctx, common.HexToAddress(toAddr), big.NewInt(amount), signerKey)
+	// TODO: wait for receipt status == 1 before committing DB (fire-and-forget for now)
+	return s.tachiToken.Mint(ctx, common.HexToAddress(toAddr), big.NewInt(amount), signerKey)
 }
 
 func (s *ClaimService) calculateClaimAmount(db *gorm.DB, userID uuid.UUID, amount int64, lock bool) (int64, error) {

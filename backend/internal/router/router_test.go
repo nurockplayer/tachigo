@@ -85,7 +85,7 @@ func newRouterTestEnv(t *testing.T) *routerTestEnv {
 	airdropSvc := services.NewAirdropService(db, pointsSvc, channelConfigSvc)
 	streamerSvc := services.NewStreamerService(db, pointsSvc)
 	agencySvc := services.NewAgencyService(db)
-	claimSvc := services.NewClaimService(db)
+	claimSvc := services.NewClaimService(db, config.ContractConfig{}, nil)
 	agencyHandler := handlers.NewAgencyHandler(agencySvc, emailAuthSvc)
 
 	engine := router.New(

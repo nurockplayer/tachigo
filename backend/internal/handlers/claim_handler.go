@@ -63,7 +63,7 @@ func (h *ClaimHandler) Claim(c *gin.Context) {
 		return
 	}
 
-	newBalance, err := h.claimSvc.Claim(userID, req.Amount)
+	newBalance, err := h.claimSvc.Claim(c.Request.Context(), userID, req.Amount)
 	if err != nil {
 		if errors.Is(err, services.ErrClaimInsufficientBalance) {
 			unprocessableEntity(c, err.Error())

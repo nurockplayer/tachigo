@@ -82,7 +82,7 @@ func TestClaim_All(t *testing.T) {
 	seedLedger(t, db, userID, "ch1", 100)
 	seedLedger(t, db, userID, "ch2", 50)
 
-	newBal, err := svc.Claim(userID, 0) // claim all
+	newBal, err := svc.Claim(context.Background(), userID, 0) // claim all
 	if err != nil {
 		t.Fatalf("unexpected error: %v", err)
 	}
@@ -112,7 +112,7 @@ func TestClaim_PartialAmount(t *testing.T) {
 	seedWeb3Provider(t, db, userID, "0xd8dA6BF26964aF9D7eEd9e03E53415D37aA96045")
 	seedLedger(t, db, userID, "ch1", 100)
 
-	newBal, err := svc.Claim(userID, 40)
+	newBal, err := svc.Claim(context.Background(), userID, 40)
 	if err != nil {
 		t.Fatalf("unexpected error: %v", err)
 	}
@@ -133,7 +133,7 @@ func TestClaim_InsufficientBalance(t *testing.T) {
 	userID := userIDForClaim(t, db)
 	seedLedger(t, db, userID, "ch1", 30)
 
-	_, err := svc.Claim(userID, 100)
+	_, err := svc.Claim(context.Background(), userID, 100)
 	if err == nil {
 		t.Fatal("expected error but got nil")
 	}
@@ -148,7 +148,7 @@ func TestClaim_NoLedgers(t *testing.T) {
 	userID := userIDForClaim(t, db)
 
 	// amount=0 with no ledgers → claimAmount=0 → ErrClaimAmountInvalid
-	_, err := svc.Claim(userID, 0)
+	_, err := svc.Claim(context.Background(), userID, 0)
 	if !errors.Is(err, ErrClaimAmountInvalid) {
 		t.Fatalf("expected ErrClaimAmountInvalid, got %v", err)
 	}
@@ -162,14 +162,14 @@ func TestClaim_AccumulatesOnSecondClaim(t *testing.T) {
 	seedWeb3Provider(t, db, userID, "0xd8dA6BF26964aF9D7eEd9e03E53415D37aA96045")
 	seedLedger(t, db, userID, "ch1", 200)
 
-	bal1, err1 := svc.Claim(userID, 100)
+	bal1, err1 := svc.Claim(context.Background(), userID, 100)
 	if err1 != nil {
 		t.Fatalf("first claim unexpected error: %v", err1)
 	}
 	if bal1 != 100 {
 		t.Fatalf("expected first tachi_balance=100, got %d", bal1)
 	}
-	newBal, err := svc.Claim(userID, 50)
+	newBal, err := svc.Claim(context.Background(), userID, 50)
 	if err != nil {
 		t.Fatalf("unexpected error: %v", err)
 	}
@@ -186,7 +186,7 @@ func TestClaim_MintSuccessUpdatesDB(t *testing.T) {
 	seedWeb3Provider(t, db, userID, "0xd8dA6BF26964aF9D7eEd9e03E53415D37aA96045")
 	seedLedger(t, db, userID, "ch1", 80)
 
-	newBal, err := svc.Claim(userID, 50)
+	newBal, err := svc.Claim(context.Background(), userID, 50)
 	if err != nil {
 		t.Fatalf("unexpected error: %v", err)
 	}
@@ -217,7 +217,7 @@ func TestClaim_MintFailureLeavesDBUnchanged(t *testing.T) {
 	seedWeb3Provider(t, db, userID, "0xd8dA6BF26964aF9D7eEd9e03E53415D37aA96045")
 	seedLedger(t, db, userID, "ch1", 80)
 
-	_, err := svc.Claim(userID, 50)
+	_, err := svc.Claim(context.Background(), userID, 50)
 	if err == nil {
 		t.Fatal("expected error but got nil")
 	}
