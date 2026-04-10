@@ -6,18 +6,18 @@ import { useClickBoost } from './hooks/useClickBoost'
 
 export default function App() {
   const { t } = useTranslation()
-  const { context, jwt, products, bitsEnabled, authError } = useTwitch()
+  const { context, jwt, products, bitsEnabled, authError, backendReady } = useTwitch()
   const { buyWithBits, status, error } = useBits(jwt)
   const isViewer = context?.role === 'viewer'
-  const { balance, gain, isAnimating, syncBalance } = useHeartbeat(jwt, {
-    enabled: isViewer,
+  const { balance, gain, isAnimating, syncBalance } = useHeartbeat(context?.channelId, {
+    enabled: isViewer && backendReady,
   })
   const {
     handleClick,
     cooldownMs,
     isAnimating: clickAnimating,
     gain: clickGain,
-  } = useClickBoost(context?.channelId, isViewer, syncBalance)
+  } = useClickBoost(context?.channelId, isViewer && backendReady, syncBalance)
 
   if (!context) {
     return (
@@ -64,7 +64,7 @@ export default function App() {
             <button
               className={`ext-mine__btn${cooldownMs > 0 ? ' ext-mine__btn--cooldown' : ''}`}
               onClick={handleClick}
-              disabled={cooldownMs > 0}
+              disabled={cooldownMs > 0 || !backendReady}
               aria-label="Click to mine points"
             >
               ⛏

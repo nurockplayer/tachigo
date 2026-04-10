@@ -6,7 +6,7 @@ interface UseHeartbeatOptions {
   intervalMs?: number
 }
 
-export function useHeartbeat(extensionJwt: string, options: UseHeartbeatOptions = {}) {
+export function useHeartbeat(channelId: string | undefined, options: UseHeartbeatOptions = {}) {
   const { enabled = true, intervalMs = 30_000 } = options
   const [balance, setBalance] = useState<number | null>(null)
   const [gain, setGain] = useState<number | null>(null)
@@ -14,23 +14,56 @@ export function useHeartbeat(extensionJwt: string, options: UseHeartbeatOptions 
   const [error, setError] = useState<string | null>(null)
   const lastBalanceRef = useRef<number | null>(null)
   const stopAnimationTimerRef = useRef<number | null>(null)
+  const previousChannelIdRef = useRef<string | undefined>(channelId)
+  const clearAnimationTimer = useCallback(() => {
+    if (stopAnimationTimerRef.current !== null) {
+      window.clearTimeout(stopAnimationTimerRef.current)
+      stopAnimationTimerRef.current = null
+    }
+  }, [])
+
+  const resetSession = useCallback(() => {
+    clearAnimationTimer()
+    lastBalanceRef.current = null
+    setBalance(null)
+    setGain(null)
+    setIsAnimating(false)
+    setError(null)
+  }, [clearAnimationTimer])
 
   useEffect(() => {
-    if (!enabled || !extensionJwt) return
+    if (previousChannelIdRef.current !== channelId) {
+      const resetTimer = window.setTimeout(() => {
+        resetSession()
+      }, 0)
+      previousChannelIdRef.current = channelId
+      return () => {
+        window.clearTimeout(resetTimer)
+      }
+    }
+  }, [channelId, resetSession])
+
+  useEffect(() => {
+    if (enabled && channelId) {
+      return
+    }
+    const resetTimer = window.setTimeout(() => {
+      resetSession()
+    }, 0)
+    return () => {
+      window.clearTimeout(resetTimer)
+    }
+  }, [channelId, enabled, resetSession])
+
+  useEffect(() => {
+    if (!enabled || !channelId) return
 
     let isDisposed = false
     let heartbeatTimer: number | null = null
 
-    const clearAnimationTimer = () => {
-      if (stopAnimationTimerRef.current !== null) {
-        window.clearTimeout(stopAnimationTimerRef.current)
-        stopAnimationTimerRef.current = null
-      }
-    }
-
     const runHeartbeat = async () => {
       try {
-        const data = await sendHeartbeat(extensionJwt)
+        const data = await sendHeartbeat(channelId, lastBalanceRef.current)
         if (isDisposed) return
 
         const nextBalance = data.balance
@@ -56,19 +89,30 @@ export function useHeartbeat(extensionJwt: string, options: UseHeartbeatOptions 
       }
     }
 
-    void runHeartbeat()
-    heartbeatTimer = window.setInterval(() => {
-      void runHeartbeat()
-    }, intervalMs)
+    const scheduleNextHeartbeat = () => {
+      heartbeatTimer = window.setTimeout(() => {
+        void heartbeatLoop()
+      }, intervalMs)
+    }
+
+    const heartbeatLoop = async () => {
+      await runHeartbeat()
+      if (!isDisposed) {
+        scheduleNextHeartbeat()
+      }
+    }
+
+    void heartbeatLoop()
 
     return () => {
       isDisposed = true
       if (heartbeatTimer !== null) {
-        window.clearInterval(heartbeatTimer)
+        window.clearTimeout(heartbeatTimer)
       }
+      lastBalanceRef.current = null
       clearAnimationTimer()
     }
-  }, [enabled, extensionJwt, intervalMs])
+  }, [channelId, clearAnimationTimer, enabled, intervalMs])
 
   // Allow external callers (e.g. click boost) to sync the baseline so the
   // next heartbeat gain animation doesn't double-count already-awarded points.

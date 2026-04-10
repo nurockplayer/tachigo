@@ -1,6 +1,11 @@
 import { useEffect, useState } from 'react'
 import type { TwitchContext } from '../types/twitch'
-import { loginWithTwitchExtension, setAuthToken } from '../services/api'
+import {
+  clearAuthToken,
+  loginWithTwitchExtension,
+  setAuthToken,
+  setExtensionJwtForRecovery,
+} from '../services/api'
 import i18n, { mapTwitchLocaleToAppLanguage } from '../i18n'
 
 export interface TwitchBitsProduct {
@@ -16,6 +21,7 @@ export function useTwitch() {
   const [products, setProducts] = useState<TwitchBitsProduct[]>([])
   const [bitsEnabled, setBitsEnabled] = useState(false)
   const [authError, setAuthError] = useState<string | null>(null)
+  const [backendReady, setBackendReady] = useState(false)
 
   useEffect(() => {
     const ext = window.Twitch?.ext
@@ -41,6 +47,8 @@ export function useTwitch() {
 
     ext.onAuthorized(async (auth: TwitchExtAuth) => {
       setJwt(auth.token)
+      setExtensionJwtForRecovery(auth.token)
+      setBackendReady(false)
 
       // Login to tachigo backend with the extension JWT
       try {
@@ -50,9 +58,13 @@ export function useTwitch() {
         const tokens = (result as any)?.data?.tokens ?? (result as any)?.tokens
         if (tokens?.access_token) {
           setAuthToken(tokens.access_token)
+          setBackendReady(true)
+          setAuthError(null)
         }
       } catch {
         // Non-fatal: bits flow still works via extension JWT directly
+        clearAuthToken()
+        setBackendReady(false)
         setAuthError('Backend unavailable')
       }
 
@@ -66,7 +78,43 @@ export function useTwitch() {
           .catch(() => setBitsEnabled(false))
       }
     })
+
+    return () => {
+      setExtensionJwtForRecovery(null)
+      clearAuthToken()
+    }
   }, [])
 
-  return { context, jwt, products, bitsEnabled, authError }
+  useEffect(() => {
+    if (!jwt || backendReady) {
+      return
+    }
+
+    let cancelled = false
+    const retryTimer = window.setInterval(() => {
+      void (async () => {
+        try {
+          const result = await loginWithTwitchExtension(jwt)
+          // eslint-disable-next-line @typescript-eslint/no-explicit-any
+          const tokens = (result as any)?.data?.tokens ?? (result as any)?.tokens
+          if (!cancelled && tokens?.access_token) {
+            setAuthToken(tokens.access_token)
+            setBackendReady(true)
+            setAuthError(null)
+          }
+        } catch {
+          if (!cancelled) {
+            setBackendReady(false)
+          }
+        }
+      })()
+    }, 15_000)
+
+    return () => {
+      cancelled = true
+      window.clearInterval(retryTimer)
+    }
+  }, [backendReady, jwt])
+
+  return { context, jwt, products, bitsEnabled, authError, backendReady }
 }
