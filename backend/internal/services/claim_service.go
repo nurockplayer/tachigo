@@ -35,8 +35,21 @@ type MintCaller interface {
 type ClaimService struct {
 	db          *gorm.DB
 	contractCfg config.ContractConfig
-	tachiToken  *contractpkg.TachiToken // shared instance — mutex inside is effective
+	tachiToken  *contractpkg.TachiToken
 	mintCaller  MintCaller
+}
+
+type claimReservation struct {
+	userID uuid.UUID
+	toAddr string
+	amount int64
+	items  []claimReservationItem
+}
+
+type claimReservationItem struct {
+	ledgerID      uuid.UUID
+	transactionID uuid.UUID
+	amount        int64
 }
 
 func NewClaimService(db *gorm.DB, contractCfg config.ContractConfig, ethClient *ethclient.Client) *ClaimService {
@@ -45,8 +58,11 @@ func NewClaimService(db *gorm.DB, contractCfg config.ContractConfig, ethClient *
 		contractCfg: contractCfg,
 	}
 	if ethClient != nil && contractCfg.TachiContractAddress != "" && contractCfg.SepoliaSignerKey != "" {
-		if t, err := contractpkg.NewTachiToken(common.HexToAddress(contractCfg.TachiContractAddress), ethClient); err == nil {
-			svc.tachiToken = t
+		if common.IsHexAddress(contractCfg.TachiContractAddress) {
+			t, err := contractpkg.NewTachiToken(common.HexToAddress(contractCfg.TachiContractAddress), ethClient)
+			if err == nil {
+				svc.tachiToken = t
+			}
 		}
 	}
 	svc.mintCaller = svc
@@ -79,27 +95,32 @@ func (s *ClaimService) Claim(ctx context.Context, userID uuid.UUID, amount int64
 		mintCaller = s
 	}
 
+	var reservation claimReservation
+	if err := s.db.Transaction(func(tx *gorm.DB) error {
+		var err error
+		reservation, err = s.reserveClaim(tx, userID, amount)
+		return err
+	}); err != nil {
+		return 0, err
+	}
+
+	mintCtx, cancel := context.WithTimeout(ctx, 30*time.Second)
+	defer cancel()
+	if _, err := mintCaller.MintOnChain(mintCtx, reservation.toAddr, reservation.amount); err != nil {
+		rollbackErr := s.db.Transaction(func(tx *gorm.DB) error {
+			return s.rollbackClaimReservation(tx, reservation)
+		})
+		if rollbackErr != nil {
+			return 0, fmt.Errorf("%w; rollback claim reservation: %v", err, rollbackErr)
+		}
+		return 0, err
+	}
+
 	var newBalance int64
 	err := s.db.Transaction(func(tx *gorm.DB) error {
-		claimAmount, err := s.calculateClaimAmount(tx, userID, amount, true)
-		if err != nil {
-			return err
-		}
-
-		toAddr, err := s.resolveWalletAddress(tx, userID)
-		if err != nil {
-			return err
-		}
-
-		mintCtx, cancel := context.WithTimeout(ctx, 30*time.Second)
-		defer cancel()
-		if _, err := mintCaller.MintOnChain(mintCtx, toAddr, claimAmount); err != nil {
-			return err
-		}
-
-		var applyErr error
-		newBalance, applyErr = s.applyClaim(tx, userID, claimAmount)
-		return applyErr
+		var err error
+		newBalance, err = s.finalizeClaim(tx, reservation.userID, reservation.amount)
+		return err
 	})
 	if err != nil {
 		return 0, err
@@ -128,15 +149,14 @@ func (s *ClaimService) MintOnChain(ctx context.Context, toAddr string, amount in
 	return s.tachiToken.Mint(ctx, common.HexToAddress(toAddr), big.NewInt(amount), signerKey)
 }
 
-func (s *ClaimService) calculateClaimAmount(db *gorm.DB, userID uuid.UUID, amount int64, lock bool) (int64, error) {
-	query := db.Where("user_id = ? AND spendable_balance > 0", userID).Order("created_at ASC, id ASC")
-	if lock {
-		query = query.Clauses(clause.Locking{Strength: "UPDATE"})
-	}
+func (s *ClaimService) reserveClaim(tx *gorm.DB, userID uuid.UUID, amount int64) (claimReservation, error) {
+	query := tx.Clauses(clause.Locking{Strength: "UPDATE"}).
+		Where("user_id = ? AND spendable_balance > 0", userID).
+		Order("created_at ASC, id ASC")
 
 	var ledgers []models.PointsLedger
 	if err := query.Find(&ledgers).Error; err != nil {
-		return 0, err
+		return claimReservation{}, err
 	}
 
 	var totalSpendable int64
@@ -149,24 +169,23 @@ func (s *ClaimService) calculateClaimAmount(db *gorm.DB, userID uuid.UUID, amoun
 		claimAmount = totalSpendable
 	}
 	if claimAmount <= 0 {
-		return 0, ErrClaimAmountInvalid
+		return claimReservation{}, ErrClaimAmountInvalid
 	}
 	if totalSpendable < claimAmount {
-		return 0, ErrClaimInsufficientBalance
+		return claimReservation{}, ErrClaimInsufficientBalance
 	}
 
-	return claimAmount, nil
-}
-
-func (s *ClaimService) applyClaim(tx *gorm.DB, userID uuid.UUID, claimAmount int64) (int64, error) {
-	var ledgers []models.PointsLedger
-	if err := tx.Clauses(clause.Locking{Strength: "UPDATE"}).
-		Where("user_id = ? AND spendable_balance > 0", userID).
-		Order("created_at ASC, id ASC").
-		Find(&ledgers).Error; err != nil {
-		return 0, err
+	toAddr, err := s.resolveWalletAddress(tx, userID)
+	if err != nil {
+		return claimReservation{}, err
 	}
 
+	reservation := claimReservation{
+		userID: userID,
+		toAddr: toAddr,
+		amount: claimAmount,
+		items:  make([]claimReservationItem, 0, len(ledgers)),
+	}
 	remaining := claimAmount
 	now := time.Now()
 	for _, ledger := range ledgers {
@@ -182,8 +201,9 @@ func (s *ClaimService) applyClaim(tx *gorm.DB, userID uuid.UUID, claimAmount int
 			"spendable_balance": newLedgerBalance,
 			"updated_at":        now,
 		}).Error; err != nil {
-			return 0, err
+			return claimReservation{}, err
 		}
+
 		txRecord := &models.PointsTransaction{
 			LedgerID:     ledger.ID,
 			Source:       models.TxSourceClaim,
@@ -191,11 +211,39 @@ func (s *ClaimService) applyClaim(tx *gorm.DB, userID uuid.UUID, claimAmount int
 			BalanceAfter: newLedgerBalance,
 		}
 		if err := tx.Create(txRecord).Error; err != nil {
-			return 0, err
+			return claimReservation{}, err
 		}
+		reservation.items = append(reservation.items, claimReservationItem{
+			ledgerID:      ledger.ID,
+			transactionID: txRecord.ID,
+			amount:        deduct,
+		})
 		remaining -= deduct
 	}
 
+	return reservation, nil
+}
+
+func (s *ClaimService) rollbackClaimReservation(tx *gorm.DB, reservation claimReservation) error {
+	now := time.Now()
+	for _, item := range reservation.items {
+		if err := tx.Model(&models.PointsLedger{}).
+			Where("id = ?", item.ledgerID).
+			Updates(map[string]interface{}{
+				"spendable_balance": gorm.Expr("spendable_balance + ?", item.amount),
+				"updated_at":        now,
+			}).Error; err != nil {
+			return err
+		}
+		if err := tx.Delete(&models.PointsTransaction{}, "id = ?", item.transactionID).Error; err != nil {
+			return err
+		}
+	}
+	return nil
+}
+
+func (s *ClaimService) finalizeClaim(tx *gorm.DB, userID uuid.UUID, claimAmount int64) (int64, error) {
+	now := time.Now()
 	if err := tx.Exec(`
 		INSERT INTO tachi_balances (id, user_id, balance, updated_at)
 		VALUES (?, ?, ?, ?)

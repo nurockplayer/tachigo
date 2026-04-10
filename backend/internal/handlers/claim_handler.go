@@ -69,6 +69,10 @@ func (h *ClaimHandler) Claim(c *gin.Context) {
 			unprocessableEntity(c, err.Error())
 			return
 		}
+		if errors.Is(err, services.ErrClaimWalletNotLinked) {
+			unprocessableEntity(c, err.Error())
+			return
+		}
 		if errors.Is(err, services.ErrClaimAmountInvalid) {
 			badRequest(c, err.Error())
 			return

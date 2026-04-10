@@ -10,6 +10,7 @@ import (
 
 	ethereum "github.com/ethereum/go-ethereum"
 	"github.com/ethereum/go-ethereum/accounts/abi"
+	"github.com/ethereum/go-ethereum/accounts/abi/bind"
 	"github.com/ethereum/go-ethereum/common"
 	"github.com/ethereum/go-ethereum/core/types"
 	"github.com/ethereum/go-ethereum/crypto"
@@ -114,7 +115,13 @@ func (t *TachiToken) Mint(ctx context.Context, toAddr common.Address, amount *bi
 	if err := t.client.SendTransaction(ctx, signedTx); err != nil {
 		return "", fmt.Errorf("send mint tx: %w", err)
 	}
-	// TODO: wait for receipt status == 1 before committing DB (fire-and-forget for now)
+	receipt, err := bind.WaitMined(ctx, t.client, signedTx)
+	if err != nil {
+		return "", fmt.Errorf("wait mint receipt: %w", err)
+	}
+	if receipt.Status != types.ReceiptStatusSuccessful {
+		return "", fmt.Errorf("mint tx failed: %s", signedTx.Hash().Hex())
+	}
 
 	return signedTx.Hash().Hex(), nil
 }

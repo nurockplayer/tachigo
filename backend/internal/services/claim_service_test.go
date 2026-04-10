@@ -3,11 +3,16 @@ package services
 import (
 	"context"
 	"errors"
+	"path/filepath"
 	"testing"
 
+	"github.com/ethereum/go-ethereum/ethclient"
 	"github.com/google/uuid"
+	"gorm.io/driver/sqlite"
 	"gorm.io/gorm"
+	"gorm.io/gorm/logger"
 
+	"github.com/tachigo/tachigo/internal/config"
 	"github.com/tachigo/tachigo/internal/models"
 )
 
@@ -28,6 +33,45 @@ func (m *mockMintCaller) MintOnChain(_ context.Context, toAddr string, amount in
 		return "", m.err
 	}
 	return m.txHash, nil
+}
+
+type inspectingMintCaller struct {
+	db              *gorm.DB
+	userID          uuid.UUID
+	channelID       string
+	wantSpendable   int64
+	observed        int64
+	observedMatches bool
+}
+
+func (m *inspectingMintCaller) MintOnChain(_ context.Context, _ string, _ int64) (string, error) {
+	if err := m.db.Raw(
+		"SELECT spendable_balance FROM points_ledgers WHERE user_id = ? AND channel_id = ?",
+		m.userID,
+		m.channelID,
+	).Scan(&m.observed).Error; err != nil {
+		return "", err
+	}
+	m.observedMatches = m.observed == m.wantSpendable
+	return "0xreserved", nil
+}
+
+func newFileClaimTestDB(t *testing.T) *gorm.DB {
+	t.Helper()
+	db, err := gorm.Open(sqlite.Open(filepath.Join(t.TempDir(), "claim.db")), &gorm.Config{
+		Logger:         logger.Default.LogMode(logger.Silent),
+		TranslateError: true,
+	})
+	if err != nil {
+		t.Fatalf("open file test db: %v", err)
+	}
+	if err := db.Exec(`PRAGMA foreign_keys = ON`).Error; err != nil {
+		t.Fatalf("enable foreign keys: %v", err)
+	}
+	if err := migrateTestDB(db); err != nil {
+		t.Fatalf("migrate test db: %v", err)
+	}
+	return db
 }
 
 // seedLedger inserts a points_ledger row and returns its id.
@@ -124,6 +168,27 @@ func TestClaim_PartialAmount(t *testing.T) {
 	db.Raw("SELECT spendable_balance FROM points_ledgers WHERE user_id = ? AND channel_id = 'ch1'", userID).Scan(&remaining)
 	if remaining != 60 {
 		t.Fatalf("expected remaining spendable=60, got %d", remaining)
+	}
+}
+
+func TestClaim_ReservesSpendableBeforeMint(t *testing.T) {
+	db := newFileClaimTestDB(t)
+	userID := userIDForClaim(t, db)
+	seedWeb3Provider(t, db, userID, "0xd8dA6BF26964aF9D7eEd9e03E53415D37aA96045")
+	seedLedger(t, db, userID, "ch1", 80)
+	mintCaller := &inspectingMintCaller{
+		db:            db,
+		userID:        userID,
+		channelID:     "ch1",
+		wantSpendable: 30,
+	}
+	svc := &ClaimService{db: db, mintCaller: mintCaller}
+
+	if _, err := svc.Claim(context.Background(), userID, 50); err != nil {
+		t.Fatalf("unexpected error: %v", err)
+	}
+	if !mintCaller.observedMatches {
+		t.Fatalf("expected spendable to be reserved before mint, observed %d", mintCaller.observed)
 	}
 }
 
@@ -236,5 +301,18 @@ func TestClaim_MintFailureLeavesDBUnchanged(t *testing.T) {
 	}
 	if balanceCount != 0 {
 		t.Fatalf("expected no tachi balance rows, got %d", balanceCount)
+	}
+}
+
+func TestNewClaimService_InvalidContractAddressDoesNotInitializeToken(t *testing.T) {
+	db := newTestDB(t)
+
+	svc := NewClaimService(db, config.ContractConfig{
+		TachiContractAddress: "0xnot-valid",
+		SepoliaSignerKey:     "abcd",
+	}, &ethclient.Client{})
+
+	if svc.tachiToken != nil {
+		t.Fatal("expected invalid contract address to leave tachiToken nil")
 	}
 }

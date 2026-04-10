@@ -168,6 +168,25 @@ func TestClaimHandler_InsufficientBalance(t *testing.T) {
 	}
 }
 
+func TestClaimHandler_WalletNotLinked(t *testing.T) {
+	env, r := newClaimTestEnv(t)
+	token, _ := env.registerUser(t, "user8", "user8@example.com", "password123")
+
+	userID := resolveUserID(t, env, "user8@example.com")
+	seedLedgerForHandler(t, env, userID, "ch1", 10)
+
+	body, _ := json.Marshal(map[string]int{"amount": 10})
+	w := httptest.NewRecorder()
+	req, _ := http.NewRequest("POST", "/api/v1/users/me/points/claim", bytes.NewBuffer(body))
+	req.Header.Set("Authorization", "Bearer "+token)
+	req.Header.Set("Content-Type", "application/json")
+	r.ServeHTTP(w, req)
+
+	if w.Code != http.StatusUnprocessableEntity {
+		t.Fatalf("expected 422, got %d: %s", w.Code, w.Body.String())
+	}
+}
+
 func TestClaimHandler_Unauthorized(t *testing.T) {
 	_, r := newClaimTestEnv(t)
 
