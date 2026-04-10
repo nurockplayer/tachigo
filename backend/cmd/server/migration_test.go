@@ -13,13 +13,13 @@ import (
 	"gorm.io/gorm/logger"
 )
 
-func TestMigration008AddsAgencyUserForeignKeyConstraint(t *testing.T) {
+func TestMigration011AddsAgencyUserForeignKeyConstraint(t *testing.T) {
 	_, file, _, ok := runtime.Caller(0)
 	if !ok {
 		t.Fatal("resolve current test file")
 	}
 
-	path := filepath.Join(filepath.Dir(file), "..", "..", "migrations", "008_streamers_agency.sql")
+	path := filepath.Join(filepath.Dir(file), "..", "..", "migrations", "011_streamers_agency.sql")
 	body, err := os.ReadFile(path)
 	if err != nil {
 		t.Fatalf("read migration: %v", err)
