@@ -14,11 +14,16 @@ type Config struct {
 	SMTP     SMTPConfig
 	App      AppConfig
 	Contract ContractConfig
+	Internal InternalConfig
 }
 
 type ContractConfig struct {
 	TachiContractAddress string // TACHI_CONTRACT_ADDRESS
 	SepoliaSignerKey     string // SEPOLIA_SIGNER_KEY — never log or expose
+}
+
+type InternalConfig struct {
+	TachiyaSharedSecret string // TACHIYA_INTERNAL_SHARED_SECRET
 }
 
 type SMTPConfig struct {
@@ -112,6 +117,9 @@ func Load() *Config {
 		Contract: ContractConfig{
 			TachiContractAddress: getEnv("TACHI_CONTRACT_ADDRESS", ""),
 			SepoliaSignerKey:     getEnv("SEPOLIA_SIGNER_KEY", ""),
+		},
+		Internal: InternalConfig{
+			TachiyaSharedSecret: getEnv("TACHIYA_INTERNAL_SHARED_SECRET", ""),
 		},
 	}
 }
