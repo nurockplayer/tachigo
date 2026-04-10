@@ -1,4 +1,4 @@
-import React, { useState, useEffect, useRef, useCallback } from 'react';
+import { useState, useEffect, useRef, useCallback } from 'react';
 import { useTranslation } from 'react-i18next'
 
 import type { HudDemoState } from '../../extension/types'
@@ -215,11 +215,12 @@ function ClickableCapybara({
 interface MarioHUDProps {
   state?: HudDemoState
   onStateChange?: (state: HudDemoState) => void
+  onNavigate?: (screen: 'claim') => void
 }
 
-export function MarioHUD({ state, onStateChange }: MarioHUDProps) {
+export function MarioHUD({ state, onStateChange, onNavigate }: MarioHUDProps) {
   const { t } = useTranslation()
-  const { playMiningClick, playRewardComplete, playMaxClicks, playToggleWatch, startBgMusic, stopBgMusic } = useSound()
+  const { playMiningClick, playRewardComplete, playMaxClicks, playToggleWatch, startBgMusic, stopBgMusic, bridgeStatus } = useSound()
   const [points, setPoints]               = useState(state?.points ?? 0);
   const [totalPoints, setTotalPoints]     = useState(state?.totalPoints ?? 12847);
   const [countdown, setCountdown]         = useState(state?.countdown ?? 60);
@@ -420,6 +421,20 @@ export function MarioHUD({ state, onStateChange }: MarioHUDProps) {
         </button>
       </div>
 
+      {bridgeStatus === 'unsupported' && (
+        <div
+          style={{
+            padding: '6px 16px 0',
+            fontSize: 6,
+            color: '#FFB000',
+            letterSpacing: '0.08em',
+            textAlign: 'right',
+          }}
+        >
+          {t('hud.tabAudioUnavailable')}
+        </div>
+      )}
+
       {/* ════════════════════════════════════════════
           POINTS DISPLAY (最大字)
       ════════════════════════════════════════════ */}
@@ -570,6 +585,22 @@ export function MarioHUD({ state, onStateChange }: MarioHUDProps) {
           }}
         >
           {bgMusicOn ? '♪ ON' : '♪ OFF'}
+        </button>
+        <button
+          onClick={() => onNavigate?.('claim')}
+          style={{
+            padding: '3px 8px',
+            borderRadius: 2,
+            border: '1px solid rgba(145,70,255,0.2)',
+            background: 'transparent',
+            color: '#9146FF',
+            fontSize: 7,
+            cursor: 'pointer',
+            fontFamily: 'var(--pixel-font-family)',
+            letterSpacing: '0.08em',
+          }}
+        >
+          ⇄ CLAIM
         </button>
       </div>
     </div>

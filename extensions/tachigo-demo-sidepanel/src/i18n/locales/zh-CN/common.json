@@ -13,6 +13,7 @@
   "hud": {
     "watching": "观看中",
     "idle": "待机",
+    "tabAudioUnavailable": "分页音频不可用",
     "cumulativeTotal": "累计总计",
     "nextIn": "下次 {{count}} 秒",
     "clicksLeft": "剩 {{count}} 次",
@@ -23,6 +24,16 @@
     "titleHighlight": "累积观看积分",
     "hintLine1": "观众只要观看直播",
     "hintLine2": "即可自动累积挖矿积分"
+  },
+  "claim": {
+    "title": "提领",
+    "from": "来源",
+    "to": "目标",
+    "balance": "余额：{{amount}}",
+    "max": "最大",
+    "rate": "1 CPC = 0.1 TCG",
+    "button": "提领 $TCG",
+    "success": "已提领！"
   },
   "error": {
     "account": {

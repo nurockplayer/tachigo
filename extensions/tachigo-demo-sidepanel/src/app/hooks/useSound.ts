@@ -1,4 +1,4 @@
-import { useRef, useCallback, useEffect } from 'react';
+import { useRef, useCallback, useEffect, useState } from 'react';
 
 type SoundType = 'mining-click' | 'reward-complete' | 'max-clicks' | 'toggle-watch'
                | 'start-bg-music' | 'stop-bg-music';
@@ -32,14 +32,25 @@ const BG_NOTES: [number, number][] = [
 async function sendToContentScript(type: SoundType, variant?: HitVariant) {
   const tabs = await chrome.tabs.query({ active: true, currentWindow: true });
   const tabId = tabs[0]?.id;
-  if (tabId != null) {
-    chrome.tabs.sendMessage(tabId, { type: 'PLAY_SOUND', sound: type, variant }).catch(() => {});
+  if (tabId == null) {
+    return false;
   }
+
+  await chrome.tabs.sendMessage(tabId, { type: 'PLAY_SOUND', sound: type, variant });
+  return true;
 }
 
 function buildCtx(ctxRef: { current: AudioContext | null }): AudioContext {
   if (!ctxRef.current) ctxRef.current = new AudioContext();
   return ctxRef.current;
+}
+
+async function getReadyCtx(ctxRef: { current: AudioContext | null }): Promise<AudioContext> {
+  const ctx = buildCtx(ctxRef);
+  if (ctx.state === 'suspended') {
+    await ctx.resume();
+  }
+  return ctx;
 }
 
 // ── 3 Variant 礦石敲擊合成 ───────────────────────────────────
@@ -130,104 +141,127 @@ export function useSound() {
   const ctxRef     = useRef<AudioContext | null>(null);
   const bgTimerRef = useRef<ReturnType<typeof setTimeout> | null>(null);
   const bgStepRef  = useRef(0);
+  const [bridgeStatus, setBridgeStatus] = useState<'ready' | 'unsupported'>('ready');
+
+  const sendBridgeSound = useCallback(async (type: SoundType, variant?: HitVariant) => {
+    try {
+      await sendToContentScript(type, variant);
+      setBridgeStatus('ready');
+      return true;
+    } catch (error) {
+      console.warn('Tab audio bridge unavailable for the current tab.', error);
+      setBridgeStatus('unsupported');
+      return false;
+    }
+  }, []);
 
   // ── 礦石敲擊（3 variant 隨機）────────────────────────────
   const playMiningClick = useCallback(() => {
     const variant = pickVariant();
-    synthesizeMiningHit(buildCtx(ctxRef), variant);
-    void sendToContentScript('mining-click', variant);
-  }, []);
+    void (async () => {
+      if (await sendBridgeSound('mining-click', variant)) return;
+      synthesizeMiningHit(await getReadyCtx(ctxRef), variant);
+    })();
+  }, [sendBridgeSound]);
 
   // ── FF 勝利號角 ────────────────────────────────────────────
   const playRewardComplete = useCallback(() => {
-    const ctx = buildCtx(ctxRef);
-    const notes: [number, number, number][] = [
-      [440, 0.00, 0.10],[440, 0.13, 0.10],[440, 0.26, 0.10],
-      [349, 0.39, 0.18],[523, 0.59, 0.06],[440, 0.67, 0.28],
-      [349, 0.97, 0.18],[523, 1.17, 0.06],[440, 1.25, 0.55],
-    ];
-    notes.forEach(([freq, offset, dur]) => {
-      const osc  = ctx.createOscillator();
-      const gain = ctx.createGain();
-      osc.type = 'square';
-      osc.frequency.setValueAtTime(freq, ctx.currentTime + offset);
-      gain.gain.setValueAtTime(0.18, ctx.currentTime + offset);
-      gain.gain.exponentialRampToValueAtTime(0.001, ctx.currentTime + offset + dur);
-      osc.connect(gain); gain.connect(ctx.destination);
-      osc.start(ctx.currentTime + offset);
-      osc.stop(ctx.currentTime + offset + dur + 0.01);
-    });
-    void sendToContentScript('reward-complete');
-  }, []);
+    void (async () => {
+      if (await sendBridgeSound('reward-complete')) return;
+      const ctx = await getReadyCtx(ctxRef);
+      const notes: [number, number, number][] = [
+        [440, 0.00, 0.10],[440, 0.13, 0.10],[440, 0.26, 0.10],
+        [349, 0.39, 0.18],[523, 0.59, 0.06],[440, 0.67, 0.28],
+        [349, 0.97, 0.18],[523, 1.17, 0.06],[440, 1.25, 0.55],
+      ];
+      notes.forEach(([freq, offset, dur]) => {
+        const osc  = ctx.createOscillator();
+        const gain = ctx.createGain();
+        osc.type = 'square';
+        osc.frequency.setValueAtTime(freq, ctx.currentTime + offset);
+        gain.gain.setValueAtTime(0.18, ctx.currentTime + offset);
+        gain.gain.exponentialRampToValueAtTime(0.001, ctx.currentTime + offset + dur);
+        osc.connect(gain); gain.connect(ctx.destination);
+        osc.start(ctx.currentTime + offset);
+        osc.stop(ctx.currentTime + offset + dur + 0.01);
+      });
+    })();
+  }, [sendBridgeSound]);
 
   // ── 雙聲答錯蜂鳴器 ────────────────────────────────────────
   const playMaxClicks = useCallback(() => {
-    const ctx = buildCtx(ctxRef);
-    [[0, 0.18, 180], [0.23, 0.37, 160]].forEach(([start, end, freq]) => {
-      const osc  = ctx.createOscillator();
-      const gain = ctx.createGain();
-      osc.type = 'sawtooth';
-      osc.frequency.setValueAtTime(freq, ctx.currentTime + start);
-      gain.gain.setValueAtTime(0.2, ctx.currentTime + start);
-      gain.gain.setValueAtTime(0.2, ctx.currentTime + end - 0.02);
-      gain.gain.exponentialRampToValueAtTime(0.001, ctx.currentTime + end);
-      osc.connect(gain); gain.connect(ctx.destination);
-      osc.start(ctx.currentTime + start);
-      osc.stop(ctx.currentTime + end);
-    });
-    void sendToContentScript('max-clicks');
-  }, []);
+    void (async () => {
+      if (await sendBridgeSound('max-clicks')) return;
+      const ctx = await getReadyCtx(ctxRef);
+      [[0, 0.18, 180], [0.23, 0.37, 160]].forEach(([start, end, freq]) => {
+        const osc  = ctx.createOscillator();
+        const gain = ctx.createGain();
+        osc.type = 'sawtooth';
+        osc.frequency.setValueAtTime(freq, ctx.currentTime + start);
+        gain.gain.setValueAtTime(0.2, ctx.currentTime + start);
+        gain.gain.setValueAtTime(0.2, ctx.currentTime + end - 0.02);
+        gain.gain.exponentialRampToValueAtTime(0.001, ctx.currentTime + end);
+        osc.connect(gain); gain.connect(ctx.destination);
+        osc.start(ctx.currentTime + start);
+        osc.stop(ctx.currentTime + end);
+      });
+    })();
+  }, [sendBridgeSound]);
 
   // ── SW 切換音效 ────────────────────────────────────────────
   const playToggleWatch = useCallback(() => {
-    const ctx  = buildCtx(ctxRef);
-    const osc  = ctx.createOscillator();
-    const gain = ctx.createGain();
-    osc.type = 'sine';
-    osc.frequency.setValueAtTime(550, ctx.currentTime);
-    gain.gain.setValueAtTime(0.1, ctx.currentTime);
-    gain.gain.exponentialRampToValueAtTime(0.001, ctx.currentTime + 0.06);
-    osc.connect(gain); gain.connect(ctx.destination);
-    osc.start(ctx.currentTime); osc.stop(ctx.currentTime + 0.06);
-    void sendToContentScript('toggle-watch');
-  }, []);
+    void (async () => {
+      if (await sendBridgeSound('toggle-watch')) return;
+      const ctx  = await getReadyCtx(ctxRef);
+      const osc  = ctx.createOscillator();
+      const gain = ctx.createGain();
+      osc.type = 'sine';
+      osc.frequency.setValueAtTime(550, ctx.currentTime);
+      gain.gain.setValueAtTime(0.1, ctx.currentTime);
+      gain.gain.exponentialRampToValueAtTime(0.001, ctx.currentTime + 0.06);
+      osc.connect(gain); gain.connect(ctx.destination);
+      osc.start(ctx.currentTime); osc.stop(ctx.currentTime + 0.06);
+    })();
+  }, [sendBridgeSound]);
 
   // ── 背景音樂（原創 8-bit 冒險主題）──────────────────────
   const startBgMusic = useCallback(() => {
     if (bgTimerRef.current !== null) return;
-    const ctx = buildCtx(ctxRef);
+    void (async () => {
+      if (await sendBridgeSound('start-bg-music')) return;
+      const ctx = await getReadyCtx(ctxRef);
 
-    const playStep = () => {
-      const [freq, durMs] = BG_NOTES[bgStepRef.current % BG_NOTES.length];
-      bgStepRef.current++;
+      const playStep = () => {
+        const [freq, durMs] = BG_NOTES[bgStepRef.current % BG_NOTES.length];
+        bgStepRef.current++;
 
-      if (freq > 0) {
-        const osc  = ctx.createOscillator();
-        const gain = ctx.createGain();
-        osc.type = 'square';
-        osc.frequency.setValueAtTime(freq, ctx.currentTime);
-        gain.gain.setValueAtTime(0.036, ctx.currentTime);
-        gain.gain.exponentialRampToValueAtTime(0.001, ctx.currentTime + (durMs / 1000) * 0.85);
-        osc.connect(gain); gain.connect(ctx.destination);
-        osc.start(ctx.currentTime); osc.stop(ctx.currentTime + durMs / 1000);
-      }
+        if (freq > 0) {
+          const osc  = ctx.createOscillator();
+          const gain = ctx.createGain();
+          osc.type = 'square';
+          osc.frequency.setValueAtTime(freq, ctx.currentTime);
+          gain.gain.setValueAtTime(0.036, ctx.currentTime);
+          gain.gain.exponentialRampToValueAtTime(0.001, ctx.currentTime + (durMs / 1000) * 0.85);
+          osc.connect(gain); gain.connect(ctx.destination);
+          osc.start(ctx.currentTime); osc.stop(ctx.currentTime + durMs / 1000);
+        }
 
-      bgTimerRef.current = setTimeout(playStep, durMs);
-    };
+        bgTimerRef.current = setTimeout(playStep, durMs);
+      };
 
-    playStep();
-    void sendToContentScript('start-bg-music');
-  }, []);
+      playStep();
+    })();
+  }, [sendBridgeSound]);
 
   const stopBgMusic = useCallback(() => {
     if (bgTimerRef.current !== null) {
       clearTimeout(bgTimerRef.current);
       bgTimerRef.current = null;
     }
-    void sendToContentScript('stop-bg-music');
-  }, []);
+    void sendBridgeSound('stop-bg-music');
+  }, [sendBridgeSound]);
 
   useEffect(() => () => stopBgMusic(), [stopBgMusic]);
 
-  return { playMiningClick, playRewardComplete, playMaxClicks, playToggleWatch, startBgMusic, stopBgMusic };
+  return { playMiningClick, playRewardComplete, playMaxClicks, playToggleWatch, startBgMusic, stopBgMusic, bridgeStatus };
 }
