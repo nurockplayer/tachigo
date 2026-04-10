@@ -130,7 +130,7 @@ func New(
 
 	dashboard := v1.Group("/dashboard")
 	dashboard.Use(middleware.JWTAuth(authSvc))
-	dashboard.Use(middleware.RequireRole(models.RoleAdmin, models.RoleStreamer))
+	dashboard.Use(middleware.RequireRole(models.RoleAdmin, models.RoleStreamer, models.RoleAgency))
 	{
 		dashboard.POST("/streamers", middleware.RequireRole(models.RoleAdmin), streamerH.Create)
 		dashboard.GET("/streamers", middleware.RequireRole(models.RoleAgency, models.RoleAdmin), streamerH.List)
