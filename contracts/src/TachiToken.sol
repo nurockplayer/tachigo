@@ -31,4 +31,9 @@ contract TachiToken is ERC20, Ownable {
     function transferFrom(address, address, uint256) public pure override returns (bool) {
         revert("TachiToken: soulbound");
     }
+
+    /// @dev Soulbound：禁止建立 allowance，避免產生永遠無法執行的授權假象。
+    function approve(address, uint256) public pure override returns (bool) {
+        revert("TachiToken: soulbound");
+    }
 }
