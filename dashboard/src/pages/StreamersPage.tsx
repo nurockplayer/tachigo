@@ -1,12 +1,13 @@
 import { useEffect, useState } from 'react'
 import { useNavigate } from 'react-router'
 import { Skeleton } from '@/components/ui/skeleton'
-import { getCurrentUserRole } from '@/services/auth'
+import { getCurrentUserId, getCurrentUserRole } from '@/services/auth'
 import { getMyChannels, getStreamers, type Streamer } from '@/services/channels'
 
 export default function StreamersPage() {
   const navigate = useNavigate()
   const role = getCurrentUserRole()
+  const currentUserId = getCurrentUserId()
   const [streamers, setStreamers] = useState<Streamer[]>([])
   const [loading, setLoading] = useState(true)
   const [error, setError] = useState(false)
@@ -40,14 +41,19 @@ export default function StreamersPage() {
 
   useEffect(() => {
     if (loading || role !== 'streamer') return
-    const first = streamers[0]
-    if (!first) return
-    navigate(`/streamers/${first.id}`, { replace: true })
-  }, [loading, navigate, role, streamers])
+
+    const ownedChannel = currentUserId
+      ? streamers.find((streamer) => streamer.user_id === currentUserId)
+      : null
+
+    if (!ownedChannel) return
+
+    navigate(`/streamers/${ownedChannel.id}`, { replace: true })
+  }, [currentUserId, loading, navigate, role, streamers])
 
   return (
     <div className="space-y-6">
-      <h1 className="text-2xl font-bold text-foreground">實況主管理</h1>
+      <h1 className="text-2xl font-bold text-foreground">直播主列表</h1>
 
       {loading ? (
         <div className="space-y-3">
@@ -57,19 +63,23 @@ export default function StreamersPage() {
         </div>
       ) : error ? (
         <div className="rounded-lg border border-destructive/20 bg-destructive/5 px-4 py-3 text-sm text-destructive">
-          無法載入實況主資料
+          無法載入直播主資料。
         </div>
       ) : streamers.length === 0 ? (
         <div className="rounded-lg border border-border bg-secondary/20 px-4 py-8 text-center text-sm text-muted-foreground">
-          目前沒有可顯示的實況主資料
+          尚無可顯示的直播主資料。
         </div>
       ) : (
         <div className="overflow-hidden rounded-lg border border-border">
           <table className="w-full text-sm">
             <thead>
               <tr className="border-b border-border bg-secondary/50">
-                <th className="px-4 py-3 text-left font-medium text-muted-foreground">實況主名稱</th>
-                <th className="px-4 py-3 text-left font-medium text-muted-foreground">Channel ID</th>
+                <th className="px-4 py-3 text-left font-medium text-muted-foreground">
+                  直播主名稱
+                </th>
+                <th className="px-4 py-3 text-left font-medium text-muted-foreground">
+                  Channel ID
+                </th>
               </tr>
             </thead>
             <tbody>

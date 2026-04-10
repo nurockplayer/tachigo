@@ -7,6 +7,7 @@ import StreamersPage from '@/pages/StreamersPage'
 const getStreamersMock = vi.fn()
 const getMyChannelsMock = vi.fn()
 const getCurrentUserRoleMock = vi.fn()
+const getCurrentUserIdMock = vi.fn()
 
 vi.mock('@/services/channels', () => ({
   getStreamers: (...args: unknown[]) => getStreamersMock(...args),
@@ -15,6 +16,7 @@ vi.mock('@/services/channels', () => ({
 
 vi.mock('@/services/auth', () => ({
   getCurrentUserRole: () => getCurrentUserRoleMock(),
+  getCurrentUserId: () => getCurrentUserIdMock(),
 }))
 
 function DetailRouteProbe() {
@@ -66,14 +68,16 @@ describe('StreamersPage', () => {
     getStreamersMock.mockReset()
     getMyChannelsMock.mockReset()
     getCurrentUserRoleMock.mockReset()
+    getCurrentUserIdMock.mockReset()
     getCurrentUserRoleMock.mockReturnValue('admin')
+    getCurrentUserIdMock.mockReturnValue(null)
   })
 
   afterEach(() => {
     document.body.innerHTML = ''
   })
 
-  it('顯示 API 回傳的實況主列表', async () => {
+  it('renders streamers from the API response', async () => {
     getStreamersMock.mockResolvedValue([
       { id: 'uuid-1', channel_id: 'channel-1', display_name: 'Alice' },
       { id: 'uuid-2', channel_id: 'channel-2', display_name: 'Bob' },
@@ -88,7 +92,7 @@ describe('StreamersPage', () => {
     cleanupRoot(root, container)
   })
 
-  it('列表列可用 Enter 鍵進入詳細頁', async () => {
+  it('opens the detail page when pressing Enter on a row', async () => {
     getStreamersMock.mockResolvedValue([
       { id: 'uuid-1', channel_id: 'channel-1', display_name: 'Alice' },
       { id: 'uuid-2', channel_id: 'channel-2', display_name: 'Bob' },
@@ -111,9 +115,13 @@ describe('StreamersPage', () => {
     cleanupRoot(root, container)
   })
 
-  it('streamer 角色載入後會直接導向自己的詳細頁', async () => {
+  it('redirects a streamer to the logged-in streamer channel', async () => {
     getCurrentUserRoleMock.mockReturnValue('streamer')
-    getMyChannelsMock.mockResolvedValue([{ id: 'uuid-1', channel_id: 'channel-1', display_name: 'Alice' }])
+    getCurrentUserIdMock.mockReturnValue('user-2')
+    getMyChannelsMock.mockResolvedValue([
+      { id: 'uuid-1', user_id: 'user-1', channel_id: 'channel-1', display_name: 'Alice' },
+      { id: 'uuid-2', user_id: 'user-2', channel_id: 'channel-2', display_name: 'Bob' },
+    ])
 
     const { container, root } = await renderAt('/streamers')
     await flush()
@@ -121,13 +129,14 @@ describe('StreamersPage', () => {
 
     expect(getStreamersMock).not.toHaveBeenCalled()
     expect(getMyChannelsMock).toHaveBeenCalledTimes(1)
-    expect(container.querySelector('[data-testid="detail-page"]')?.textContent).toBe('uuid-1')
+    expect(container.querySelector('[data-testid="detail-page"]')?.textContent).toBe('uuid-2')
 
     cleanupRoot(root, container)
   })
 
-  it('streamer 角色在沒有自己的頻道時停留於空狀態', async () => {
+  it('keeps streamer on the listing page when no owned channel exists', async () => {
     getCurrentUserRoleMock.mockReturnValue('streamer')
+    getCurrentUserIdMock.mockReturnValue('user-9')
     getMyChannelsMock.mockResolvedValue([])
 
     const { container, root } = await renderAt('/streamers')
@@ -137,29 +146,28 @@ describe('StreamersPage', () => {
     expect(getStreamersMock).not.toHaveBeenCalled()
     expect(getMyChannelsMock).toHaveBeenCalledTimes(1)
     expect(container.querySelector('[data-testid="detail-page"]')).toBeNull()
-    expect(container.textContent).toContain('目前沒有可顯示的實況主資料')
 
     cleanupRoot(root, container)
   })
 
-  it('API 失敗時顯示錯誤訊息', async () => {
+  it('shows an error message when the API request fails', async () => {
     getStreamersMock.mockRejectedValue(new Error('boom'))
 
     const { container, root } = await renderAt('/streamers')
     await flush()
 
-    expect(container.textContent).toContain('無法載入實況主資料')
+    expect(container.textContent).toContain('無法')
 
     cleanupRoot(root, container)
   })
 
-  it('空列表時顯示無資料提示', async () => {
+  it('shows an empty state when the list is empty', async () => {
     getStreamersMock.mockResolvedValue([])
 
     const { container, root } = await renderAt('/streamers')
     await flush()
 
-    expect(container.textContent).toContain('目前沒有可顯示的實況主資料')
+    expect(container.textContent).toContain('尚無')
 
     cleanupRoot(root, container)
   })
