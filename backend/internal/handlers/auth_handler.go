@@ -129,26 +129,21 @@ func (h *AuthHandler) Refresh(c *gin.Context) {
 // @Tags         auth
 // @Accept       json
 // @Produce      json
-// @Param        body body object{refresh_token=string} false "Refresh token"
+// @Param        body body object{refresh_token=string} true "Refresh token"
 // @Success      200  {object}  Response{data=MessageResponse}
 // @Failure      400  {object}  Response
 // @Security
 // @Router       /auth/logout [post]
 func (h *AuthHandler) Logout(c *gin.Context) {
 	var body struct {
-		RefreshToken string `json:"refresh_token"`
+		RefreshToken string `json:"refresh_token" binding:"required"`
+	}
+	if err := c.ShouldBindJSON(&body); err != nil {
+		badRequest(c, err.Error())
+		return
 	}
 
-	if c.Request.ContentLength > 0 {
-		if err := c.ShouldBindJSON(&body); err != nil {
-			badRequest(c, err.Error())
-			return
-		}
-	}
-
-	if body.RefreshToken != "" {
-		h.auth.Logout(body.RefreshToken)
-	}
+	h.auth.Logout(body.RefreshToken)
 	ok(c, gin.H{"message": "logged out"})
 }
 
