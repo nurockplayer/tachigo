@@ -4,7 +4,7 @@ on:
   schedule:
     - cron: '*/10 * * * *'
   pull_request:
-    types: [opened, synchronize]
+    types: [opened, synchronize, reopened, ready_for_review]
     branches: [main, develop]
   pull_request_review:
     types: [submitted, dismissed]
@@ -58,31 +58,51 @@ jobs:
               }
             }
 
-            const shouldFlag = async (pr) => {
+            // For schedule cron: find the last review by self (any state)
+            // to detect whether new commits have been pushed since the last review.
+            const getLastReviewBySelf = async (pr) => {
               const reviews = await github.paginate(github.rest.pulls.listReviews, {
                 owner, repo, pull_number: pr.number, per_page: 100,
               })
-              const latestStatefulReview = [...reviews]
-                .reverse()
-                .find(r =>
-                  r.user?.login === reviewer &&
-                  ['CHANGES_REQUESTED', 'APPROVED'].includes(r.state)
-                )
-              if (!latestStatefulReview || latestStatefulReview.state !== 'CHANGES_REQUESTED') {
-                return false
+              return [...reviews].reverse().find(r => r.user?.login === reviewer)
+            }
+
+            // shouldFlag is only used by the schedule cron as a fallback sweep.
+            // It re-evaluates:
+            // 1. PRs stuck with `changes-requested` that have received new commits
+            //    since the last review.
+            // 2. PRs with no Codex review history yet, as a fallback if the
+            //    original `opened` event was missed.
+            // 3. PRs previously reviewed by Codex that have new commits since
+            //    that review, but currently lack the review label because a
+            //    `synchronize` event was missed.
+            const shouldFlag = async (pr) => {
+              const labels = (pr.labels || []).map(l => l.name)
+              if (labels.includes(reviewLabel)) return false
+
+              const lastReview = await getLastReviewBySelf(pr)
+
+              // No prior Codex review means the PR likely missed the original
+              // flagging event and should be put into the review queue.
+              if (!lastReview) {
+                return !labels.includes(changesLabel)
               }
 
-              if (!pr.head?.sha || !latestStatefulReview.commit_id) {
-                return false
+              if (!pr.head?.sha) return false
+
+              if (lastReview.commit_id) {
+                return pr.head.sha !== lastReview.commit_id
               }
 
-              return pr.head.sha !== latestStatefulReview.commit_id
+              if (!lastReview.submitted_at || !pr.updated_at) return false
+
+              return Date.parse(pr.updated_at) > Date.parse(lastReview.submitted_at)
             }
 
             await ensureLabel(
               reviewLabel,
               '0075ca',
-              'New PR opened or new commits pushed after CHANGES_REQUESTED — pending Codex review',
+              'New PR opened or new commits pushed after the latest Codex review — pending Codex review',
             )
             await ensureLabel(
               changesLabel,
@@ -119,16 +139,10 @@ jobs:
               }
 
               if (context.payload.action === 'dismissed') {
-                if (await shouldFlag(pr)) {
-                  await addLabels(pr.number, [reviewLabel])
-                  await removeLabel(pr.number, changesLabel)
-                  core.notice(`PR #${pr.number} flagged for Codex review after dismissal.`)
-                  return
-                }
-
+                // Dismissed means the review is no longer active — always re-flag.
+                await addLabels(pr.number, [reviewLabel])
                 await removeLabel(pr.number, changesLabel)
-                await removeLabel(pr.number, reviewLabel)
-                core.notice(`PR #${pr.number} cleared review-state labels after dismissal.`)
+                core.notice(`PR #${pr.number} flagged for Codex review after dismissal.`)
                 return
               }
 
@@ -150,13 +164,34 @@ jobs:
                 core.notice(`Skipping PR #${pr.number} (base: ${pr.base?.ref || 'unknown'}).`)
                 continue
               }
-              const labels = (pr.labels || []).map(l => l.name)
-              const isNewPR = context.eventName === 'pull_request' && context.payload.action === 'opened'
-              if (isNewPR || await shouldFlag(pr)) {
-                if (!labels.includes(reviewLabel)) {
-                  await addLabels(pr.number, [reviewLabel])
-                }
+
+              const action = context.payload.action
+
+              if (pr.draft) {
+                const reason = context.eventName === 'pull_request' ? `${action}` : 'schedule'
+                core.notice(`Skipping PR #${pr.number} (${reason}): draft PR.`)
+                continue
+              }
+
+              // New PR, ready-for-review transition, reopen, or new commit pushed:
+              // always flag unconditionally.
+              if (
+                action === 'opened' ||
+                action === 'synchronize' ||
+                action === 'reopened' ||
+                action === 'ready_for_review'
+              ) {
+                await addLabels(pr.number, [reviewLabel])
                 await removeLabel(pr.number, changesLabel)
-                core.notice(`PR #${pr.number} flagged for Codex review.`)
+                core.notice(`PR #${pr.number} flagged for Codex review (${action}).`)
+                continue
+              }
+
+              // Schedule cron fallback: catch PRs stuck with changes-requested
+              // that have received new commits since the last review.
+              if (await shouldFlag(pr)) {
+                await addLabels(pr.number, [reviewLabel])
+                await removeLabel(pr.number, changesLabel)
+                core.notice(`PR #${pr.number} flagged for Codex review (schedule catch-up).`)
               }
             }

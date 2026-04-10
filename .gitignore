@@ -7,6 +7,8 @@ backend/bin/
 
 # Claude Code
 .claude/settings.local.json
+.claude/scheduled_tasks.lock
+.superpowers/
 
 # Frontend
 tachimint/node_modules/
@@ -29,6 +31,9 @@ extensions/tachigo-demo-sidepanel/*.local
 
 # pnpm
 .pnpm-store/
+
+# Local caches
+.gocache/
 
 # IDE
 .vscode/
