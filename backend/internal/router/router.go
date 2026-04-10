@@ -4,12 +4,19 @@ import (
 	"github.com/gin-gonic/gin"
 	swaggerFiles "github.com/swaggo/files"
 	ginSwagger "github.com/swaggo/gin-swagger"
+	"gorm.io/gorm"
 
+	"github.com/tachigo/tachigo/internal/config"
 	"github.com/tachigo/tachigo/internal/handlers"
 	"github.com/tachigo/tachigo/internal/middleware"
 	"github.com/tachigo/tachigo/internal/models"
 	"github.com/tachigo/tachigo/internal/services"
 )
+
+type InternalRouterConfig struct {
+	DB     *gorm.DB
+	Config *config.Config
+}
 
 func New(
 	authSvc *services.AuthService,
@@ -26,6 +33,7 @@ func New(
 	claimSvc *services.ClaimService,
 	agencyHandler *handlers.AgencyHandler,
 	allowedOrigins []string,
+	internalRouterConfig ...InternalRouterConfig,
 ) *gin.Engine {
 	r := gin.New()
 	r.Use(gin.Logger(), gin.Recovery())
@@ -159,6 +167,15 @@ func New(
 	dashboardAirdrop.Use(middleware.RequireRole(models.RoleAdmin, models.RoleStreamer, models.RoleAgency))
 	{
 		dashboardAirdrop.POST("/airdrop", airdropH.Airdrop)
+	}
+
+	if len(internalRouterConfig) > 0 && internalRouterConfig[0].DB != nil && internalRouterConfig[0].Config != nil {
+		internalPointsH := handlers.NewInternalPointsHandler(internalRouterConfig[0].DB)
+		internal := v1.Group("/internal/tachiya")
+		internal.Use(middleware.TachiyaInternalAuth(internalRouterConfig[0].Config))
+		{
+			internal.GET("/users/points/balance", internalPointsH.GetUserPointsBalance)
+		}
 	}
 
 	// ── Agency management ─────────────────────────────────────────────────

@@ -131,7 +131,23 @@ func main() {
 		allowedOrigins = strings.Split(originsEnv, ",")
 	}
 
-	r := router.New(authSvc, userSvc, addrSvc, extSvc, emailAuthSvc, watchSvc, channelConfigSvc, pointsSvc, airdropSvc, streamerSvc, agencySvc, claimSvc, agencyH, allowedOrigins)
+	r := router.New(
+		authSvc,
+		userSvc,
+		addrSvc,
+		extSvc,
+		emailAuthSvc,
+		watchSvc,
+		channelConfigSvc,
+		pointsSvc,
+		airdropSvc,
+		streamerSvc,
+		agencySvc,
+		claimSvc,
+		agencyH,
+		allowedOrigins,
+		router.InternalRouterConfig{DB: db, Config: cfg},
+	)
 
 	addr := ":" + cfg.Server.Port
 	log.Printf("server starting on %s (env=%s)", addr, cfg.Server.Env)
