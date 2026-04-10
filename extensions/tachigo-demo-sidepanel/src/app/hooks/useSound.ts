@@ -52,7 +52,6 @@ async function getReadyCtx(ctxRef: { current: AudioContext | null }): Promise<Au
   }
   return ctx;
 }
-
 // ── 3 Variant 礦石敲擊合成 ───────────────────────────────────
 const VARIANT_PARAMS = {
   light:    { pitchMult: 1.15, gainMult: 0.55, duration: 0.06, thumpGain: 0.15, sparkleGain: 0.00, noiseDecay: 0.05 },
@@ -137,10 +136,49 @@ function synthesizeMiningHit(ctx: AudioContext, variant: HitVariant = 'normal') 
   }
 }
 
+// ── 提領獎勵音效（金屬幣擊 + 上行確認 + shimmer 收尾）────────
+function synthesizeClaimReward(ctx: AudioContext) {
+  const now = ctx.currentTime;
+
+  // Layer 1: Metallic coin hit（triangle，快速衰減）
+  const osc1 = ctx.createOscillator(); const g1 = ctx.createGain();
+  osc1.type = 'triangle';
+  osc1.frequency.setValueAtTime(1400, now);
+  osc1.frequency.exponentialRampToValueAtTime(1100, now + 0.05);
+  g1.gain.setValueAtTime(0, now);
+  g1.gain.linearRampToValueAtTime(0.35, now + 0.003);
+  g1.gain.exponentialRampToValueAtTime(0.001, now + 0.09);
+  osc1.connect(g1); g1.connect(ctx.destination);
+  osc1.start(now); osc1.stop(now + 0.09);
+
+  // Layer 2: Upward confirmation tone（sine 滑音，上揚感）
+  const osc2 = ctx.createOscillator(); const g2 = ctx.createGain();
+  osc2.type = 'sine';
+  osc2.frequency.setValueAtTime(800, now + 0.02);
+  osc2.frequency.exponentialRampToValueAtTime(1400, now + 0.12);
+  g2.gain.setValueAtTime(0, now + 0.02);
+  g2.gain.linearRampToValueAtTime(0.22, now + 0.025);
+  g2.gain.exponentialRampToValueAtTime(0.001, now + 0.18);
+  osc2.connect(g2); g2.connect(ctx.destination);
+  osc2.start(now + 0.02); osc2.stop(now + 0.18);
+
+  // Layer 3: High shimmer tail（cyber retro 收尾）
+  const osc3 = ctx.createOscillator(); const g3 = ctx.createGain();
+  osc3.type = 'sine';
+  osc3.frequency.setValueAtTime(3200, now + 0.05);
+  osc3.frequency.linearRampToValueAtTime(3600, now + 0.18);
+  g3.gain.setValueAtTime(0, now + 0.05);
+  g3.gain.linearRampToValueAtTime(0.09, now + 0.055);
+  g3.gain.exponentialRampToValueAtTime(0.001, now + 0.22);
+  osc3.connect(g3); g3.connect(ctx.destination);
+  osc3.start(now + 0.05); osc3.stop(now + 0.22);
+}
+
 export function useSound() {
   const ctxRef     = useRef<AudioContext | null>(null);
   const bgTimerRef = useRef<ReturnType<typeof setTimeout> | null>(null);
   const bgStepRef  = useRef(0);
+  const bgSessionRef = useRef(0);
   const [bridgeStatus, setBridgeStatus] = useState<'ready' | 'unsupported'>('ready');
 
   const sendBridgeSound = useCallback(async (type: SoundType, variant?: HitVariant) => {
@@ -227,11 +265,20 @@ export function useSound() {
   // ── 背景音樂（原創 8-bit 冒險主題）──────────────────────
   const startBgMusic = useCallback(() => {
     if (bgTimerRef.current !== null) return;
+    const sessionId = bgSessionRef.current + 1;
+    bgSessionRef.current = sessionId;
     void (async () => {
       if (await sendBridgeSound('start-bg-music')) return;
       const ctx = await getReadyCtx(ctxRef);
+      if (bgSessionRef.current !== sessionId || bgTimerRef.current !== null) {
+        return;
+      }
 
       const playStep = () => {
+        if (bgSessionRef.current !== sessionId) {
+          return;
+        }
+
         const [freq, durMs] = BG_NOTES[bgStepRef.current % BG_NOTES.length];
         bgStepRef.current++;
 
@@ -254,6 +301,7 @@ export function useSound() {
   }, [sendBridgeSound]);
 
   const stopBgMusic = useCallback(() => {
+    bgSessionRef.current += 1;
     if (bgTimerRef.current !== null) {
       clearTimeout(bgTimerRef.current);
       bgTimerRef.current = null;
@@ -261,7 +309,15 @@ export function useSound() {
     void sendBridgeSound('stop-bg-music');
   }, [sendBridgeSound]);
 
+  // ── 提領音效（不走 bridge，直接本地合成）────────────────────
+  const playClaimSound = useCallback(() => {
+    void (async () => {
+      const ctx = await getReadyCtx(ctxRef);
+      synthesizeClaimReward(ctx);
+    })();
+  }, []);
+
   useEffect(() => () => stopBgMusic(), [stopBgMusic]);
 
-  return { playMiningClick, playRewardComplete, playMaxClicks, playToggleWatch, startBgMusic, stopBgMusic, bridgeStatus };
+  return { playMiningClick, playRewardComplete, playMaxClicks, playToggleWatch, startBgMusic, stopBgMusic, bridgeStatus, playClaimSound };
 }

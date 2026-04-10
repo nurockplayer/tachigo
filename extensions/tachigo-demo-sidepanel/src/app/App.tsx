@@ -13,6 +13,7 @@ import { LoadingScreen } from './components/LoadingScreen';
 import { LoginScreen } from './components/LoginScreen';
 import { LanguageSwitcher } from './components/LanguageSwitcher';
 import { MarioHUD } from './components/MarioHUD';
+import { ClaimPanel } from './components/ClaimPanel';
 
 export default function App() {
   const { i18n } = useTranslation()
@@ -30,6 +31,7 @@ export default function App() {
   const [isHydrated, setIsHydrated] = useState(false);
   const [screen, setScreen] = useState<DemoScreen>(defaultDemoState.screen);
   const [hudState, setHudState] = useState<HudDemoState>(defaultDemoState.hud);
+  const [tcgBalance, setTcgBalance] = useState(0);
 
   useEffect(() => {
     let isActive = true
@@ -84,6 +86,17 @@ export default function App() {
 
     return () => window.clearTimeout(persistTimer)
   }, [currentLanguage, hudState, isHydrated, screen])
+
+  const handleClaim = (cpcAmount: number) => {
+    const claimable = Math.max(0, Math.min(cpcAmount, hudState.points))
+    if (claimable === 0) {
+      return
+    }
+
+    const tcgGained = Number((claimable * 0.1).toFixed(2))
+    setHudState((s) => ({ ...s, points: s.points - claimable }))
+    setTcgBalance((t) => Number((t + tcgGained).toFixed(2)))
+  }
 
   const openPopupMode = () => {
     const popupUrl = globalThis.chrome?.runtime?.getURL('popup.html') ?? `${window.location.origin}/popup.html`
@@ -174,8 +187,15 @@ export default function App() {
           <LoginScreen onLogin={() => setScreen('loading')} />
         ) : screen === 'loading' ? (
           <LoadingScreen onComplete={() => setScreen('hud')} />
+        ) : screen === 'claim' ? (
+          <ClaimPanel
+              onBack={() => setScreen('hud')}
+              cpcBalance={hudState.points}
+              tcgBalance={tcgBalance}
+              onClaim={handleClaim}
+            />
         ) : (
-          <MarioHUD state={hudState} onStateChange={setHudState} />
+          <MarioHUD state={hudState} onStateChange={setHudState} onNavigate={(s) => setScreen(s)} />
         )}
       </div>
 
@@ -243,6 +263,23 @@ export default function App() {
             }}
           >
             HUD
+          </button>
+          <span style={{ fontSize: 10, color: 'rgba(100,100,140,0.3)', fontFamily: 'var(--pixel-font-family)' }}>·</span>
+          <button
+            onClick={() => setScreen('claim')}
+            style={{
+              padding: '4px 12px',
+              borderRadius: 4,
+              border: '1px solid rgba(255,255,255,0.1)',
+              background: screen === 'claim' ? 'rgba(200,168,73,0.15)' : 'transparent',
+              color: screen === 'claim' ? 'rgba(200,168,73,0.8)' : 'rgba(100,100,140,0.4)',
+              fontSize: 9,
+              fontFamily: 'var(--pixel-font-family)',
+              cursor: 'pointer',
+              letterSpacing: '0.08em',
+            }}
+          >
+            CLAIM
           </button>
           <span style={{ fontSize: 9, color: 'rgba(100,100,140,0.3)', fontFamily: 'var(--pixel-font-family)', marginLeft: 6 }}>
             320 × 600

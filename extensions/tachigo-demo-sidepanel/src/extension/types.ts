@@ -1,6 +1,6 @@
 import type { AppLanguage } from '../i18n'
 
-export type DemoScreen = 'login' | 'loading' | 'hud'
+export type DemoScreen = 'login' | 'loading' | 'hud' | 'claim'
 
 export interface HudDemoState {
   points: number
@@ -60,7 +60,7 @@ export function sanitizeDemoState(value: unknown): DemoState {
   }
 
   const candidate = value as Partial<DemoState>
-  const screen = candidate.screen === 'login' || candidate.screen === 'loading' || candidate.screen === 'hud'
+  const screen = candidate.screen === 'login' || candidate.screen === 'loading' || candidate.screen === 'hud' || candidate.screen === 'claim'
     ? candidate.screen
     : defaultDemoState.screen
 

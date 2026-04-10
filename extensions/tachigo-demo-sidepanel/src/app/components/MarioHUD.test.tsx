@@ -1,7 +1,7 @@
 import { render, screen } from '@testing-library/react'
 import { vi } from 'vitest'
 
-import '../../i18n'
+import i18n from '../../i18n'
 import { MarioHUD } from './MarioHUD'
 
 vi.mock('../hooks/useSound', () => ({
@@ -20,12 +20,18 @@ describe('MarioHUD bridge status', () => {
   it('shows a tab-audio warning when the content-script bridge is unavailable', () => {
     render(<MarioHUD />)
 
-    expect(screen.getByText('TAB AUDIO OFF')).toBeInTheDocument()
+    expect(screen.getByText(i18n.t('hud.tabAudioUnavailable'))).toBeInTheDocument()
   })
 
-  it('does not render a claim control in the current HUD layout', () => {
+  it('renders a claim control when navigation is available', () => {
     render(<MarioHUD onNavigate={vi.fn()} />)
 
-    expect(screen.queryByRole('button', { name: /claim/i })).not.toBeInTheDocument()
+    expect(screen.getByRole('button', { name: i18n.t('claim.title') })).toBeInTheDocument()
+  })
+
+  it('does not render a claim control when navigation is unavailable', () => {
+    render(<MarioHUD />)
+
+    expect(screen.queryByRole('button', { name: i18n.t('claim.title') })).not.toBeInTheDocument()
   })
 })
