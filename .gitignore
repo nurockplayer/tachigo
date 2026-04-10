@@ -47,3 +47,5 @@ extensions/tachigo-demo-sidepanel/*.local
 contracts/out/
 contracts/cache/
 contracts/lib/
+contracts/broadcast/
+contracts/.env
