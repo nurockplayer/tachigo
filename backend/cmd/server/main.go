@@ -10,11 +10,14 @@
 package main
 
 import (
+	"context"
 	"errors"
 	"log"
 	"os"
 	"strings"
+	"time"
 
+	"github.com/ethereum/go-ethereum/ethclient"
 	"github.com/jackc/pgx/v5/pgconn"
 	"github.com/joho/godotenv"
 
@@ -26,6 +29,8 @@ import (
 	"github.com/tachigo/tachigo/internal/router"
 	"github.com/tachigo/tachigo/internal/services"
 )
+
+const defaultSepoliaRPCURL = "https://ethereum-sepolia-rpc.publicnode.com"
 
 // @security BearerAuth
 func main() {
@@ -121,7 +126,19 @@ func main() {
 	streamerSvc := services.NewStreamerService(db, pointsSvc)
 	agencySvc := services.NewAgencyService(db)
 	airdropSvc := services.NewAirdropService(db, pointsSvc, channelConfigSvc)
-	claimSvc := services.NewClaimService(db)
+	// TODO: move Sepolia RPC URL into config.Contract.RPCEndpoint once config schema is extended.
+	var ethClient *ethclient.Client
+	if cfg.Contract.TachiContractAddress != "" && cfg.Contract.SepoliaSignerKey != "" {
+		var err error
+		dialCtx, dialCancel := context.WithTimeout(context.Background(), 10*time.Second)
+		defer dialCancel()
+		ethClient, err = ethclient.DialContext(dialCtx, defaultSepoliaRPCURL)
+		if err != nil {
+			log.Printf("warning: failed to connect Sepolia RPC: %v", err)
+			ethClient = nil
+		}
+	}
+	claimSvc := services.NewClaimService(db, cfg.Contract, ethClient)
 	agencyH := handlers.NewAgencyHandler(agencySvc, emailAuthSvc)
 
 	// CORS origins from env, default to localhost for dev
