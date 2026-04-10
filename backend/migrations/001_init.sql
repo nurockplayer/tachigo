@@ -4,6 +4,8 @@
 
 CREATE EXTENSION IF NOT EXISTS "pgcrypto";
 
+CREATE TYPE user_role AS ENUM ('viewer', 'streamer', 'admin');
+
 -- Users
 CREATE TABLE IF NOT EXISTS users (
     id            UUID         PRIMARY KEY DEFAULT gen_random_uuid(),
@@ -11,7 +13,7 @@ CREATE TABLE IF NOT EXISTS users (
     email         VARCHAR(255) UNIQUE,
     password_hash VARCHAR(255),
     avatar_url    TEXT,
-    role          VARCHAR(20)  NOT NULL DEFAULT 'viewer',
+    role          user_role    NOT NULL DEFAULT 'viewer',
     is_active     BOOLEAN      NOT NULL DEFAULT TRUE,
     created_at    TIMESTAMPTZ  NOT NULL DEFAULT NOW(),
     updated_at    TIMESTAMPTZ  NOT NULL DEFAULT NOW(),

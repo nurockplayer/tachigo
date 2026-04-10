@@ -23,6 +23,7 @@ func NewExtensionHandler(ext *services.ExtensionService) *ExtensionHandler {
 // @Success      200  {object}  Response{data=AuthResponse}
 // @Failure      400  {object}  Response
 // @Failure      401  {object}  Response
+// @Security
 // @Router       /extension/auth/login [post]
 func (h *ExtensionHandler) Login(c *gin.Context) {
 	var body struct {
@@ -38,6 +39,8 @@ func (h *ExtensionHandler) Login(c *gin.Context) {
 		switch err {
 		case services.ErrInvalidExtJWT:
 			unauthorized(c, "invalid extension JWT")
+		case services.ErrUserNotFound:
+			unauthorized(c, "tachigo account not found — please sign up at tachigo and link your Twitch account")
 		case services.ErrExtSecretMissing:
 			internal(c)
 		default:
@@ -58,6 +61,7 @@ func (h *ExtensionHandler) Login(c *gin.Context) {
 // @Success      200  {object}  Response{data=AuthResponse}
 // @Failure      400  {object}  Response
 // @Failure      401  {object}  Response
+// @Security
 // @Router       /extension/bits/complete [post]
 func (h *ExtensionHandler) BitsComplete(c *gin.Context) {
 	var body struct {

@@ -1,0 +1,362 @@
+package services
+
+import (
+	"errors"
+	"fmt"
+	"time"
+	"unicode/utf8"
+
+	"github.com/google/uuid"
+	"gorm.io/gorm"
+	"gorm.io/gorm/clause"
+
+	"github.com/tachigo/tachigo/internal/models"
+)
+
+var (
+	ErrInsufficientBalance = errors.New("insufficient spendable balance")
+	ErrLedgerNotFound      = errors.New("points ledger not found")
+	ErrInvalidPointsAmount = errors.New("amount must be greater than zero")
+	ErrInvalidSKU          = errors.New("sku length must be <= 255 characters")
+	ErrPointsDeltaOverflow = errors.New("points delta overflow")
+)
+
+type PointsCreditMeta struct {
+	SKU  *string
+	Note *string
+}
+
+// PointsBalance holds both balance views for a viewer in a channel.
+type PointsBalance struct {
+	CumulativeTotal  int64 `json:"cumulative_total"`
+	SpendableBalance int64 `json:"spendable_balance"`
+}
+
+// WatchStats holds a viewer's accumulated watch time in a channel.
+type WatchStats struct {
+	TotalWatchSeconds int64 `json:"total_watch_seconds"`
+}
+
+// BroadcastStats holds a streamer's broadcast time across four time windows.
+type BroadcastStats struct {
+	CurrentSessionSeconds int64 `json:"current_session_seconds"`
+	DailySeconds          int64 `json:"daily_seconds"`
+	MonthlySeconds        int64 `json:"monthly_seconds"`
+	YearlySeconds         int64 `json:"yearly_seconds"`
+}
+
+type PointsService struct {
+	db       *gorm.DB
+	watchSvc *WatchService
+}
+
+func NewPointsService(db *gorm.DB, watchSvc *WatchService) *PointsService {
+	return &PointsService{db: db, watchSvc: watchSvc}
+}
+
+// GetBalance wraps WatchService.GetBalance and returns a PointsBalance struct.
+// Returns zeroed balance if no ledger exists yet.
+func (s *PointsService) GetBalance(userID uuid.UUID, channelID string) (*PointsBalance, error) {
+	spendable, cumulative, err := s.watchSvc.GetBalance(userID, channelID)
+	if err != nil {
+		return nil, err
+	}
+	return &PointsBalance{
+		CumulativeTotal:  cumulative,
+		SpendableBalance: spendable,
+	}, nil
+}
+
+// ListTransactions returns the most recent 50 transactions for a viewer in a channel.
+func (s *PointsService) ListTransactions(userID uuid.UUID, channelID string) ([]models.PointsTransaction, error) {
+	var ledger models.PointsLedger
+	if err := s.db.Where("user_id = ? AND channel_id = ?", userID, channelID).First(&ledger).Error; err != nil {
+		if errors.Is(err, gorm.ErrRecordNotFound) {
+			return []models.PointsTransaction{}, nil
+		}
+		return nil, err
+	}
+
+	var txs []models.PointsTransaction
+	err := s.db.Where("ledger_id = ?", ledger.ID).
+		Order("created_at DESC, id DESC").
+		Limit(50).
+		Find(&txs).Error
+	return txs, err
+}
+
+// DeductPoints subtracts amount from spendable_balance only.
+// cumulative_total is never modified by a deduction.
+// Returns ErrInsufficientBalance if the current spendable balance is too low.
+func (s *PointsService) DeductPoints(userID uuid.UUID, channelID string, amount int64, note string) error {
+	if err := validatePositivePointsAmount(amount); err != nil {
+		return err
+	}
+
+	return s.db.Transaction(func(tx *gorm.DB) error {
+		var ledger models.PointsLedger
+		if err := tx.Clauses(clause.Locking{Strength: "UPDATE"}).
+			Where("user_id = ? AND channel_id = ?", userID, channelID).
+			First(&ledger).Error; err != nil {
+			if errors.Is(err, gorm.ErrRecordNotFound) {
+				return ErrInsufficientBalance
+			}
+			return err
+		}
+
+		if ledger.SpendableBalance < amount {
+			return ErrInsufficientBalance
+		}
+
+		newBalance := ledger.SpendableBalance - amount
+		if err := tx.Model(&ledger).Updates(map[string]interface{}{
+			"spendable_balance": newBalance,
+			"updated_at":        time.Now(),
+		}).Error; err != nil {
+			return err
+		}
+
+		notePtr := &note
+		txRecord := &models.PointsTransaction{
+			LedgerID:     ledger.ID,
+			Source:       models.TxSourceSpend,
+			Delta:        -amount,
+			BalanceAfter: newBalance,
+			Note:         notePtr,
+		}
+		return tx.Create(txRecord).Error
+	})
+}
+
+// AddPoints adds amount to both spendable_balance and cumulative_total.
+// Intended for use by AirdropService — Heartbeat points are handled by WatchService.Heartbeat.
+func (s *PointsService) AddPoints(userID uuid.UUID, channelID string, source models.TxSource, amount int64) error {
+	if err := validatePositivePointsAmount(amount); err != nil {
+		return err
+	}
+	return s.AddPointsWithMeta(userID, channelID, source, amount, PointsCreditMeta{})
+}
+
+func (s *PointsService) AddPointsWithMeta(
+	userID uuid.UUID,
+	channelID string,
+	source models.TxSource,
+	amount int64,
+	meta PointsCreditMeta,
+) error {
+	if err := validatePositivePointsAmount(amount); err != nil {
+		return err
+	}
+	if meta.SKU != nil && utf8.RuneCountInString(*meta.SKU) > 255 {
+		return ErrInvalidSKU
+	}
+	return s.db.Transaction(func(tx *gorm.DB) error {
+		return s.addPointsWithMeta(tx, userID, channelID, source, amount, meta)
+	})
+}
+
+func (s *PointsService) addPointsWithMeta(
+	tx *gorm.DB,
+	userID uuid.UUID,
+	channelID string,
+	source models.TxSource,
+	amount int64,
+	meta PointsCreditMeta,
+) error {
+	return s.addPointsWithMetaAt(tx, time.Now(), userID, channelID, source, amount, meta)
+}
+
+// addPointsWithMetaAt is like addPointsWithMeta but uses the caller-supplied
+// timestamp for both the ledger update and the transaction record's CreatedAt.
+// Use this when the caller needs the recorded time to match a pre-anchored
+// reference (e.g. the start of an airdrop attempt) rather than wall-clock now.
+func (s *PointsService) addPointsWithMetaAt(
+	tx *gorm.DB,
+	at time.Time,
+	userID uuid.UUID,
+	channelID string,
+	source models.TxSource,
+	amount int64,
+	meta PointsCreditMeta,
+) error {
+	ledgerID := newUUID()
+
+	if err := tx.Exec(`
+		INSERT INTO points_ledgers (id, user_id, channel_id, spendable_balance, cumulative_total, created_at, updated_at)
+		VALUES (?, ?, ?, ?, ?, ?, ?)
+		ON CONFLICT (user_id, channel_id) DO UPDATE SET
+			spendable_balance = points_ledgers.spendable_balance + EXCLUDED.spendable_balance,
+			cumulative_total  = points_ledgers.cumulative_total  + EXCLUDED.cumulative_total,
+			updated_at        = ?
+	`, ledgerID, userID, channelID, amount, amount, at, at, at).Error; err != nil {
+		return err
+	}
+
+	var ledger models.PointsLedger
+	if err := tx.Where("user_id = ? AND channel_id = ?", userID, channelID).First(&ledger).Error; err != nil {
+		return err
+	}
+
+	txRecord := &models.PointsTransaction{
+		LedgerID:     ledger.ID,
+		Source:       source,
+		Delta:        amount,
+		BalanceAfter: ledger.SpendableBalance,
+		SKU:          meta.SKU,
+		Note:         meta.Note,
+		CreatedAt:    at,
+	}
+	return tx.Create(txRecord).Error
+}
+
+func validatePositivePointsAmount(amount int64) error {
+	if amount <= 0 {
+		return ErrInvalidPointsAmount
+	}
+	return nil
+}
+
+// AddWatchTime accumulates observed seconds for a viewer in a channel.
+// Called after each successful Heartbeat.
+func (s *PointsService) AddWatchTime(userID uuid.UUID, channelID string, seconds int64) error {
+	return s.addWatchTime(s.db, userID, channelID, seconds)
+}
+
+func (s *PointsService) addWatchTime(db *gorm.DB, userID uuid.UUID, channelID string, seconds int64) error {
+	now := time.Now()
+	return db.Exec(`
+		INSERT INTO watch_time_stats (id, user_id, channel_id, total_watch_seconds, created_at, updated_at)
+		VALUES (?, ?, ?, ?, ?, ?)
+		ON CONFLICT (user_id, channel_id) DO UPDATE SET
+			total_watch_seconds = watch_time_stats.total_watch_seconds + EXCLUDED.total_watch_seconds,
+			updated_at          = ?
+	`, newUUID(), userID, channelID, seconds, now, now, now).Error
+}
+
+// GetWatchStats returns the total accumulated watch seconds for a viewer in a channel.
+func (s *PointsService) GetWatchStats(userID uuid.UUID, channelID string) (*WatchStats, error) {
+	var result struct {
+		TotalWatchSeconds int64
+	}
+	err := s.db.Raw(`
+		SELECT COALESCE(total_watch_seconds, 0) AS total_watch_seconds
+		FROM watch_time_stats
+		WHERE user_id = ? AND channel_id = ?
+	`, userID, channelID).Scan(&result).Error
+	if err != nil {
+		return nil, err
+	}
+	return &WatchStats{TotalWatchSeconds: result.TotalWatchSeconds}, nil
+}
+
+// AddBroadcastTime accumulates broadcast seconds for a streamer in a channel.
+// Called on each Heartbeat received, in sync with viewer AddWatchTime.
+// streamerID is resolved internally from channelID via auth_providers (Twitch provider_id = channelID).
+// If the channelID has no registered streamer, the call is a no-op.
+func (s *PointsService) AddBroadcastTime(channelID string, seconds int64) error {
+	return s.addBroadcastTime(s.db, channelID, seconds)
+}
+
+func (s *PointsService) addBroadcastTime(db *gorm.DB, channelID string, seconds int64) error {
+	var provider models.AuthProvider
+	if err := db.Where("provider = ? AND provider_id = ?", models.ProviderTwitch, channelID).
+		First(&provider).Error; err != nil {
+		if errors.Is(err, gorm.ErrRecordNotFound) {
+			return nil // streamer not registered yet — skip silently
+		}
+		return err
+	}
+	streamerID := provider.UserID
+
+	now := time.Now()
+	if err := db.Exec(`
+		INSERT INTO broadcast_time_stats (id, streamer_id, channel_id, total_broadcast_seconds, created_at, updated_at)
+		VALUES (?, ?, ?, ?, ?, ?)
+		ON CONFLICT (streamer_id, channel_id) DO UPDATE SET
+			total_broadcast_seconds = broadcast_time_stats.total_broadcast_seconds + EXCLUDED.total_broadcast_seconds,
+			updated_at              = ?
+	`, newUUID(), streamerID, channelID, seconds, now, now, now).Error; err != nil {
+		return err
+	}
+
+	log := &models.BroadcastTimeLog{
+		StreamerID: streamerID,
+		ChannelID:  channelID,
+		Seconds:    seconds,
+		RecordedAt: now,
+	}
+	return db.Create(log).Error
+}
+
+// AddHeartbeatTime atomically accumulates viewer watch time and broadcaster
+// broadcast time for a single heartbeat delta.
+func (s *PointsService) AddHeartbeatTime(userID uuid.UUID, channelID string, seconds int64) error {
+	return s.db.Transaction(func(tx *gorm.DB) error {
+		if err := s.addWatchTime(tx, userID, channelID, seconds); err != nil {
+			return err
+		}
+		if err := s.addBroadcastTime(tx, channelID, seconds); err != nil {
+			return err
+		}
+		return nil
+	})
+}
+
+// GetBroadcastStats returns broadcast time across four time windows for a streamer.
+// daily / monthly / yearly are derived from broadcast_time_logs (per-heartbeat increments).
+// current_session_seconds is approximated from active viewer watch_sessions in the channel.
+func (s *PointsService) GetBroadcastStats(streamerID uuid.UUID, channelID string) (*BroadcastStats, error) {
+	now := time.Now()
+
+	// current_session_seconds: sum of accumulated_seconds across all active viewer sessions
+	// in the channel — used as a proxy for the ongoing broadcast session duration.
+	var currentSession struct {
+		AccumulatedSeconds int64
+	}
+	if err := s.db.Raw(`
+		SELECT COALESCE(SUM(accumulated_seconds), 0) AS accumulated_seconds
+		FROM watch_sessions
+		WHERE channel_id = ? AND is_active = true
+	`, channelID).Scan(&currentSession).Error; err != nil {
+		return nil, fmt.Errorf("query current broadcast session seconds: %w", err)
+	}
+
+	startOfDay := time.Date(now.Year(), now.Month(), now.Day(), 0, 0, 0, 0, now.Location())
+	startOfMonth := time.Date(now.Year(), now.Month(), 1, 0, 0, 0, 0, now.Location())
+	startOfYear := time.Date(now.Year(), 1, 1, 0, 0, 0, 0, now.Location())
+
+	// Query broadcast_time_logs for accurate time-windowed totals.
+	logQuery := `
+		SELECT COALESCE(SUM(seconds), 0) AS total
+		FROM broadcast_time_logs
+		WHERE streamer_id = ? AND channel_id = ? AND recorded_at >= ?
+	`
+
+	fetch := func(label string, since time.Time) (int64, error) {
+		var r struct{ Total int64 }
+		if err := s.db.Raw(logQuery, streamerID, channelID, since).Scan(&r).Error; err != nil {
+			return 0, fmt.Errorf("query %s broadcast seconds: %w", label, err)
+		}
+		return r.Total, nil
+	}
+
+	dailySeconds, err := fetch("daily", startOfDay)
+	if err != nil {
+		return nil, err
+	}
+	monthlySeconds, err := fetch("monthly", startOfMonth)
+	if err != nil {
+		return nil, err
+	}
+	yearlySeconds, err := fetch("yearly", startOfYear)
+	if err != nil {
+		return nil, err
+	}
+
+	return &BroadcastStats{
+		CurrentSessionSeconds: currentSession.AccumulatedSeconds,
+		DailySeconds:          dailySeconds,
+		MonthlySeconds:        monthlySeconds,
+		YearlySeconds:         yearlySeconds,
+	}, nil
+}

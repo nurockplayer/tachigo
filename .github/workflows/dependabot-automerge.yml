@@ -20,9 +20,64 @@ jobs:
         with:
           github-token: ${{ secrets.GITHUB_TOKEN }}
 
-      # 安全性更新：直接 auto-merge
-      - name: Auto-merge security updates
-        if: contains(github.event.pull_request.labels.*.name, 'security')
+      - name: Decide auto-merge policy
+        id: policy
+        env:
+          LABELS: ${{ join(github.event.pull_request.labels.*.name, ',') }}
+          DEPENDENCY_TYPE: ${{ steps.meta.outputs.dependency-type }}
+          UPDATE_TYPE: ${{ steps.meta.outputs.update-type }}
+          DEPENDENCY_NAMES: ${{ steps.meta.outputs.dependency-names }}
+        run: |
+          auto_merge=false
+          reason="manual review required"
+
+          if [[ ",$LABELS," == *",security,"* ]]; then
+            auto_merge=true
+            reason="security update"
+          elif [[ ",$LABELS," == *",safe-to-automerge,"* ]]; then
+            auto_merge=true
+            reason="manual override label: safe-to-automerge"
+          elif [[ "$DEPENDENCY_TYPE" == "direct:development" ]] && \
+               [[ "$UPDATE_TYPE" == "version-update:semver-patch" || "$UPDATE_TYPE" == "version-update:semver-minor" ]] && \
+               [[ "$DEPENDENCY_NAMES" != *"typescript"* ]] && \
+               [[ "$DEPENDENCY_NAMES" != *"@types/"* ]] && \
+               [[ "$DEPENDENCY_NAMES" != *"vite"* ]] && \
+               [[ "$DEPENDENCY_NAMES" != *"react"* ]] && \
+               [[ "$DEPENDENCY_NAMES" != *"react-dom"* ]] && \
+               [[ "$DEPENDENCY_NAMES" != *"eslint"* ]]; then
+            auto_merge=true
+            reason="safe devDependency patch/minor update"
+          else
+            if [[ "$DEPENDENCY_TYPE" != "direct:development" ]]; then
+              reason="non-dev dependency"
+            elif [[ "$UPDATE_TYPE" != "version-update:semver-patch" && "$UPDATE_TYPE" != "version-update:semver-minor" ]]; then
+              reason="major or unsupported update type"
+            elif [[ "$DEPENDENCY_NAMES" == *"typescript"* ]]; then
+              reason="typescript update requires manual review"
+            elif [[ "$DEPENDENCY_NAMES" == *"@types/"* ]]; then
+              reason="@types/* update requires manual review"
+            elif [[ "$DEPENDENCY_NAMES" == *"vite"* ]]; then
+              reason="vite update requires manual review"
+            elif [[ "$DEPENDENCY_NAMES" == *"react"* || "$DEPENDENCY_NAMES" == *"react-dom"* ]]; then
+              reason="react runtime update requires manual review"
+            elif [[ "$DEPENDENCY_NAMES" == *"eslint"* ]]; then
+              reason="eslint/tooling update requires manual review"
+            fi
+          fi
+
+          echo "auto_merge=$auto_merge" >> "$GITHUB_OUTPUT"
+          echo "reason=$reason" >> "$GITHUB_OUTPUT"
+
+      - name: Print auto-merge decision
+        run: |
+          echo "dependency_type=${{ steps.meta.outputs.dependency-type }}"
+          echo "update_type=${{ steps.meta.outputs.update-type }}"
+          echo "dependency_names=${{ steps.meta.outputs.dependency-names }}"
+          echo "auto_merge=${{ steps.policy.outputs.auto_merge }}"
+          echo "reason=${{ steps.policy.outputs.reason }}"
+
+      - name: Enable auto-merge
+        if: steps.policy.outputs.auto_merge == 'true'
         run: |
           gh pr review --approve "$PR_URL"
           gh pr merge --auto --squash "$PR_URL"
@@ -30,20 +85,6 @@ jobs:
           GH_TOKEN: ${{ secrets.GITHUB_TOKEN }}
           PR_URL: ${{ github.event.pull_request.html_url }}
 
-      # devDependency patch/minor，但排除 typescript 和 @types/*
-      - name: Auto-merge devDependency patch/minor
-        if: |
-          !contains(github.event.pull_request.labels.*.name, 'security') &&
-          steps.meta.outputs.dependency-type == 'direct:development' &&
-          (steps.meta.outputs.update-type == 'version-update:semver-patch' ||
-           steps.meta.outputs.update-type == 'version-update:semver-minor') &&
-          !contains(steps.meta.outputs.dependency-names, 'typescript') &&
-          !contains(steps.meta.outputs.dependency-names, '@types/')
-        run: |
-          gh pr review --approve "$PR_URL"
-          gh pr merge --auto --squash "$PR_URL"
-        env:
-          GH_TOKEN: ${{ secrets.GITHUB_TOKEN }}
-          PR_URL: ${{ github.event.pull_request.html_url }}
-
-      # major update、production dependency、或敏感套件：不動，等人工處理
+      - name: Skip auto-merge
+        if: steps.policy.outputs.auto_merge != 'true'
+        run: echo "Skipping auto-merge: ${{ steps.policy.outputs.reason }}"

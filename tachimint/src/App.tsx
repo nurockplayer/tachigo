@@ -1,15 +1,28 @@
+import { useTranslation } from 'react-i18next'
 import { useTwitch } from './hooks/useTwitch'
 import { useBits } from './hooks/useBits'
+import { useHeartbeat } from './hooks/useHeartbeat'
+import { useClickBoost } from './hooks/useClickBoost'
 
 export default function App() {
-  const { context, jwt, products, bitsEnabled, authError } = useTwitch()
+  const { t } = useTranslation()
+  const { context, jwt, products, bitsEnabled, authError, backendReady } = useTwitch()
   const { buyWithBits, status, error } = useBits(jwt)
+  const isViewer = context?.role === 'viewer'
+  const { balance, gain, isAnimating, syncBalance } = useHeartbeat(context?.channelId, {
+    enabled: isViewer && backendReady,
+  })
+  const {
+    handleClick,
+    cooldownMs,
+    isAnimating: clickAnimating,
+    gain: clickGain,
+  } = useClickBoost(context?.channelId, isViewer && backendReady, syncBalance)
 
   if (!context) {
     return (
-      <div className="ext-loading">
+      <div className="ext-loading" role="status" aria-live="polite" aria-busy="true">
         <div className="ext-loading__spinner" />
-        <span>Connecting…</span>
       </div>
     )
   }
@@ -36,6 +49,37 @@ export default function App() {
       </header>
 
       <div className="ext-body">
+        <section className="ext-balance-wrap">
+          <div className={`ext-balance ${isAnimating ? 'ext-balance--bump' : ''}`}>
+            <span className="ext-balance__label">Points</span>
+            <strong className="ext-balance__value">{balance?.toLocaleString() ?? '—'}</strong>
+          </div>
+          {gain !== null && gain > 0 && (
+            <span className="ext-balance-gain">+{gain.toLocaleString()} {t('common.points')}</span>
+          )}
+        </section>
+
+        <section className="ext-mine">
+          <div className="ext-mine__wrap">
+            <button
+              className={`ext-mine__btn${cooldownMs > 0 ? ' ext-mine__btn--cooldown' : ''}`}
+              onClick={handleClick}
+              disabled={cooldownMs > 0 || !backendReady}
+              aria-label="Click to mine points"
+            >
+              ⛏
+            </button>
+            {clickGain !== null && clickGain > 0 && (
+              <span className={`ext-mine__gain${clickAnimating ? '' : ' ext-mine__gain--hidden'}`}>
+                +{clickGain}
+              </span>
+            )}
+          </div>
+          {cooldownMs > 0 && (
+            <span className="ext-mine__cooldown">{(cooldownMs / 1000).toFixed(1)}s</span>
+          )}
+        </section>
+
         {status === 'success' && (
           <div className="ext-success">
             <span className="ext-success__icon">✓</span>

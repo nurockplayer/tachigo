@@ -1,0 +1,30 @@
+{
+  "permissions": {
+    "allow": [
+      "Bash(git status:*)",
+      "Bash(git log:*)",
+      "Bash(git diff:*)",
+      "Bash(git show:*)",
+      "Bash(git branch:*)",
+      "Bash(git remote:*)",
+      "Bash(ls:*)",
+      "Bash(pwd:*)",
+      "Bash(echo:*)",
+      "Bash(cat:*)",
+      "Bash(head:*)",
+      "Bash(tail:*)",
+      "Bash(wc:*)",
+      "Bash(which:*)",
+      "Bash(whoami:*)",
+      "Bash(env:*)",
+      "Bash(printenv:*)",
+      "Bash(ps:*)",
+      "Bash(df:*)",
+      "Bash(du:*)",
+      "Bash(date:*)",
+      "Bash(uname:*)",
+      "Bash(go test:*)",
+      "Bash(go get:*)"
+    ]
+  }
+}

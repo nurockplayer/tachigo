@@ -6,7 +6,6 @@ import (
 	"fmt"
 
 	"github.com/golang-jwt/jwt/v5"
-	"github.com/google/uuid"
 	"gorm.io/gorm"
 
 	"github.com/tachigo/tachigo/internal/config"
@@ -14,17 +13,18 @@ import (
 )
 
 var (
-	ErrInvalidExtJWT      = errors.New("invalid extension JWT")
-	ErrInvalidReceipt     = errors.New("invalid transaction receipt")
-	ErrExtSecretMissing   = errors.New("TWITCH_EXTENSION_SECRET not configured")
+	ErrInvalidExtJWT    = errors.New("invalid extension JWT")
+	ErrInvalidReceipt   = errors.New("invalid transaction receipt")
+	ErrExtSecretMissing = errors.New("TWITCH_EXTENSION_SECRET not configured")
+	// ErrUserNotFound is defined in auth_service.go (same package).
 )
 
 // ExtensionClaims are the claims embedded in a Twitch Extension JWT.
 type ExtensionClaims struct {
-	OpaqueUserID string `json:"opaque_user_id"`
-	UserID       string `json:"user_id"`
-	ChannelID    string `json:"channel_id"`
-	Role         string `json:"role"`
+	ExtensionScopedUserID string `json:"opaque_user_id"`
+	UserID                string `json:"user_id"`
+	ChannelID             string `json:"channel_id"`
+	Role                  string `json:"role"`
 	jwt.RegisteredClaims
 }
 
@@ -99,50 +99,40 @@ func (s *ExtensionService) VerifyReceiptJWT(receiptStr string) (*ReceiptClaims, 
 	return claims, nil
 }
 
-// LoginWithExtension upserts a user based on their Twitch opaque/user ID and
-// issues a tachigo token pair.
+// LoginWithExtension looks up an existing tachigo account by Twitch user ID and
+// issues a tachigo token pair. The viewer must have already signed up on tachigo
+// and linked their Twitch account — this endpoint does not create new accounts.
+//
+// Returns ErrInvalidExtJWT if the JWT is invalid or the viewer has not authorized
+// the Extension (UserID is empty). Returns ErrUserNotFound if no tachigo account
+// is linked to the Twitch identity.
 func (s *ExtensionService) LoginWithExtension(extJWT string) (*models.User, *TokenPair, error) {
 	claims, err := s.VerifyExtJWT(extJWT)
 	if err != nil {
 		return nil, nil, err
 	}
 
-	twitchUserID := claims.UserID
-	if twitchUserID == "" {
-		twitchUserID = claims.OpaqueUserID
+	// Require the viewer to have authorized the Extension (shared their identity).
+	// ExtensionScopedUserID is always present in the Twitch JWT payload, but it is
+	// extension-scoped and not a stable Twitch account identifier.
+	if claims.UserID == "" {
+		return nil, nil, ErrInvalidExtJWT
 	}
 
-	// Find or create user by Twitch provider link.
+	// Find the tachigo account linked to this Twitch user ID.
 	var provider models.AuthProvider
-	err = s.db.Where("provider = ? AND provider_id = ?", models.ProviderTwitch, twitchUserID).
+	err = s.db.Where("provider = ? AND provider_id = ?", models.ProviderTwitch, claims.UserID).
 		First(&provider).Error
+	if errors.Is(err, gorm.ErrRecordNotFound) {
+		return nil, nil, ErrUserNotFound
+	}
+	if err != nil {
+		return nil, nil, err
+	}
 
 	var user models.User
-	if errors.Is(err, gorm.ErrRecordNotFound) {
-		// New user — create with a generated username.
-		generatedUsername := "twitch_" + twitchUserID
-		user = models.User{
-			ID:       uuid.New(),
-			Username: &generatedUsername,
-			Role:     models.RoleViewer,
-		}
-		if err := s.db.Create(&user).Error; err != nil {
-			return nil, nil, err
-		}
-		provider = models.AuthProvider{
-			UserID:     user.ID,
-			Provider:   models.ProviderTwitch,
-			ProviderID: twitchUserID,
-		}
-		if err := s.db.Create(&provider).Error; err != nil {
-			return nil, nil, err
-		}
-	} else if err != nil {
+	if err := s.db.First(&user, provider.UserID).Error; err != nil {
 		return nil, nil, err
-	} else {
-		if err := s.db.First(&user, provider.UserID).Error; err != nil {
-			return nil, nil, err
-		}
 	}
 
 	tokens, err := s.authSvc.issueTokenPair(&user)
@@ -153,7 +143,7 @@ func (s *ExtensionService) LoginWithExtension(extJWT string) (*models.User, *Tok
 }
 
 // CompleteBitsTransaction verifies the Extension JWT + receipt, then issues a
-// tachigo token pair for the viewer.
+// tachigo token pair for the already-linked viewer.
 func (s *ExtensionService) CompleteBitsTransaction(extJWT, receipt, sku string) (*models.User, *TokenPair, error) {
 	extClaims, err := s.VerifyExtJWT(extJWT)
 	if err != nil {

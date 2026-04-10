@@ -1,15 +1,52 @@
 import axios from 'axios'
+import type { AxiosError, AxiosRequestConfig } from 'axios'
 import type { TachigoToken } from '../types/twitch'
 
-const BASE_URL = import.meta.env.VITE_TACHIGO_API_URL ?? 'http://localhost:8080'
+const processEnv =
+  typeof globalThis === 'object' && 'process' in globalThis
+    ? (
+        globalThis as {
+          process?: {
+            env?: Record<string, string | undefined>
+          }
+        }
+      ).process?.env
+    : undefined
+
+const BASE_URL =
+  import.meta.env?.VITE_TACHIGO_API_URL ??
+  processEnv?.VITE_TACHIGO_API_URL ??
+  'http://localhost:8080'
 
 const client = axios.create({
   baseURL: BASE_URL,
   headers: { 'Content-Type': 'application/json' },
 })
 
+let extensionJwtForRecovery: string | null = null
+
+function extractAccessToken(payload: unknown): string | null {
+  if (!payload || typeof payload !== 'object') {
+    return null
+  }
+
+  // eslint-disable-next-line @typescript-eslint/no-explicit-any
+  const raw = payload as any
+  const nested = raw?.data?.tokens?.access_token
+  const direct = raw?.tokens?.access_token
+  return typeof nested === 'string' ? nested : typeof direct === 'string' ? direct : null
+}
+
 export function setAuthToken(token: string) {
   client.defaults.headers.common['Authorization'] = `Bearer ${token}`
+}
+
+export function clearAuthToken() {
+  delete client.defaults.headers.common['Authorization']
+}
+
+export function setExtensionJwtForRecovery(token: string | null) {
+  extensionJwtForRecovery = token
 }
 
 /**
@@ -36,4 +73,140 @@ export async function loginWithTwitchExtension(extensionJwt: string): Promise<Ta
     extension_jwt: extensionJwt,
   })
   return data
+}
+
+async function refreshAuthTokenFromExtensionJwt(): Promise<boolean> {
+  if (!extensionJwtForRecovery) {
+    return false
+  }
+
+  const loginResult = await loginWithTwitchExtension(extensionJwtForRecovery)
+  const accessToken = extractAccessToken(loginResult)
+  if (!accessToken) {
+    clearAuthToken()
+    return false
+  }
+
+  setAuthToken(accessToken)
+  return true
+}
+
+async function runWithAuthRecovery<T>(
+  execute: (config?: AxiosRequestConfig) => Promise<T>,
+  config?: AxiosRequestConfig,
+): Promise<T> {
+  try {
+    return await execute(config)
+  } catch (error) {
+    const status = (error as AxiosError)?.response?.status
+    if (status !== 401) {
+      throw error
+    }
+
+    const recovered = await refreshAuthTokenFromExtensionJwt()
+    if (!recovered) {
+      throw error
+    }
+
+    return execute(config)
+  }
+}
+
+interface HeartbeatResponse {
+  balance: number
+}
+
+function parsePointsEarnedFromPayload(payload: unknown): number | null {
+  if (!payload || typeof payload !== 'object') {
+    return null
+  }
+
+  // eslint-disable-next-line @typescript-eslint/no-explicit-any
+  const raw = payload as any
+  const direct = raw.points_earned
+  const nested = raw.data?.points_earned
+  const value = typeof direct === 'number' ? direct : typeof nested === 'number' ? nested : null
+  return value
+}
+
+function parseBalanceFromPayload(payload: unknown): number {
+  if (!payload || typeof payload !== 'object') {
+    throw new Error('Invalid balance response')
+  }
+
+  // eslint-disable-next-line @typescript-eslint/no-explicit-any
+  const raw = payload as any
+  const direct = raw.balance
+  const nested = raw.data?.balance
+  const legacy = raw.points_balance
+  const spendable = raw.spendable_balance
+  const nestedSpendable = raw.data?.spendable_balance
+
+  const value = [direct, nested, legacy, spendable, nestedSpendable].find(
+    (candidate) => typeof candidate === 'number',
+  )
+  if (typeof value !== 'number') {
+    throw new Error('Balance response missing balance')
+  }
+
+  return value
+}
+
+interface ClickResponse {
+  balance: number
+  delta: number
+}
+
+async function ensureWatchSession(channelId: string) {
+  await runWithAuthRecovery((config) => client.post('/api/v1/extension/watch/start', { channel_id: channelId }, config))
+}
+
+async function getWatchBalance(channelId: string): Promise<number> {
+  const { data } = await runWithAuthRecovery((config) => client.get('/api/v1/extension/watch/balance', {
+    ...config,
+    params: { channel_id: channelId },
+  }))
+
+  return parseBalanceFromPayload(data)
+}
+
+export async function sendClick(channelId: string): Promise<ClickResponse> {
+  await ensureWatchSession(channelId)
+
+  const { data } = await runWithAuthRecovery((config) =>
+    client.post<{ success: boolean; data: ClickResponse }>(
+      '/api/v1/extension/watch/click',
+      { channel_id: channelId },
+      config,
+    ))
+  return data.data
+}
+
+export async function sendHeartbeat(
+  channelId: string,
+  previousBalance?: number | null,
+): Promise<HeartbeatResponse> {
+  await ensureWatchSession(channelId)
+
+  const heartbeatResponse = await runWithAuthRecovery((config) =>
+    client.post('/api/v1/extension/watch/heartbeat', {
+      channel_id: channelId,
+    }, config))
+
+  try {
+    return {
+      balance: await getWatchBalance(channelId),
+    }
+  } catch {
+    const pointsEarned = parsePointsEarnedFromPayload(heartbeatResponse.data)
+    if (typeof previousBalance === 'number') {
+      return {
+        balance: previousBalance + Math.max(pointsEarned ?? 0, 0),
+      }
+    }
+
+    return {
+      balance: Math.max(pointsEarned ?? 0, 0),
+    }
+  }
 }

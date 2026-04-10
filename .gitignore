@@ -5,8 +5,10 @@ backend/.env.*
 backend/tmp/
 backend/bin/
 
-# Claude Code (personal settings)
-.claude/
+# Claude Code
+.claude/settings.local.json
+.claude/scheduled_tasks.lock
+.superpowers/
 
 # Frontend
 tachimint/node_modules/
@@ -15,6 +17,24 @@ tachimint/.env
 tachimint/.env.local
 tachimint/*.local
 
+dashboard/node_modules/
+dashboard/dist/
+dashboard/.env
+dashboard/.env.local
+dashboard/*.local
+
+extensions/tachigo-demo-sidepanel/node_modules/
+extensions/tachigo-demo-sidepanel/dist/
+extensions/tachigo-demo-sidepanel/.env
+extensions/tachigo-demo-sidepanel/.env.local
+extensions/tachigo-demo-sidepanel/*.local
+
+# pnpm
+.pnpm-store/
+
+# Local caches
+.gocache/
+
 # IDE
 .vscode/
 .idea/
@@ -22,3 +42,8 @@ tachimint/*.local
 
 # OS
 .DS_Store
+
+# Foundry
+contracts/out/
+contracts/cache/
+contracts/lib/

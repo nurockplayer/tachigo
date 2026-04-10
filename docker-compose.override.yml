@@ -14,5 +14,17 @@ services:
   postgres:
     restart: "no"
 
+  dashboard:
+    build: ./dashboard
+    ports:
+      - "5174:5174"
+    volumes:
+      - ./dashboard/src:/app/src
+      - ./dashboard/index.html:/app/index.html
+      - /app/node_modules
+    depends_on:
+      - app
+    restart: "no"
+
 volumes:
   go_mod_cache:

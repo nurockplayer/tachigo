@@ -1,59 +1,59 @@
 # 系統整體架構
 
 ```
-┌─────────────────────────────────────────────────────────────────────┐
-│                            用戶端                                    │
-│                                                                      │
-│  ┌─────────────────┐   ┌──────────────────┐   ┌─────────────────┐  │
-│  │ Twitch Extension│   │   後台管理 (TBD)  │   │  觀眾錢包       │  │
-│  │   (tachimint)   │   │ 經紀公司/實況主   │   │  (Phase 2)      │  │
-│  │ React+TypeScript│   │                  │   │  Claim 上鏈     │  │
-│  └────────┬────────┘   └────────┬─────────┘   └───────┬─────────┘  │
+┌────────────────────────────────────────────────────────────────────┐
+│                           CLIENT LAYER                             │
+│                                                                    │
+│  ┌──────────────────┐  ┌──────────────────┐  ┌──────────────────┐  │
+│  │ Twitch Extension │  │  Dashboard [TBD] │  │  Wallet [Phs.2]  │  │
+│  │   (tachimint)    │  │  Agency/Streamer │  │  Claim on-chain  │  │
+│  │ React+TypeScript │  │  Mgmt Interface  │  │                  │  │
+│  └────────┬─────────┘  └────────┬─────────┘  └────────┬─────────┘  │
 └───────────┼─────────────────────┼─────────────────────┼────────────┘
-            │ Bits + JWT          │ 管理設定             │ Claim
-            ▼                     ▼                      ▼
-┌─────────────────────────────────────────────────────────────────────┐
-│                        後端 (Go + Gin)                               │
+            │ Heartbeat + JWT     │ Admin API           │ Claim
+            v                     v                     v
+┌──────────────────────────────────────────────────────────────────────┐
+│                        BACKEND  (Go + Gin)                           │
 │                                                                      │
-│  ┌──────────────┐  ┌──────────────┐  ┌────────────┐  ┌──────────┐  │
-│  │ Auth Service │  │  Extension   │  │  Points    │  │ Agency   │  │
-│  │ ✅ 已完成    │  │  Service     │  │  Service   │  │ Service  │  │
-│  │ Twitch/Google│  │  ✅ 已完成   │  │  🟡 TBD    │  │ 🟡 TBD  │  │
-│  │ Web3/SIWE    │  │  Bits驗證    │  │  雙帳本    │  │ 經紀公司 │  │
-│  │ Email        │  │  JWT驗證     │  │            │  │ 實況主   │  │
-│  └──────┬───────┘  └──────┬───────┘  └─────┬──────┘  └────┬─────┘  │
+│  ┌──────────────┐  ┌──────────────┐  ┌──────────────┐  ┌─────────┐   │
+│  │ AuthService  │  │  Extension   │  │   Points     │  │ Agency  │   │
+│  │ [done]       │  │  Service     │  │   Service    │  │ Service │   │
+│  │ Twitch/Google│  │  [done]      │  │   [TBD]      │  │ [TBD]   │   │
+│  │ Web3/SIWE    │  │  Watch verify│  │   dual ledger│  │ agency  │   │
+│  │ Email        │  │  JWT verify  │  │              │  │ stream  │   │
+│  └──────┬───────┘  └──────┬───────┘  └──────┬───────┘  └────┬────┘   │
 │         │                 │                 │               │        │
-│  ┌──────┴────────────────────────────────────────────────────────┐  │
-│  │              Sink Services (🟡 全部 TBD)                      │  │
-│  │   Store/Saleor (#15)    Voting/Gambling (#17)    Avatar       │  │
-│  └───────────────────────────────────────────────────────────────┘  │
-└──────────────────────────────┬──────────────────────────────────────┘
-                               │
-            ┌──────────────────┼──────────────────┐
-            ▼                  ▼                   ▼
-┌───────────────────┐  ┌───────────────┐  ┌──────────────────────────┐
-│   PostgreSQL      │  │ Sepolia (TBD) │  │   Token Sink 邏輯        │
-│                   │  │               │  │                          │
-│ ✅ users          │  │ Factory       │  │ 商城折扣                 │
-│ ✅ auth_providers │  │  └─ Agency    │  │  實況主代幣折抵          │
-│ ✅ refresh_tokens │  │     Token ×N  │  │                          │
-│ 🟡 points_ledger  │  │ Soulbound     │  │ 虛擬換裝                 │
-│    cumulative     │  │ ERC-20        │  │  平台幣消耗              │
-│    spendable      │  │ (Foundry +    │  │                          │
-│ 🟡 agencies       │  │  OpenZeppelin)│  │ 投票 / 賭博 (#17)        │
-│ 🟡 transactions   │  │               │  │  鏈下扣餘額              │
-└───────────────────┘  └───────────────┘  │                          │
-                                           │ 私人直播票 (Phase 2+)    │
-                                           └──────────────────────────┘
+│  ┌──────┴─────────────────┴─────────────────┴───────────────┴────┐   │
+│  │                    Sink Services  [TBD]                       │.  │
+│  │          Store/Saleor (#15)   Gambling (#17)   Avatar         │   │
+│  └───────────────────────────────────────────────────────────────┘.  │
+└────────────────────────────────┬─────────────────────────────────────┘
+                                 │
+              ┌──────────────────┼──────────────────┐
+              v                  v                   v
+┌──────────────────────┐  ┌──────────────┐  ┌────────────────────────┐
+│      PostgreSQL      │  │   Sepolia    │  │    Token Sink Logic    │
+│                      │  │   [TBD]      │  │                        │
+│  [done] users        │  │              │  │  Store discount        │
+│  [done] auth_provid. │  │  Factory     │  │    token deduction     │
+│  [done] refresh_tok. │  │   └─ Agency  │  │                        │
+│  [TBD]  points_ledger│  │      Token×N │  │  Avatar customization  │
+│           cumulative │  │  Soulbound   │  │    platform token burn │
+│           spendable  │  │  ERC-20      │  │                        │
+│  [TBD]  agencies     │  │  Foundry +   │  │  Voting/Gambling (#17) │
+│  [TBD]  transactions │  │  OpenZeppelin│  │    off-chain balance   │
+└──────────────────────┘  └──────────────┘  │                        │
+                                            │  Private stream [Phs2] │
+                                            └────────────────────────┘
 
-✅ = 已完成    🟡 = MVP 待實作    灰色 = Phase 2+
+[done] = 已完成    [TBD] = MVP 待實作    [Phs.2] = Phase 2+
 ```
 
 ## 主要資料流
 
 ```
-觀眾花 Bits
-  → Extension 驗證 receipt
+觀眾觀看直播（定時 Heartbeat）
+  → Extension 回報在線狀態
   → points_ledger: spendable_balance ↑  cumulative_total ↑
 
 觀眾用 Token Sink
@@ -62,6 +62,34 @@
 Phase 2: 觀眾 Claim
   → 鏈下餘額 → Soulbound ERC-20 mint
 ```
+
+## 與 Tachiya 的串接
+
+### 串接流程
+
+```
+Twitch 觀眾
+  → tachigo extension（累積 token）
+  → tachigo go backend（驗證 token）
+  → tachiya FastAPI（銷毀 token，產生折扣碼）
+  → Saleor（套用折扣碼結帳）
+```
+
+### 三服務拆法（決策）
+
+Go（tachigo）、FastAPI（tachiya api/）、Saleor 三者維持獨立，不整合。
+
+| 服務 | 職責 |
+|------|------|
+| **Go（tachigo）** | Twitch 身份、忠誠點數、token 發放——自建會員系統 |
+| **FastAPI（tachiya api/）** | Saleor 的自訂邏輯出口（折扣計算、分潤、webhook 處理） |
+| **Saleor** | 電商核心（購物車、訂單、結帳） |
+
+**會員系統不衝突**：Saleor Account 只管「能結帳的帳號」，Go 會員系統管忠誠點數與 Twitch 身份，兩者用 Saleor customer ID 關聯。
+
+**為什麼不把 FastAPI 邏輯併入 Go**：FastAPI 是保護層，沒有它未來要自訂 Saleor 邏輯只能 fork。等 FastAPI 真的只剩一兩支 API 時再評估是否併入。
+
+---
 
 ## 相關 Issues
 

@@ -8,17 +8,18 @@ Viewers spend Bits to earn on-chain tokens; streamers manage rewards from the da
 ```
 tachigo/
 ├── backend/      # Go API (Gin + GORM + PostgreSQL)
-└── tachimint/    # Twitch Extension frontend (React + TypeScript + Vite)
+├── tachimint/    # Twitch Extension frontend (React + TypeScript + Vite)
+└── dashboard/    # Admin dashboard (React + TypeScript + Vite)
 ```
 
 ## Quick start
 
-**Prerequisites:** Docker, Docker Compose, Make
+**Prerequisites:** Docker, Docker Compose
 
 ```bash
 git clone <repo>
 cd tachigo
-make dev          # copies .env files and starts all services with hot reload
+docker compose up --build
 ```
 
 | Service  | URL                                      |
@@ -28,17 +29,25 @@ make dev          # copies .env files and starts all services with hot reload
 | Frontend | http://localhost:5173                    |
 | Postgres | localhost:5433                           |
 
-On first clone, `make dev` copies `.env.example` to `.env` automatically.
+If you want local `.env` files, copy the examples first. Docker Compose can still start without them because the env files are optional.
 Fill in the secrets in `backend/.env` before using OAuth or Twitch Extension features.
+
+On Windows PowerShell, you can generate the local env files with:
+
+```powershell
+./scripts/setup-env.ps1
+```
 
 ## Development
 
 ```bash
-make dev          # start all services (foreground — see logs)
-make up           # start in background
-make down         # stop all services
-make logs         # tail all logs
+docker compose up --build     # start all services (foreground — see logs)
+docker compose up -d --build  # start in background
+docker compose down           # stop all services
+docker compose logs -f        # tail all logs
 ```
+
+`make` is still available as a convenience on macOS/Linux, but it is not required.
 
 ### Backend (`backend/`)
 
@@ -67,6 +76,13 @@ Copy the examples and fill in your secrets:
 ```bash
 cp backend/.env.example backend/.env
 cp tachimint/.env.example tachimint/.env
+cp dashboard/.env.example dashboard/.env
+```
+
+Windows PowerShell:
+
+```powershell
+./scripts/setup-env.ps1
 ```
 
 Key backend variables:
@@ -85,9 +101,22 @@ Key backend variables:
 
 See [docs/architecture.md](docs/architecture.md) for the full system diagram.
 
+## Documentation
+
+- [docs/architecture.md](docs/architecture.md) — system architecture
+- [docs/claude-codex-cheatsheet.md](docs/claude-codex-cheatsheet.md) — quick reference for Claude Code + Codex collaboration
+- [docs/claude-codex-workflow.md](docs/claude-codex-workflow.md) — full workflow guide for low-token Claude Code usage
+- [docs/pr-scope-policy.md](docs/pr-scope-policy.md) — PR 邊界規則、required checks、scope police 設定
+- [CLAUDE.md](CLAUDE.md) — repo-specific collaboration rules and command entry points
+
 ## CI
 
-GitHub Actions runs on every push/PR to `main`:
+GitHub Actions 目前分兩段：
+
+- `PR Scope Police` 先檢查 PR 邊界；超大包或跨 scope PR 會先被擋下
+- `CI` 會直接出現在 PR 上，但會先經過輕量 `Scope gate`；只有 scope 合格才會跑 backend / frontend / dashboard 的重型 job
+
+在受保護分支上的 CI：
 
 - **Backend tests** — `go test ./...` inside the dev Docker image
 - **Frontend build** — `npm run build` inside the frontend Docker image

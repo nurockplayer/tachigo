@@ -88,6 +88,107 @@ func migrateTestDB(db *gorm.DB) error {
 			expires_at DATETIME NOT NULL,
 			created_at DATETIME
 		)`,
+		`CREATE TABLE IF NOT EXISTS channel_configs (
+			channel_id TEXT PRIMARY KEY,
+			seconds_per_point INTEGER NOT NULL DEFAULT 60,
+			multiplier INTEGER NOT NULL DEFAULT 1,
+			daily_airdrop_limit INTEGER NOT NULL DEFAULT 5000,
+			created_at DATETIME,
+			updated_at DATETIME
+		)`,
+		`CREATE TABLE IF NOT EXISTS agency_streamers (
+			id TEXT PRIMARY KEY,
+			agency_id TEXT NOT NULL,
+			channel_id TEXT NOT NULL,
+			created_at DATETIME,
+			UNIQUE (agency_id, channel_id)
+		)`,
+		`CREATE TABLE IF NOT EXISTS streamers (
+			id TEXT PRIMARY KEY,
+			user_id TEXT NOT NULL REFERENCES users(id),
+			agency_user_id TEXT REFERENCES users(id),
+			channel_id TEXT NOT NULL,
+			display_name TEXT,
+			created_at DATETIME,
+			updated_at DATETIME
+		)`,
+		`CREATE UNIQUE INDEX IF NOT EXISTS idx_streamers_user_channel
+			ON streamers (user_id, channel_id)`,
+		`CREATE INDEX IF NOT EXISTS idx_streamers_agency_user_id
+			ON streamers (agency_user_id)`,
+		`CREATE TABLE IF NOT EXISTS watch_sessions (
+			id TEXT PRIMARY KEY,
+			user_id TEXT NOT NULL REFERENCES users(id),
+			channel_id TEXT NOT NULL,
+			accumulated_seconds INTEGER NOT NULL DEFAULT 0,
+			rewarded_seconds INTEGER NOT NULL DEFAULT 0,
+			last_heartbeat_at DATETIME NOT NULL DEFAULT CURRENT_TIMESTAMP,
+			click_cooldown_until DATETIME NOT NULL DEFAULT '1970-01-01 00:00:00',
+			is_active INTEGER NOT NULL DEFAULT 1,
+			ended_at DATETIME,
+			created_at DATETIME NOT NULL DEFAULT CURRENT_TIMESTAMP,
+			updated_at DATETIME NOT NULL DEFAULT CURRENT_TIMESTAMP
+		)`,
+		`CREATE UNIQUE INDEX IF NOT EXISTS idx_watch_sessions_active_user_channel
+			ON watch_sessions (user_id, channel_id)
+			WHERE is_active = 1`,
+		`CREATE TABLE IF NOT EXISTS points_ledgers (
+			id TEXT PRIMARY KEY,
+			user_id TEXT NOT NULL REFERENCES users(id),
+			channel_id TEXT NOT NULL,
+			cumulative_total INTEGER NOT NULL DEFAULT 0,
+			spendable_balance INTEGER NOT NULL DEFAULT 0,
+			created_at DATETIME NOT NULL DEFAULT CURRENT_TIMESTAMP,
+			updated_at DATETIME NOT NULL DEFAULT CURRENT_TIMESTAMP
+		)`,
+		`CREATE UNIQUE INDEX IF NOT EXISTS idx_points_ledgers_user_channel
+			ON points_ledgers (user_id, channel_id)`,
+		`CREATE TABLE IF NOT EXISTS points_transactions (
+			id TEXT PRIMARY KEY,
+			ledger_id TEXT NOT NULL REFERENCES points_ledgers(id),
+			watch_session_id TEXT,
+			source TEXT NOT NULL,
+			delta INTEGER NOT NULL,
+			balance_after INTEGER NOT NULL,
+			sku TEXT,
+			note TEXT,
+			created_at DATETIME NOT NULL DEFAULT CURRENT_TIMESTAMP
+		)`,
+		`CREATE TABLE IF NOT EXISTS watch_time_stats (
+			id TEXT PRIMARY KEY,
+			user_id TEXT NOT NULL REFERENCES users(id),
+			channel_id TEXT NOT NULL,
+			total_watch_seconds INTEGER NOT NULL DEFAULT 0,
+			created_at DATETIME NOT NULL DEFAULT CURRENT_TIMESTAMP,
+			updated_at DATETIME NOT NULL DEFAULT CURRENT_TIMESTAMP
+		)`,
+		`CREATE UNIQUE INDEX IF NOT EXISTS idx_watch_time_user_channel
+			ON watch_time_stats (user_id, channel_id)`,
+		`CREATE TABLE IF NOT EXISTS broadcast_time_stats (
+			id TEXT PRIMARY KEY,
+			streamer_id TEXT NOT NULL,
+			channel_id TEXT NOT NULL,
+			total_broadcast_seconds INTEGER NOT NULL DEFAULT 0,
+			created_at DATETIME NOT NULL DEFAULT CURRENT_TIMESTAMP,
+			updated_at DATETIME NOT NULL DEFAULT CURRENT_TIMESTAMP
+		)`,
+		`CREATE UNIQUE INDEX IF NOT EXISTS idx_broadcast_time_streamer_channel
+			ON broadcast_time_stats (streamer_id, channel_id)`,
+		`CREATE TABLE IF NOT EXISTS broadcast_time_logs (
+			id TEXT PRIMARY KEY,
+			streamer_id TEXT NOT NULL,
+			channel_id TEXT NOT NULL,
+			seconds INTEGER NOT NULL,
+			recorded_at DATETIME NOT NULL
+		)`,
+		`CREATE TABLE IF NOT EXISTS tachi_balances (
+			id TEXT PRIMARY KEY,
+			user_id TEXT NOT NULL REFERENCES users(id) ON DELETE CASCADE,
+			balance INTEGER NOT NULL DEFAULT 0,
+			updated_at DATETIME NOT NULL DEFAULT CURRENT_TIMESTAMP,
+			UNIQUE (user_id),
+			CHECK (balance >= 0)
+		)`,
 	}
 	for _, s := range stmts {
 		if err := db.Exec(s).Error; err != nil {
@@ -126,6 +227,9 @@ func newTestEnv(t *testing.T) *testEnv {
 	})
 	if err != nil {
 		t.Fatalf("open db: %v", err)
+	}
+	if err := db.Exec("PRAGMA foreign_keys = ON").Error; err != nil {
+		t.Fatalf("enable foreign keys: %v", err)
 	}
 	if err := migrateTestDB(db); err != nil {
 		t.Fatalf("migrate db: %v", err)

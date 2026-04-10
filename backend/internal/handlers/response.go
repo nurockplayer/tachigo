@@ -36,6 +36,10 @@ func notFound(c *gin.Context, msg string) {
 	c.JSON(http.StatusNotFound, Response{Success: false, Error: msg})
 }
 
+func unprocessableEntity(c *gin.Context, msg string) {
+	c.JSON(http.StatusUnprocessableEntity, Response{Success: false, Error: msg})
+}
+
 func internal(c *gin.Context) {
 	c.JSON(http.StatusInternalServerError, Response{Success: false, Error: "internal server error"})
 }
