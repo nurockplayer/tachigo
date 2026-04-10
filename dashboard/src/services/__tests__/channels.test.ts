@@ -14,44 +14,53 @@ describe('channels service', () => {
   })
 
   it('對 streamerId 做 URL encoding 後再查詢 stats', async () => {
+    const stats = {
+      current_session_seconds: 0,
+      daily_seconds: 0,
+      monthly_seconds: 0,
+      yearly_seconds: 0,
+      unique_miners: 0,
+      avg_session_seconds: 0,
+      total_token_minted: 0,
+      spendable_in_circulation: 0,
+    }
+
     vi.mocked(client.get).mockResolvedValue({
       data: {
         data: {
-          stats: {
-            current_session_seconds: 0,
-            daily_seconds: 0,
-            monthly_seconds: 0,
-            yearly_seconds: 0,
-            unique_miners: 0,
-            avg_session_seconds: 0,
-            total_token_minted: 0,
-            spendable_in_circulation: 0,
-          },
+          stats,
           channel_id: 'channel-1',
         },
       },
     })
 
-    await getStreamerStats('streamer/id')
+    const result = await getStreamerStats('streamer/id')
 
     expect(client.get).toHaveBeenCalledWith('/api/v1/dashboard/streamers/streamer%2Fid/stats')
+    expect(result).toEqual({
+      stats,
+      channelId: 'channel-1',
+    })
   })
 
   it('對 channelId 做 URL encoding 後再查詢 config', async () => {
+    const config = {
+      channel_id: 'channel/1',
+      seconds_per_point: 60,
+      multiplier: 2,
+    }
+
     vi.mocked(client.get).mockResolvedValue({
       data: {
         data: {
-          config: {
-            channel_id: 'channel/1',
-            seconds_per_point: 60,
-            multiplier: 2,
-          },
+          config,
         },
       },
     })
 
-    await getChannelConfig('channel/1')
+    const result = await getChannelConfig('channel/1')
 
     expect(client.get).toHaveBeenCalledWith('/api/v1/dashboard/channels/channel%2F1/config')
+    expect(result).toEqual(config)
   })
 })
