@@ -23,9 +23,9 @@ describe('MarioHUD bridge status', () => {
     expect(screen.getByText(i18n.t('hud.tabAudioUnavailable'))).toBeInTheDocument()
   })
 
-  it('does not render a claim control in the current HUD layout', () => {
+  it('renders a claim control when navigation is available', () => {
     render(<MarioHUD onNavigate={vi.fn()} />)
 
-    expect(screen.queryByRole('button', { name: /claim/i })).not.toBeInTheDocument()
+    expect(screen.getByRole('button', { name: /claim/i })).toBeInTheDocument()
   })
 })

@@ -253,7 +253,7 @@ function ClickableCapybara({
 }
 
 // ─── Spinning Coin (CLAIM button) ────────────────────────────
-function SpinningCoin({ onClick }: { onClick: () => void }) {
+function SpinningCoin({ onClick, ariaLabel }: { onClick: () => void; ariaLabel: string }) {
   // 8 幀：3 幀正面（延長正面停留）
   const FRAME_HWS   = [1, 6, 14, 20, 20, 20, 14, 6]
   // 圓形輪廓：10 列掃描半寬（依圓方程式計算，max=20）
@@ -272,6 +272,7 @@ function SpinningCoin({ onClick }: { onClick: () => void }) {
 
   return (
     <button
+      aria-label={ariaLabel}
       onClick={onClick}
       style={{
         background: 'none',
@@ -358,7 +359,7 @@ interface MarioHUDProps {
 
 export function MarioHUD({ state, onStateChange, onNavigate }: MarioHUDProps) {
   const { t } = useTranslation()
-  const { playMiningClick, playRewardComplete, playMaxClicks, playToggleWatch, startBgMusic, stopBgMusic } = useSound()
+  const { playMiningClick, playRewardComplete, playMaxClicks, playToggleWatch, startBgMusic, stopBgMusic, bridgeStatus } = useSound()
   const [points, setPoints]               = useState(state?.points ?? 0);
   const [totalPoints, setTotalPoints]     = useState(state?.totalPoints ?? 12847);
   const [countdown, setCountdown]         = useState(state?.countdown ?? 60);
@@ -575,10 +576,24 @@ export function MarioHUD({ state, onStateChange, onNavigate }: MarioHUDProps) {
             cursor: 'pointer',
             fontFamily: 'var(--pixel-font-family)',
           }}
-        >
+      >
           SW
         </button>
       </div>
+
+      {bridgeStatus === 'unsupported' && (
+        <div
+          style={{
+            padding: '6px 16px 0',
+            fontSize: 6,
+            color: '#FFB000',
+            letterSpacing: '0.08em',
+            textAlign: 'right',
+          }}
+        >
+          {t('hud.tabAudioUnavailable')}
+        </div>
+      )}
 
 
       {/* ════════════════════════════════════════════
@@ -606,7 +621,7 @@ export function MarioHUD({ state, onStateChange, onNavigate }: MarioHUDProps) {
         </div>
 
         {/* CLAIM 旋轉金幣按鈕 */}
-        <SpinningCoin onClick={() => onNavigate?.('claim')} />
+        <SpinningCoin ariaLabel={t('claim.title')} onClick={() => onNavigate?.('claim')} />
 
         {/* Total cumulative (small gray) */}
         <div
