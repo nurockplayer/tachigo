@@ -1,7 +1,21 @@
 import axios from 'axios'
 import type { TachigoToken } from '../types/twitch'
 
-const BASE_URL = import.meta.env.VITE_TACHIGO_API_URL ?? 'http://localhost:8080'
+const processEnv =
+  typeof globalThis === 'object' && 'process' in globalThis
+    ? (
+        globalThis as {
+          process?: {
+            env?: Record<string, string | undefined>
+          }
+        }
+      ).process?.env
+    : undefined
+
+const BASE_URL =
+  import.meta.env?.VITE_TACHIGO_API_URL ??
+  processEnv?.VITE_TACHIGO_API_URL ??
+  'http://localhost:8080'
 
 const client = axios.create({
   baseURL: BASE_URL,
@@ -42,21 +56,24 @@ interface HeartbeatResponse {
   balance: number
 }
 
-function parseBalanceFromHeartbeatResponse(payload: unknown): number {
+function parseBalanceFromPayload(payload: unknown): number {
   if (!payload || typeof payload !== 'object') {
-    throw new Error('Invalid heartbeat response')
+    throw new Error('Invalid balance response')
   }
 
-  // Accept a few common API shapes to keep frontend resilient while backend evolves.
   // eslint-disable-next-line @typescript-eslint/no-explicit-any
   const raw = payload as any
   const direct = raw.balance
   const nested = raw.data?.balance
   const legacy = raw.points_balance
+  const spendable = raw.spendable_balance
+  const nestedSpendable = raw.data?.spendable_balance
 
-  const value = [direct, nested, legacy].find((candidate) => typeof candidate === 'number')
+  const value = [direct, nested, legacy, spendable, nestedSpendable].find(
+    (candidate) => typeof candidate === 'number',
+  )
   if (typeof value !== 'number') {
-    throw new Error('Heartbeat response missing balance')
+    throw new Error('Balance response missing balance')
   }
 
   return value
@@ -67,7 +84,21 @@ interface ClickResponse {
   delta: number
 }
 
+async function ensureWatchSession(channelId: string) {
+  await client.post('/api/v1/extension/watch/start', { channel_id: channelId })
+}
+
+async function getWatchBalance(channelId: string): Promise<number> {
+  const { data } = await client.get('/api/v1/extension/watch/balance', {
+    params: { channel_id: channelId },
+  })
+
+  return parseBalanceFromPayload(data)
+}
+
 export async function sendClick(channelId: string): Promise<ClickResponse> {
+  await ensureWatchSession(channelId)
+
   const { data } = await client.post<{ success: boolean; data: ClickResponse }>(
     '/api/v1/extension/watch/click',
     { channel_id: channelId },
@@ -75,12 +106,14 @@ export async function sendClick(channelId: string): Promise<ClickResponse> {
   return data.data
 }
 
-export async function sendHeartbeat(extensionJwt: string): Promise<HeartbeatResponse> {
-  const { data } = await client.post('/api/v1/extension/heartbeat', {
-    extension_jwt: extensionJwt,
+export async function sendHeartbeat(channelId: string): Promise<HeartbeatResponse> {
+  await ensureWatchSession(channelId)
+
+  await client.post('/api/v1/extension/watch/heartbeat', {
+    channel_id: channelId,
   })
 
   return {
-    balance: parseBalanceFromHeartbeatResponse(data),
+    balance: await getWatchBalance(channelId),
   }
 }

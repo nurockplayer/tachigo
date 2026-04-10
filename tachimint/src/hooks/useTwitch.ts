@@ -16,6 +16,7 @@ export function useTwitch() {
   const [products, setProducts] = useState<TwitchBitsProduct[]>([])
   const [bitsEnabled, setBitsEnabled] = useState(false)
   const [authError, setAuthError] = useState<string | null>(null)
+  const [backendReady, setBackendReady] = useState(false)
 
   useEffect(() => {
     const ext = window.Twitch?.ext
@@ -41,6 +42,7 @@ export function useTwitch() {
 
     ext.onAuthorized(async (auth: TwitchExtAuth) => {
       setJwt(auth.token)
+      setBackendReady(false)
 
       // Login to tachigo backend with the extension JWT
       try {
@@ -50,9 +52,12 @@ export function useTwitch() {
         const tokens = (result as any)?.data?.tokens ?? (result as any)?.tokens
         if (tokens?.access_token) {
           setAuthToken(tokens.access_token)
+          setBackendReady(true)
+          setAuthError(null)
         }
       } catch {
         // Non-fatal: bits flow still works via extension JWT directly
+        setBackendReady(false)
         setAuthError('Backend unavailable')
       }
 
@@ -68,5 +73,5 @@ export function useTwitch() {
     })
   }, [])
 
-  return { context, jwt, products, bitsEnabled, authError }
+  return { context, jwt, products, bitsEnabled, authError, backendReady }
 }

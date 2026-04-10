@@ -6,7 +6,7 @@ interface UseHeartbeatOptions {
   intervalMs?: number
 }
 
-export function useHeartbeat(extensionJwt: string, options: UseHeartbeatOptions = {}) {
+export function useHeartbeat(channelId: string | undefined, options: UseHeartbeatOptions = {}) {
   const { enabled = true, intervalMs = 30_000 } = options
   const [balance, setBalance] = useState<number | null>(null)
   const [gain, setGain] = useState<number | null>(null)
@@ -16,7 +16,7 @@ export function useHeartbeat(extensionJwt: string, options: UseHeartbeatOptions 
   const stopAnimationTimerRef = useRef<number | null>(null)
 
   useEffect(() => {
-    if (!enabled || !extensionJwt) return
+    if (!enabled || !channelId) return
 
     let isDisposed = false
     let heartbeatTimer: number | null = null
@@ -30,7 +30,7 @@ export function useHeartbeat(extensionJwt: string, options: UseHeartbeatOptions 
 
     const runHeartbeat = async () => {
       try {
-        const data = await sendHeartbeat(extensionJwt)
+        const data = await sendHeartbeat(channelId)
         if (isDisposed) return
 
         const nextBalance = data.balance
@@ -68,7 +68,7 @@ export function useHeartbeat(extensionJwt: string, options: UseHeartbeatOptions 
       }
       clearAnimationTimer()
     }
-  }, [enabled, extensionJwt, intervalMs])
+  }, [channelId, enabled, intervalMs])
 
   // Allow external callers (e.g. click boost) to sync the baseline so the
   // next heartbeat gain animation doesn't double-count already-awarded points.
