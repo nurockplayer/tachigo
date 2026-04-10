@@ -3,5 +3,6 @@
   "contractAddress": "0xaB702A56fa95f7B5c8C1a47AB8348b2Bb74AE778",
   "txHash": "0x430580d0559da0771e42cfd6cf69be938989e2bcd8a2e235d9e78e1eb3fa5daa",
   "blockNumber": 7877542,
-  "deployedAt": "2026-04-10T15:34:00Z"
+  "deployedAt": "2026-04-10T15:34:00Z",
+  "ownerStrategy": "MVP owner = deployer wallet"
 }
