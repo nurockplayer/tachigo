@@ -31,6 +31,7 @@ func New(
 	streamerSvc *services.StreamerService,
 	agencySvc *services.AgencyService,
 	claimSvc *services.ClaimService,
+	spendSvc *services.SpendService,
 	agencyHandler *handlers.AgencyHandler,
 	allowedOrigins []string,
 	internalRouterConfig ...InternalRouterConfig,
@@ -49,6 +50,7 @@ func New(
 	pointsH := handlers.NewPointsHandler(pointsSvc)
 	streamerH := handlers.NewStreamerHandler(streamerSvc)
 	claimH := handlers.NewClaimHandler(claimSvc)
+	spendH := handlers.NewSpendHandler(spendSvc)
 	airdropH := handlers.NewAirdropHandler(airdropSvc, agencySvc, streamerSvc)
 
 	r.GET("/health", func(c *gin.Context) {
@@ -115,6 +117,9 @@ func New(
 		// T-Point → $TACHI claim
 		protected.POST("users/me/points/claim", claimH.Claim)
 		protected.GET("users/me/tachi/balance", claimH.GetTachiBalance)
+
+		// $TACHI spend (burn)
+		protected.POST("spend/redeem", spendH.Redeem)
 
 		// User profile
 		protected.GET("users/me", userH.Me)

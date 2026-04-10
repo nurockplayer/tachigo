@@ -85,6 +85,7 @@ func newRouterTestEnv(t *testing.T) *routerTestEnv {
 	streamerSvc := services.NewStreamerService(db, pointsSvc)
 	agencySvc := services.NewAgencyService(db)
 	claimSvc := services.NewClaimService(db, config.ContractConfig{}, nil)
+	spendSvc := services.NewSpendService(db, config.ContractConfig{}, nil)
 	agencyHandler := handlers.NewAgencyHandler(agencySvc, emailAuthSvc)
 
 	engine := router.New(
@@ -100,6 +101,7 @@ func newRouterTestEnv(t *testing.T) *routerTestEnv {
 		streamerSvc,
 		agencySvc,
 		claimSvc,
+		spendSvc,
 		agencyHandler,
 		[]string{"http://localhost:3000"},
 	)
@@ -436,7 +438,8 @@ func TestInternalRouter_SkipsRouteWhenSharedSecretMissing(t *testing.T) {
 	airdropSvc := services.NewAirdropService(db, pointsSvc, channelConfigSvc)
 	streamerSvc := services.NewStreamerService(db, pointsSvc)
 	agencySvc := services.NewAgencyService(db)
-	claimSvc := services.NewClaimService(db)
+	claimSvc := services.NewClaimService(db, config.ContractConfig{}, nil)
+	spendSvc := services.NewSpendService(db, config.ContractConfig{}, nil)
 	agencyHandler := handlers.NewAgencyHandler(agencySvc, emailAuthSvc)
 
 	engine := router.New(
@@ -452,6 +455,7 @@ func TestInternalRouter_SkipsRouteWhenSharedSecretMissing(t *testing.T) {
 		streamerSvc,
 		agencySvc,
 		claimSvc,
+		spendSvc,
 		agencyHandler,
 		[]string{"http://localhost:3000"},
 		router.InternalRouterConfig{DB: db, Config: cfg},
@@ -513,7 +517,8 @@ func TestInternalRouter_WithSecretSet_MiddlewareRejectsAndRouteRegistered(t *tes
 	airdropSvc := services.NewAirdropService(db, pointsSvc, channelConfigSvc)
 	streamerSvc := services.NewStreamerService(db, pointsSvc)
 	agencySvc := services.NewAgencyService(db)
-	claimSvc := services.NewClaimService(db)
+	claimSvc := services.NewClaimService(db, config.ContractConfig{}, nil)
+	spendSvc := services.NewSpendService(db, config.ContractConfig{}, nil)
 	agencyHandler := handlers.NewAgencyHandler(agencySvc, emailAuthSvc)
 
 	engine := router.New(
@@ -529,6 +534,7 @@ func TestInternalRouter_WithSecretSet_MiddlewareRejectsAndRouteRegistered(t *tes
 		streamerSvc,
 		agencySvc,
 		claimSvc,
+		spendSvc,
 		agencyHandler,
 		[]string{"http://localhost:3000"},
 		router.InternalRouterConfig{DB: db, Config: cfg},
