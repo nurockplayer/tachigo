@@ -31,7 +31,7 @@ contract TachiTokenTest is Test {
     function test_mint_exceedsCap_reverts() public {
         uint256 cap = 1_000_000_000e18;
         token.mint(alice, cap);
-        vm.expectRevert();
+        vm.expectRevert(bytes("TachiToken: cap exceeded"));
         token.mint(alice, 1);
     }
 
@@ -40,7 +40,7 @@ contract TachiTokenTest is Test {
     function test_transfer_reverts() public {
         token.mint(alice, 1_000e18);
         vm.prank(alice);
-        vm.expectRevert();
+        vm.expectRevert(bytes("TachiToken: soulbound"));
         token.transfer(bob, 100e18);
     }
 
@@ -49,7 +49,7 @@ contract TachiTokenTest is Test {
         vm.prank(alice);
         token.approve(bob, 100e18);
         vm.prank(bob);
-        vm.expectRevert();
+        vm.expectRevert(bytes("TachiToken: soulbound"));
         token.transferFrom(alice, bob, 100e18);
     }
 
