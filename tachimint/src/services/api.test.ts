@@ -90,41 +90,51 @@ test('sendHeartbeat starts a watch session, sends heartbeat, then refreshes bala
       res.end(JSON.stringify({ success: false, error: 'not found' }))
     },
     async (baseUrl, requests) => {
+      const originalBaseUrl = process.env.VITE_TACHIGO_API_URL
       process.env.VITE_TACHIGO_API_URL = baseUrl
-      const api = await import(`./api.ts?heartbeat=${Date.now()}`)
 
-      api.setAuthToken('tachigo-access-token')
-      const result = await api.sendHeartbeat('channel-123')
+      try {
+        const api = await import(`./api.ts?heartbeat=${Date.now()}`)
 
-      assert.equal(result.balance, 42)
-      assert.deepEqual(
-        requests.map(({ method, url, authorization, body }) => ({
-          method,
-          url,
-          authorization,
-          body,
-        })),
-        [
-          {
-            method: 'POST',
-            url: '/api/v1/extension/watch/start',
-            authorization: 'Bearer tachigo-access-token',
-            body: { channel_id: 'channel-123' },
-          },
-          {
-            method: 'POST',
-            url: '/api/v1/extension/watch/heartbeat',
-            authorization: 'Bearer tachigo-access-token',
-            body: { channel_id: 'channel-123' },
-          },
-          {
-            method: 'GET',
-            url: '/api/v1/extension/watch/balance?channel_id=channel-123',
-            authorization: 'Bearer tachigo-access-token',
-            body: null,
-          },
-        ],
-      )
+        api.setAuthToken('tachigo-access-token')
+        const result = await api.sendHeartbeat('channel-123')
+
+        assert.equal(result.balance, 42)
+        assert.deepEqual(
+          requests.map(({ method, url, authorization, body }) => ({
+            method,
+            url,
+            authorization,
+            body,
+          })),
+          [
+            {
+              method: 'POST',
+              url: '/api/v1/extension/watch/start',
+              authorization: 'Bearer tachigo-access-token',
+              body: { channel_id: 'channel-123' },
+            },
+            {
+              method: 'POST',
+              url: '/api/v1/extension/watch/heartbeat',
+              authorization: 'Bearer tachigo-access-token',
+              body: { channel_id: 'channel-123' },
+            },
+            {
+              method: 'GET',
+              url: '/api/v1/extension/watch/balance?channel_id=channel-123',
+              authorization: 'Bearer tachigo-access-token',
+              body: null,
+            },
+          ],
+        )
+      } finally {
+        if (originalBaseUrl === undefined) {
+          delete process.env.VITE_TACHIGO_API_URL
+        } else {
+          process.env.VITE_TACHIGO_API_URL = originalBaseUrl
+        }
+      }
     },
   )
 })
@@ -156,35 +166,45 @@ test('sendClick ensures the watch session exists before sending click rewards', 
       res.end(JSON.stringify({ success: false, error: 'not found' }))
     },
     async (baseUrl, requests) => {
+      const originalBaseUrl = process.env.VITE_TACHIGO_API_URL
       process.env.VITE_TACHIGO_API_URL = baseUrl
-      const api = await import(`./api.ts?click=${Date.now()}`)
 
-      api.setAuthToken('tachigo-access-token')
-      const result = await api.sendClick('channel-123')
+      try {
+        const api = await import(`./api.ts?click=${Date.now()}`)
 
-      assert.deepEqual(result, { balance: 9, delta: 1 })
-      assert.deepEqual(
-        requests.map(({ method, url, authorization, body }) => ({
-          method,
-          url,
-          authorization,
-          body,
-        })),
-        [
-          {
-            method: 'POST',
-            url: '/api/v1/extension/watch/start',
-            authorization: 'Bearer tachigo-access-token',
-            body: { channel_id: 'channel-123' },
-          },
-          {
-            method: 'POST',
-            url: '/api/v1/extension/watch/click',
-            authorization: 'Bearer tachigo-access-token',
-            body: { channel_id: 'channel-123' },
-          },
-        ],
-      )
+        api.setAuthToken('tachigo-access-token')
+        const result = await api.sendClick('channel-123')
+
+        assert.deepEqual(result, { balance: 9, delta: 1 })
+        assert.deepEqual(
+          requests.map(({ method, url, authorization, body }) => ({
+            method,
+            url,
+            authorization,
+            body,
+          })),
+          [
+            {
+              method: 'POST',
+              url: '/api/v1/extension/watch/start',
+              authorization: 'Bearer tachigo-access-token',
+              body: { channel_id: 'channel-123' },
+            },
+            {
+              method: 'POST',
+              url: '/api/v1/extension/watch/click',
+              authorization: 'Bearer tachigo-access-token',
+              body: { channel_id: 'channel-123' },
+            },
+          ],
+        )
+      } finally {
+        if (originalBaseUrl === undefined) {
+          delete process.env.VITE_TACHIGO_API_URL
+        } else {
+          process.env.VITE_TACHIGO_API_URL = originalBaseUrl
+        }
+      }
     },
   )
 })
