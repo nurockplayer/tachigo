@@ -60,4 +60,28 @@ contract TachiTokenTest is Test {
         token.burn(alice, 400e18);
         assertEq(token.balanceOf(alice), 600e18);
     }
+
+    // --- zero address ---
+
+    function test_mint_zeroAddress_reverts() public {
+        vm.expectRevert();
+        token.mint(address(0), 1_000e18);
+    }
+
+    // --- burn edge ---
+
+    function test_burn_zeroAmount_succeeds() public {
+        token.mint(alice, 1_000e18);
+        token.burn(alice, 0);
+        assertEq(token.balanceOf(alice), 1_000e18);
+    }
+
+    // --- approve ---
+
+    function test_approve_succeeds_even_though_transfer_blocked() public {
+        token.mint(alice, 1_000e18);
+        vm.prank(alice);
+        token.approve(bob, 500e18);
+        assertEq(token.allowance(alice, bob), 500e18);
+    }
 }
