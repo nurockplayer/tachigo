@@ -19,7 +19,7 @@ func NewSpendHandler(spendSvc *services.SpendService) *SpendHandler {
 }
 
 type redeemRequest struct {
-	Amount int64 `json:"amount"`
+	Amount int64 `json:"amount" binding:"required,min=1"`
 }
 
 type redeemResponse struct {
@@ -51,10 +51,6 @@ func (h *SpendHandler) Redeem(c *gin.Context) {
 		badRequest(c, "invalid request body: "+err.Error())
 		return
 	}
-	if req.Amount <= 0 {
-		badRequest(c, "amount must be > 0")
-		return
-	}
 
 	newBalance, err := h.spendSvc.Redeem(c.Request.Context(), userID, req.Amount)
 	if err != nil {
@@ -70,6 +66,7 @@ func (h *SpendHandler) Redeem(c *gin.Context) {
 			badRequest(c, err.Error())
 			return
 		}
+		// ErrSpendContractConfig is a server-side misconfiguration; intentionally falls through to internal(c).
 		internal(c)
 		return
 	}
