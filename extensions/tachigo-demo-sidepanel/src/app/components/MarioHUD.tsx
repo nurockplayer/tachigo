@@ -569,7 +569,9 @@ export function MarioHUD({ state, onStateChange, onNavigate }: MarioHUDProps) {
           background: 'rgba(0,0,0,0.3)',
         }}
       >
-        <span style={{ fontSize: 6, color: '#444', letterSpacing: '0.1em' }}>BGM</span>
+        <span style={{ fontSize: 6, color: '#444', letterSpacing: '0.1em' }}>
+          {t('hud.bgmLabel')}
+        </span>
         <button
           onClick={() => setBgMusicOn(v => !v)}
           style={{
@@ -584,23 +586,7 @@ export function MarioHUD({ state, onStateChange, onNavigate }: MarioHUDProps) {
             letterSpacing: '0.08em',
           }}
         >
-          {bgMusicOn ? '♪ ON' : '♪ OFF'}
-        </button>
-        <button
-          onClick={() => onNavigate?.('claim')}
-          style={{
-            padding: '3px 8px',
-            borderRadius: 2,
-            border: '1px solid rgba(145,70,255,0.2)',
-            background: 'transparent',
-            color: '#9146FF',
-            fontSize: 7,
-            cursor: 'pointer',
-            fontFamily: 'var(--pixel-font-family)',
-            letterSpacing: '0.08em',
-          }}
-        >
-          ⇄ CLAIM
+          {bgMusicOn ? t('hud.bgmOn') : t('hud.bgmOff')}
         </button>
       </div>
     </div>

@@ -13,6 +13,9 @@
   "hud": {
     "watching": "觀看中",
     "idle": "待機",
+    "bgmLabel": "背景音樂",
+    "bgmOn": "♪ 開",
+    "bgmOff": "♪ 關",
     "tabAudioUnavailable": "分頁音訊不可用",
     "cumulativeTotal": "累計總計",
     "nextIn": "下次 {{count}} 秒",

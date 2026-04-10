@@ -13,6 +13,9 @@
   "hud": {
     "watching": "WATCHING",
     "idle": "IDLE",
+    "bgmLabel": "BGM",
+    "bgmOn": "♪ ON",
+    "bgmOff": "♪ OFF",
     "tabAudioUnavailable": "TAB AUDIO OFF",
     "cumulativeTotal": "CUMULATIVE TOTAL",
     "nextIn": "NEXT IN {{count}}S",
