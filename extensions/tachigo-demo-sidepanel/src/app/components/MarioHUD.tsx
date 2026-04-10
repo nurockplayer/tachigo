@@ -588,6 +588,22 @@ export function MarioHUD({ state, onStateChange, onNavigate }: MarioHUDProps) {
         >
           {bgMusicOn ? t('hud.bgmOn') : t('hud.bgmOff')}
         </button>
+        <button
+          onClick={() => onNavigate?.('claim')}
+          style={{
+            padding: '3px 8px',
+            borderRadius: 2,
+            border: '1px solid rgba(145,70,255,0.2)',
+            background: 'transparent',
+            color: '#9146FF',
+            fontSize: 7,
+            cursor: 'pointer',
+            fontFamily: 'var(--pixel-font-family)',
+            letterSpacing: '0.08em',
+          }}
+        >
+          ⇄ CLAIM
+        </button>
       </div>
     </div>
   );
