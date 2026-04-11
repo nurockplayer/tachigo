@@ -187,6 +187,40 @@ func TestClaimHandler_WalletNotLinked(t *testing.T) {
 	}
 }
 
+func TestClaimHandler_ContractConfigError(t *testing.T) {
+	env := newTestEnv(t)
+	token, _ := env.registerUser(t, "user9", "user9@example.com", "password123")
+
+	userID := resolveUserID(t, env, "user9@example.com")
+	seedWeb3ProviderForHandler(t, env, userID)
+	seedLedgerForHandler(t, env, userID, "ch1", 10)
+
+	claimSvc := services.NewClaimService(env.db, config.ContractConfig{}, nil)
+	claimH := handlers.NewClaimHandler(claimSvc)
+
+	r := env.router
+	v1 := r.Group("/api/v1")
+	protected := v1.Group("/")
+	protected.Use(middleware.JWTAuth(env.authSvc))
+	protected.POST("users/me/points/claim", claimH.Claim)
+
+	body, _ := json.Marshal(map[string]int{"amount": 10})
+	w := httptest.NewRecorder()
+	req, _ := http.NewRequest("POST", "/api/v1/users/me/points/claim", bytes.NewBuffer(body))
+	req.Header.Set("Authorization", "Bearer "+token)
+	req.Header.Set("Content-Type", "application/json")
+	r.ServeHTTP(w, req)
+
+	if w.Code != http.StatusInternalServerError {
+		t.Fatalf("expected 500, got %d: %s", w.Code, w.Body.String())
+	}
+
+	resp := parseBody(t, w.Body.Bytes())
+	if resp["error"] != "claim_contract_config_error" {
+		t.Fatalf("expected claim_contract_config_error, got %v", resp["error"])
+	}
+}
+
 func TestClaimHandler_Unauthorized(t *testing.T) {
 	_, r := newClaimTestEnv(t)
 

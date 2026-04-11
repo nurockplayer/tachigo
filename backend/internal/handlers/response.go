@@ -43,3 +43,7 @@ func unprocessableEntity(c *gin.Context, msg string) {
 func internal(c *gin.Context) {
 	c.JSON(http.StatusInternalServerError, Response{Success: false, Error: "internal server error"})
 }
+
+func internalWithMessage(c *gin.Context, msg string) {
+	c.JSON(http.StatusInternalServerError, Response{Success: false, Error: msg})
+}

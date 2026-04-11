@@ -112,7 +112,10 @@ func (s *ClaimService) Claim(ctx context.Context, userID uuid.UUID, amount int64
 		if rollbackErr != nil {
 			return 0, fmt.Errorf("%w; rollback claim reservation: %v", err, rollbackErr)
 		}
-		return 0, err
+		if errors.Is(err, ErrClaimContractConfig) {
+			return 0, err
+		}
+		return 0, fmt.Errorf("%w: %v", ErrClaimContractConfig, err)
 	}
 
 	var newBalance int64
@@ -141,7 +144,7 @@ func (s *ClaimService) MintOnChain(ctx context.Context, toAddr string, amount in
 
 	signerKey, err := parseSignerKey(s.contractCfg.SepoliaSignerKey)
 	if err != nil {
-		return "", err
+		return "", fmt.Errorf("%w: %v", ErrClaimContractConfig, err)
 	}
 
 	// TODO: wait for receipt status == 1 before committing DB (fire-and-forget for now)

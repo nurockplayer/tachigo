@@ -6,19 +6,22 @@
   "common": {
     "retry": "Retry",
     "initializing": "Initializing...",
-    "points": "points"
+    "points": "T-Point"
   },
   "claim": {
     "actions": {
-      "claim": "Claim",
-      "claiming": "Claiming..."
+      "claim": "Mint $TACHI",
+      "claiming": "Minting..."
     },
     "status": {
-      "complete": "Claim complete."
+      "complete": "Mint successful. $TACHI balance: {{balance}}."
     },
     "errors": {
       "loadBalanceFailed": "Unable to load $TACHI balance.",
-      "claimFailed": "Claim failed. Please try again."
+      "insufficientBalance": "Not enough T-Point.",
+      "walletNotLinked": "Wallet is not linked.",
+      "contractConfig": "Contract / RPC / signer is misconfigured.",
+      "claimFailed": "Mint failed. Please try again."
     }
   }
 }

@@ -120,6 +120,22 @@ interface TachiBalanceResponse {
   tachiBalance: number
 }
 
+export type ClaimErrorCode =
+  | 'insufficientBalance'
+  | 'walletNotLinked'
+  | 'contractConfig'
+  | 'unknown'
+
+export class ClaimRequestError extends Error {
+  code: ClaimErrorCode
+
+  constructor(code: ClaimErrorCode, message: string) {
+    super(message)
+    this.name = 'ClaimRequestError'
+    this.code = code
+  }
+}
+
 function parsePointsEarnedFromPayload(payload: unknown): number | null {
   if (!payload || typeof payload !== 'object') {
     return null
@@ -173,6 +189,37 @@ function parseTachiBalanceFromPayload(payload: unknown): number {
   return value
 }
 
+function parseApiErrorMessage(payload: unknown): string | null {
+  if (!payload || typeof payload !== 'object') {
+    return null
+  }
+
+  // eslint-disable-next-line @typescript-eslint/no-explicit-any
+  const raw = payload as any
+  const direct = raw.error
+  const nested = raw.data?.error
+  return typeof direct === 'string' ? direct : typeof nested === 'string' ? nested : null
+}
+
+function mapClaimError(error: unknown): ClaimRequestError {
+  const status = (error as AxiosError)?.response?.status
+  const message = parseApiErrorMessage((error as AxiosError)?.response?.data)
+
+  if (status === 422 && message === 'insufficient spendable balance to claim') {
+    return new ClaimRequestError('insufficientBalance', message)
+  }
+
+  if (status === 422 && message === 'web3 wallet not linked') {
+    return new ClaimRequestError('walletNotLinked', message)
+  }
+
+  if (message === 'claim_contract_config_error') {
+    return new ClaimRequestError('contractConfig', message)
+  }
+
+  return new ClaimRequestError('unknown', message ?? 'claim failed')
+}
+
 interface ClickResponse {
   balance: number
   delta: number
@@ -210,11 +257,15 @@ export async function getTachiBalance(): Promise<number> {
 }
 
 export async function claimPoints(amount = 0): Promise<TachiBalanceResponse> {
-  const { data } = await runWithAuthRecovery((config) =>
-    client.post('/api/v1/users/me/points/claim', { amount }, config))
+  try {
+    const { data } = await runWithAuthRecovery((config) =>
+      client.post('/api/v1/users/me/points/claim', { amount }, config))
 
-  return {
-    tachiBalance: parseTachiBalanceFromPayload(data),
+    return {
+      tachiBalance: parseTachiBalanceFromPayload(data),
+    }
+  } catch (error) {
+    throw mapClaimError(error)
   }
 }
 

@@ -6,19 +6,22 @@
   "common": {
     "retry": "重試",
     "initializing": "初始化中...",
-    "points": "點"
+    "points": "T-Point"
   },
   "claim": {
     "actions": {
-      "claim": "提領",
-      "claiming": "提領中..."
+      "claim": "鑄造到鏈上",
+      "claiming": "Mint 中..."
     },
     "status": {
-      "complete": "提領完成。"
+      "complete": "Mint 成功，$TACHI 餘額：{{balance}}。"
     },
     "errors": {
       "loadBalanceFailed": "無法載入 $TACHI 餘額。",
-      "claimFailed": "提領失敗，請再試一次。"
+      "insufficientBalance": "T-Point 不足。",
+      "walletNotLinked": "尚未綁定 wallet。",
+      "contractConfig": "合約 / RPC / signer 設定錯誤。",
+      "claimFailed": "Mint 失敗，請再試一次。"
     }
   }
 }

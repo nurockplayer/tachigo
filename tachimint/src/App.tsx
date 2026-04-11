@@ -4,9 +4,14 @@ import { useTwitch } from './hooks/useTwitch'
 import { useBits } from './hooks/useBits'
 import { useHeartbeat } from './hooks/useHeartbeat'
 import { useClickBoost } from './hooks/useClickBoost'
-import { claimPoints, getTachiBalance } from './services/api'
+import { ClaimRequestError, claimPoints, getTachiBalance } from './services/api'
 
-type ClaimErrorKey = 'loadBalanceFailed' | 'claimFailed'
+type ClaimErrorKey =
+  | 'loadBalanceFailed'
+  | 'insufficientBalance'
+  | 'walletNotLinked'
+  | 'contractConfig'
+  | 'claimFailed'
 
 export default function App() {
   const { t } = useTranslation()
@@ -72,8 +77,25 @@ export default function App() {
       setTachiBalance(result.tachiBalance)
       syncBalance(0)
       setClaimStatus('success')
-    } catch {
+    } catch (error) {
       setClaimStatus('error')
+      if (error instanceof ClaimRequestError) {
+        if (error.code === 'insufficientBalance') {
+          setClaimError('insufficientBalance')
+          return
+        }
+
+        if (error.code === 'walletNotLinked') {
+          setClaimError('walletNotLinked')
+          return
+        }
+
+        if (error.code === 'contractConfig') {
+          setClaimError('contractConfig')
+          return
+        }
+      }
+
       setClaimError('claimFailed')
     }
   }, [backendReady, balance, claimStatus, isViewer, syncBalance])
@@ -110,7 +132,7 @@ export default function App() {
       <div className="ext-body">
         <section className="ext-balance-wrap">
           <div className={`ext-balance ${isAnimating ? 'ext-balance--bump' : ''}`}>
-            <span className="ext-balance__label">Points</span>
+            <span className="ext-balance__label">T-Point</span>
             <strong className="ext-balance__value">{balance?.toLocaleString() ?? '—'}</strong>
           </div>
           {gain !== null && gain > 0 && (
@@ -133,7 +155,9 @@ export default function App() {
         </section>
 
         {claimStatus === 'success' && (
-          <p className="ext-success-text">{t('claim.status.complete')}</p>
+          <p className="ext-success-text">
+            {t('claim.status.complete', { balance: tachiBalance?.toLocaleString() ?? '—' })}
+          </p>
         )}
 
         {claimStatus === 'error' && (

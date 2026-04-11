@@ -77,6 +77,10 @@ func (h *ClaimHandler) Claim(c *gin.Context) {
 			badRequest(c, err.Error())
 			return
 		}
+		if errors.Is(err, services.ErrClaimContractConfig) {
+			internalWithMessage(c, "claim_contract_config_error")
+			return
+		}
 		internal(c)
 		return
 	}

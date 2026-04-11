@@ -281,6 +281,76 @@ test('claimPoints claims viewer points then refreshes tachi balance', async () =
   )
 })
 
+test('claimPoints maps backend claim errors into typed frontend errors', async () => {
+  await withApiServer(
+    (requests) => async (req, res) => {
+      const body = await readJsonBody(req)
+      requests.push({
+        method: req.method ?? 'GET',
+        url: req.url ?? '/',
+        authorization: req.headers.authorization,
+        body,
+      })
+
+      if (req.method === 'POST' && req.url === '/api/v1/users/me/points/claim') {
+        const amount = (body as { amount?: number } | null)?.amount
+
+        if (amount === 1) {
+          res.writeHead(422, { 'Content-Type': 'application/json' })
+          res.end(JSON.stringify({ success: false, error: 'insufficient spendable balance to claim' }))
+          return
+        }
+
+        if (amount === 2) {
+          res.writeHead(422, { 'Content-Type': 'application/json' })
+          res.end(JSON.stringify({ success: false, error: 'web3 wallet not linked' }))
+          return
+        }
+
+        if (amount === 3) {
+          res.writeHead(500, { 'Content-Type': 'application/json' })
+          res.end(JSON.stringify({ success: false, error: 'claim_contract_config_error' }))
+          return
+        }
+      }
+
+      res.writeHead(404, { 'Content-Type': 'application/json' })
+      res.end(JSON.stringify({ success: false, error: 'not found' }))
+    },
+    async (baseUrl) => {
+      const originalBaseUrl = process.env.VITE_TACHIGO_API_URL
+      process.env.VITE_TACHIGO_API_URL = baseUrl
+
+      try {
+        const api = await import(`./api.ts?claim-errors=${Date.now()}`)
+
+        api.setAuthToken('tachigo-access-token')
+
+        await assert.rejects(
+          () => api.claimPoints(1),
+          (error: { code?: string }) => error.code === 'insufficientBalance',
+        )
+
+        await assert.rejects(
+          () => api.claimPoints(2),
+          (error: { code?: string }) => error.code === 'walletNotLinked',
+        )
+
+        await assert.rejects(
+          () => api.claimPoints(3),
+          (error: { code?: string }) => error.code === 'contractConfig',
+        )
+      } finally {
+        if (originalBaseUrl === undefined) {
+          delete process.env.VITE_TACHIGO_API_URL
+        } else {
+          process.env.VITE_TACHIGO_API_URL = originalBaseUrl
+        }
+      }
+    },
+  )
+})
+
 test('sendHeartbeat re-authenticates after 401 and falls back to previous balance when balance read fails', async () => {
   let heartbeatAttempts = 0
 
