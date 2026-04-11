@@ -4,7 +4,6 @@ import (
 	"context"
 	"errors"
 	"fmt"
-	"math/big"
 	"time"
 
 	"github.com/ethereum/go-ethereum/common"
@@ -187,5 +186,5 @@ func (s *SpendService) BurnOnChain(ctx context.Context, fromAddr string, amount 
 		return "", err
 	}
 
-	return s.tachiToken.Burn(ctx, common.HexToAddress(fromAddr), big.NewInt(amount), signerKey)
+	return s.tachiToken.Burn(ctx, common.HexToAddress(fromAddr), tachiWholeTokensToRawUnits(amount), signerKey)
 }
