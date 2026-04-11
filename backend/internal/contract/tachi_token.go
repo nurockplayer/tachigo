@@ -125,3 +125,92 @@ func (t *TachiToken) Mint(ctx context.Context, toAddr common.Address, amount *bi
 
 	return signedTx.Hash().Hex(), nil
 }
+
+func (t *TachiToken) Burn(ctx context.Context, fromAddr common.Address, amount *big.Int, signerKey *ecdsa.PrivateKey) (string, error) {
+	t.mu.Lock()
+	defer t.mu.Unlock()
+
+	if t.client == nil {
+		return "", fmt.Errorf("eth client is nil")
+	}
+	if signerKey == nil {
+		return "", fmt.Errorf("signer key is nil")
+	}
+	if amount == nil || amount.Sign() <= 0 {
+		return "", fmt.Errorf("amount must be greater than zero")
+	}
+
+	fromSignerAddr := crypto.PubkeyToAddress(signerKey.PublicKey)
+	data, err := t.abi.Pack("burn", fromAddr, amount)
+	if err != nil {
+		return "", fmt.Errorf("pack burn calldata: %w", err)
+	}
+
+	chainID, err := t.client.ChainID(ctx)
+	if err != nil {
+		return "", fmt.Errorf("get chain ID: %w", err)
+	}
+
+	nonce, err := t.client.PendingNonceAt(ctx, fromSignerAddr)
+	if err != nil {
+		return "", fmt.Errorf("get pending nonce: %w", err)
+	}
+
+	tipCap, err := t.client.SuggestGasTipCap(ctx)
+	if err != nil {
+		return "", fmt.Errorf("suggest gas tip cap: %w", err)
+	}
+
+	header, err := t.client.HeaderByNumber(ctx, nil)
+	if err != nil {
+		return "", fmt.Errorf("get latest header: %w", err)
+	}
+	if header.BaseFee == nil {
+		return "", fmt.Errorf("latest header missing base fee")
+	}
+
+	feeCap := new(big.Int).Mul(header.BaseFee, big.NewInt(2))
+	feeCap.Add(feeCap, tipCap)
+
+	callMsg := ethereum.CallMsg{
+		From:      fromSignerAddr,
+		To:        &t.address,
+		GasFeeCap: feeCap,
+		GasTipCap: tipCap,
+		Data:      data,
+	}
+	gasLimit, err := t.client.EstimateGas(ctx, callMsg)
+	if err != nil {
+		return "", fmt.Errorf("estimate gas: %w", err)
+	}
+
+	tx := types.NewTx(&types.DynamicFeeTx{
+		ChainID:   chainID,
+		Nonce:     nonce,
+		GasTipCap: tipCap,
+		GasFeeCap: feeCap,
+		Gas:       gasLimit,
+		To:        &t.address,
+		Data:      data,
+	})
+
+	signedTx, err := types.SignTx(tx, types.LatestSignerForChainID(chainID), signerKey)
+	if err != nil {
+		return "", fmt.Errorf("sign burn tx: %w", err)
+	}
+
+	if err := t.client.SendTransaction(ctx, signedTx); err != nil {
+		return "", fmt.Errorf("send burn tx: %w", err)
+	}
+	receipt, err := bind.WaitMined(ctx, t.client, signedTx)
+	if err != nil {
+		// Return txHash so callers can distinguish "tx broadcast but receipt unknown"
+		// from "tx never sent". Do NOT roll back DB based on this error alone.
+		return signedTx.Hash().Hex(), fmt.Errorf("wait burn receipt: %w", err)
+	}
+	if receipt.Status != types.ReceiptStatusSuccessful {
+		return "", fmt.Errorf("burn tx failed: %s", signedTx.Hash().Hex())
+	}
+
+	return signedTx.Hash().Hex(), nil
+}

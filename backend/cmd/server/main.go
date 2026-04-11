@@ -139,6 +139,7 @@ func main() {
 		}
 	}
 	claimSvc := services.NewClaimService(db, cfg.Contract, ethClient)
+	spendSvc := services.NewSpendService(db, cfg.Contract, ethClient)
 	agencyH := handlers.NewAgencyHandler(agencySvc, emailAuthSvc)
 
 	// CORS origins from env, default to localhost for dev
@@ -161,6 +162,7 @@ func main() {
 		streamerSvc,
 		agencySvc,
 		claimSvc,
+		spendSvc,
 		agencyH,
 		allowedOrigins,
 		router.InternalRouterConfig{DB: db, Config: cfg},
