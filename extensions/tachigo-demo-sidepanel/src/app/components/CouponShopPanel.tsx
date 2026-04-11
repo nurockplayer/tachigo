@@ -117,7 +117,7 @@ export function CouponShopPanel({ onBack, tcgBalance, onRedeem }: CouponShopPane
         >
           ‹ BACK
         </button>
-        <div style={{ fontSize: 8, color: '#9146FF', letterSpacing: '0.12em' }}>
+        <div style={{ fontSize: 8, color: '#b794ff', letterSpacing: '0.12em' }}>
           {t('coupon.header')}
         </div>
       </div>
