@@ -38,6 +38,21 @@
     "button": "提領 $TCG",
     "success": "已提領！"
   },
+  "coupon": {
+    "title": "Coupon 商城",
+    "header": "Coupon 兌換商城",
+    "entry": "商城",
+    "balanceLabel": "平台幣餘額",
+    "subtitle": "使用 TCG 兌換創作者商城折扣碼與免運福利。",
+    "featured": "本期主打",
+    "listTitle": "可兌換 Coupon",
+    "cost": "消耗 {{amount}} TCG",
+    "redeem": "立即兌換",
+    "redeemed": "已擁有",
+    "claimedCode": "折扣碼 {{code}} 已入袋",
+    "insufficientBalance": "平台幣不足",
+    "alreadyRedeemed": "此 Coupon 已兌換"
+  },
   "error": {
     "account": {
       "title": "尚未建立帳號",

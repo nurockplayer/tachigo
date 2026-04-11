@@ -354,7 +354,7 @@ function SpinningCoin({ onClick, ariaLabel }: { onClick: () => void; ariaLabel: 
 interface MarioHUDProps {
   state?: HudDemoState
   onStateChange?: (state: HudDemoState) => void
-  onNavigate?: (screen: 'claim') => void
+  onNavigate?: (screen: 'claim' | 'coupon') => void
 }
 
 export function MarioHUD({ state, onStateChange, onNavigate }: MarioHUDProps) {
@@ -622,7 +622,27 @@ export function MarioHUD({ state, onStateChange, onNavigate }: MarioHUDProps) {
 
         {/* CLAIM 旋轉金幣按鈕 */}
         {onNavigate && (
-          <SpinningCoin ariaLabel={t('claim.title')} onClick={() => onNavigate('claim')} />
+          <div style={{ display: 'flex', alignItems: 'center', justifyContent: 'center', gap: 4, marginTop: 8 }}>
+            <SpinningCoin ariaLabel={t('claim.title')} onClick={() => onNavigate('claim')} />
+            <button
+              aria-label={t('coupon.title')}
+              onClick={() => onNavigate('coupon')}
+              style={{
+                border: '1px solid rgba(255,190,85,0.3)',
+                background: 'linear-gradient(180deg, rgba(255,177,71,0.16) 0%, rgba(145,70,255,0.08) 100%)',
+                color: '#ffbb4f',
+                borderRadius: 999,
+                padding: '6px 10px',
+                fontSize: 7,
+                cursor: 'pointer',
+                fontFamily: 'var(--pixel-font-family)',
+                letterSpacing: '0.08em',
+                boxShadow: '0 8px 18px rgba(0,0,0,0.24)',
+              }}
+            >
+              {t('coupon.entry')}
+            </button>
+          </div>
         )}
 
         {/* Total cumulative (small gray) */}

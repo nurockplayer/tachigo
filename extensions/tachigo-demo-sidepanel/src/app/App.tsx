@@ -14,6 +14,7 @@ import { LoginScreen } from './components/LoginScreen';
 import { LanguageSwitcher } from './components/LanguageSwitcher';
 import { MarioHUD } from './components/MarioHUD';
 import { ClaimPanel } from './components/ClaimPanel';
+import { CouponShopPanel } from './components/CouponShopPanel';
 
 export default function App() {
   const { i18n } = useTranslation()
@@ -96,6 +97,15 @@ export default function App() {
     const tcgGained = Number((claimable * 0.1).toFixed(2))
     setHudState((s) => ({ ...s, points: s.points - claimable }))
     setTcgBalance((t) => Number((t + tcgGained).toFixed(2)))
+  }
+
+  const handleCouponRedeem = (cost: number) => {
+    if (cost <= 0 || cost > tcgBalance) {
+      return false
+    }
+
+    setTcgBalance((current) => Number((current - cost).toFixed(2)))
+    return true
   }
 
   const openPopupMode = () => {
@@ -194,6 +204,12 @@ export default function App() {
               tcgBalance={tcgBalance}
               onClaim={handleClaim}
             />
+        ) : screen === 'coupon' ? (
+          <CouponShopPanel
+            onBack={() => setScreen('hud')}
+            tcgBalance={tcgBalance}
+            onRedeem={handleCouponRedeem}
+          />
         ) : (
           <MarioHUD state={hudState} onStateChange={setHudState} onNavigate={(s) => setScreen(s)} />
         )}
@@ -263,6 +279,23 @@ export default function App() {
             }}
           >
             HUD
+          </button>
+          <span style={{ fontSize: 10, color: 'rgba(100,100,140,0.3)', fontFamily: 'var(--pixel-font-family)' }}>·</span>
+          <button
+            onClick={() => setScreen('coupon')}
+            style={{
+              padding: '4px 12px',
+              borderRadius: 4,
+              border: '1px solid rgba(255,255,255,0.1)',
+              background: screen === 'coupon' ? 'rgba(200,168,73,0.15)' : 'transparent',
+              color: screen === 'coupon' ? 'rgba(200,168,73,0.8)' : 'rgba(100,100,140,0.4)',
+              fontSize: 9,
+              fontFamily: 'var(--pixel-font-family)',
+              cursor: 'pointer',
+              letterSpacing: '0.08em',
+            }}
+          >
+            SHOP
           </button>
           <span style={{ fontSize: 10, color: 'rgba(100,100,140,0.3)', fontFamily: 'var(--pixel-font-family)' }}>·</span>
           <button

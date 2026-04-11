@@ -38,6 +38,21 @@
     "button": "CLAIM $TCG",
     "success": "CLAIMED!"
   },
+  "coupon": {
+    "title": "COUPON SHOP",
+    "header": "COUPON MARKET",
+    "entry": "SHOP",
+    "balanceLabel": "PLATFORM COIN",
+    "subtitle": "Redeem your TCG for creator store discounts and shipping perks.",
+    "featured": "FEATURED COUPON",
+    "listTitle": "AVAILABLE COUPONS",
+    "cost": "COST {{amount}} TCG",
+    "redeem": "REDEEM",
+    "redeemed": "OWNED",
+    "claimedCode": "CODE {{code}} READY",
+    "insufficientBalance": "NOT ENOUGH TCG",
+    "alreadyRedeemed": "ALREADY REDEEMED"
+  },
   "error": {
     "account": {
       "title": "Account Not Found",
