@@ -1,43 +1,33 @@
 import { useMemo, useState } from 'react'
 import { useTranslation } from 'react-i18next'
+
+import type { CouponRedeemResult } from '../../extension/types'
 import { hudPanelBackground } from '../theme/backgrounds'
 
-interface CouponItem {
+interface CouponMeta {
   id: string
-  brand: string
-  title: string
-  description: string
+  itemKey: string
   price: number
-  tag: string
   code: string
 }
 
-const COUPONS: CouponItem[] = [
+const COUPON_METAS: CouponMeta[] = [
   {
     id: 'tachiya-95',
-    brand: 'TACHIYA',
-    title: '95折折扣碼',
-    description: '適用於精選周邊與 VTuber 聯名商品',
+    itemKey: 'tachiya95',
     price: 18,
-    tag: 'HOT',
     code: 'TACHIYA95',
   },
   {
     id: 'free-ship',
-    brand: 'TACHI MART',
-    title: '免運券',
-    description: '全站單筆訂單滿額即可使用',
+    itemKey: 'freeShip',
     price: 24,
-    tag: 'SHIP',
     code: 'SHIPFREE24',
   },
   {
     id: 'bundle-120',
-    brand: 'CREATOR DROP',
-    title: '現折 $120',
-    description: '限本月合作創作者商品專區',
+    itemKey: 'bundle120',
     price: 40,
-    tag: 'DROP',
     code: 'DROP120',
   },
 ]
@@ -45,38 +35,54 @@ const COUPONS: CouponItem[] = [
 interface CouponShopPanelProps {
   onBack: () => void
   tcgBalance: number
-  onRedeem: (cost: number) => boolean
+  redeemedCouponIds: string[]
+  onRedeem: (couponId: string, cost: number) => CouponRedeemResult
 }
 
-export function CouponShopPanel({ onBack, tcgBalance, onRedeem }: CouponShopPanelProps) {
+export function CouponShopPanel({
+  onBack,
+  tcgBalance,
+  redeemedCouponIds,
+  onRedeem,
+}: CouponShopPanelProps) {
   const { t } = useTranslation()
-  const [selectedId, setSelectedId] = useState(COUPONS[0]?.id ?? '')
-  const [redeemedCodes, setRedeemedCodes] = useState<string[]>([])
+  const [selectedId, setSelectedId] = useState(COUPON_METAS[0]?.id ?? '')
   const [error, setError] = useState('')
+  const [isRedeeming, setIsRedeeming] = useState(false)
 
   const selectedCoupon = useMemo(
-    () => COUPONS.find((coupon) => coupon.id === selectedId) ?? COUPONS[0],
+    () => COUPON_METAS.find((coupon) => coupon.id === selectedId) ?? COUPON_METAS[0],
     [selectedId],
   )
 
+  const itemPath = (field: 'brand' | 'title' | 'description' | 'tag') =>
+    `coupon.items.${selectedCoupon.itemKey}.${field}` as const
+
   const handleRedeem = () => {
-    if (!selectedCoupon) {
+    if (!selectedCoupon || isRedeeming) {
       return
     }
 
-    if (redeemedCodes.includes(selectedCoupon.id)) {
+    if (redeemedCouponIds.includes(selectedCoupon.id)) {
       setError(t('coupon.alreadyRedeemed'))
       return
     }
 
-    const success = onRedeem(selectedCoupon.price)
-    if (!success) {
-      setError(t('coupon.insufficientBalance'))
-      return
+    setIsRedeeming(true)
+    try {
+      const result = onRedeem(selectedCoupon.id, selectedCoupon.price)
+      if (result === 'already_redeemed') {
+        setError(t('coupon.alreadyRedeemed'))
+        return
+      }
+      if (result === 'insufficient') {
+        setError(t('coupon.insufficientBalance'))
+        return
+      }
+      setError('')
+    } finally {
+      setIsRedeeming(false)
     }
-
-    setError('')
-    setRedeemedCodes((current) => [...current, selectedCoupon.id])
   }
 
   return (
@@ -103,6 +109,7 @@ export function CouponShopPanel({ onBack, tcgBalance, onRedeem }: CouponShopPane
         }}
       >
         <button
+          type="button"
           onClick={onBack}
           style={{
             background: 'none',
@@ -115,7 +122,7 @@ export function CouponShopPanel({ onBack, tcgBalance, onRedeem }: CouponShopPane
             fontFamily: 'var(--pixel-font-family)',
           }}
         >
-          ‹ BACK
+          {t('coupon.back')}
         </button>
         <div style={{ fontSize: 8, color: '#b794ff', letterSpacing: '0.12em' }}>
           {t('coupon.header')}
@@ -169,20 +176,24 @@ export function CouponShopPanel({ onBack, tcgBalance, onRedeem }: CouponShopPane
                 letterSpacing: '0.12em',
               }}
             >
-              {selectedCoupon.tag}
+              {t(itemPath('tag'))}
             </div>
           </div>
-          <div style={{ fontSize: 8, color: '#b794ff', letterSpacing: '0.12em' }}>{selectedCoupon.brand}</div>
-          <div style={{ fontSize: 14, color: '#fff7da', lineHeight: 1.5 }}>{selectedCoupon.title}</div>
+          <div style={{ fontSize: 8, color: '#b794ff', letterSpacing: '0.12em' }}>
+            {t(`coupon.items.${selectedCoupon.itemKey}.brand`)}
+          </div>
+          <div style={{ fontSize: 14, color: '#fff7da', lineHeight: 1.5 }}>{t(itemPath('title'))}</div>
           <div style={{ fontSize: 7, color: 'rgba(225,218,255,0.74)', lineHeight: 1.8 }}>
-            {selectedCoupon.description}
+            {t(itemPath('description'))}
           </div>
           <div style={{ display: 'flex', alignItems: 'center', justifyContent: 'space-between', gap: 12 }}>
             <div style={{ fontSize: 8, color: '#d7c2ff', letterSpacing: '0.1em' }}>
               {t('coupon.cost', { amount: selectedCoupon.price })}
             </div>
             <button
+              type="button"
               onClick={handleRedeem}
+              disabled={isRedeeming}
               style={{
                 border: '1px solid rgba(255,176,0,0.35)',
                 background: 'linear-gradient(180deg, #FFD36B 0%, #FFB000 100%)',
@@ -190,10 +201,11 @@ export function CouponShopPanel({ onBack, tcgBalance, onRedeem }: CouponShopPane
                 padding: '8px 12px',
                 borderRadius: 8,
                 fontSize: 8,
-                cursor: 'pointer',
+                cursor: isRedeeming ? 'wait' : 'pointer',
                 fontFamily: 'var(--pixel-font-family)',
                 letterSpacing: '0.08em',
                 boxShadow: '0 0 16px rgba(255,176,0,0.24)',
+                opacity: isRedeeming ? 0.7 : 1,
               }}
             >
               {t('coupon.redeem')}
@@ -201,7 +213,7 @@ export function CouponShopPanel({ onBack, tcgBalance, onRedeem }: CouponShopPane
           </div>
           {error ? (
             <div style={{ fontSize: 7, color: '#ff9d7b', letterSpacing: '0.06em', lineHeight: 1.7 }}>{error}</div>
-          ) : redeemedCodes.includes(selectedCoupon.id) ? (
+          ) : redeemedCouponIds.includes(selectedCoupon.id) ? (
             <div style={{ fontSize: 7, color: '#b7f7cc', letterSpacing: '0.06em', lineHeight: 1.8 }}>
               {t('coupon.claimedCode', { code: selectedCoupon.code })}
             </div>
@@ -210,12 +222,13 @@ export function CouponShopPanel({ onBack, tcgBalance, onRedeem }: CouponShopPane
 
         <div style={{ display: 'flex', flexDirection: 'column', gap: 8 }}>
           <div style={{ fontSize: 7, color: '#9146FF', letterSpacing: '0.14em' }}>{t('coupon.listTitle')}</div>
-          {COUPONS.map((coupon) => {
+          {COUPON_METAS.map((coupon) => {
             const isSelected = coupon.id === selectedId
-            const isRedeemed = redeemedCodes.includes(coupon.id)
+            const isRedeemed = redeemedCouponIds.includes(coupon.id)
 
             return (
               <button
+                type="button"
                 key={coupon.id}
                 onClick={() => {
                   setSelectedId(coupon.id)
@@ -247,7 +260,7 @@ export function CouponShopPanel({ onBack, tcgBalance, onRedeem }: CouponShopPane
                       marginBottom: 6,
                     }}
                   >
-                    {coupon.brand}
+                    {t(`coupon.items.${coupon.itemKey}.brand`)}
                   </div>
                   <div
                     style={{
@@ -256,7 +269,7 @@ export function CouponShopPanel({ onBack, tcgBalance, onRedeem }: CouponShopPane
                       lineHeight: 1.7,
                     }}
                   >
-                    {coupon.title}
+                    {t(`coupon.items.${coupon.itemKey}.title`)}
                   </div>
                 </div>
                 <div style={{ display: 'flex', flexDirection: 'column', alignItems: 'flex-end', gap: 6, flexShrink: 0 }}>
@@ -275,7 +288,7 @@ export function CouponShopPanel({ onBack, tcgBalance, onRedeem }: CouponShopPane
                       letterSpacing: '0.1em',
                     }}
                   >
-                    {isRedeemed ? t('coupon.redeemed') : coupon.tag}
+                    {isRedeemed ? t('coupon.redeemed') : t(`coupon.items.${coupon.itemKey}.tag`)}
                   </div>
                 </div>
               </button>

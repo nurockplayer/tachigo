@@ -1,10 +1,11 @@
-import { useEffect, useState, type CSSProperties } from 'react';
+import { useEffect, useRef, useState, type CSSProperties } from 'react';
 import { useTranslation } from 'react-i18next'
 
 import { loadDemoState, saveDemoState } from '../extension/storage';
 import {
   defaultDemoState,
   normalizeAppLanguage,
+  type CouponRedeemResult,
   type DemoScreen,
   type HudDemoState,
 } from '../extension/types';
@@ -32,7 +33,10 @@ export default function App() {
   const [isHydrated, setIsHydrated] = useState(false);
   const [screen, setScreen] = useState<DemoScreen>(defaultDemoState.screen);
   const [hudState, setHudState] = useState<HudDemoState>(defaultDemoState.hud);
-  const [tcgBalance, setTcgBalance] = useState(0);
+  const [tcgBalance, setTcgBalance] = useState(defaultDemoState.tcgBalance);
+  const [redeemedCouponIds, setRedeemedCouponIds] = useState<string[]>(defaultDemoState.redeemedCouponIds);
+  const tcgBalanceRef = useRef(defaultDemoState.tcgBalance);
+  const redeemedCouponIdsRef = useRef<string[]>([...defaultDemoState.redeemedCouponIds]);
 
   useEffect(() => {
     let isActive = true
@@ -45,6 +49,10 @@ export default function App() {
 
         setScreen(storedState.screen)
         setHudState(storedState.hud)
+        setTcgBalance(storedState.tcgBalance)
+        tcgBalanceRef.current = storedState.tcgBalance
+        setRedeemedCouponIds(storedState.redeemedCouponIds)
+        redeemedCouponIdsRef.current = [...storedState.redeemedCouponIds]
 
         const targetLanguage = normalizeAppLanguage(storedState.language)
         setCurrentLanguage(targetLanguage)
@@ -80,13 +88,15 @@ export default function App() {
         screen,
         language: currentLanguage,
         hud: hudState,
+        tcgBalance,
+        redeemedCouponIds,
       }).catch((error: unknown) => {
         console.warn('Failed to persist extension demo state', error)
       })
     }, 120)
 
     return () => window.clearTimeout(persistTimer)
-  }, [currentLanguage, hudState, isHydrated, screen])
+  }, [currentLanguage, hudState, isHydrated, redeemedCouponIds, screen, tcgBalance])
 
   const handleClaim = (cpcAmount: number) => {
     const claimable = Math.max(0, Math.min(cpcAmount, hudState.points))
@@ -96,16 +106,36 @@ export default function App() {
 
     const tcgGained = Number((claimable * 0.1).toFixed(2))
     setHudState((s) => ({ ...s, points: s.points - claimable }))
-    setTcgBalance((t) => Number((t + tcgGained).toFixed(2)))
+    setTcgBalance((t) => {
+      const next = Number((t + tcgGained).toFixed(2))
+      tcgBalanceRef.current = next
+      return next
+    })
   }
 
-  const handleCouponRedeem = (cost: number) => {
-    if (cost <= 0 || cost > tcgBalance) {
-      return false
+  const handleCouponRedeem = (couponId: string, cost: number): CouponRedeemResult => {
+    if (!Number.isFinite(cost) || cost <= 0) {
+      return 'insufficient'
     }
 
-    setTcgBalance((current) => Number((current - cost).toFixed(2)))
-    return true
+    if (redeemedCouponIdsRef.current.includes(couponId)) {
+      return 'already_redeemed'
+    }
+
+    const current = tcgBalanceRef.current
+    if (cost > current) {
+      return 'insufficient'
+    }
+
+    const nextBalance = Number((current - cost).toFixed(2))
+    tcgBalanceRef.current = nextBalance
+    setTcgBalance(nextBalance)
+
+    const nextRedeemed = [...redeemedCouponIdsRef.current, couponId]
+    redeemedCouponIdsRef.current = nextRedeemed
+    setRedeemedCouponIds(nextRedeemed)
+
+    return 'success'
   }
 
   const openPopupMode = () => {
@@ -122,6 +152,8 @@ export default function App() {
       screen,
       language,
       hud: hudState,
+      tcgBalance,
+      redeemedCouponIds,
     }).catch((error: unknown) => {
       console.warn('Failed to persist language switch', error)
     })
@@ -208,6 +240,7 @@ export default function App() {
           <CouponShopPanel
             onBack={() => setScreen('hud')}
             tcgBalance={tcgBalance}
+            redeemedCouponIds={redeemedCouponIds}
             onRedeem={handleCouponRedeem}
           />
         ) : (

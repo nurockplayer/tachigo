@@ -10,10 +10,14 @@ export interface HudDemoState {
   clickCount: number
 }
 
+export type CouponRedeemResult = 'success' | 'insufficient' | 'already_redeemed'
+
 export interface DemoState {
   screen: DemoScreen
   language: AppLanguage
   hud: HudDemoState
+  tcgBalance: number
+  redeemedCouponIds: string[]
 }
 
 export const defaultHudDemoState: HudDemoState = {
@@ -28,6 +32,8 @@ export const defaultDemoState: DemoState = {
   screen: 'login',
   language: 'en',
   hud: defaultHudDemoState,
+  tcgBalance: 0,
+  redeemedCouponIds: [],
 }
 
 export function normalizeAppLanguage(language: string | null | undefined): AppLanguage {
@@ -64,9 +70,21 @@ export function sanitizeDemoState(value: unknown): DemoState {
     ? candidate.screen
     : defaultDemoState.screen
 
+  const tcgBalance =
+    typeof candidate.tcgBalance === 'number' && Number.isFinite(candidate.tcgBalance)
+      ? Math.max(0, candidate.tcgBalance)
+      : defaultDemoState.tcgBalance
+
+  const redeemedRaw = candidate.redeemedCouponIds
+  const redeemedCouponIds = Array.isArray(redeemedRaw)
+    ? redeemedRaw.filter((id): id is string => typeof id === 'string')
+    : defaultDemoState.redeemedCouponIds
+
   return {
     screen,
     language: normalizeAppLanguage(candidate.language),
     hud: sanitizeHudDemoState(candidate.hud),
+    tcgBalance,
+    redeemedCouponIds,
   }
 }

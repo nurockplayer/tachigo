@@ -42,6 +42,7 @@
     "title": "COUPON SHOP",
     "header": "COUPON MARKET",
     "entry": "SHOP",
+    "back": "\u2039 BACK",
     "balanceLabel": "PLATFORM COIN",
     "subtitle": "Redeem your TCG for creator store discounts and shipping perks.",
     "featured": "FEATURED COUPON",
@@ -51,7 +52,27 @@
     "redeemed": "OWNED",
     "claimedCode": "CODE {{code}} READY",
     "insufficientBalance": "NOT ENOUGH TCG",
-    "alreadyRedeemed": "ALREADY REDEEMED"
+    "alreadyRedeemed": "ALREADY REDEEMED",
+    "items": {
+      "tachiya95": {
+        "brand": "TACHIYA",
+        "title": "5% OFF CODE",
+        "description": "For select merch and VTuber collabs.",
+        "tag": "HOT"
+      },
+      "freeShip": {
+        "brand": "TACHI MART",
+        "title": "FREE SHIPPING",
+        "description": "Applies when your order meets the site minimum.",
+        "tag": "SHIP"
+      },
+      "bundle120": {
+        "brand": "CREATOR DROP",
+        "title": "$120 OFF",
+        "description": "Collaborator merch this month only.",
+        "tag": "DROP"
+      }
+    }
   },
   "error": {
     "account": {

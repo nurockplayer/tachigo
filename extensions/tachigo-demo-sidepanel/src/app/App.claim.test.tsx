@@ -46,6 +46,8 @@ describe('App claim guards', () => {
         isWatching: true,
         clickCount: 0,
       },
+      tcgBalance: 0,
+      redeemedCouponIds: [],
     })
     saveDemoStateMock.mockResolvedValue(undefined)
   })
