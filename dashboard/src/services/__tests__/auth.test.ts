@@ -76,10 +76,14 @@ describe('restoreSession', () => {
 
   it('refresh 回 401 時清除 refresh_token', async () => {
     localStorage.setItem('refresh_token', 'bad-refresh')
+    localStorage.setItem('current_user', JSON.stringify({ id: 'user-123', role: 'streamer' }))
     mock.onPost('/api/v1/auth/refresh').reply(401)
 
     await expect(restoreSession()).rejects.toThrow()
     expect(localStorage.getItem('refresh_token')).toBeNull()
+    expect(localStorage.getItem('current_user')).toBeNull()
+    expect(getCurrentUserRole()).toBeNull()
+    expect(getCurrentUserId()).toBeNull()
   })
 
   it('沒有 refresh_token 時直接 throw', async () => {

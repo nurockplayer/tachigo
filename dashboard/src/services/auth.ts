@@ -118,7 +118,9 @@ export async function restoreSession(): Promise<void> {
   } catch (error) {
     if (isAxiosError(error) && error.response?.status === 401) {
       accessToken = null
+      currentUserSession = null
       localStorage.removeItem('refresh_token')
+      localStorage.removeItem('current_user')
       clearAuthToken()
     }
     throw error
