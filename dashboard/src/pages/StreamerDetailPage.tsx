@@ -60,6 +60,9 @@ export default function StreamerDetailPage() {
   useEffect(() => {
     if (!streamerId) return
 
+    setStats(null)
+    setConfig(null)
+
     let mounted = true
 
     getStreamerStats(streamerId)

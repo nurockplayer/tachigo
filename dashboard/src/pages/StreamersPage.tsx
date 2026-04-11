@@ -1,13 +1,12 @@
 import { useEffect, useState } from 'react'
 import { useNavigate } from 'react-router'
 import { Skeleton } from '@/components/ui/skeleton'
-import { getCurrentUserId, getCurrentUserRole } from '@/services/auth'
+import { getCurrentUserRole } from '@/services/auth'
 import { getMyChannels, getStreamers, type Streamer } from '@/services/channels'
 
 export default function StreamersPage() {
   const navigate = useNavigate()
   const role = getCurrentUserRole()
-  const currentUserId = getCurrentUserId()
   const [streamers, setStreamers] = useState<Streamer[]>([])
   const [loading, setLoading] = useState(true)
   const [error, setError] = useState(false)
@@ -17,6 +16,10 @@ export default function StreamersPage() {
   }
 
   useEffect(() => {
+    setError(false)
+    setLoading(true)
+    setStreamers([])
+
     let mounted = true
     const loadStreamers = role === 'streamer' ? getMyChannels : getStreamers
 
@@ -40,16 +43,11 @@ export default function StreamersPage() {
   }, [role])
 
   useEffect(() => {
-    if (loading || role !== 'streamer') return
-
-    const ownedChannel = currentUserId
-      ? streamers.find((streamer) => streamer.user_id === currentUserId)
-      : null
-
-    if (!ownedChannel) return
-
-    navigate(`/streamers/${ownedChannel.id}`, { replace: true })
-  }, [currentUserId, loading, navigate, role, streamers])
+    if (loading || error || role !== 'streamer') return
+    const first = streamers[0]
+    if (!first) return
+    navigate(`/streamers/${first.id}`, { replace: true })
+  }, [streamers, loading, error, navigate, role])
 
   return (
     <div className="space-y-6">
