@@ -158,55 +158,6 @@ function ClickableCapybara({
         <rect x="150" y="209" width="8" height="7" rx="2" fill="white" fillOpacity="0.82" />
         <rect x="162" y="209" width="8" height="7" rx="2" fill="white" fillOpacity="0.82" />
 
-        {/* Pickaxe (animated separately) */}
-        <g
-          id="pickaxe"
-          className={`pickaxe-${animState}`}
-          style={{
-            transformOrigin: '240px 210px',
-            transformBox: 'fill-box',
-          }}
-        >
-          {/* Handle */}
-          <rect
-            x="235"
-            y="140"
-            width="10"
-            height="70"
-            rx="5"
-            fill="#8B6038"
-          />
-          <rect
-            x="236"
-            y="142"
-            width="4"
-            height="66"
-            rx="2"
-            fill="#A87448"
-            fillOpacity="0.5"
-          />
-
-          {/* Pickaxe head */}
-          <path
-            d="M220,135 L235,140 L235,145 L220,148 Z"
-            fill="#7A8B9A"
-          />
-          <path
-            d="M245,140 L260,132 L263,137 L245,145 Z"
-            fill="#7A8B9A"
-          />
-          {/* Metal shine */}
-          <path
-            d="M223,137 L233,141 L233,143 L223,141 Z"
-            fill="#A8C0D0"
-            fillOpacity="0.6"
-          />
-          <path
-            d="M247,141 L258,134 L259,136 L247,143 Z"
-            fill="#A8C0D0"
-            fillOpacity="0.6"
-          />
-        </g>
       </svg>
     </div>
   );

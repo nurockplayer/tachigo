@@ -16,9 +16,11 @@ import { LanguageSwitcher } from './components/LanguageSwitcher';
 import { MarioHUD } from './components/MarioHUD';
 import { ClaimPanel } from './components/ClaimPanel';
 import { CouponShopPanel } from './components/CouponShopPanel';
+import { HammerCursorOverlay } from './components/HammerCursorOverlay';
 
 export default function App() {
   const { i18n } = useTranslation()
+  const appShellRef = useRef<HTMLDivElement | null>(null)
   const isPopupMode = typeof window !== 'undefined' && window.location.pathname.endsWith('/popup.html')
   const [currentLanguage, setCurrentLanguage] = useState<AppLanguage>(defaultDemoState.language);
   const useZpixLanguage = currentLanguage === 'zh-TW' || currentLanguage === 'zh-CN'
@@ -197,6 +199,8 @@ export default function App() {
 
   return (
     <div
+      ref={appShellRef}
+      className="extension-app-shell hammer-cursor-enabled"
       style={{
         minHeight: '100vh',
         background: '#06060f',
@@ -207,10 +211,13 @@ export default function App() {
         gap: 12,
         padding: '16px 16px 18px',
         boxSizing: 'border-box',
+        position: 'relative',
         fontFamily: 'var(--ui-font-family)',
         ...fontVariables,
       }}
     >
+      <HammerCursorOverlay containerRef={appShellRef} />
+
       {/* Extension frame */}
       <div
         style={{

@@ -1,5 +1,24 @@
 @import './fonts.css';
 
+.hammer-cursor-enabled,
+.hammer-cursor-enabled * {
+  cursor: none !important;
+}
+
+.hammer-cursor-overlay {
+  position: absolute;
+  top: 0;
+  left: 0;
+  width: 48px;
+  height: 48px;
+  pointer-events: none;
+  z-index: 9999;
+  transform: translate(-999px, -999px) rotate(-24deg);
+  transform-origin: 22px 18px;
+  transition: opacity 120ms ease-out, transform 90ms ease-out;
+  will-change: transform, opacity;
+}
+
 /* ─── Game: base font ─────────────────────────── */
 .game-sans {
   font-family: var(--ui-font-family, 'Inter', system-ui, sans-serif);
