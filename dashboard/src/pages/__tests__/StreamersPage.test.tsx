@@ -7,7 +7,6 @@ import StreamersPage from '@/pages/StreamersPage'
 const getStreamersMock = vi.fn()
 const getMyChannelsMock = vi.fn()
 const getCurrentUserRoleMock = vi.fn()
-const getCurrentUserIdMock = vi.fn()
 
 vi.mock('@/services/channels', () => ({
   getStreamers: (...args: unknown[]) => getStreamersMock(...args),
@@ -16,7 +15,6 @@ vi.mock('@/services/channels', () => ({
 
 vi.mock('@/services/auth', () => ({
   getCurrentUserRole: () => getCurrentUserRoleMock(),
-  getCurrentUserId: () => getCurrentUserIdMock(),
 }))
 
 function DetailRouteProbe() {
@@ -68,9 +66,7 @@ describe('StreamersPage', () => {
     getStreamersMock.mockReset()
     getMyChannelsMock.mockReset()
     getCurrentUserRoleMock.mockReset()
-    getCurrentUserIdMock.mockReset()
     getCurrentUserRoleMock.mockReturnValue('admin')
-    getCurrentUserIdMock.mockReturnValue(null)
   })
 
   afterEach(() => {
@@ -115,9 +111,8 @@ describe('StreamersPage', () => {
     cleanupRoot(root, container)
   })
 
-  it('redirects a streamer to the logged-in streamer channel', async () => {
+  it('redirects a streamer to the first available channel', async () => {
     getCurrentUserRoleMock.mockReturnValue('streamer')
-    getCurrentUserIdMock.mockReturnValue('user-2')
     getMyChannelsMock.mockResolvedValue([
       { id: 'uuid-1', user_id: 'user-1', channel_id: 'channel-1', display_name: 'Alice' },
       { id: 'uuid-2', user_id: 'user-2', channel_id: 'channel-2', display_name: 'Bob' },
@@ -129,14 +124,13 @@ describe('StreamersPage', () => {
 
     expect(getStreamersMock).not.toHaveBeenCalled()
     expect(getMyChannelsMock).toHaveBeenCalledTimes(1)
-    expect(container.querySelector('[data-testid="detail-page"]')?.textContent).toBe('uuid-2')
+    expect(container.querySelector('[data-testid="detail-page"]')?.textContent).toBe('uuid-1')
 
     cleanupRoot(root, container)
   })
 
-  it('keeps streamer on the listing page when no owned channel exists', async () => {
+  it('keeps streamer on the listing page when no channel exists', async () => {
     getCurrentUserRoleMock.mockReturnValue('streamer')
-    getCurrentUserIdMock.mockReturnValue('user-9')
     getMyChannelsMock.mockResolvedValue([])
 
     const { container, root } = await renderAt('/streamers')
