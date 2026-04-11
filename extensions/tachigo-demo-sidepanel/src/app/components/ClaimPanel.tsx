@@ -309,18 +309,18 @@ export function ClaimPanel({ onBack, cpcBalance, tcgBalance, onClaim }: ClaimPan
             borderRadius: 8,
             border: 'none',
             background: claimed
-              ? 'rgba(145,70,255,0.3)'
+              ? 'rgba(255,176,0,0.28)'
               : isDisabled
-                ? 'rgba(145,70,255,0.15)'
-                : '#9146FF',
-            color: isDisabled && !claimed ? '#555' : 'white',
+                ? 'rgba(255,176,0,0.14)'
+                : 'linear-gradient(180deg, #FFD36B 0%, #FFB000 100%)',
+            color: isDisabled && !claimed ? '#6d5a2d' : claimed ? '#fff2bf' : '#4b1700',
             fontSize: 10,
             letterSpacing: '0.1em',
             cursor: isDisabled ? 'not-allowed' : 'pointer',
             fontFamily: 'var(--pixel-font-family)',
             opacity: isDisabled && !claimed ? 0.6 : 1,
             transition: 'background 0.2s, opacity 0.2s',
-            boxShadow: !isDisabled && !claimed ? '0 0 16px rgba(145,70,255,0.4)' : 'none',
+            boxShadow: !isDisabled && !claimed ? '0 0 16px rgba(255,176,0,0.32)' : 'none',
           }}
         >
           {claimed ? t('claim.success') : t('claim.button')}

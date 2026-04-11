@@ -33,6 +33,8 @@ describe('demo storage', () => {
         isWatching: true,
         clickCount: 7,
       },
+      tcgBalance: 0,
+      redeemedCouponIds: [],
     })
   })
 })

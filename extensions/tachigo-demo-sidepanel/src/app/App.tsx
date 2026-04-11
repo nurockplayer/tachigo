@@ -1,10 +1,11 @@
-import { useEffect, useState, type CSSProperties } from 'react';
+import { useEffect, useRef, useState, type CSSProperties } from 'react';
 import { useTranslation } from 'react-i18next'
 
 import { loadDemoState, saveDemoState } from '../extension/storage';
 import {
   defaultDemoState,
   normalizeAppLanguage,
+  type CouponRedeemResult,
   type DemoScreen,
   type HudDemoState,
 } from '../extension/types';
@@ -14,6 +15,7 @@ import { LoginScreen } from './components/LoginScreen';
 import { LanguageSwitcher } from './components/LanguageSwitcher';
 import { MarioHUD } from './components/MarioHUD';
 import { ClaimPanel } from './components/ClaimPanel';
+import { CouponShopPanel } from './components/CouponShopPanel';
 
 export default function App() {
   const { i18n } = useTranslation()
@@ -31,7 +33,10 @@ export default function App() {
   const [isHydrated, setIsHydrated] = useState(false);
   const [screen, setScreen] = useState<DemoScreen>(defaultDemoState.screen);
   const [hudState, setHudState] = useState<HudDemoState>(defaultDemoState.hud);
-  const [tcgBalance, setTcgBalance] = useState(0);
+  const [tcgBalance, setTcgBalance] = useState(defaultDemoState.tcgBalance);
+  const [redeemedCouponIds, setRedeemedCouponIds] = useState<string[]>(defaultDemoState.redeemedCouponIds);
+  const tcgBalanceRef = useRef(defaultDemoState.tcgBalance);
+  const redeemedCouponIdsRef = useRef<string[]>([...defaultDemoState.redeemedCouponIds]);
 
   useEffect(() => {
     let isActive = true
@@ -44,6 +49,10 @@ export default function App() {
 
         setScreen(storedState.screen)
         setHudState(storedState.hud)
+        setTcgBalance(storedState.tcgBalance)
+        tcgBalanceRef.current = storedState.tcgBalance
+        setRedeemedCouponIds(storedState.redeemedCouponIds)
+        redeemedCouponIdsRef.current = [...storedState.redeemedCouponIds]
 
         const targetLanguage = normalizeAppLanguage(storedState.language)
         setCurrentLanguage(targetLanguage)
@@ -79,13 +88,15 @@ export default function App() {
         screen,
         language: currentLanguage,
         hud: hudState,
+        tcgBalance,
+        redeemedCouponIds,
       }).catch((error: unknown) => {
         console.warn('Failed to persist extension demo state', error)
       })
     }, 120)
 
     return () => window.clearTimeout(persistTimer)
-  }, [currentLanguage, hudState, isHydrated, screen])
+  }, [currentLanguage, hudState, isHydrated, redeemedCouponIds, screen, tcgBalance])
 
   const handleClaim = (cpcAmount: number) => {
     const claimable = Math.max(0, Math.min(cpcAmount, hudState.points))
@@ -95,7 +106,36 @@ export default function App() {
 
     const tcgGained = Number((claimable * 0.1).toFixed(2))
     setHudState((s) => ({ ...s, points: s.points - claimable }))
-    setTcgBalance((t) => Number((t + tcgGained).toFixed(2)))
+    setTcgBalance((t) => {
+      const next = Number((t + tcgGained).toFixed(2))
+      tcgBalanceRef.current = next
+      return next
+    })
+  }
+
+  const handleCouponRedeem = (couponId: string, cost: number): CouponRedeemResult => {
+    if (!Number.isFinite(cost) || cost <= 0) {
+      return 'insufficient'
+    }
+
+    if (redeemedCouponIdsRef.current.includes(couponId)) {
+      return 'already_redeemed'
+    }
+
+    const current = tcgBalanceRef.current
+    if (cost > current) {
+      return 'insufficient'
+    }
+
+    const nextBalance = Number((current - cost).toFixed(2))
+    tcgBalanceRef.current = nextBalance
+    setTcgBalance(nextBalance)
+
+    const nextRedeemed = [...redeemedCouponIdsRef.current, couponId]
+    redeemedCouponIdsRef.current = nextRedeemed
+    setRedeemedCouponIds(nextRedeemed)
+
+    return 'success'
   }
 
   const openPopupMode = () => {
@@ -112,6 +152,8 @@ export default function App() {
       screen,
       language,
       hud: hudState,
+      tcgBalance,
+      redeemedCouponIds,
     }).catch((error: unknown) => {
       console.warn('Failed to persist language switch', error)
     })
@@ -194,6 +236,13 @@ export default function App() {
               tcgBalance={tcgBalance}
               onClaim={handleClaim}
             />
+        ) : screen === 'coupon' ? (
+          <CouponShopPanel
+            onBack={() => setScreen('hud')}
+            tcgBalance={tcgBalance}
+            redeemedCouponIds={redeemedCouponIds}
+            onRedeem={handleCouponRedeem}
+          />
         ) : (
           <MarioHUD state={hudState} onStateChange={setHudState} onNavigate={(s) => setScreen(s)} />
         )}
@@ -263,6 +312,23 @@ export default function App() {
             }}
           >
             HUD
+          </button>
+          <span style={{ fontSize: 10, color: 'rgba(100,100,140,0.3)', fontFamily: 'var(--pixel-font-family)' }}>·</span>
+          <button
+            onClick={() => setScreen('coupon')}
+            style={{
+              padding: '4px 12px',
+              borderRadius: 4,
+              border: '1px solid rgba(255,255,255,0.1)',
+              background: screen === 'coupon' ? 'rgba(200,168,73,0.15)' : 'transparent',
+              color: screen === 'coupon' ? 'rgba(200,168,73,0.8)' : 'rgba(100,100,140,0.4)',
+              fontSize: 9,
+              fontFamily: 'var(--pixel-font-family)',
+              cursor: 'pointer',
+              letterSpacing: '0.08em',
+            }}
+          >
+            SHOP
           </button>
           <span style={{ fontSize: 10, color: 'rgba(100,100,140,0.3)', fontFamily: 'var(--pixel-font-family)' }}>·</span>
           <button

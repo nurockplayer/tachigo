@@ -38,6 +38,42 @@
     "button": "提领 $TCG",
     "success": "已提领！"
   },
+  "coupon": {
+    "title": "Coupon 商城",
+    "header": "Coupon 兑换商城",
+    "entry": "商城",
+    "back": "\u2039 返回",
+    "balanceLabel": "平台币余额",
+    "subtitle": "使用 TCG 兑换创作者商城折扣码与免运福利。",
+    "featured": "本期主打",
+    "listTitle": "可兑换 Coupon",
+    "cost": "消耗 {{amount}} TCG",
+    "redeem": "立即兑换",
+    "redeemed": "已拥有",
+    "claimedCode": "折扣码 {{code}} 已入袋",
+    "insufficientBalance": "平台币不足",
+    "alreadyRedeemed": "此 Coupon 已兑换",
+    "items": {
+      "tachiya95": {
+        "brand": "TACHIYA",
+        "title": "95 折折扣码",
+        "description": "适用于精选周边与 VTuber 联名商品",
+        "tag": "HOT"
+      },
+      "freeShip": {
+        "brand": "TACHI MART",
+        "title": "免运券",
+        "description": "全站单笔订单满额即可使用",
+        "tag": "SHIP"
+      },
+      "bundle120": {
+        "brand": "CREATOR DROP",
+        "title": "现折 $120",
+        "description": "限本月合作创作者商品专区",
+        "tag": "DROP"
+      }
+    }
+  },
   "error": {
     "account": {
       "title": "尚未创建账号",
