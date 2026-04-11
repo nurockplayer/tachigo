@@ -7,5 +7,18 @@
     "retry": "重試",
     "initializing": "初始化中...",
     "points": "點"
+  },
+  "claim": {
+    "actions": {
+      "claim": "提領",
+      "claiming": "提領中..."
+    },
+    "status": {
+      "complete": "提領完成。"
+    },
+    "errors": {
+      "loadBalanceFailed": "無法載入 $TACHI 餘額。",
+      "claimFailed": "提領失敗，請再試一次。"
+    }
   }
 }

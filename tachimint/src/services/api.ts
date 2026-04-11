@@ -116,6 +116,10 @@ interface HeartbeatResponse {
   balance: number
 }
 
+interface TachiBalanceResponse {
+  tachiBalance: number
+}
+
 function parsePointsEarnedFromPayload(payload: unknown): number | null {
   if (!payload || typeof payload !== 'object') {
     return null
@@ -152,6 +156,23 @@ function parseBalanceFromPayload(payload: unknown): number {
   return value
 }
 
+function parseTachiBalanceFromPayload(payload: unknown): number {
+  if (!payload || typeof payload !== 'object') {
+    throw new Error('Invalid tachi balance response')
+  }
+
+  // eslint-disable-next-line @typescript-eslint/no-explicit-any
+  const raw = payload as any
+  const direct = raw.tachi_balance
+  const nested = raw.data?.tachi_balance
+  const value = typeof direct === 'number' ? direct : typeof nested === 'number' ? nested : null
+  if (typeof value !== 'number') {
+    throw new Error('Tachi balance response missing tachi_balance')
+  }
+
+  return value
+}
+
 interface ClickResponse {
   balance: number
   delta: number
@@ -180,6 +201,21 @@ export async function sendClick(channelId: string): Promise<ClickResponse> {
       config,
     ))
   return data.data
+}
+
+export async function getTachiBalance(): Promise<number> {
+  const { data } = await runWithAuthRecovery((config) => client.get('/api/v1/users/me/tachi/balance', config))
+
+  return parseTachiBalanceFromPayload(data)
+}
+
+export async function claimPoints(amount = 0): Promise<TachiBalanceResponse> {
+  const { data } = await runWithAuthRecovery((config) =>
+    client.post('/api/v1/users/me/points/claim', { amount }, config))
+
+  return {
+    tachiBalance: parseTachiBalanceFromPayload(data),
+  }
 }
 
 export async function sendHeartbeat(

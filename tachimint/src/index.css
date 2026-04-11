@@ -144,6 +144,47 @@ p  { margin: 0; }
   100% { opacity: 0; transform: translateY(-10px); }
 }
 
+/* ── Claim ─────────────────────────────────────────────────────────────────── */
+.ext-claim {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  gap: 8px;
+  margin-bottom: 12px;
+  padding: 10px 12px;
+  border: 1px solid var(--border);
+  border-radius: var(--radius);
+  background: var(--surface);
+}
+
+.ext-claim__label {
+  display: block;
+  font-size: 11px;
+  color: var(--text);
+}
+
+.ext-claim__value {
+  display: block;
+  color: var(--text-h);
+  font-size: 16px;
+}
+
+.ext-btn--claim {
+  padding: 6px 12px;
+  background: var(--success);
+  color: #06120a;
+  font-size: 13px;
+  font-weight: 700;
+}
+
+.ext-btn--claim:hover:not(:disabled) { background: #20e06e; }
+
+.ext-success-text {
+  font-size: 12px;
+  color: var(--success);
+  margin-bottom: 8px;
+}
+
 /* ── Mining character ───────────────────────────────────────────────────────── */
 .ext-mine {
   display: flex;

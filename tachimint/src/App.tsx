@@ -1,14 +1,21 @@
+import { useCallback, useEffect, useState } from 'react'
 import { useTranslation } from 'react-i18next'
 import { useTwitch } from './hooks/useTwitch'
 import { useBits } from './hooks/useBits'
 import { useHeartbeat } from './hooks/useHeartbeat'
 import { useClickBoost } from './hooks/useClickBoost'
+import { claimPoints, getTachiBalance } from './services/api'
+
+type ClaimErrorKey = 'loadBalanceFailed' | 'claimFailed'
 
 export default function App() {
   const { t } = useTranslation()
   const { context, jwt, products, bitsEnabled, authError, backendReady } = useTwitch()
   const { buyWithBits, status, error } = useBits(jwt)
   const isViewer = context?.role === 'viewer'
+  const [tachiBalance, setTachiBalance] = useState<number | null>(null)
+  const [claimStatus, setClaimStatus] = useState<'idle' | 'pending' | 'success' | 'error'>('idle')
+  const [claimError, setClaimError] = useState<ClaimErrorKey | null>(null)
   const { balance, gain, isAnimating, syncBalance } = useHeartbeat(context?.channelId, {
     enabled: isViewer && backendReady,
   })
@@ -18,6 +25,58 @@ export default function App() {
     isAnimating: clickAnimating,
     gain: clickGain,
   } = useClickBoost(context?.channelId, isViewer && backendReady, syncBalance)
+
+  useEffect(() => {
+    if (!isViewer || !backendReady) {
+      const resetTimer = window.setTimeout(() => {
+        setTachiBalance(null)
+        setClaimStatus('idle')
+        setClaimError(null)
+      }, 0)
+      return () => {
+        window.clearTimeout(resetTimer)
+      }
+    }
+
+    let isDisposed = false
+    getTachiBalance()
+      .then((nextBalance) => {
+        if (!isDisposed) {
+          setTachiBalance(nextBalance)
+          setClaimStatus('idle')
+          setClaimError(null)
+        }
+      })
+      .catch(() => {
+        if (!isDisposed) {
+          setClaimStatus('error')
+          setClaimError('loadBalanceFailed')
+        }
+      })
+
+    return () => {
+      isDisposed = true
+    }
+  }, [backendReady, isViewer])
+
+  const handleClaim = useCallback(async () => {
+    if (!isViewer || !backendReady || claimStatus === 'pending' || !balance || balance <= 0) {
+      return
+    }
+
+    setClaimStatus('pending')
+    setClaimError(null)
+
+    try {
+      const result = await claimPoints()
+      setTachiBalance(result.tachiBalance)
+      syncBalance(0)
+      setClaimStatus('success')
+    } catch {
+      setClaimStatus('error')
+      setClaimError('claimFailed')
+    }
+  }, [backendReady, balance, claimStatus, isViewer, syncBalance])
 
   if (!context) {
     return (
@@ -58,6 +117,30 @@ export default function App() {
             <span className="ext-balance-gain">+{gain.toLocaleString()} {t('common.points')}</span>
           )}
         </section>
+
+        <section className="ext-claim">
+          <div>
+            <span className="ext-claim__label">$TACHI</span>
+            <strong className="ext-claim__value">{tachiBalance?.toLocaleString() ?? '—'}</strong>
+          </div>
+          <button
+            className="ext-btn ext-btn--claim"
+            onClick={handleClaim}
+            disabled={!backendReady || claimStatus === 'pending' || !balance || balance <= 0}
+          >
+            {claimStatus === 'pending' ? t('claim.actions.claiming') : t('claim.actions.claim')}
+          </button>
+        </section>
+
+        {claimStatus === 'success' && (
+          <p className="ext-success-text">{t('claim.status.complete')}</p>
+        )}
+
+        {claimStatus === 'error' && (
+          <p className="ext-error">
+            {t(`claim.errors.${claimError ?? 'claimFailed'}`)}
+          </p>
+        )}
 
         <section className="ext-mine">
           <div className="ext-mine__wrap">
