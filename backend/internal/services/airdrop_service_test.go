@@ -494,7 +494,7 @@ func newConcurrentTestDB(t *testing.T) *gorm.DB {
 	t.Helper()
 
 	dbPath := t.TempDir() + "/airdrop-concurrency.db"
-	db, err := gorm.Open(sqlite.Open(dbPath), &gorm.Config{
+	db, err := gorm.Open(sqlite.Open(dbPath+"?_busy_timeout=5000&_foreign_keys=on&_journal_mode=WAL"), &gorm.Config{
 		Logger:         logger.Default.LogMode(logger.Silent),
 		TranslateError: true,
 	})
@@ -511,8 +511,6 @@ func newConcurrentTestDB(t *testing.T) *gorm.DB {
 
 	pragmas := []string{
 		`PRAGMA foreign_keys = ON`,
-		`PRAGMA journal_mode = WAL`,
-		`PRAGMA busy_timeout = 5000`,
 	}
 	for _, stmt := range pragmas {
 		if err := db.Exec(stmt).Error; err != nil {

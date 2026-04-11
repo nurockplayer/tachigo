@@ -159,6 +159,9 @@ func (s *AirdropService) Execute(req AirdropRequest) (*AirdropResult, error) {
 		if !isRetryableAirdropTxError(lastErr) {
 			return nil, lastErr
 		}
+		if attempt < maxAirdropTxRetries-1 {
+			time.Sleep(time.Duration(attempt+1) * 10 * time.Millisecond)
+		}
 	}
 
 	return nil, lastErr
