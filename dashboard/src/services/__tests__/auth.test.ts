@@ -173,6 +173,26 @@ describe('401 interceptor', () => {
     )
     expect(channelRetry?.headers?.Authorization).toBe('Bearer refreshed-token')
   })
+
+  it('refresh 回 5xx 時不清除 in-memory accessToken', async () => {
+    mock.onPost('/api/v1/auth/login').replyOnce(200, {
+      data: {
+        user: {
+          id: 'user-123',
+          role: 'streamer',
+        },
+        tokens: { access_token: 'current-access', refresh_token: 'valid-refresh' },
+      },
+    })
+    await login('user@example.com', 'password')
+    expect(getAccessToken()).toBe('current-access')
+
+    mock.onGet('/api/v1/streamers').replyOnce(401)
+    mock.onPost('/api/v1/auth/refresh').replyOnce(500)
+
+    await expect(client.get('/api/v1/streamers')).rejects.toBeDefined()
+    expect(getAccessToken()).toBe('current-access')
+  })
 })
 
 describe('auth basics', () => {
@@ -188,6 +208,17 @@ describe('auth basics', () => {
     expect(localStorage.getItem('refresh_token')).toBeNull()
     expect(isAuthenticated()).toBe(false)
     expect(getAccessToken()).toBeNull()
+  })
+
+  it('logout without refresh_token still clears local session state', async () => {
+    localStorage.setItem('current_user', JSON.stringify({ id: 'user-123', role: 'streamer' }))
+
+    await logout()
+
+    expect(mock.history.post).toHaveLength(0)
+    expect(localStorage.getItem('current_user')).toBeNull()
+    expect(localStorage.getItem('refresh_token')).toBeNull()
+    expect(isAuthenticated()).toBe(false)
   })
 
   it('login 後 isAuthenticated 為 true，logout 後回到 false', async () => {
