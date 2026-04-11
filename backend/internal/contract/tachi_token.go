@@ -204,7 +204,9 @@ func (t *TachiToken) Burn(ctx context.Context, fromAddr common.Address, amount *
 	}
 	receipt, err := bind.WaitMined(ctx, t.client, signedTx)
 	if err != nil {
-		return "", fmt.Errorf("wait burn receipt: %w", err)
+		// Return txHash so callers can distinguish "tx broadcast but receipt unknown"
+		// from "tx never sent". Do NOT roll back DB based on this error alone.
+		return signedTx.Hash().Hex(), fmt.Errorf("wait burn receipt: %w", err)
 	}
 	if receipt.Status != types.ReceiptStatusSuccessful {
 		return "", fmt.Errorf("burn tx failed: %s", signedTx.Hash().Hex())

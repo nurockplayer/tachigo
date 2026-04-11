@@ -2,7 +2,7 @@
 
 **Issue**: #186  
 **日期**: 2026-04-11  
-**狀態**: 待實作
+**狀態**: 已完成（feat/spend-service → PR #187）
 
 ---
 
@@ -27,7 +27,7 @@
 | `backend/internal/services/spend_service.go` | 新檔：SpendService |
 | `backend/internal/handlers/spend_handler.go` | 新檔：SpendHandler |
 | `backend/internal/router/router.go` | 注入 SpendService / SpendHandler，掛 route |
-| `backend/cmd/api/main.go` | wire SpendService |
+| `backend/cmd/server/main.go` | wire SpendService |
 | `backend/internal/services/spend_service_test.go` | 新檔：單元測試 |
 
 ---
@@ -85,7 +85,7 @@ Body:  { "amount": 100 }        // 必填，> 0
 
 ## Transaction 流程（方案 A：reserve-then-burn）
 
-```
+```text
 1. DB txn (SELECT FOR UPDATE):
    a. 取得 tachi_balances WHERE user_id（lock row）
       → 不存在或 balance < amount → ErrSpendInsufficientBalance (400)
@@ -93,13 +93,17 @@ Body:  { "amount": 100 }        // 必填，> 0
       → 找不到 → ErrSpendWalletNotLinked (400)
    c. UPDATE tachi_balances SET balance = balance - amount（reservation）
 
-2. BurnOnChain(walletAddr, amount) — 30s timeout
-   → 失敗 → rollback DB（UPDATE balance = balance + amount）→ 500
+2. BurnOnChain(walletAddr, amount) — 30s timeout，回傳 (txHash, err)
+   → err != nil AND txHash == ""：tx 未送出 → rollback DB → 500
+   → err != nil AND txHash != ""：tx 已廣播但收據未知 → 不 rollback，回傳 error → 500
+   → err == nil：burn 成功
 
 3. 回傳 newBalance（= reservation 後的值）
 ```
 
-**關鍵設計決策**：wallet 解析在 DB txn 內執行。若 wallet 找不到，txn 直接 rollback，不需要額外還原 balance。這與 `ClaimService.reserveClaim()` 的模式一致。
+**關鍵設計決策**：
+- wallet 解析在 DB txn 內執行。若 wallet 找不到，txn 直接 rollback，不需要額外還原 balance。
+- `BurnOnChain` 在 `SendTransaction` 成功、`WaitMined` 失敗時回傳 `(txHash, err)`，Redeem 以 txHash 是否為空判斷是否 rollback，避免鏈上已扣款、DB 卻恢復的一致性問題。
 
 ---
 

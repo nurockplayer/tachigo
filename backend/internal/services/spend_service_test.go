@@ -24,10 +24,7 @@ type burnCall struct {
 
 func (m *mockBurnCaller) BurnOnChain(_ context.Context, fromAddr string, amount int64) (string, error) {
 	m.calls = append(m.calls, burnCall{fromAddr: fromAddr, amount: amount})
-	if m.err != nil {
-		return "", m.err
-	}
-	return m.txHash, nil
+	return m.txHash, m.err
 }
 
 // ── seed helpers ─────────────────────────────────────────────────────────────
@@ -113,6 +110,29 @@ func TestRedeem_WalletNotLinked(t *testing.T) {
 	db.Raw("SELECT balance FROM tachi_balances WHERE user_id = ?", userID).Scan(&dbBal)
 	if dbBal != 200 {
 		t.Fatalf("expected balance unchanged at 200, got %d", dbBal)
+	}
+}
+
+func TestRedeem_BurnBroadcastedButReceiptUnknown(t *testing.T) {
+	db := newTestDB(t)
+	// Simulates: tx was broadcast (txHash returned) but WaitMined failed
+	burnCaller := &mockBurnCaller{txHash: "0xbroadcasted", err: errors.New("context deadline exceeded")}
+	svc := &SpendService{db: db, burnCaller: burnCaller}
+
+	userID := userIDForClaim(t, db)
+	seedWeb3Provider(t, db, userID, "0xd8dA6BF26964aF9D7eEd9e03E53415D37aA96045")
+	seedTachiBalance(t, db, userID, 300)
+
+	_, err := svc.Redeem(context.Background(), userID, 100)
+	if err == nil {
+		t.Fatal("expected error but got nil")
+	}
+
+	// DB reservation must NOT be rolled back: chain may have burned the tokens
+	var dbBal int64
+	db.Raw("SELECT balance FROM tachi_balances WHERE user_id = ?", userID).Scan(&dbBal)
+	if dbBal != 200 {
+		t.Fatalf("expected balance kept at 200 (no rollback), got %d", dbBal)
 	}
 }
 

@@ -81,7 +81,13 @@ func (s *SpendService) Redeem(ctx context.Context, userID uuid.UUID, amount int6
 
 	burnCtx, cancel := context.WithTimeout(ctx, 30*time.Second)
 	defer cancel()
-	if _, err := s.burnCaller.BurnOnChain(burnCtx, reservation.fromAddr, reservation.amount); err != nil {
+	txHash, err := s.burnCaller.BurnOnChain(burnCtx, reservation.fromAddr, reservation.amount)
+	if err != nil {
+		if txHash != "" {
+			// Tx was broadcast but receipt is unknown (e.g. context deadline, RPC error).
+			// Do NOT roll back: the chain may have already burned the tokens.
+			return 0, fmt.Errorf("burn tx broadcast (txHash=%s) but receipt unknown: %w", txHash, err)
+		}
 		rollbackErr := s.db.Transaction(func(tx *gorm.DB) error {
 			return s.rollbackSpendReservation(tx, userID, reservation.amount)
 		})

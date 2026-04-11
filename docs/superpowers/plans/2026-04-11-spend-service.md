@@ -524,7 +524,7 @@ cd backend && go test ./internal/services/ -run "TestRedeem" -v
 
 期望輸出：
 
-```
+```text
 --- PASS: TestRedeem_Success (0.00s)
 --- PASS: TestRedeem_InsufficientBalance (0.00s)
 --- PASS: TestRedeem_WalletNotLinked (0.00s)
