@@ -5,7 +5,6 @@ import (
 	"crypto/ecdsa"
 	"errors"
 	"fmt"
-	"math/big"
 	"strings"
 	"time"
 
@@ -146,7 +145,7 @@ func (s *ClaimService) MintOnChain(ctx context.Context, toAddr string, amount in
 	}
 
 	// TODO: wait for receipt status == 1 before committing DB (fire-and-forget for now)
-	return s.tachiToken.Mint(ctx, common.HexToAddress(toAddr), big.NewInt(amount), signerKey)
+	return s.tachiToken.Mint(ctx, common.HexToAddress(toAddr), tachiWholeTokensToRawUnits(amount), signerKey)
 }
 
 func (s *ClaimService) reserveClaim(tx *gorm.DB, userID uuid.UUID, amount int64) (claimReservation, error) {
