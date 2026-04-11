@@ -16,4 +16,4 @@ fi
 exec "${GH_BIN}" pr edit 188 \
   --repo nurockplayer/tachigo \
   --title '[frontend] Extension demo — coupon shop UI' \
-  --body-file "${ROOT}/plans/extension-coupon-shop-pr188-github-body.md"
+  --body-file "${ROOT}/.github/pr-188-github-body.md"
