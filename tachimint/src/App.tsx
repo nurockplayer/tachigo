@@ -6,6 +6,8 @@ import { useHeartbeat } from './hooks/useHeartbeat'
 import { useClickBoost } from './hooks/useClickBoost'
 import { claimPoints, getTachiBalance } from './services/api'
 
+type ClaimErrorKey = 'loadBalanceFailed' | 'claimFailed'
+
 export default function App() {
   const { t } = useTranslation()
   const { context, jwt, products, bitsEnabled, authError, backendReady } = useTwitch()
@@ -13,7 +15,7 @@ export default function App() {
   const isViewer = context?.role === 'viewer'
   const [tachiBalance, setTachiBalance] = useState<number | null>(null)
   const [claimStatus, setClaimStatus] = useState<'idle' | 'pending' | 'success' | 'error'>('idle')
-  const [claimError, setClaimError] = useState<string | null>(null)
+  const [claimError, setClaimError] = useState<ClaimErrorKey | null>(null)
   const { balance, gain, isAnimating, syncBalance } = useHeartbeat(context?.channelId, {
     enabled: isViewer && backendReady,
   })
@@ -48,7 +50,7 @@ export default function App() {
       .catch(() => {
         if (!isDisposed) {
           setClaimStatus('error')
-          setClaimError('Unable to load $TACHI balance.')
+          setClaimError('loadBalanceFailed')
         }
       })
 
@@ -72,7 +74,7 @@ export default function App() {
       setClaimStatus('success')
     } catch {
       setClaimStatus('error')
-      setClaimError('Claim failed. Please try again.')
+      setClaimError('claimFailed')
     }
   }, [backendReady, balance, claimStatus, isViewer, syncBalance])
 
@@ -126,16 +128,18 @@ export default function App() {
             onClick={handleClaim}
             disabled={!backendReady || claimStatus === 'pending' || !balance || balance <= 0}
           >
-            {claimStatus === 'pending' ? 'Claiming...' : 'Claim'}
+            {claimStatus === 'pending' ? t('claim.actions.claiming') : t('claim.actions.claim')}
           </button>
         </section>
 
         {claimStatus === 'success' && (
-          <p className="ext-success-text">Claim complete.</p>
+          <p className="ext-success-text">{t('claim.status.complete')}</p>
         )}
 
         {claimStatus === 'error' && (
-          <p className="ext-error">{claimError ?? 'Claim failed.'}</p>
+          <p className="ext-error">
+            {t(`claim.errors.${claimError ?? 'claimFailed'}`)}
+          </p>
         )}
 
         <section className="ext-mine">

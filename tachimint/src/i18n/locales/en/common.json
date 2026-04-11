@@ -7,5 +7,18 @@
     "retry": "Retry",
     "initializing": "Initializing...",
     "points": "points"
+  },
+  "claim": {
+    "actions": {
+      "claim": "Claim",
+      "claiming": "Claiming..."
+    },
+    "status": {
+      "complete": "Claim complete."
+    },
+    "errors": {
+      "loadBalanceFailed": "Unable to load $TACHI balance.",
+      "claimFailed": "Claim failed. Please try again."
+    }
   }
 }
