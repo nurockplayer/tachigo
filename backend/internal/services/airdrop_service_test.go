@@ -494,12 +494,7 @@ func newConcurrentTestDB(t *testing.T) *gorm.DB {
 	t.Helper()
 
 	dbPath := t.TempDir() + "/airdrop-concurrency.db"
-	// PRAGMAs in the DSN are applied per-connection by the SQLite driver, so
-	// every connection in the pool gets busy_timeout, WAL mode, and foreign
-	// keys — unlike executing PRAGMA statements after Open, which only affects
-	// the single connection that runs the query.
-	dsn := dbPath + "?_busy_timeout=5000&_journal_mode=WAL&_foreign_keys=on"
-	db, err := gorm.Open(sqlite.Open(dsn), &gorm.Config{
+	db, err := gorm.Open(sqlite.Open(dbPath), &gorm.Config{
 		Logger:         logger.Default.LogMode(logger.Silent),
 		TranslateError: true,
 	})
@@ -513,6 +508,17 @@ func newConcurrentTestDB(t *testing.T) *gorm.DB {
 	}
 	sqlDB.SetMaxOpenConns(8)
 	sqlDB.SetMaxIdleConns(8)
+
+	pragmas := []string{
+		`PRAGMA foreign_keys = ON`,
+		`PRAGMA journal_mode = WAL`,
+		`PRAGMA busy_timeout = 5000`,
+	}
+	for _, stmt := range pragmas {
+		if err := db.Exec(stmt).Error; err != nil {
+			t.Fatalf("apply pragma %q: %v", stmt, err)
+		}
+	}
 
 	if err := migrateTestDB(db); err != nil {
 		t.Fatalf("migrate concurrent test db: %v", err)
