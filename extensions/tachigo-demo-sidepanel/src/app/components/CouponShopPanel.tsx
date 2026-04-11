@@ -1,5 +1,6 @@
 import { useMemo, useState } from 'react'
 import { useTranslation } from 'react-i18next'
+import { hudPanelBackground } from '../theme/backgrounds'
 
 interface CouponItem {
   id: string
@@ -86,11 +87,7 @@ export function CouponShopPanel({ onBack, tcgBalance, onRedeem }: CouponShopPane
         display: 'flex',
         flexDirection: 'column',
         color: '#f8f1df',
-        background: [
-          'radial-gradient(circle at top left, rgba(255,193,59,0.18) 0%, transparent 32%)',
-          'radial-gradient(circle at 85% 22%, rgba(255,122,48,0.2) 0%, transparent 22%)',
-          'linear-gradient(180deg, #2a130f 0%, #14090d 48%, #09070c 100%)',
-        ].join(', '),
+        background: hudPanelBackground,
         fontFamily: 'var(--pixel-font-family)',
         overflow: 'hidden',
         position: 'relative',
@@ -99,7 +96,7 @@ export function CouponShopPanel({ onBack, tcgBalance, onRedeem }: CouponShopPane
       <div
         style={{
           padding: '14px 16px 12px',
-          borderBottom: '1px solid rgba(255,212,120,0.18)',
+          borderBottom: '1px solid rgba(145,70,255,0.15)',
           display: 'flex',
           alignItems: 'center',
           justifyContent: 'space-between',
@@ -110,7 +107,7 @@ export function CouponShopPanel({ onBack, tcgBalance, onRedeem }: CouponShopPane
           style={{
             background: 'none',
             border: 'none',
-            color: '#ffb347',
+            color: '#9146FF',
             cursor: 'pointer',
             fontSize: 8,
             letterSpacing: '0.08em',
@@ -120,7 +117,7 @@ export function CouponShopPanel({ onBack, tcgBalance, onRedeem }: CouponShopPane
         >
           ‹ BACK
         </button>
-        <div style={{ fontSize: 8, color: '#ffd37a', letterSpacing: '0.12em' }}>
+        <div style={{ fontSize: 8, color: '#9146FF', letterSpacing: '0.12em' }}>
           {t('coupon.header')}
         </div>
       </div>
@@ -128,21 +125,21 @@ export function CouponShopPanel({ onBack, tcgBalance, onRedeem }: CouponShopPane
       <div style={{ padding: '16px', display: 'flex', flexDirection: 'column', gap: 12 }}>
         <div
           style={{
-            border: '1px solid rgba(255,198,92,0.22)',
+            border: '1px solid rgba(145,70,255,0.24)',
             borderRadius: 12,
             padding: '14px 14px 12px',
-            background: 'linear-gradient(180deg, rgba(255,171,53,0.18) 0%, rgba(255,255,255,0.03) 100%)',
+            background: 'linear-gradient(180deg, rgba(145,70,255,0.16) 0%, rgba(255,255,255,0.03) 100%)',
             boxShadow: '0 12px 36px rgba(0,0,0,0.34)',
           }}
         >
-          <div style={{ fontSize: 7, color: '#ffd37a', letterSpacing: '0.14em', marginBottom: 8 }}>
+          <div style={{ fontSize: 7, color: '#b794ff', letterSpacing: '0.14em', marginBottom: 8 }}>
             {t('coupon.balanceLabel')}
           </div>
           <div style={{ display: 'flex', alignItems: 'baseline', gap: 8 }}>
             <div style={{ fontSize: 32, color: '#fff2bf', lineHeight: 1 }}>{tcgBalance.toFixed(2)}</div>
-            <div style={{ fontSize: 8, color: '#ffb347', letterSpacing: '0.1em' }}>TCG</div>
+            <div style={{ fontSize: 8, color: '#9146FF', letterSpacing: '0.1em' }}>TCG</div>
           </div>
-          <div style={{ marginTop: 10, fontSize: 7, color: 'rgba(255,241,202,0.7)', lineHeight: 1.7 }}>
+          <div style={{ marginTop: 10, fontSize: 7, color: 'rgba(225,218,255,0.7)', lineHeight: 1.7 }}>
             {t('coupon.subtitle')}
           </div>
         </div>
@@ -151,23 +148,23 @@ export function CouponShopPanel({ onBack, tcgBalance, onRedeem }: CouponShopPane
           style={{
             borderRadius: 14,
             padding: 14,
-            background: 'linear-gradient(135deg, rgba(255,135,44,0.28) 0%, rgba(71,17,10,0.9) 100%)',
-            border: '1px solid rgba(255,181,82,0.28)',
+            background: 'linear-gradient(135deg, rgba(145,70,255,0.22) 0%, rgba(25,12,44,0.92) 100%)',
+            border: '1px solid rgba(145,70,255,0.28)',
             display: 'flex',
             flexDirection: 'column',
             gap: 10,
           }}
         >
           <div style={{ display: 'flex', alignItems: 'center', justifyContent: 'space-between', gap: 10 }}>
-            <div style={{ fontSize: 7, color: '#ffe1a6', letterSpacing: '0.14em' }}>
+            <div style={{ fontSize: 7, color: '#d7c2ff', letterSpacing: '0.14em' }}>
               {t('coupon.featured')}
             </div>
             <div
               style={{
                 padding: '4px 6px',
                 borderRadius: 999,
-                background: 'rgba(255,222,149,0.18)',
-                color: '#fff0b8',
+                background: 'rgba(145,70,255,0.16)',
+                color: '#efe2ff',
                 fontSize: 6,
                 letterSpacing: '0.12em',
               }}
@@ -175,20 +172,20 @@ export function CouponShopPanel({ onBack, tcgBalance, onRedeem }: CouponShopPane
               {selectedCoupon.tag}
             </div>
           </div>
-          <div style={{ fontSize: 8, color: '#ffbb4f', letterSpacing: '0.12em' }}>{selectedCoupon.brand}</div>
+          <div style={{ fontSize: 8, color: '#b794ff', letterSpacing: '0.12em' }}>{selectedCoupon.brand}</div>
           <div style={{ fontSize: 14, color: '#fff7da', lineHeight: 1.5 }}>{selectedCoupon.title}</div>
-          <div style={{ fontSize: 7, color: 'rgba(255,241,202,0.74)', lineHeight: 1.8 }}>
+          <div style={{ fontSize: 7, color: 'rgba(225,218,255,0.74)', lineHeight: 1.8 }}>
             {selectedCoupon.description}
           </div>
           <div style={{ display: 'flex', alignItems: 'center', justifyContent: 'space-between', gap: 12 }}>
-            <div style={{ fontSize: 8, color: '#ffd37a', letterSpacing: '0.1em' }}>
+            <div style={{ fontSize: 8, color: '#d7c2ff', letterSpacing: '0.1em' }}>
               {t('coupon.cost', { amount: selectedCoupon.price })}
             </div>
             <button
               onClick={handleRedeem}
               style={{
-                border: '1px solid rgba(255,236,178,0.35)',
-                background: 'linear-gradient(180deg, #ffe099 0%, #ffb347 100%)',
+                border: '1px solid rgba(255,176,0,0.35)',
+                background: 'linear-gradient(180deg, #FFD36B 0%, #FFB000 100%)',
                 color: '#4b1700',
                 padding: '8px 12px',
                 borderRadius: 8,
@@ -196,7 +193,7 @@ export function CouponShopPanel({ onBack, tcgBalance, onRedeem }: CouponShopPane
                 cursor: 'pointer',
                 fontFamily: 'var(--pixel-font-family)',
                 letterSpacing: '0.08em',
-                boxShadow: '0 8px 18px rgba(0,0,0,0.28)',
+                boxShadow: '0 0 16px rgba(255,176,0,0.24)',
               }}
             >
               {t('coupon.redeem')}
@@ -205,14 +202,14 @@ export function CouponShopPanel({ onBack, tcgBalance, onRedeem }: CouponShopPane
           {error ? (
             <div style={{ fontSize: 7, color: '#ff9d7b', letterSpacing: '0.06em', lineHeight: 1.7 }}>{error}</div>
           ) : redeemedCodes.includes(selectedCoupon.id) ? (
-            <div style={{ fontSize: 7, color: '#d7ff9a', letterSpacing: '0.06em', lineHeight: 1.8 }}>
+            <div style={{ fontSize: 7, color: '#b7f7cc', letterSpacing: '0.06em', lineHeight: 1.8 }}>
               {t('coupon.claimedCode', { code: selectedCoupon.code })}
             </div>
           ) : null}
         </div>
 
         <div style={{ display: 'flex', flexDirection: 'column', gap: 8 }}>
-          <div style={{ fontSize: 7, color: '#ffd37a', letterSpacing: '0.14em' }}>{t('coupon.listTitle')}</div>
+          <div style={{ fontSize: 7, color: '#9146FF', letterSpacing: '0.14em' }}>{t('coupon.listTitle')}</div>
           {COUPONS.map((coupon) => {
             const isSelected = coupon.id === selectedId
             const isRedeemed = redeemedCodes.includes(coupon.id)
@@ -226,8 +223,10 @@ export function CouponShopPanel({ onBack, tcgBalance, onRedeem }: CouponShopPane
                 }}
                 style={{
                   textAlign: 'left',
-                  border: isSelected ? '1px solid rgba(255,203,98,0.48)' : '1px solid rgba(255,255,255,0.08)',
-                  background: isSelected ? 'rgba(255,190,85,0.12)' : 'rgba(255,255,255,0.03)',
+                  border: isSelected ? '1px solid rgba(225,176,82,0.36)' : '1px solid rgba(205,164,92,0.14)',
+                  background: isSelected
+                    ? 'linear-gradient(180deg, rgba(225,176,82,0.14) 0%, rgba(225,176,82,0.06) 100%)'
+                    : 'linear-gradient(180deg, rgba(205,164,92,0.05) 0%, rgba(255,255,255,0.02) 100%)',
                   borderRadius: 10,
                   padding: '12px 12px 10px',
                   color: '#f8f1df',
@@ -240,14 +239,42 @@ export function CouponShopPanel({ onBack, tcgBalance, onRedeem }: CouponShopPane
                 }}
               >
                 <div style={{ minWidth: 0 }}>
-                  <div style={{ fontSize: 8, color: '#ffbb4f', letterSpacing: '0.08em', marginBottom: 6 }}>
+                  <div
+                    style={{
+                      fontSize: 8,
+                      color: isSelected ? '#E5B257' : '#C99B49',
+                      letterSpacing: '0.08em',
+                      marginBottom: 6,
+                    }}
+                  >
                     {coupon.brand}
                   </div>
-                  <div style={{ fontSize: 8, color: '#fff8de', lineHeight: 1.7 }}>{coupon.title}</div>
+                  <div
+                    style={{
+                      fontSize: 8,
+                      color: isSelected ? '#F5E5B8' : '#E8D7A8',
+                      lineHeight: 1.7,
+                    }}
+                  >
+                    {coupon.title}
+                  </div>
                 </div>
                 <div style={{ display: 'flex', flexDirection: 'column', alignItems: 'flex-end', gap: 6, flexShrink: 0 }}>
-                  <div style={{ fontSize: 8, color: '#ffd37a' }}>{coupon.price} TCG</div>
-                  <div style={{ fontSize: 6, color: isRedeemed ? '#d7ff9a' : '#8c7964', letterSpacing: '0.1em' }}>
+                  <div
+                    style={{
+                      fontSize: 8,
+                      color: isSelected ? '#EBC36A' : '#D6AE58',
+                    }}
+                  >
+                    {coupon.price} TCG
+                  </div>
+                  <div
+                    style={{
+                      fontSize: 6,
+                      color: isRedeemed ? '#EFDCA6' : '#8F7140',
+                      letterSpacing: '0.1em',
+                    }}
+                  >
                     {isRedeemed ? t('coupon.redeemed') : coupon.tag}
                   </div>
                 </div>
