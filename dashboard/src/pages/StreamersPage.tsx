@@ -1,7 +1,12 @@
+import { isAxiosError } from 'axios'
 import { useEffect, useState } from 'react'
 import { useNavigate } from 'react-router'
 import { Skeleton } from '@/components/ui/skeleton'
 import { getMyChannels, getStreamers, type Streamer } from '@/services/channels'
+
+function isUnauthenticated(error: unknown) {
+  return isAxiosError(error) && error.response?.status === 401
+}
 
 export default function StreamersPage() {
   const navigate = useNavigate()
@@ -28,7 +33,13 @@ export default function StreamersPage() {
         setStreamers(data)
         setShouldAutoRedirect(true)
       })
-      .catch(async () => {
+      .catch(async (error: unknown) => {
+        if (!isUnauthenticated(error)) {
+          if (!mounted) return
+          setError(true)
+          return
+        }
+
         try {
           const data = await getStreamers()
           if (!mounted) return

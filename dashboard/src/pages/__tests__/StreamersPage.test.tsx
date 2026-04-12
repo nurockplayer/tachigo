@@ -56,11 +56,18 @@ function cleanupRoot(root: Root, container: HTMLDivElement) {
   container.remove()
 }
 
+function axiosError(status: number) {
+  return {
+    isAxiosError: true,
+    response: { status },
+  }
+}
+
 describe('StreamersPage', () => {
   beforeEach(() => {
     getStreamersMock.mockReset()
     getMyChannelsMock.mockReset()
-    getMyChannelsMock.mockRejectedValue(new Error('forbidden'))
+    getMyChannelsMock.mockRejectedValue(axiosError(401))
   })
 
   afterEach(() => {
@@ -68,7 +75,7 @@ describe('StreamersPage', () => {
   })
 
   it('renders streamers from the API response', async () => {
-    getMyChannelsMock.mockRejectedValue(new Error('forbidden'))
+    getMyChannelsMock.mockRejectedValue(axiosError(401))
     getStreamersMock.mockResolvedValue([
       { id: 'uuid-1', channel_id: 'channel-1', display_name: 'Alice' },
       { id: 'uuid-2', channel_id: 'channel-2', display_name: 'Bob' },
@@ -84,7 +91,7 @@ describe('StreamersPage', () => {
   })
 
   it('opens the detail page when pressing Enter on a row', async () => {
-    getMyChannelsMock.mockRejectedValue(new Error('forbidden'))
+    getMyChannelsMock.mockRejectedValue(axiosError(401))
     getStreamersMock.mockResolvedValue([
       { id: 'uuid-1', channel_id: 'channel-1', display_name: 'Alice' },
       { id: 'uuid-2', channel_id: 'channel-2', display_name: 'Bob' },
@@ -139,7 +146,7 @@ describe('StreamersPage', () => {
   })
 
   it('shows an error message when the API request fails', async () => {
-    getMyChannelsMock.mockRejectedValue(new Error('forbidden'))
+    getMyChannelsMock.mockRejectedValue(axiosError(401))
     getStreamersMock.mockRejectedValue(new Error('boom'))
 
     const { container, root } = await renderAt('/streamers')
@@ -151,13 +158,54 @@ describe('StreamersPage', () => {
   })
 
   it('shows an empty state when the list is empty', async () => {
-    getMyChannelsMock.mockRejectedValue(new Error('forbidden'))
+    getMyChannelsMock.mockRejectedValue(axiosError(401))
     getStreamersMock.mockResolvedValue([])
 
     const { container, root } = await renderAt('/streamers')
     await flush()
 
     expect(container.textContent).toContain('尚無')
+
+    cleanupRoot(root, container)
+  })
+
+  it('falls back to getStreamers only when getMyChannels returns 401', async () => {
+    getMyChannelsMock.mockRejectedValue(axiosError(401))
+    getStreamersMock.mockResolvedValue([
+      { id: 'uuid-1', channel_id: 'channel-1', display_name: 'Alice' },
+    ])
+
+    const { container, root } = await renderAt('/streamers')
+    await flush()
+
+    expect(getMyChannelsMock).toHaveBeenCalledTimes(1)
+    expect(getStreamersMock).toHaveBeenCalledTimes(1)
+    expect(container.textContent).toContain('Alice')
+
+    cleanupRoot(root, container)
+  })
+
+  it('shows an error state when getMyChannels returns 500', async () => {
+    getMyChannelsMock.mockRejectedValue(axiosError(500))
+
+    const { container, root } = await renderAt('/streamers')
+    await flush()
+
+    expect(getStreamersMock).not.toHaveBeenCalled()
+    expect(container.textContent).toContain('無法載入直播主資料')
+
+    cleanupRoot(root, container)
+  })
+
+  it('shows an error state when fallback getStreamers also fails after a 401', async () => {
+    getMyChannelsMock.mockRejectedValue(axiosError(401))
+    getStreamersMock.mockRejectedValue(new Error('fallback failed'))
+
+    const { container, root } = await renderAt('/streamers')
+    await flush()
+
+    expect(getStreamersMock).toHaveBeenCalledTimes(1)
+    expect(container.textContent).toContain('無法載入直播主資料')
 
     cleanupRoot(root, container)
   })
