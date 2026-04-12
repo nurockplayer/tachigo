@@ -146,6 +146,7 @@ See [docs/architecture.md](docs/architecture.md) for the full system diagram.
 
 ## Documentation
 
+- [docs/auth-architecture.md](docs/auth-architecture.md) — current auth state 與 migration guardrails baseline
 - [docs/architecture.md](docs/architecture.md) — system architecture
 - [docs/claude-codex-cheatsheet.md](docs/claude-codex-cheatsheet.md) — quick reference for Claude Code + Codex collaboration
 - [docs/claude-codex-workflow.md](docs/claude-codex-workflow.md) — full workflow guide for low-token Claude Code usage
