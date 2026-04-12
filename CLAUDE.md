@@ -152,26 +152,14 @@ Type：`feat` / `fix` / `docs` / `chore` / `refactor` / `test`
 
 ## AI 分工
 
-本專案使用 Claude Code + Codex CLI 協作開發，以節省 Claude token。
+本專案使用 Claude Code + Codex CLI 協作開發。
 
-**原則：寫程式、改檔案、跑測試、`gh` 指令，以及必要的 `git` 指令都可交給 Codex。Claude Code 主要負責即時決策、審查結果、與架構方向；只有在極小型且委派成本高於直接處理時，才自行處理。**
+**原則：Claude Code 預設自己處理所有任務。Codex 只用在需要跑測試並根據失敗迭代修改的場景——這是 Codex 真正的優勢，其他情況不要交給 Codex。**
 
-| 操作 | 誰執行 | 原因 |
-|---|---|---|
-| `git` 指令（branch / commit / push / status） | Codex 優先 | 純執行工作可直接交給 Codex；仍需遵守 branch、PR、scope 規範 |
-| 寫程式、改檔案、跑測試 | Codex | 純執行，只需確認最終結果 |
-| `gh` 指令（issue、PR、API） | Codex | 純執行 |
-| 檔案搜尋——定向（知道找什麼） | Claude Code（Glob / Grep） | 規劃階段需要結果判斷下一步 |
-| 檔案搜尋——探索性（不確定在哪） | Codex（`/explore-with-codex`） | 大範圍搜尋只拿摘要回來 |
-| 複雜 bash 腳本、批次操作 | Codex | 純執行 |
-
-**建議快捷指令：**
-
-- `/fix-with-codex <問題>`：debug 並直接修復
-- `/implement-with-codex <需求>`：實作功能
-- `/review-with-codex <範圍>`：以 bug / regression / 測試缺口為主
-- `/explore-with-codex <主題>`：快速摸清程式結構
-- `/test-with-codex <範圍>`：執行測試並收斂失敗原因
+| 操作 | 誰執行 |
+|---|---|
+| `git` / `gh` / 檔案操作 / 實作 / 搜尋 | Claude Code |
+| 需要跑測試並根據失敗迭代修改的任務 | Codex（`/test-with-codex`） |
 
 ---
 
