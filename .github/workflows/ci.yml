@@ -147,7 +147,7 @@ jobs:
         run: docker compose run --rm app go build -tags integration ./...
 
       - name: Run integration tests
-        run: docker compose run --rm app go test -tags integration ./internal/services -run TestAirdrop_ConcurrentSERIALIZABLE -count=1
+        run: docker compose run --rm app go test -tags integration ./... -count=1
 
       - name: Stop services
         if: always()
