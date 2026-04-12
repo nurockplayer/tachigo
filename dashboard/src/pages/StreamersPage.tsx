@@ -20,11 +20,6 @@ export default function StreamersPage() {
   }
 
   useEffect(() => {
-    setError(false)
-    setLoading(true)
-    setStreamers([])
-    setShouldAutoRedirect(false)
-
     let mounted = true
 
     getMyChannels()
