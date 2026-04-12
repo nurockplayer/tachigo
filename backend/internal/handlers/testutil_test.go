@@ -236,6 +236,9 @@ func newTestEnv(t *testing.T) *testEnv {
 	}
 
 	cfg := &config.Config{
+		Server: config.ServerConfig{
+			Env: "development",
+		},
 		JWT: config.JWTConfig{
 			AccessSecret:  "test-access-secret-at-least-32-chars!",
 			RefreshSecret: "test-refresh-secret",
@@ -249,7 +252,7 @@ func newTestEnv(t *testing.T) *testEnv {
 	addrSvc := services.NewAddressService(db)
 	emailAuthSvc := services.NewEmailAuthService(db, cfg, &mockMailer{})
 
-	authH := handlers.NewAuthHandler(authSvc).WithEmailAuth(emailAuthSvc)
+	authH := handlers.NewAuthHandler(authSvc, cfg).WithEmailAuth(emailAuthSvc)
 	userH := handlers.NewUserHandler(userSvc)
 	addrH := handlers.NewAddressHandler(addrSvc)
 	emailH := handlers.NewEmailAuthHandler(emailAuthSvc)

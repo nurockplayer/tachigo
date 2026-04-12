@@ -26,6 +26,7 @@ func TestRegisterHandler_Success(t *testing.T) {
 	if resp["success"] != true {
 		t.Error("want success: true")
 	}
+	assertRefreshCookieSet(t, w, "")
 }
 
 func TestRegisterHandler_DuplicateEmail(t *testing.T) {
@@ -100,6 +101,7 @@ func TestLoginHandler_Success(t *testing.T) {
 	if w.Code != http.StatusOK {
 		t.Errorf("want 200, got %d: %s", w.Code, w.Body.String())
 	}
+	assertRefreshCookieSet(t, w, "")
 }
 
 func TestLoginHandler_WrongPassword(t *testing.T) {
@@ -161,6 +163,22 @@ func TestRefreshHandler_Success(t *testing.T) {
 	}
 }
 
+func TestRefreshHandler_SuccessWithCookie(t *testing.T) {
+	env := newTestEnv(t)
+	_, refreshToken := env.registerUser(t, "cookieuser", "cookie@example.com", "password123")
+
+	req := httptest.NewRequest(http.MethodPost, "/api/v1/auth/refresh", bytes.NewBufferString(`{}`))
+	req.Header.Set("Content-Type", "application/json")
+	req.AddCookie(&http.Cookie{Name: "refresh_token", Value: refreshToken, Path: "/api/v1/auth"})
+	w := httptest.NewRecorder()
+	env.router.ServeHTTP(w, req)
+
+	if w.Code != http.StatusOK {
+		t.Errorf("want 200, got %d: %s", w.Code, w.Body.String())
+	}
+	assertRefreshCookieSet(t, w, refreshToken)
+}
+
 func TestRefreshHandler_InvalidToken(t *testing.T) {
 	env := newTestEnv(t)
 
@@ -204,6 +222,22 @@ func TestLogoutHandler_Success(t *testing.T) {
 	}
 }
 
+func TestLogoutHandler_SuccessWithCookie(t *testing.T) {
+	env := newTestEnv(t)
+	_, refreshToken := env.registerUser(t, "cookielogout", "logout@example.com", "password123")
+
+	req := httptest.NewRequest(http.MethodPost, "/api/v1/auth/logout", bytes.NewBufferString(`{}`))
+	req.Header.Set("Content-Type", "application/json")
+	req.AddCookie(&http.Cookie{Name: "refresh_token", Value: refreshToken, Path: "/api/v1/auth"})
+	w := httptest.NewRecorder()
+	env.router.ServeHTTP(w, req)
+
+	if w.Code != http.StatusOK {
+		t.Errorf("want 200, got %d", w.Code)
+	}
+	assertRefreshCookieCleared(t, w)
+}
+
 func TestLogoutHandler_MissingToken(t *testing.T) {
 	env := newTestEnv(t)
 
@@ -215,6 +249,48 @@ func TestLogoutHandler_MissingToken(t *testing.T) {
 	if w.Code != http.StatusBadRequest {
 		t.Errorf("want 400, got %d", w.Code)
 	}
+}
+
+func assertRefreshCookieSet(t *testing.T, w *httptest.ResponseRecorder, previousValue string) {
+	t.Helper()
+
+	cookie := responseCookie(t, w, "refresh_token")
+	if cookie.Value == "" {
+		t.Fatal("expected refresh token cookie to be set")
+	}
+	if previousValue != "" && cookie.Value == previousValue {
+		t.Fatal("expected refresh token cookie to rotate")
+	}
+	if !cookie.HttpOnly {
+		t.Fatal("expected refresh token cookie to be HttpOnly")
+	}
+	if cookie.Path != "/api/v1/auth" {
+		t.Fatalf("expected refresh token cookie path /api/v1/auth, got %q", cookie.Path)
+	}
+}
+
+func assertRefreshCookieCleared(t *testing.T, w *httptest.ResponseRecorder) {
+	t.Helper()
+
+	cookie := responseCookie(t, w, "refresh_token")
+	if cookie.Value != "" {
+		t.Fatalf("expected cleared refresh token cookie, got %q", cookie.Value)
+	}
+	if cookie.Path != "/api/v1/auth" {
+		t.Fatalf("expected refresh token cookie path /api/v1/auth, got %q", cookie.Path)
+	}
+}
+
+func responseCookie(t *testing.T, w *httptest.ResponseRecorder, name string) *http.Cookie {
+	t.Helper()
+
+	for _, cookie := range w.Result().Cookies() {
+		if cookie.Name == name {
+			return cookie
+		}
+	}
+	t.Fatalf("expected cookie %q to be present", name)
+	return nil
 }
 
 // ─── Web3 Nonce ───────────────────────────────────────────────────────────────

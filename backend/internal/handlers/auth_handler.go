@@ -3,23 +3,32 @@ package handlers
 import (
 	"crypto/rand"
 	"encoding/hex"
+	"errors"
 	"net/http"
+	"strings"
 
 	"github.com/gin-gonic/gin"
 	"github.com/google/uuid"
 
+	"github.com/tachigo/tachigo/internal/config"
 	"github.com/tachigo/tachigo/internal/middleware"
 	"github.com/tachigo/tachigo/internal/models"
 	"github.com/tachigo/tachigo/internal/services"
 )
 
+const (
+	refreshTokenCookieName = "refresh_token"
+	refreshTokenCookiePath = "/api/v1/auth"
+)
+
 type AuthHandler struct {
 	auth      *services.AuthService
+	cfg       *config.Config
 	emailAuth *services.EmailAuthService
 }
 
-func NewAuthHandler(auth *services.AuthService) *AuthHandler {
-	return &AuthHandler{auth: auth}
+func NewAuthHandler(auth *services.AuthService, cfg *config.Config) *AuthHandler {
+	return &AuthHandler{auth: auth, cfg: cfg}
 }
 
 // WithEmailAuth attaches an EmailAuthService so that a verification email is
@@ -65,6 +74,7 @@ func (h *AuthHandler) Register(c *gin.Context) {
 		go h.emailAuth.SendVerificationEmail(user.ID)
 	}
 
+	h.setRefreshCookie(c, tokens.RefreshToken)
 	created(c, gin.H{"user": user, "tokens": tokens})
 }
 
@@ -92,6 +102,7 @@ func (h *AuthHandler) Login(c *gin.Context) {
 		return
 	}
 
+	h.setRefreshCookie(c, tokens.RefreshToken)
 	ok(c, gin.H{"user": user, "tokens": tokens})
 }
 
@@ -100,27 +111,26 @@ func (h *AuthHandler) Login(c *gin.Context) {
 // @Tags         auth
 // @Accept       json
 // @Produce      json
-// @Param        body body object{refresh_token=string} true "Refresh token"
+// @Param        body body object{refresh_token=string} false "Refresh token fallback when cookie is unavailable"
 // @Success      200  {object}  Response{data=TokensResponse}
 // @Failure      400  {object}  Response
 // @Failure      401  {object}  Response
 // @Security
 // @Router       /auth/refresh [post]
 func (h *AuthHandler) Refresh(c *gin.Context) {
-	var body struct {
-		RefreshToken string `json:"refresh_token" binding:"required"`
-	}
-	if err := c.ShouldBindJSON(&body); err != nil {
+	refreshToken, err := h.refreshTokenFromRequest(c)
+	if err != nil {
 		badRequest(c, err.Error())
 		return
 	}
 
-	tokens, err := h.auth.Refresh(body.RefreshToken)
+	tokens, err := h.auth.Refresh(refreshToken)
 	if err != nil {
 		unauthorized(c, "invalid or expired refresh token")
 		return
 	}
 
+	h.setRefreshCookie(c, tokens.RefreshToken)
 	ok(c, gin.H{"tokens": tokens})
 }
 
@@ -129,21 +139,20 @@ func (h *AuthHandler) Refresh(c *gin.Context) {
 // @Tags         auth
 // @Accept       json
 // @Produce      json
-// @Param        body body object{refresh_token=string} true "Refresh token"
+// @Param        body body object{refresh_token=string} false "Refresh token fallback when cookie is unavailable"
 // @Success      200  {object}  Response{data=MessageResponse}
 // @Failure      400  {object}  Response
 // @Security
 // @Router       /auth/logout [post]
 func (h *AuthHandler) Logout(c *gin.Context) {
-	var body struct {
-		RefreshToken string `json:"refresh_token" binding:"required"`
-	}
-	if err := c.ShouldBindJSON(&body); err != nil {
+	refreshToken, err := h.refreshTokenFromRequest(c)
+	if err != nil {
 		badRequest(c, err.Error())
 		return
 	}
 
-	h.auth.Logout(body.RefreshToken)
+	h.auth.Logout(refreshToken)
+	h.clearRefreshCookie(c)
 	ok(c, gin.H{"message": "logged out"})
 }
 
@@ -184,6 +193,7 @@ func (h *AuthHandler) TwitchCallback(c *gin.Context) {
 		return
 	}
 
+	h.setRefreshCookie(c, tokens.RefreshToken)
 	ok(c, gin.H{"user": user, "tokens": tokens})
 }
 
@@ -224,6 +234,7 @@ func (h *AuthHandler) GoogleCallback(c *gin.Context) {
 		return
 	}
 
+	h.setRefreshCookie(c, tokens.RefreshToken)
 	ok(c, gin.H{"user": user, "tokens": tokens})
 }
 
@@ -287,6 +298,7 @@ func (h *AuthHandler) Web3Verify(c *gin.Context) {
 		return
 	}
 
+	h.setRefreshCookie(c, tokens.RefreshToken)
 	ok(c, gin.H{"user": user, "tokens": tokens})
 }
 
@@ -335,4 +347,59 @@ func validateOAuthState(c *gin.Context) error {
 		return gin.Error{Err: nil, Type: gin.ErrorTypePublic}
 	}
 	return nil
+}
+
+func (h *AuthHandler) refreshTokenFromRequest(c *gin.Context) (string, error) {
+	if token, err := c.Cookie(refreshTokenCookieName); err == nil && token != "" {
+		return token, nil
+	}
+
+	var body struct {
+		RefreshToken string `json:"refresh_token"`
+	}
+	if err := c.ShouldBindJSON(&body); err != nil || body.RefreshToken == "" {
+		return "", errors.New("refresh token is required")
+	}
+	return body.RefreshToken, nil
+}
+
+func (h *AuthHandler) setRefreshCookie(c *gin.Context, refreshToken string) {
+	c.SetSameSite(http.SameSiteLaxMode)
+	c.SetCookie(
+		refreshTokenCookieName,
+		refreshToken,
+		h.refreshCookieMaxAge(),
+		refreshTokenCookiePath,
+		"",
+		h.refreshCookieSecure(),
+		true,
+	)
+}
+
+func (h *AuthHandler) clearRefreshCookie(c *gin.Context) {
+	c.SetSameSite(http.SameSiteLaxMode)
+	c.SetCookie(
+		refreshTokenCookieName,
+		"",
+		-1,
+		refreshTokenCookiePath,
+		"",
+		h.refreshCookieSecure(),
+		true,
+	)
+}
+
+func (h *AuthHandler) refreshCookieMaxAge() int {
+	if h.cfg == nil || h.cfg.JWT.RefreshTTL <= 0 {
+		return 0
+	}
+	return int(h.cfg.JWT.RefreshTTL.Seconds())
+}
+
+func (h *AuthHandler) refreshCookieSecure() bool {
+	if h.cfg == nil {
+		return false
+	}
+	env := strings.ToLower(h.cfg.Server.Env)
+	return env == "production" || env == "prod"
 }
