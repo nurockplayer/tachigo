@@ -276,6 +276,9 @@ func assertRefreshCookieCleared(t *testing.T, w *httptest.ResponseRecorder) {
 	if cookie.Value != "" {
 		t.Fatalf("expected cleared refresh token cookie, got %q", cookie.Value)
 	}
+	if cookie.MaxAge >= 0 {
+		t.Fatalf("expected cleared refresh token cookie MaxAge < 0, got %d", cookie.MaxAge)
+	}
 	if cookie.Path != "/api/v1/auth" {
 		t.Fatalf("expected refresh token cookie path /api/v1/auth, got %q", cookie.Path)
 	}
