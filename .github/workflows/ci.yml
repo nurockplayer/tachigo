@@ -219,3 +219,15 @@ jobs:
           curl -X POST "${{ secrets.DISCORD_CI_WEBHOOK_URL }}" \
             -H "Content-Type: application/json" \
             -d "{\"content\": \"CI failed on \`${{ github.ref_name }}\` (${{ github.event_name }})\n${{ github.server_url }}/${{ github.repository }}/actions/runs/${{ github.run_id }}\"}"
+
+  notify-discord-pr-ready:
+    name: Notify Discord — PR ready for review
+    needs: [backend, backend-integration, frontend, dashboard, contracts]
+    if: success() && github.event_name == 'pull_request'
+    runs-on: ubuntu-latest
+    steps:
+      - name: Send ready-for-review notification
+        run: |
+          curl -X POST "${{ secrets.DISCORD_PR_WEBHOOK_URL }}" \
+            -H "Content-Type: application/json" \
+            -d "{\"content\": \"@here ✅ PR ready for review\n**#${{ github.event.pull_request.number }} ${{ github.event.pull_request.title }}**\n${{ github.event.pull_request.html_url }}\"}"
