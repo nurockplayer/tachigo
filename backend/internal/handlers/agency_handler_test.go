@@ -968,3 +968,40 @@ func TestAgencyHandler_ListStreamers_RequiresAuth(t *testing.T) {
 		t.Fatalf("expected 401, got %d: %s", w.Code, w.Body.String())
 	}
 }
+
+func TestAgencyHandler_Get_RequiresAuth(t *testing.T) {
+	_, r := newFullAgencyTestEnv(t)
+
+	w := httptest.NewRecorder()
+	req, _ := http.NewRequest("GET", "/api/v1/agencies/"+uuid.NewString(), nil)
+	r.ServeHTTP(w, req)
+
+	if w.Code != http.StatusUnauthorized {
+		t.Fatalf("expected 401, got %d: %s", w.Code, w.Body.String())
+	}
+}
+
+func TestAgencyHandler_Get_ForbiddenRole(t *testing.T) {
+	_, r := newFullAgencyTestEnv(t)
+
+	w := httptest.NewRecorder()
+	req, _ := http.NewRequest("GET", "/api/v1/agencies/"+uuid.NewString(), nil)
+	req.Header.Set("Authorization", "Bearer "+makeAccessToken(t, models.RoleViewer))
+	r.ServeHTTP(w, req)
+
+	if w.Code != http.StatusForbidden {
+		t.Fatalf("expected 403, got %d: %s", w.Code, w.Body.String())
+	}
+}
+
+func TestAgencyHandler_ResendSetup_RequiresAuth(t *testing.T) {
+	_, r := newFullAgencyTestEnv(t)
+
+	w := httptest.NewRecorder()
+	req, _ := http.NewRequest("POST", "/api/v1/agencies/"+uuid.NewString()+"/resend-setup", nil)
+	r.ServeHTTP(w, req)
+
+	if w.Code != http.StatusUnauthorized {
+		t.Fatalf("expected 401, got %d: %s", w.Code, w.Body.String())
+	}
+}
