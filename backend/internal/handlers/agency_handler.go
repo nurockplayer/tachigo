@@ -147,21 +147,28 @@ func (h *AgencyHandler) ResendSetup(c *gin.Context) {
 		return
 	}
 
+	if user.Email == nil {
+		log.Printf("agency resend-setup: agency has no email agency_id=%s", agencyID)
+		internal(c)
+		return
+	}
+	email := *user.Email
+
 	// ForgotPassword silently returns nil when the email is not found (anti-enumeration).
 	// We assume the email is stable between GetByID and ForgotPassword because there
 	// is no delete-user route in this system. If that assumption ever changes, a
 	// dedicated ForgotPasswordForKnownUser (no silent-nil) should be introduced.
-	if err := h.emailAuthSvc.ForgotPassword(*user.Email); err != nil {
+	if err := h.emailAuthSvc.ForgotPassword(email); err != nil {
 		if errors.Is(err, services.ErrPasswordResetEmailSend) {
-			log.Printf("agency resend-setup: email delivery failed agency_id=%s email=%s err=%v", agencyID, *user.Email, err)
+			log.Printf("agency resend-setup: email delivery failed agency_id=%s email=%s err=%v", agencyID, email, err)
 		} else {
-			log.Printf("agency resend-setup: token write failed agency_id=%s email=%s err=%v", agencyID, *user.Email, err)
+			log.Printf("agency resend-setup: token write failed agency_id=%s email=%s err=%v", agencyID, email, err)
 		}
 		c.JSON(http.StatusInternalServerError, Response{Success: false, Error: "failed to send setup email"})
 		return
 	}
 
-	log.Printf("agency resend-setup: sent agency_id=%s email=%s", agencyID, *user.Email)
+	log.Printf("agency resend-setup: sent agency_id=%s email=%s", agencyID, email)
 	ok(c, gin.H{"message": "setup email sent"})
 }
 

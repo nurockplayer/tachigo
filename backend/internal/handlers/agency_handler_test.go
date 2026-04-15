@@ -332,6 +332,60 @@ func TestAgencyHandler_ResendSetup_InvalidID(t *testing.T) {
 	}
 }
 
+func TestAgencyHandler_ResendSetup_MailerError(t *testing.T) {
+	env := newTestEnv(t)
+
+	// Wire an EmailAuthService backed by a mailer that always fails.
+	testCfg := &config.Config{
+		JWT: config.JWTConfig{
+			AccessSecret:  "test-access-secret-at-least-32-chars!",
+			RefreshSecret: "test-refresh-secret",
+			AccessTTL:     15 * time.Minute,
+			RefreshTTL:    30 * 24 * time.Hour,
+		},
+	}
+	failSvc := services.NewEmailAuthService(env.db, testCfg, &failingMailer{})
+	agencySvc := services.NewAgencyService(env.db)
+	agencyH := handlers.NewAgencyHandler(agencySvc, failSvc)
+
+	r := gin.New()
+	r.Use(gin.Recovery())
+	v1 := r.Group("/api/v1")
+	agencies := v1.Group("/agencies")
+	agencies.Use(middleware.JWTAuth(env.authSvc))
+	agencies.POST("/:id/resend-setup", middleware.RequireRole(models.RoleAdmin), agencyH.ResendSetup)
+
+	agencyID := seedAgencyUser(t, env.db, "agency-resend-mailerr", "agency-resend-mailerr@example.com")
+
+	w := httptest.NewRecorder()
+	req, _ := http.NewRequest("POST", "/api/v1/agencies/"+agencyID.String()+"/resend-setup", nil)
+	req.Header.Set("Authorization", "Bearer "+makeAccessToken(t, models.RoleAdmin))
+	r.ServeHTTP(w, req)
+
+	if w.Code != http.StatusInternalServerError {
+		t.Fatalf("expected 500 when mailer fails, got %d: %s", w.Code, w.Body.String())
+	}
+}
+
+func TestAgencyHandler_ResendSetup_DBError(t *testing.T) {
+	env, r := newFullAgencyTestEnv(t)
+	agencyID := seedAgencyUser(t, env.db, "agency-resend-dberr", "agency-resend-dberr@example.com")
+
+	// Drop password_resets so ForgotPassword fails at DB write.
+	if err := env.db.Exec("DROP TABLE IF EXISTS password_resets").Error; err != nil {
+		t.Fatalf("drop password_resets: %v", err)
+	}
+
+	w := httptest.NewRecorder()
+	req, _ := http.NewRequest("POST", "/api/v1/agencies/"+agencyID.String()+"/resend-setup", nil)
+	req.Header.Set("Authorization", "Bearer "+makeAccessToken(t, models.RoleAdmin))
+	r.ServeHTTP(w, req)
+
+	if w.Code != http.StatusInternalServerError {
+		t.Fatalf("expected 500 when DB write fails, got %d: %s", w.Code, w.Body.String())
+	}
+}
+
 func TestAgencyHandler_Create_Success(t *testing.T) {
 	env, r := newAgencyTestEnv(t)
 
@@ -468,7 +522,7 @@ func TestAgencyHandler_Create_MailerFailureStillReturns201(t *testing.T) {
 // TestAgencyHandler_Create_PartialSuccess_TokenWriteFailure verifies that
 // POST /agencies returns 201 and the agency user is created even when the
 // password_resets write fails (partial success: agency committed, setup incomplete).
-// Admin can re-trigger password setup via POST /auth/forgot-password.
+// Admin can re-trigger password setup via POST /agencies/:id/resend-setup.
 func TestAgencyHandler_Create_PartialSuccess_TokenWriteFailure(t *testing.T) {
 	env := newTestEnv(t)
 
