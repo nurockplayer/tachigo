@@ -186,6 +186,34 @@ func TestAgencyHandler_Get_ReturnsProfile(t *testing.T) {
 	}
 }
 
+func TestAgencyHandler_Get_OnboardingComplete(t *testing.T) {
+	env, r := newFullAgencyTestEnv(t)
+
+	// Insert agency with password_hash set → onboarding complete
+	agencyID := uuid.New()
+	if err := env.db.Exec(
+		`INSERT INTO users (id, username, email, role, is_active, email_verified, password_hash, created_at, updated_at)
+		 VALUES (?, ?, ?, ?, 1, 1, 'hashed', CURRENT_TIMESTAMP, CURRENT_TIMESTAMP)`,
+		agencyID, "agency-done", "agency-done@example.com", models.RoleAgency,
+	).Error; err != nil {
+		t.Fatalf("seed agency with password: %v", err)
+	}
+
+	w := httptest.NewRecorder()
+	req, _ := http.NewRequest("GET", "/api/v1/agencies/"+agencyID.String(), nil)
+	req.Header.Set("Authorization", "Bearer "+makeAccessToken(t, models.RoleAdmin))
+	r.ServeHTTP(w, req)
+
+	if w.Code != http.StatusOK {
+		t.Fatalf("expected 200, got %d: %s", w.Code, w.Body.String())
+	}
+	resp := parseBody(t, w.Body.Bytes())
+	data := resp["data"].(map[string]interface{})
+	if data["onboarding_complete"] != true {
+		t.Fatalf("expected onboarding_complete=true when password_hash is set, got %v", data["onboarding_complete"])
+	}
+}
+
 func TestAgencyHandler_Get_NotFound(t *testing.T) {
 	_, r := newFullAgencyTestEnv(t)
 

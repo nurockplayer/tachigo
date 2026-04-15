@@ -147,6 +147,10 @@ func (h *AgencyHandler) ResendSetup(c *gin.Context) {
 		return
 	}
 
+	// ForgotPassword silently returns nil when the email is not found (anti-enumeration).
+	// We assume the email is stable between GetByID and ForgotPassword because there
+	// is no delete-user route in this system. If that assumption ever changes, a
+	// dedicated ForgotPasswordForKnownUser (no silent-nil) should be introduced.
 	if err := h.emailAuthSvc.ForgotPassword(*user.Email); err != nil {
 		if errors.Is(err, services.ErrPasswordResetEmailSend) {
 			log.Printf("agency resend-setup: email delivery failed agency_id=%s email=%s err=%v", agencyID, *user.Email, err)
