@@ -317,6 +317,9 @@ func assertRefreshCookieCleared(
 	if cookie.Path != "/api/v1/auth" {
 		t.Fatalf("expected refresh token cookie path /api/v1/auth, got %q", cookie.Path)
 	}
+	if !cookie.HttpOnly {
+		t.Fatal("expected cleared refresh token cookie to be HttpOnly")
+	}
 	if cookie.SameSite != expectedSameSite {
 		t.Fatalf("expected cleared refresh token cookie SameSite %v, got %v", expectedSameSite, cookie.SameSite)
 	}
