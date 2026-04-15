@@ -4,8 +4,9 @@ import { useNavigate } from 'react-router'
 import { Skeleton } from '@/components/ui/skeleton'
 import { getMyChannels, getStreamers, type Streamer } from '@/services/channels'
 
-function isUnauthenticated(error: unknown) {
-  return isAxiosError(error) && error.response?.status === 401
+function shouldFallbackToGetStreamers(error: unknown) {
+  if (!isAxiosError(error)) return false
+  return error.response?.status === 401 || error.response?.status === 403
 }
 
 export default function StreamersPage() {
@@ -29,7 +30,7 @@ export default function StreamersPage() {
         setShouldAutoRedirect(true)
       })
       .catch(async (error: unknown) => {
-        if (!isUnauthenticated(error)) {
+        if (!shouldFallbackToGetStreamers(error)) {
           if (!mounted) return
           setError(true)
           return

@@ -185,6 +185,22 @@ describe('StreamersPage', () => {
     cleanupRoot(root, container)
   })
 
+  it('falls back to getStreamers when getMyChannels returns 403', async () => {
+    getMyChannelsMock.mockRejectedValue(axiosError(403))
+    getStreamersMock.mockResolvedValue([
+      { id: 'uuid-1', channel_id: 'channel-1', display_name: 'Alice' },
+    ])
+
+    const { container, root } = await renderAt('/streamers')
+    await flush()
+
+    expect(getMyChannelsMock).toHaveBeenCalledTimes(1)
+    expect(getStreamersMock).toHaveBeenCalledTimes(1)
+    expect(container.textContent).toContain('Alice')
+
+    cleanupRoot(root, container)
+  })
+
   it('shows an error state when getMyChannels returns 500', async () => {
     getMyChannelsMock.mockRejectedValue(axiosError(500))
 
