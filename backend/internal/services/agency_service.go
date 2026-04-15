@@ -111,6 +111,20 @@ func (s *AgencyService) UpdateSettings(agencyID uuid.UUID, name string) error {
 	return nil
 }
 
+// GetByID returns the agency user and whether onboarding is complete.
+// onboardingComplete is true when the agency has set a password (PasswordHash IS NOT NULL).
+// Returns ErrAgencyNotFound if no user with the given id and role=agency exists.
+func (s *AgencyService) GetByID(id uuid.UUID) (*models.User, bool, error) {
+	var user models.User
+	if err := s.db.Where("id = ? AND role = ?", id, models.RoleAgency).First(&user).Error; err != nil {
+		if errors.Is(err, gorm.ErrRecordNotFound) {
+			return nil, false, ErrAgencyNotFound
+		}
+		return nil, false, err
+	}
+	return &user, user.PasswordHash != nil, nil
+}
+
 func (s *AgencyService) OwnsChannel(agencyUserID uuid.UUID, channelID string) (bool, error) {
 	var count int64
 	err := s.db.Model(&models.AgencyStreamer{}).
