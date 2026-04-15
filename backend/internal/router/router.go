@@ -192,6 +192,11 @@ func New(
 	agencies.Use(middleware.JWTAuth(authSvc))
 	{
 		agencies.POST("", middleware.RequireRole(models.RoleAdmin), agencyHandler.Create)
+		// GET /agencies/:id — agency or admin
+		agencies.GET("/:id",
+			middleware.RequireRole(models.RoleAgency, models.RoleAdmin),
+			agencyHandler.Get,
+		)
 		// PUT /agencies/:id/settings — agency or admin
 		agencies.PUT("/:id/settings",
 			middleware.RequireRole(models.RoleAgency, models.RoleAdmin),
@@ -201,6 +206,11 @@ func New(
 		agencies.GET("/:id/streamers",
 			middleware.RequireRole(models.RoleAgency, models.RoleAdmin),
 			agencyHandler.ListStreamers,
+		)
+		// POST /agencies/:id/resend-setup — admin only
+		agencies.POST("/:id/resend-setup",
+			middleware.RequireRole(models.RoleAdmin),
+			agencyHandler.ResendSetup,
 		)
 	}
 
