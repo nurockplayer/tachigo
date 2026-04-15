@@ -96,49 +96,6 @@ Key backend variables:
 | `GOOGLE_CLIENT_SECRET`    | From Google Cloud Console              |
 | `JWT_ACCESS_SECRET`       | Random string ≥ 32 chars               |
 | `JWT_REFRESH_SECRET`      | Random string ≥ 32 chars               |
-| `TACHI_CONTRACT_ADDRESS`  | Sepolia TachiToken contract address    |
-| `SEPOLIA_SIGNER_KEY`      | Backend signer key for TACHI mint/burn |
-
-### Demo wallet binding
-
-This is a demo-only helper for the current no-MetaMask flow. Remove it once the real wallet connection flow is in place.
-
-The demo panel does not connect MetaMask. For on-chain claim demos, the backend pays Sepolia gas and the viewer must be pre-linked to a recipient wallet.
-
-Use this checklist on the demo machine:
-
-```env
-TACHI_CONTRACT_ADDRESS=0xaB702A56fa95f7B5c8C1a47AB8348b2Bb74AE778
-SEPOLIA_SIGNER_KEY=<private key for 0xdC9DEf814AFCeC17096FA826cF69ee270233e116>
-```
-
-Before starting the backend, confirm the signer address without printing the private key:
-
-```bash
-cast wallet address --private-key "$SEPOLIA_SIGNER_KEY"
-```
-
-Expected owner/signer address:
-
-```text
-0xdC9DEf814AFCeC17096FA826cF69ee270233e116
-```
-
-That wallet must have Sepolia ETH for gas. Then pre-link a viewer to a recipient wallet before pressing claim:
-
-```bash
-cd backend
-go run ./cmd/demo/link-wallet --email viewer@example.com --wallet 0xd8dA6BF26964aF9D7eEd9e03E53415D37aA96045
-```
-
-When running the command from the host against Docker Compose Postgres, make sure `DATABASE_URL` points at `localhost:5433`.
-
-You can also target a user UUID:
-
-```bash
-cd backend
-go run ./cmd/demo/link-wallet --user-id <viewer-user-id> --wallet <recipient-wallet-address>
-```
 
 ## Architecture
 
