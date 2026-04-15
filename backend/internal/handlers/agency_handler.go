@@ -81,6 +81,86 @@ func (h *AgencyHandler) Create(c *gin.Context) {
 	})
 }
 
+type getAgencyResponse struct {
+	ID                 uuid.UUID `json:"id"`
+	Name               string    `json:"name"`
+	Email              string    `json:"email"`
+	OnboardingComplete bool      `json:"onboarding_complete"`
+}
+
+func (h *AgencyHandler) Get(c *gin.Context) {
+	agencyID, err := uuid.Parse(c.Param("id"))
+	if err != nil {
+		badRequest(c, "invalid agency id")
+		return
+	}
+
+	claims := middleware.MustClaims(c)
+	if claims.Role == models.RoleAgency && claims.UserID != agencyID.String() {
+		c.JSON(http.StatusForbidden, Response{Success: false, Error: "forbidden"})
+		return
+	}
+
+	user, complete, err := h.agencySvc.GetByID(agencyID)
+	if err != nil {
+		if errors.Is(err, services.ErrAgencyNotFound) {
+			notFound(c, "agency not found")
+			return
+		}
+		log.Printf("agency get: unexpected error agency_id=%s err=%v", agencyID, err)
+		internal(c)
+		return
+	}
+
+	name := ""
+	if user.Username != nil {
+		name = *user.Username
+	}
+	email := ""
+	if user.Email != nil {
+		email = *user.Email
+	}
+
+	ok(c, getAgencyResponse{
+		ID:                 user.ID,
+		Name:               name,
+		Email:              email,
+		OnboardingComplete: complete,
+	})
+}
+
+func (h *AgencyHandler) ResendSetup(c *gin.Context) {
+	agencyID, err := uuid.Parse(c.Param("id"))
+	if err != nil {
+		badRequest(c, "invalid agency id")
+		return
+	}
+
+	user, _, err := h.agencySvc.GetByID(agencyID)
+	if err != nil {
+		if errors.Is(err, services.ErrAgencyNotFound) {
+			notFound(c, "agency not found")
+			return
+		}
+		log.Printf("agency resend-setup: get failed agency_id=%s err=%v", agencyID, err)
+		internal(c)
+		return
+	}
+
+	if err := h.emailAuthSvc.ForgotPassword(*user.Email); err != nil {
+		if errors.Is(err, services.ErrPasswordResetEmailSend) {
+			log.Printf("agency resend-setup: email delivery failed agency_id=%s email=%s err=%v", agencyID, *user.Email, err)
+		} else {
+			log.Printf("agency resend-setup: token write failed agency_id=%s email=%s err=%v", agencyID, *user.Email, err)
+		}
+		c.JSON(http.StatusInternalServerError, Response{Success: false, Error: "failed to send setup email"})
+		return
+	}
+
+	log.Printf("agency resend-setup: sent agency_id=%s email=%s", agencyID, *user.Email)
+	ok(c, gin.H{"message": "setup email sent"})
+}
+
 type updateAgencySettingsRequest struct {
 	Name string `json:"name" binding:"required"`
 }

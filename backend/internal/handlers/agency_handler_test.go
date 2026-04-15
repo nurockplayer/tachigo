@@ -53,6 +53,26 @@ func newAgencyTestEnv(t *testing.T) (*testEnv, http.Handler) {
 	return env, r
 }
 
+func newFullAgencyTestEnv(t *testing.T) (*testEnv, http.Handler) {
+	t.Helper()
+
+	env := newTestEnv(t)
+	agencySvc := services.NewAgencyService(env.db)
+	agencyH := handlers.NewAgencyHandler(agencySvc, env.emailAuthSvc)
+
+	r := env.router
+	v1 := r.Group("/api/v1")
+	agencies := v1.Group("/agencies")
+	agencies.Use(middleware.JWTAuth(env.authSvc))
+	agencies.POST("", middleware.RequireRole(models.RoleAdmin), agencyH.Create)
+	agencies.GET("/:id", middleware.RequireRole(models.RoleAgency, models.RoleAdmin), agencyH.Get)
+	agencies.PUT("/:id/settings", middleware.RequireRole(models.RoleAgency, models.RoleAdmin), agencyH.UpdateSettings)
+	agencies.GET("/:id/streamers", middleware.RequireRole(models.RoleAgency, models.RoleAdmin), agencyH.ListStreamers)
+	agencies.POST("/:id/resend-setup", middleware.RequireRole(models.RoleAdmin), agencyH.ResendSetup)
+
+	return env, r
+}
+
 func makeAccessToken(t *testing.T, role models.UserRole) string {
 	t.Helper()
 
@@ -137,6 +157,150 @@ func seedAgencyStreamerListData(t *testing.T, db *gorm.DB, agencyID uuid.UUID) [
 	return []map[string]string{
 		{"channel_id": rows[0].channelID, "user_id": rows[0].userID.String()},
 		{"channel_id": rows[1].channelID, "user_id": rows[1].userID.String()},
+	}
+}
+
+func TestAgencyHandler_Get_ReturnsProfile(t *testing.T) {
+	env, r := newFullAgencyTestEnv(t)
+	agencyID := seedAgencyUser(t, env.db, "agency-get", "agency-get@example.com")
+
+	w := httptest.NewRecorder()
+	req, _ := http.NewRequest("GET", "/api/v1/agencies/"+agencyID.String(), nil)
+	req.Header.Set("Authorization", "Bearer "+makeAccessToken(t, models.RoleAdmin))
+	r.ServeHTTP(w, req)
+
+	if w.Code != http.StatusOK {
+		t.Fatalf("expected 200, got %d: %s", w.Code, w.Body.String())
+	}
+	resp := parseBody(t, w.Body.Bytes())
+	data := resp["data"].(map[string]interface{})
+	if data["id"] == nil {
+		t.Fatal("expected id in response")
+	}
+	if data["email"] != "agency-get@example.com" {
+		t.Fatalf("expected email agency-get@example.com, got %v", data["email"])
+	}
+	// seedAgencyUser inserts with no password_hash → onboarding_complete must be false
+	if data["onboarding_complete"] != false {
+		t.Fatalf("expected onboarding_complete=false, got %v", data["onboarding_complete"])
+	}
+}
+
+func TestAgencyHandler_Get_NotFound(t *testing.T) {
+	_, r := newFullAgencyTestEnv(t)
+
+	w := httptest.NewRecorder()
+	req, _ := http.NewRequest("GET", "/api/v1/agencies/"+uuid.NewString(), nil)
+	req.Header.Set("Authorization", "Bearer "+makeAccessToken(t, models.RoleAdmin))
+	r.ServeHTTP(w, req)
+
+	if w.Code != http.StatusNotFound {
+		t.Fatalf("expected 404, got %d: %s", w.Code, w.Body.String())
+	}
+}
+
+func TestAgencyHandler_Get_AgencyCanQueryOwn(t *testing.T) {
+	env, r := newFullAgencyTestEnv(t)
+	agencyID := seedAgencyUser(t, env.db, "agency-self-get", "agency-self-get@example.com")
+
+	w := httptest.NewRecorder()
+	req, _ := http.NewRequest("GET", "/api/v1/agencies/"+agencyID.String(), nil)
+	req.Header.Set("Authorization", "Bearer "+makeAccessTokenForUser(t, agencyID, models.RoleAgency))
+	r.ServeHTTP(w, req)
+
+	if w.Code != http.StatusOK {
+		t.Fatalf("expected 200, got %d: %s", w.Code, w.Body.String())
+	}
+}
+
+func TestAgencyHandler_Get_AgencyCannotQueryOthers(t *testing.T) {
+	env, r := newFullAgencyTestEnv(t)
+	agencyID := seedAgencyUser(t, env.db, "agency-other-get", "agency-other-get@example.com")
+
+	w := httptest.NewRecorder()
+	req, _ := http.NewRequest("GET", "/api/v1/agencies/"+agencyID.String(), nil)
+	req.Header.Set("Authorization", "Bearer "+makeAccessTokenForUser(t, uuid.New(), models.RoleAgency))
+	r.ServeHTTP(w, req)
+
+	if w.Code != http.StatusForbidden {
+		t.Fatalf("expected 403, got %d: %s", w.Code, w.Body.String())
+	}
+}
+
+func TestAgencyHandler_Get_InvalidID(t *testing.T) {
+	_, r := newFullAgencyTestEnv(t)
+
+	w := httptest.NewRecorder()
+	req, _ := http.NewRequest("GET", "/api/v1/agencies/not-a-uuid", nil)
+	req.Header.Set("Authorization", "Bearer "+makeAccessToken(t, models.RoleAdmin))
+	r.ServeHTTP(w, req)
+
+	if w.Code != http.StatusBadRequest {
+		t.Fatalf("expected 400, got %d: %s", w.Code, w.Body.String())
+	}
+}
+
+func TestAgencyHandler_ResendSetup_Success(t *testing.T) {
+	env, r := newFullAgencyTestEnv(t)
+	agencyID := seedAgencyUser(t, env.db, "agency-resend", "agency-resend@example.com")
+
+	w := httptest.NewRecorder()
+	req, _ := http.NewRequest("POST", "/api/v1/agencies/"+agencyID.String()+"/resend-setup", nil)
+	req.Header.Set("Authorization", "Bearer "+makeAccessToken(t, models.RoleAdmin))
+	r.ServeHTTP(w, req)
+
+	if w.Code != http.StatusOK {
+		t.Fatalf("expected 200, got %d: %s", w.Code, w.Body.String())
+	}
+
+	var count int64
+	if err := env.db.Table("password_resets").
+		Where("email = ?", "agency-resend@example.com").
+		Count(&count).Error; err != nil {
+		t.Fatalf("query password_resets: %v", err)
+	}
+	if count != 1 {
+		t.Fatalf("expected 1 password_resets row, got %d", count)
+	}
+}
+
+func TestAgencyHandler_ResendSetup_NotFound(t *testing.T) {
+	_, r := newFullAgencyTestEnv(t)
+
+	w := httptest.NewRecorder()
+	req, _ := http.NewRequest("POST", "/api/v1/agencies/"+uuid.NewString()+"/resend-setup", nil)
+	req.Header.Set("Authorization", "Bearer "+makeAccessToken(t, models.RoleAdmin))
+	r.ServeHTTP(w, req)
+
+	if w.Code != http.StatusNotFound {
+		t.Fatalf("expected 404, got %d: %s", w.Code, w.Body.String())
+	}
+}
+
+func TestAgencyHandler_ResendSetup_RequiresAdmin(t *testing.T) {
+	env, r := newFullAgencyTestEnv(t)
+	agencyID := seedAgencyUser(t, env.db, "agency-resend-auth", "agency-resend-auth@example.com")
+
+	w := httptest.NewRecorder()
+	req, _ := http.NewRequest("POST", "/api/v1/agencies/"+agencyID.String()+"/resend-setup", nil)
+	req.Header.Set("Authorization", "Bearer "+makeAccessTokenForUser(t, agencyID, models.RoleAgency))
+	r.ServeHTTP(w, req)
+
+	if w.Code != http.StatusForbidden {
+		t.Fatalf("expected 403, got %d: %s", w.Code, w.Body.String())
+	}
+}
+
+func TestAgencyHandler_ResendSetup_InvalidID(t *testing.T) {
+	_, r := newFullAgencyTestEnv(t)
+
+	w := httptest.NewRecorder()
+	req, _ := http.NewRequest("POST", "/api/v1/agencies/not-a-uuid/resend-setup", nil)
+	req.Header.Set("Authorization", "Bearer "+makeAccessToken(t, models.RoleAdmin))
+	r.ServeHTTP(w, req)
+
+	if w.Code != http.StatusBadRequest {
+		t.Fatalf("expected 400, got %d: %s", w.Code, w.Body.String())
 	}
 }
 
