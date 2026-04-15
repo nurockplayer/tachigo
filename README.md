@@ -96,6 +96,8 @@ Key backend variables:
 | `GOOGLE_CLIENT_SECRET`    | From Google Cloud Console              |
 | `JWT_ACCESS_SECRET`       | Random string ≥ 32 chars               |
 | `JWT_REFRESH_SECRET`      | Random string ≥ 32 chars               |
+| `TACHI_CONTRACT_ADDRESS`  | Sepolia TachiToken contract address    |
+| `SEPOLIA_SIGNER_KEY`      | Backend signer key for TACHI mint/burn |
 
 ## Architecture
 
