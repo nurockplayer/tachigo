@@ -26,7 +26,7 @@ func TestRegisterHandler_Success(t *testing.T) {
 	if resp["success"] != true {
 		t.Error("want success: true")
 	}
-	assertRefreshCookieSet(t, w, "")
+	assertRefreshCookieSet(t, w, "", http.SameSiteLaxMode, false)
 }
 
 func TestRegisterHandler_DuplicateEmail(t *testing.T) {
@@ -101,7 +101,23 @@ func TestLoginHandler_Success(t *testing.T) {
 	if w.Code != http.StatusOK {
 		t.Errorf("want 200, got %d: %s", w.Code, w.Body.String())
 	}
-	assertRefreshCookieSet(t, w, "")
+	assertRefreshCookieSet(t, w, "", http.SameSiteLaxMode, false)
+}
+
+func TestLoginHandler_SetsSecureRefreshCookieInProduction(t *testing.T) {
+	env := newTestEnvWithServerEnv(t, "production")
+	env.registerUser(t, "prodlogin", "prodlogin@example.com", "mypassword")
+
+	body := `{"email":"prodlogin@example.com","password":"mypassword"}`
+	req := httptest.NewRequest(http.MethodPost, "/api/v1/auth/login", bytes.NewBufferString(body))
+	req.Header.Set("Content-Type", "application/json")
+	w := httptest.NewRecorder()
+	env.router.ServeHTTP(w, req)
+
+	if w.Code != http.StatusOK {
+		t.Errorf("want 200, got %d: %s", w.Code, w.Body.String())
+	}
+	assertRefreshCookieSet(t, w, "", http.SameSiteLaxMode, true)
 }
 
 func TestLoginHandler_WrongPassword(t *testing.T) {
@@ -161,6 +177,7 @@ func TestRefreshHandler_Success(t *testing.T) {
 	if w.Code != http.StatusOK {
 		t.Errorf("want 200, got %d: %s", w.Code, w.Body.String())
 	}
+	assertRefreshCookieSet(t, w, refreshToken, http.SameSiteLaxMode, false)
 }
 
 func TestRefreshHandler_SuccessWithCookie(t *testing.T) {
@@ -176,7 +193,7 @@ func TestRefreshHandler_SuccessWithCookie(t *testing.T) {
 	if w.Code != http.StatusOK {
 		t.Errorf("want 200, got %d: %s", w.Code, w.Body.String())
 	}
-	assertRefreshCookieSet(t, w, refreshToken)
+	assertRefreshCookieSet(t, w, refreshToken, http.SameSiteLaxMode, false)
 }
 
 func TestRefreshHandler_InvalidToken(t *testing.T) {
@@ -220,6 +237,7 @@ func TestLogoutHandler_Success(t *testing.T) {
 	if w.Code != http.StatusOK {
 		t.Errorf("want 200, got %d", w.Code)
 	}
+	assertRefreshCookieCleared(t, w, http.SameSiteLaxMode, false)
 }
 
 func TestLogoutHandler_SuccessWithCookie(t *testing.T) {
@@ -235,7 +253,7 @@ func TestLogoutHandler_SuccessWithCookie(t *testing.T) {
 	if w.Code != http.StatusOK {
 		t.Errorf("want 200, got %d", w.Code)
 	}
-	assertRefreshCookieCleared(t, w)
+	assertRefreshCookieCleared(t, w, http.SameSiteLaxMode, false)
 }
 
 func TestLogoutHandler_MissingToken(t *testing.T) {
@@ -251,7 +269,13 @@ func TestLogoutHandler_MissingToken(t *testing.T) {
 	}
 }
 
-func assertRefreshCookieSet(t *testing.T, w *httptest.ResponseRecorder, previousValue string) {
+func assertRefreshCookieSet(
+	t *testing.T,
+	w *httptest.ResponseRecorder,
+	previousValue string,
+	expectedSameSite http.SameSite,
+	expectedSecure bool,
+) {
 	t.Helper()
 
 	cookie := responseCookie(t, w, "refresh_token")
@@ -267,9 +291,20 @@ func assertRefreshCookieSet(t *testing.T, w *httptest.ResponseRecorder, previous
 	if cookie.Path != "/api/v1/auth" {
 		t.Fatalf("expected refresh token cookie path /api/v1/auth, got %q", cookie.Path)
 	}
+	if cookie.SameSite != expectedSameSite {
+		t.Fatalf("expected refresh token cookie SameSite %v, got %v", expectedSameSite, cookie.SameSite)
+	}
+	if cookie.Secure != expectedSecure {
+		t.Fatalf("expected refresh token cookie Secure %t, got %t", expectedSecure, cookie.Secure)
+	}
 }
 
-func assertRefreshCookieCleared(t *testing.T, w *httptest.ResponseRecorder) {
+func assertRefreshCookieCleared(
+	t *testing.T,
+	w *httptest.ResponseRecorder,
+	expectedSameSite http.SameSite,
+	expectedSecure bool,
+) {
 	t.Helper()
 
 	cookie := responseCookie(t, w, "refresh_token")
@@ -281,6 +316,12 @@ func assertRefreshCookieCleared(t *testing.T, w *httptest.ResponseRecorder) {
 	}
 	if cookie.Path != "/api/v1/auth" {
 		t.Fatalf("expected refresh token cookie path /api/v1/auth, got %q", cookie.Path)
+	}
+	if cookie.SameSite != expectedSameSite {
+		t.Fatalf("expected cleared refresh token cookie SameSite %v, got %v", expectedSameSite, cookie.SameSite)
+	}
+	if cookie.Secure != expectedSecure {
+		t.Fatalf("expected cleared refresh token cookie Secure %t, got %t", expectedSecure, cookie.Secure)
 	}
 }
 

@@ -221,6 +221,11 @@ type testEnv struct {
 
 func newTestEnv(t *testing.T) *testEnv {
 	t.Helper()
+	return newTestEnvWithServerEnv(t, "development")
+}
+
+func newTestEnvWithServerEnv(t *testing.T, serverEnv string) *testEnv {
+	t.Helper()
 
 	db, err := gorm.Open(sqlite.Open(":memory:"), &gorm.Config{
 		Logger: logger.Default.LogMode(logger.Silent),
@@ -237,7 +242,7 @@ func newTestEnv(t *testing.T) *testEnv {
 
 	cfg := &config.Config{
 		Server: config.ServerConfig{
-			Env: "development",
+			Env: serverEnv,
 		},
 		JWT: config.JWTConfig{
 			AccessSecret:  "test-access-secret-at-least-32-chars!",
