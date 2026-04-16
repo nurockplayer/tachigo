@@ -169,6 +169,17 @@ func seedWalletNonce(t *testing.T, db *gorm.DB, address, nonce string) {
 	}
 }
 
+func seedExpiredWalletNonce(t *testing.T, db *gorm.DB, address, nonce string) {
+	t.Helper()
+	if err := db.Create(&models.Web3Nonce{
+		Nonce:     nonce,
+		Address:   strings.ToLower(address),
+		ExpiresAt: time.Now().Add(-time.Minute),
+	}).Error; err != nil {
+		t.Fatalf("seed expired nonce: %v", err)
+	}
+}
+
 func TestLinkWallet_Success(t *testing.T) {
 	db := newTestDB(t)
 	svc := NewUserService(db)
@@ -292,5 +303,196 @@ func TestLinkWallet_ReplacesUsersExistingPrimaryWallet(t *testing.T) {
 	}
 	if !old.DeletedAt.Valid {
 		t.Error("old wallet row should be soft-deleted")
+	}
+}
+
+func TestLinkWallet_InvalidAddress(t *testing.T) {
+	svc := NewUserService(newTestDB(t))
+
+	_, err := svc.LinkWallet(uuid.New(), LinkWalletInput{
+		Address:   "not-an-address",
+		Nonce:     "invalid-address",
+		Signature: "0xdeadbeef",
+	})
+	if err != ErrInvalidWalletAddress {
+		t.Errorf("want ErrInvalidWalletAddress, got %v", err)
+	}
+}
+
+func TestLinkWallet_NonceNotFound(t *testing.T) {
+	db := newTestDB(t)
+	svc := NewUserService(db)
+	userID := uuid.New()
+	db.Create(&models.User{ID: userID, Role: models.RoleViewer})
+	_, addr := newTestWallet(t)
+
+	_, err := svc.LinkWallet(userID, LinkWalletInput{
+		Address:   addr,
+		Nonce:     "missing-nonce",
+		Signature: "0x" + strings.Repeat("ab", 65),
+	})
+	if err != ErrInvalidNonce {
+		t.Errorf("want ErrInvalidNonce, got %v", err)
+	}
+}
+
+func TestLinkWallet_ExpiredNonce(t *testing.T) {
+	db := newTestDB(t)
+	svc := NewUserService(db)
+	userID := uuid.New()
+	db.Create(&models.User{ID: userID, Role: models.RoleViewer})
+	_, addr := newTestWallet(t)
+	nonce := "expired-nonce"
+	seedExpiredWalletNonce(t, db, addr, nonce)
+
+	_, err := svc.LinkWallet(userID, LinkWalletInput{
+		Address:   addr,
+		Nonce:     nonce,
+		Signature: "0x" + strings.Repeat("ab", 65),
+	})
+	if err != ErrInvalidNonce {
+		t.Errorf("want ErrInvalidNonce, got %v", err)
+	}
+}
+
+func TestLinkWallet_InvalidSignature(t *testing.T) {
+	db := newTestDB(t)
+	svc := NewUserService(db)
+	userID := uuid.New()
+	db.Create(&models.User{ID: userID, Role: models.RoleViewer})
+
+	_, addr := newTestWallet(t)
+	wrongKey, _ := newTestWallet(t)
+	nonce := "invalid-signature"
+	seedWalletNonce(t, db, addr, nonce)
+	msg := siweMessage(strings.ToLower(addr), nonce)
+
+	_, err := svc.LinkWallet(userID, LinkWalletInput{
+		Address:   addr,
+		Nonce:     nonce,
+		Signature: signSIWE(t, msg, wrongKey),
+	})
+	if err != ErrInvalidSignature {
+		t.Errorf("want ErrInvalidSignature, got %v", err)
+	}
+
+	var nonceCount int64
+	db.Model(&models.Web3Nonce{}).Where("nonce = ?", nonce).Count(&nonceCount)
+	if nonceCount != 1 {
+		t.Errorf("nonce should remain after invalid signature, got %d rows", nonceCount)
+	}
+}
+
+func TestLinkWallet_ReplayConsumedNonceRejected(t *testing.T) {
+	db := newTestDB(t)
+	svc := NewUserService(db)
+	userID := uuid.New()
+	db.Create(&models.User{ID: userID, Role: models.RoleViewer})
+
+	key, addr := newTestWallet(t)
+	nonce := "replay-consumed-nonce"
+	seedWalletNonce(t, db, addr, nonce)
+	msg := siweMessage(strings.ToLower(addr), nonce)
+	input := LinkWalletInput{
+		Address:   addr,
+		Nonce:     nonce,
+		Signature: signSIWE(t, msg, key),
+	}
+
+	if _, err := svc.LinkWallet(userID, input); err != nil {
+		t.Fatalf("first link: %v", err)
+	}
+	_, err := svc.LinkWallet(userID, input)
+	if err != ErrInvalidNonce {
+		t.Errorf("want ErrInvalidNonce, got %v", err)
+	}
+}
+
+func TestLinkWallet_RestoresSoftDeletedSameWallet(t *testing.T) {
+	db := newTestDB(t)
+	svc := NewUserService(db)
+	userID := uuid.New()
+	db.Create(&models.User{ID: userID, Role: models.RoleViewer})
+
+	key, addr := newTestWallet(t)
+	deletedAt := time.Now().Add(-time.Hour)
+	if err := db.Create(&models.AuthProvider{
+		UserID:     userID,
+		Provider:   models.ProviderWeb3,
+		ProviderID: addr,
+		DeletedAt:  gorm.DeletedAt{Time: deletedAt, Valid: true},
+	}).Error; err != nil {
+		t.Fatalf("seed soft-deleted auth provider: %v", err)
+	}
+
+	nonce := "restore-same-wallet"
+	seedWalletNonce(t, db, addr, nonce)
+	msg := siweMessage(strings.ToLower(addr), nonce)
+	got, err := svc.LinkWallet(userID, LinkWalletInput{
+		Address:   addr,
+		Nonce:     nonce,
+		Signature: signSIWE(t, msg, key),
+	})
+	if err != nil {
+		t.Fatalf("unexpected error: %v", err)
+	}
+	if got != addr {
+		t.Errorf("address: want %s, got %s", addr, got)
+	}
+
+	var rows []models.AuthProvider
+	if err := db.Unscoped().
+		Where("user_id = ? AND provider = ? AND provider_id = ?", userID, models.ProviderWeb3, addr).
+		Find(&rows).Error; err != nil {
+		t.Fatalf("find auth providers: %v", err)
+	}
+	if len(rows) != 1 {
+		t.Fatalf("want restored existing row only, got %d rows", len(rows))
+	}
+	if rows[0].DeletedAt.Valid {
+		t.Error("restored wallet should be active")
+	}
+}
+
+func TestLinkWallet_IgnoresSoftDeletedWalletLinkedToOtherUser(t *testing.T) {
+	db := newTestDB(t)
+	svc := NewUserService(db)
+
+	oldUser := uuid.New()
+	newUser := uuid.New()
+	db.Create(&models.User{ID: oldUser, Role: models.RoleViewer})
+	db.Create(&models.User{ID: newUser, Role: models.RoleViewer})
+
+	key, addr := newTestWallet(t)
+	if err := db.Create(&models.AuthProvider{
+		UserID:     oldUser,
+		Provider:   models.ProviderWeb3,
+		ProviderID: addr,
+		DeletedAt:  gorm.DeletedAt{Time: time.Now().Add(-time.Hour), Valid: true},
+	}).Error; err != nil {
+		t.Fatalf("seed soft-deleted auth provider: %v", err)
+	}
+
+	nonce := "soft-deleted-other-user"
+	seedWalletNonce(t, db, addr, nonce)
+	msg := siweMessage(strings.ToLower(addr), nonce)
+	got, err := svc.LinkWallet(newUser, LinkWalletInput{
+		Address:   addr,
+		Nonce:     nonce,
+		Signature: signSIWE(t, msg, key),
+	})
+	if err != nil {
+		t.Fatalf("unexpected error: %v", err)
+	}
+	if got != addr {
+		t.Errorf("address: want %s, got %s", addr, got)
+	}
+
+	var activeCount int64
+	db.Model(&models.AuthProvider{}).
+		Where("provider = ? AND provider_id = ?", models.ProviderWeb3, addr).
+		Count(&activeCount)
+	if activeCount != 1 {
+		t.Errorf("want 1 active wallet, got %d", activeCount)
 	}
 }
