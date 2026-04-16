@@ -225,11 +225,11 @@ func (s *AuthService) GoogleCallback(ctx context.Context, code string) (*models.
 
 // ─── Web3 / SIWE ─────────────────────────────────────────────────────────────
 
-func (s *AuthService) Web3Nonce(address string) (string, error) {
+func (s *AuthService) Web3Nonce(address string) (string, time.Time, error) {
 	address = strings.ToLower(address)
 	nonce, err := generateNonce()
 	if err != nil {
-		return "", err
+		return "", time.Time{}, err
 	}
 
 	// Delete any existing nonces for this address
@@ -241,9 +241,9 @@ func (s *AuthService) Web3Nonce(address string) (string, error) {
 		ExpiresAt: time.Now().Add(5 * time.Minute),
 	}
 	if err := s.db.Create(record).Error; err != nil {
-		return "", err
+		return "", time.Time{}, err
 	}
-	return nonce, nil
+	return nonce, record.CreatedAt, nil
 }
 
 type Web3VerifyInput struct {
