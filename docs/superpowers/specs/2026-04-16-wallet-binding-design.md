@@ -105,7 +105,7 @@ CREATE UNIQUE INDEX IF NOT EXISTS idx_auth_providers_provider_provider_id_active
 
 ## Implementation Checklist
 
-- [ ] 新增 `migrations/014_auth_provider_partial_unique.sql`
+- [ ] 新增 `backend/migrations/014_auth_provider_partial_unique.sql`
 - [ ] 更新 SQLite test helper schema（補同等 partial unique index）
 - [ ] 新增 `services/siwe.go`，搬移 `siweMessage` / `verifyEthSignature`
 - [ ] 修改 `services/auth_service.go`，移除原 helper 定義，保留呼叫
@@ -155,7 +155,7 @@ func verifyEthSignature(message, sigHex, expectedAddress string) bool
 
 - 移除 `siweMessage` 與 `verifyEthSignature` 的原始定義（Go build 不允許同 package 重複定義，移除前先確認 `siwe.go` 已建立）
 - `Web3Verify()` 內的呼叫不變（同 package，直接可用）
-- 移除因此產生的 unused imports（`fmt`、`encoding/hex`、`crypto` 等是否仍被其他函式使用，由 `go build` / `go test` 驗證）
+- 移除因此產生的 unused imports；預期至少檢查 `github.com/ethereum/go-ethereum/crypto`（`fmt`、`encoding/hex` 在其他函式仍有使用，不會被移除）
 
 ### 2. `backend/internal/services/user_service.go`（新增方法）
 
@@ -212,7 +212,19 @@ ErrInvalidWalletAddress = errors.New("invalid wallet address")
 
 沿用現有：`ErrInvalidNonce`、`ErrInvalidSignature`、`ErrProviderLinked`（已在 `auth_service.go`，同 package 可直接用）
 
-### 3. `backend/internal/handlers/user_handler.go`（新增方法）
+### 3. `backend/internal/handlers/swagger_types.go`（修改）
+
+新增：
+
+```go
+type WalletResponse struct {
+    Address string `json:"address"`
+}
+```
+
+> 與 `UserResponse`、`ProvidersResponse` 等現有 swagger type 放在同一檔案。
+
+### 4. `backend/internal/handlers/user_handler.go`（新增方法）
 
 ```go
 // LinkWallet godoc
@@ -239,7 +251,7 @@ func (h *UserHandler) LinkWallet(c *gin.Context)
   - `ErrProviderLinked` → `conflict("wallet already linked to another account")`
   - default → `internal`
 
-### 4. `backend/internal/router/router.go`（修改）
+### 5. `backend/internal/router/router.go`（修改）
 
 在 `protected` group 新增：
 
@@ -260,8 +272,10 @@ protected.POST("users/me/wallet", userH.LinkWallet)
 | 同 user 重綁同一地址（soft-deleted row 存在） | restore deleted_at = NULL，不 insert 新 row |
 | nonce 不存在 | `ErrInvalidNonce` |
 | nonce 已過期 | `ErrInvalidNonce` |
+| 成功綁定後重用同一 nonce | `ErrInvalidNonce`（nonce 已被 consume） |
 | 簽名錯誤 | `ErrInvalidSignature` |
 | address 已被其他 user 綁定 | `ErrProviderLinked` |
+| Create / restore 遇 active unique index 衝突（race） | `ErrProviderLinked`（不掉到 500） |
 | address 格式不合法 | `ErrInvalidWalletAddress` |
 
 ### `handlers/user_handler_test.go`（新增 test cases）
