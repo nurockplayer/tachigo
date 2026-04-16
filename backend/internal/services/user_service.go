@@ -103,16 +103,16 @@ func (s *UserService) LinkWallet(userID uuid.UUID, input LinkWalletInput) (strin
 		return "", ErrInvalidSignature
 	}
 
-	err := s.db.Transaction(func(tx *gorm.DB) error {
-		result := tx.Where("nonce = ? AND address = ?", input.Nonce, lookupAddr).
-			Delete(&models.Web3Nonce{})
-		if result.Error != nil {
-			return result.Error
-		}
-		if result.RowsAffected != 1 {
-			return ErrInvalidNonce
-		}
+	result := s.db.Where("nonce = ? AND address = ?", input.Nonce, lookupAddr).
+		Delete(&models.Web3Nonce{})
+	if result.Error != nil {
+		return "", result.Error
+	}
+	if result.RowsAffected != 1 {
+		return "", ErrInvalidNonce
+	}
 
+	err := s.db.Transaction(func(tx *gorm.DB) error {
 		var count int64
 		if err := tx.Model(&models.AuthProvider{}).
 			Where("provider = ? AND provider_id = ? AND deleted_at IS NULL AND user_id != ?",
