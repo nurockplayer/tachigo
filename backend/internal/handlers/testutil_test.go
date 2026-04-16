@@ -282,7 +282,6 @@ func newTestEnv(t *testing.T) *testEnv {
 	protected.Use(middleware.JWTAuth(authSvc))
 	protected.GET("users/me", userH.Me)
 	protected.PUT("users/me", userH.UpdateMe)
-	protected.POST("users/me/wallet", userH.LinkWallet)
 	protected.GET("users/me/providers", userH.ListProviders)
 	protected.DELETE("auth/providers/:provider", authH.UnlinkProvider)
 	protected.POST("auth/verify-email/send", emailH.SendVerification)
