@@ -87,10 +87,19 @@ WHERE deleted_at IS NULL;
 ```
 
 > PostgreSQL 支援 partial index；專案其他 migration 已有先例。
+>
+> 實作前確認 DB 中沒有重複的 active `(provider, provider_id)`，否則 `CREATE UNIQUE INDEX` 會失敗。
+> 不要使用 `CONCURRENTLY`（migration runner 若包 transaction 會報錯；目前 spec 未用，OK）。
 
 ### SQLite（測試環境）
 
-SQLite 不支援 `CREATE UNIQUE INDEX ... WHERE`。測試 helper 需在 schema 初始化時跳過這個 index，或改用 `uniqueIndex` tag 搭配 test-specific migration。具體做法在 implementation plan 階段決定，spec 僅標注此注意事項。
+SQLite 支援 partial unique index（`WHERE` clause）。`backend/internal/services/testutil_test.go` 已有先例（`idx_watch_sessions_active_user_channel`）。測試 helper 應同步新增：
+
+```sql
+CREATE UNIQUE INDEX IF NOT EXISTS idx_auth_providers_provider_provider_id_active
+    ON auth_providers (provider, provider_id)
+    WHERE deleted_at IS NULL;
+```
 
 ---
 
@@ -125,28 +134,30 @@ func (s *UserService) LinkWallet(userID uuid.UUID, input LinkWalletInput) (strin
 [transaction 外]
 1. common.IsHexAddress(input.Address) → false → ErrInvalidWalletAddress
 2. checksumAddr = common.HexToAddress(input.Address).Hex()
-3. lookupAddr  = strings.ToLower(input.Address)
+3. lookupAddr  = strings.ToLower(checksumAddr)  // canonical: checksum 後再 lower
 4. db.Where("nonce=? AND address=?", input.Nonce, lookupAddr).First(&nonceRecord)
    → not found or expired → ErrInvalidNonce
 5. msg = siweMessage(lookupAddr, input.Nonce)
    verifyEthSignature(msg, input.Signature, lookupAddr) → false → ErrInvalidSignature
 
 [BEGIN TRANSACTION]
-6. db.Where("nonce=? AND address=?", ...).Delete(&Web3Nonce{})  // consume nonce
-7. db.Unscoped().
-       Where("provider='web3' AND provider_id=? AND deleted_at IS NULL AND user_id != ?",
+6. result = db.Where("nonce=? AND address=?", ...).Delete(&Web3Nonce{})
+   result.RowsAffected != 1 → ErrInvalidNonce  // 防止並發重放
+7. db.Where("provider='web3' AND provider_id=? AND deleted_at IS NULL AND user_id != ?",
              checksumAddr, userID).
        Count(&count)
    → count > 0 → ErrProviderLinked
 
 8. db.Where("user_id=? AND provider='web3' AND deleted_at IS NULL", userID).
-       Update("deleted_at", now)  // soft delete 目前 active web3 row（若有）
+       Update("deleted_at", now)  // soft delete 目前 active web3 row（若有，含同 address）
 
 9. db.Unscoped().
        Where("user_id=? AND provider='web3' AND provider_id=?", userID, checksumAddr).
        First(&ap)
-   → 找到 soft-deleted row → db.Unscoped().Model(&ap).Update("deleted_at", nil)
-   → 找不到              → db.Create(&AuthProvider{provider:'web3', provider_id: checksumAddr})
+   // step 8 之後，若找到此 row，它一定是 soft-deleted 狀態（剛被 soft delete 或更早前的）
+   → 找到 → db.Unscoped().Model(&ap).Update("deleted_at", nil)  // restore
+   → 找不到 → db.Create(&AuthProvider{provider:'web3', provider_id: checksumAddr})
+   // Create / restore 若遇到 partial unique index 衝突（race），轉 ErrProviderLinked → 409
 
 [COMMIT]
 10. return checksumAddr, nil
