@@ -5,11 +5,13 @@ import (
 	"encoding/hex"
 	"errors"
 	"net/http"
+	"net/url"
 	"strings"
 	"time"
 
 	"github.com/gin-gonic/gin"
 	"github.com/google/uuid"
+	"golang.org/x/net/publicsuffix"
 
 	"github.com/tachigo/tachigo/internal/config"
 	"github.com/tachigo/tachigo/internal/middleware"
@@ -368,7 +370,7 @@ func (h *AuthHandler) refreshTokenFromRequest(c *gin.Context) (string, error) {
 }
 
 func (h *AuthHandler) setRefreshCookie(c *gin.Context, refreshToken string) {
-	c.SetSameSite(http.SameSiteLaxMode)
+	c.SetSameSite(h.refreshCookieSameSite(c))
 	c.SetCookie(
 		refreshTokenCookieName,
 		refreshToken,
@@ -381,7 +383,7 @@ func (h *AuthHandler) setRefreshCookie(c *gin.Context, refreshToken string) {
 }
 
 func (h *AuthHandler) clearRefreshCookie(c *gin.Context) {
-	c.SetSameSite(http.SameSiteLaxMode)
+	c.SetSameSite(h.refreshCookieSameSite(c))
 	c.SetCookie(
 		refreshTokenCookieName,
 		"",
@@ -406,4 +408,71 @@ func (h *AuthHandler) refreshCookieSecure() bool {
 	}
 	env := strings.ToLower(h.cfg.Server.Env)
 	return env == "production" || env == "prod"
+}
+
+func (h *AuthHandler) refreshCookieSameSite(c *gin.Context) http.SameSite {
+	if !h.refreshCookieSecure() || h.cfg == nil || h.cfg.App.FrontendURL == "" {
+		return http.SameSiteLaxMode
+	}
+
+	frontendSite, ok := schemefulSite(h.cfg.App.FrontendURL)
+	if !ok {
+		return http.SameSiteLaxMode
+	}
+
+	requestURL := &url.URL{
+		Scheme: requestScheme(c.Request),
+		Host:   requestHost(c.Request),
+	}
+	requestSite, ok := schemefulSite(requestURL.String())
+	if !ok {
+		return http.SameSiteLaxMode
+	}
+
+	if frontendSite != requestSite {
+		return http.SameSiteNoneMode
+	}
+
+	return http.SameSiteLaxMode
+}
+
+func requestScheme(r *http.Request) string {
+	if proto := strings.TrimSpace(r.Header.Get("X-Forwarded-Proto")); proto != "" {
+		return strings.ToLower(proto)
+	}
+	if r.URL != nil && r.URL.Scheme != "" {
+		return strings.ToLower(r.URL.Scheme)
+	}
+	if r.TLS != nil {
+		return "https"
+	}
+	return "http"
+}
+
+func requestHost(r *http.Request) string {
+	if host := strings.TrimSpace(r.Header.Get("X-Forwarded-Host")); host != "" {
+		return host
+	}
+	if host := strings.TrimSpace(r.Host); host != "" {
+		return host
+	}
+	if r.URL != nil {
+		return r.URL.Host
+	}
+	return ""
+}
+
+func schemefulSite(rawURL string) (string, bool) {
+	parsed, err := url.Parse(rawURL)
+	if err != nil || parsed.Scheme == "" || parsed.Hostname() == "" {
+		return "", false
+	}
+
+	host := strings.ToLower(parsed.Hostname())
+	registrableDomain, err := publicsuffix.EffectiveTLDPlusOne(host)
+	if err == nil {
+		host = registrableDomain
+	}
+
+	return strings.ToLower(parsed.Scheme) + "://" + host, true
 }

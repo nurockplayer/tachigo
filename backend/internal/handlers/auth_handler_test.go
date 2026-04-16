@@ -3,6 +3,7 @@ package handlers_test
 import (
 	"bytes"
 	"fmt"
+	"crypto/tls"
 	"net/http"
 	"net/http/httptest"
 	"testing"
@@ -120,6 +121,24 @@ func TestLoginHandler_SetsSecureRefreshCookieInProduction(t *testing.T) {
 	assertRefreshCookieSet(t, w, "", http.SameSiteLaxMode, true)
 }
 
+func TestLoginHandler_SetsSameSiteNoneRefreshCookieForCrossSiteFrontendInProduction(t *testing.T) {
+	env := newTestEnvWithConfig(t, "production", "https://dashboard.example.org")
+	env.registerUser(t, "crosssite", "crosssite@example.com", "mypassword")
+
+	body := `{"email":"crosssite@example.com","password":"mypassword"}`
+	req := httptest.NewRequest(http.MethodPost, "https://api.example.com/api/v1/auth/login", bytes.NewBufferString(body))
+	req.Header.Set("Content-Type", "application/json")
+	req.Host = "api.example.com"
+	req.TLS = &tls.ConnectionState{}
+	w := httptest.NewRecorder()
+	env.router.ServeHTTP(w, req)
+
+	if w.Code != http.StatusOK {
+		t.Errorf("want 200, got %d: %s", w.Code, w.Body.String())
+	}
+	assertRefreshCookieSet(t, w, "", http.SameSiteNoneMode, true)
+}
+
 func TestLoginHandler_WrongPassword(t *testing.T) {
 	env := newTestEnv(t)
 	env.registerUser(t, "user", "user@example.com", "correctpass")
@@ -196,6 +215,26 @@ func TestRefreshHandler_SuccessWithCookie(t *testing.T) {
 	assertRefreshCookieSet(t, w, refreshToken, http.SameSiteLaxMode, false)
 }
 
+func TestRefreshHandler_PrefersCookieOverBodyToken(t *testing.T) {
+	env := newTestEnv(t)
+	_, refreshToken := env.registerUser(t, "prefcookie", "prefcookie@example.com", "password123")
+
+	req := httptest.NewRequest(
+		http.MethodPost,
+		"/api/v1/auth/refresh",
+		bytes.NewBufferString(`{"refresh_token":"badtoken"}`),
+	)
+	req.Header.Set("Content-Type", "application/json")
+	req.AddCookie(&http.Cookie{Name: "refresh_token", Value: refreshToken, Path: "/api/v1/auth"})
+	w := httptest.NewRecorder()
+	env.router.ServeHTTP(w, req)
+
+	if w.Code != http.StatusOK {
+		t.Errorf("want 200, got %d: %s", w.Code, w.Body.String())
+	}
+	assertRefreshCookieSet(t, w, refreshToken, http.SameSiteLaxMode, false)
+}
+
 func TestRefreshHandler_InvalidToken(t *testing.T) {
 	env := newTestEnv(t)
 
@@ -254,6 +293,44 @@ func TestLogoutHandler_SuccessWithCookie(t *testing.T) {
 		t.Errorf("want 200, got %d", w.Code)
 	}
 	assertRefreshCookieCleared(t, w, http.SameSiteLaxMode, false)
+}
+
+func TestLogoutHandler_PrefersCookieOverBodyToken(t *testing.T) {
+	env := newTestEnv(t)
+	_, refreshToken := env.registerUser(t, "logoutpref", "logoutpref@example.com", "password123")
+
+	req := httptest.NewRequest(
+		http.MethodPost,
+		"/api/v1/auth/logout",
+		bytes.NewBufferString(`{"refresh_token":"badtoken"}`),
+	)
+	req.Header.Set("Content-Type", "application/json")
+	req.AddCookie(&http.Cookie{Name: "refresh_token", Value: refreshToken, Path: "/api/v1/auth"})
+	w := httptest.NewRecorder()
+	env.router.ServeHTTP(w, req)
+
+	if w.Code != http.StatusOK {
+		t.Errorf("want 200, got %d", w.Code)
+	}
+	assertRefreshCookieCleared(t, w, http.SameSiteLaxMode, false)
+}
+
+func TestLogoutHandler_ClearsCookieWithSameSiteNoneForCrossSiteFrontendInProduction(t *testing.T) {
+	env := newTestEnvWithConfig(t, "production", "https://dashboard.example.org")
+	_, refreshToken := env.registerUser(t, "crosssitelogout", "crosssitelogout@example.com", "password123")
+
+	req := httptest.NewRequest(http.MethodPost, "https://api.example.com/api/v1/auth/logout", bytes.NewBufferString(`{}`))
+	req.Header.Set("Content-Type", "application/json")
+	req.Host = "api.example.com"
+	req.TLS = &tls.ConnectionState{}
+	req.AddCookie(&http.Cookie{Name: "refresh_token", Value: refreshToken, Path: "/api/v1/auth"})
+	w := httptest.NewRecorder()
+	env.router.ServeHTTP(w, req)
+
+	if w.Code != http.StatusOK {
+		t.Errorf("want 200, got %d", w.Code)
+	}
+	assertRefreshCookieCleared(t, w, http.SameSiteNoneMode, true)
 }
 
 func TestLogoutHandler_MissingToken(t *testing.T) {
