@@ -359,6 +359,9 @@ func assertRefreshCookieSet(
 	if cookie.Value == "" {
 		t.Fatal("expected refresh token cookie to be set")
 	}
+	if cookie.MaxAge <= 0 {
+		t.Fatalf("expected refresh token cookie MaxAge > 0, got %d", cookie.MaxAge)
+	}
 	if previousValue != "" && cookie.Value == previousValue {
 		t.Fatal("expected refresh token cookie to rotate")
 	}
