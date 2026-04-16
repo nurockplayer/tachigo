@@ -4,16 +4,17 @@ import (
 	"encoding/hex"
 	"fmt"
 	"strings"
-	"time"
 
 	"github.com/ethereum/go-ethereum/crypto"
 )
 
 // siweMessage builds the EIP-4361 message that the user must sign.
-func siweMessage(address, nonce string) string {
+// issuedAt must be the nonce record's CreatedAt in RFC3339 UTC format,
+// so the message is deterministic across sign and verify calls.
+func siweMessage(address, nonce, issuedAt string) string {
 	return fmt.Sprintf(
 		"tachigo.io wants you to sign in with your Ethereum account:\n%s\n\nSign in to Tachigo\n\nNonce: %s\nIssued At: %s",
-		address, nonce, time.Now().UTC().Format(time.RFC3339),
+		address, nonce, issuedAt,
 	)
 }
 

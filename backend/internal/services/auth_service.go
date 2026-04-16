@@ -265,7 +265,7 @@ func (s *AuthService) Web3Verify(input Web3VerifyInput) (*models.User, *TokenPai
 	}
 
 	// Verify signature
-	msg := siweMessage(address, input.Nonce)
+	msg := siweMessage(address, input.Nonce, nonceRecord.CreatedAt.UTC().Format(time.RFC3339))
 	if !verifyEthSignature(msg, input.Signature, address) {
 		return nil, nil, ErrInvalidSignature
 	}
