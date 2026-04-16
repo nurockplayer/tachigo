@@ -103,18 +103,59 @@ CREATE UNIQUE INDEX IF NOT EXISTS idx_auth_providers_provider_provider_id_active
 
 ---
 
+## Implementation Checklist
+
+- [ ] 新增 `migrations/014_auth_provider_partial_unique.sql`
+- [ ] 更新 SQLite test helper schema（補同等 partial unique index）
+- [ ] 新增 `services/siwe.go`，搬移 `siweMessage` / `verifyEthSignature`
+- [ ] 修改 `services/auth_service.go`，移除原 helper 定義，保留呼叫
+- [ ] 實作 `UserService.LinkWallet`
+- [ ] 實作 `UserHandler.LinkWallet`
+- [ ] 更新 `router/router.go`
+- [ ] 補 `services/user_service_test.go` test cases
+- [ ] 補 `handlers/user_handler_test.go` test cases
+
+---
+
 ## 新增 / 修改物件清單
 
-### 1. `backend/internal/services/siwe.go`（新增）
+### 0. `backend/migrations/014_auth_provider_partial_unique.sql`（新增）
 
-Package-level unexported helpers，`auth_service.go` 與 `user_service.go` 都位於 `services` package，可直接呼叫。
+```sql
+ALTER TABLE auth_providers
+    DROP CONSTRAINT IF EXISTS auth_providers_provider_provider_id_key;
 
+CREATE UNIQUE INDEX IF NOT EXISTS
+    idx_auth_providers_provider_provider_id_active
+ON auth_providers(provider, provider_id)
+WHERE deleted_at IS NULL;
 ```
-siweMessage(address, nonce string) string
-verifyEthSignature(message, sigHex, expectedAddress string) bool
+
+- 執行前確認 DB 中無重複 active `(provider, provider_id)`，否則 index 建立失敗
+- 不使用 `CONCURRENTLY`
+
+test helper（`services/testutil_test.go`）同步新增：
+
+```sql
+CREATE UNIQUE INDEX IF NOT EXISTS idx_auth_providers_provider_provider_id_active
+    ON auth_providers (provider, provider_id)
+    WHERE deleted_at IS NULL;
 ```
 
-- 從 `auth_service.go` 移過來（原處改為呼叫此處的函式，不重複定義）
+### 1a. `backend/internal/services/siwe.go`（新增）
+
+Package-level unexported helpers，`auth_service.go` 與 `user_service.go` 同在 `services` package，可直接呼叫。
+
+```go
+func siweMessage(address, nonce string) string
+func verifyEthSignature(message, sigHex, expectedAddress string) bool
+```
+
+### 1b. `backend/internal/services/auth_service.go`（修改）
+
+- 移除 `siweMessage` 與 `verifyEthSignature` 的原始定義（Go build 不允許同 package 重複定義，移除前先確認 `siwe.go` 已建立）
+- `Web3Verify()` 內的呼叫不變（同 package，直接可用）
+- 移除因此產生的 unused imports（`fmt`、`encoding/hex`、`crypto` 等是否仍被其他函式使用，由 `go build` / `go test` 驗證）
 
 ### 2. `backend/internal/services/user_service.go`（新增方法）
 
