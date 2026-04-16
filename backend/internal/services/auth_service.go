@@ -226,7 +226,7 @@ func (s *AuthService) GoogleCallback(ctx context.Context, code string) (*models.
 // ─── Web3 / SIWE ─────────────────────────────────────────────────────────────
 
 func (s *AuthService) Web3Nonce(address string) (string, time.Time, error) {
-	address = strings.ToLower(address)
+	address = strings.ToLower(common.HexToAddress(address).Hex())
 	nonce, err := generateNonce()
 	if err != nil {
 		return "", time.Time{}, err
