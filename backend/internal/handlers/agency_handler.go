@@ -136,7 +136,7 @@ func (h *AgencyHandler) ResendSetup(c *gin.Context) {
 		return
 	}
 
-	user, _, err := h.agencySvc.GetByID(agencyID)
+	user, complete, err := h.agencySvc.GetByID(agencyID)
 	if err != nil {
 		if errors.Is(err, services.ErrAgencyNotFound) {
 			notFound(c, "agency not found")
@@ -144,6 +144,11 @@ func (h *AgencyHandler) ResendSetup(c *gin.Context) {
 		}
 		log.Printf("agency resend-setup: get failed agency_id=%s err=%v", agencyID, err)
 		internal(c)
+		return
+	}
+
+	if complete {
+		c.JSON(http.StatusConflict, Response{Success: false, Error: "agency has already completed onboarding"})
 		return
 	}
 

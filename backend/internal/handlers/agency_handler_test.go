@@ -292,6 +292,28 @@ func TestAgencyHandler_ResendSetup_Success(t *testing.T) {
 	}
 }
 
+func TestAgencyHandler_ResendSetup_AlreadyOnboarded(t *testing.T) {
+	env, r := newFullAgencyTestEnv(t)
+	agencyID := seedAgencyUser(t, env.db, "agency-onboarded", "agency-onboarded@example.com")
+
+	// Mark onboarding complete by setting a password hash.
+	if err := env.db.Exec(
+		`UPDATE users SET password_hash = ? WHERE id = ?`,
+		"$2a$10$placeholder", agencyID,
+	).Error; err != nil {
+		t.Fatalf("set password_hash: %v", err)
+	}
+
+	w := httptest.NewRecorder()
+	req, _ := http.NewRequest("POST", "/api/v1/agencies/"+agencyID.String()+"/resend-setup", nil)
+	req.Header.Set("Authorization", "Bearer "+makeAccessToken(t, models.RoleAdmin))
+	r.ServeHTTP(w, req)
+
+	if w.Code != http.StatusConflict {
+		t.Fatalf("expected 409, got %d: %s", w.Code, w.Body.String())
+	}
+}
+
 func TestAgencyHandler_ResendSetup_NotFound(t *testing.T) {
 	_, r := newFullAgencyTestEnv(t)
 
