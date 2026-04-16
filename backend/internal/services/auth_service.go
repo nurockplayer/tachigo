@@ -11,7 +11,6 @@ import (
 	"time"
 
 	"github.com/ethereum/go-ethereum/common"
-	"github.com/ethereum/go-ethereum/crypto"
 	"github.com/golang-jwt/jwt/v5"
 	"github.com/google/uuid"
 	"golang.org/x/crypto/bcrypt"
@@ -48,10 +47,10 @@ type Claims struct {
 }
 
 type AuthService struct {
-	db           *gorm.DB
-	cfg          *config.Config
-	twitchOAuth  *oauth2.Config
-	googleOAuth  *oauth2.Config
+	db          *gorm.DB
+	cfg         *config.Config
+	twitchOAuth *oauth2.Config
+	googleOAuth *oauth2.Config
 }
 
 func NewAuthService(db *gorm.DB, cfg *config.Config) *AuthService {
@@ -464,37 +463,6 @@ func (s *AuthService) linkProvider(userID uuid.UUID, provider models.ProviderTyp
 		ap.TokenExpiresAt = &token.Expiry
 	}
 	return s.db.Save(&ap).Error
-}
-
-// ─── SIWE / crypto helpers ───────────────────────────────────────────────────
-
-func siweMessage(address, nonce string) string {
-	return fmt.Sprintf(
-		"tachigo.io wants you to sign in with your Ethereum account:\n%s\n\nSign in to Tachigo\n\nNonce: %s\nIssued At: %s",
-		address, nonce, time.Now().UTC().Format(time.RFC3339),
-	)
-}
-
-func verifyEthSignature(message, sigHex, expectedAddress string) bool {
-	sigBytes, err := hex.DecodeString(strings.TrimPrefix(sigHex, "0x"))
-	if err != nil || len(sigBytes) != 65 {
-		return false
-	}
-	// Ethereum adds "\x19Ethereum Signed Message:\n" prefix
-	prefixed := fmt.Sprintf("\x19Ethereum Signed Message:\n%d%s", len(message), message)
-	hash := crypto.Keccak256Hash([]byte(prefixed))
-
-	// Adjust v (last byte)
-	if sigBytes[64] >= 27 {
-		sigBytes[64] -= 27
-	}
-
-	pubKey, err := crypto.SigToPub(hash.Bytes(), sigBytes)
-	if err != nil {
-		return false
-	}
-	recovered := strings.ToLower(crypto.PubkeyToAddress(*pubKey).Hex())
-	return recovered == strings.ToLower(expectedAddress)
 }
 
 // ─── Utility ─────────────────────────────────────────────────────────────────
