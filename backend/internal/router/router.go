@@ -124,6 +124,7 @@ func New(
 		// User profile
 		protected.GET("users/me", userH.Me)
 		protected.PUT("users/me", userH.UpdateMe)
+		protected.POST("users/me/wallet", userH.LinkWallet)
 		protected.GET("users/me/providers", userH.ListProviders)
 		protected.DELETE("auth/providers/:provider", authH.UnlinkProvider)
 
