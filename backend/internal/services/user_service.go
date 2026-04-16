@@ -88,13 +88,17 @@ func (s *UserService) LinkWallet(userID uuid.UUID, input LinkWalletInput) (strin
 	var nonceRecord models.Web3Nonce
 	if err := s.db.Where("nonce = ? AND address = ?", input.Nonce, lookupAddr).
 		First(&nonceRecord).Error; err != nil {
-		return "", ErrInvalidNonce
+		if errors.Is(err, gorm.ErrRecordNotFound) {
+			return "", ErrInvalidNonce
+		}
+		return "", err
 	}
 	if nonceRecord.IsExpired() {
 		return "", ErrInvalidNonce
 	}
 
-	msg := siweMessage(lookupAddr, input.Nonce)
+	issuedAt := nonceRecord.CreatedAt.UTC().Format(time.RFC3339)
+	msg := siweMessage(lookupAddr, input.Nonce, issuedAt)
 	if !verifyEthSignature(msg, input.Signature, lookupAddr) {
 		return "", ErrInvalidSignature
 	}
