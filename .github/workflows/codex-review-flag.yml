@@ -26,7 +26,7 @@ jobs:
             const repo = context.repo.repo
             const reviewLabel = 'needs-codex-review'
             const changesLabel = 'changes-requested'
-            const reviewer = 'nurockplayer'
+            const reviewers = new Set(['nurockplayer', 'Erick52106'])
             const targetBaseBranches = new Set(['main', 'develop'])
 
             const isTargetBase = (pr) => targetBaseBranches.has(pr.base?.ref)
@@ -64,7 +64,7 @@ jobs:
               const reviews = await github.paginate(github.rest.pulls.listReviews, {
                 owner, repo, pull_number: pr.number, per_page: 100,
               })
-              return [...reviews].reverse().find(r => r.user?.login === reviewer)
+              return [...reviews].reverse().find(r => reviewers.has(r.user?.login))
             }
 
             // shouldFlag is only used by the schedule cron as a fallback sweep.
@@ -119,7 +119,7 @@ jobs:
                 return
               }
 
-              if (review.user?.login !== reviewer) {
+              if (!reviewers.has(review.user?.login)) {
                 core.notice(`Ignoring review from ${review.user?.login || 'unknown reviewer'}.`)
                 return
               }
