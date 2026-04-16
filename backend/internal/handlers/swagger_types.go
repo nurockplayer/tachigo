@@ -48,6 +48,11 @@ type NonceResponse struct {
 	Nonce string `json:"nonce"`
 }
 
+// WalletResponse wraps the bound wallet address.
+type WalletResponse struct {
+	Address string `json:"address"`
+}
+
 type PointsBalanceResponse struct {
 	CumulativeTotal  int64 `json:"cumulative_total"`
 	SpendableBalance int64 `json:"spendable_balance"`
