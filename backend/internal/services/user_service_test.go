@@ -498,3 +498,43 @@ func TestLinkWallet_IgnoresSoftDeletedWalletLinkedToOtherUser(t *testing.T) {
 		t.Errorf("want 1 active wallet, got %d", activeCount)
 	}
 }
+
+func TestLinkWallet_RaceUniqueViolation(t *testing.T) {
+	db := newTestDB(t)
+	svc := NewUserService(db)
+
+	userA := uuid.New()
+	userB := uuid.New()
+	db.Create(&models.User{ID: userA, Role: models.RoleViewer})
+	db.Create(&models.User{ID: userB, Role: models.RoleViewer})
+
+	key, addr := newTestWallet(t)
+	nonce := "race-unique-violation"
+	nr := seedWalletNonce(t, db, addr, nonce)
+	msg := siweMessage(strings.ToLower(addr), nonce, nr.CreatedAt.UTC().Format(time.RFC3339))
+	sig := signSIWE(t, msg, key)
+
+	// Simulate a concurrent write: another actor claims the same address for userA
+	// before LinkWallet runs. Whether the count-check or the unique-constraint on
+	// INSERT fires, ErrProviderLinked must be returned — verifying the
+	// gorm.ErrDuplicatedKey → ErrProviderLinked translation branch.
+	done := make(chan struct{})
+	go func() {
+		defer close(done)
+		db.Create(&models.AuthProvider{
+			UserID:     userA,
+			Provider:   models.ProviderWeb3,
+			ProviderID: addr,
+		})
+	}()
+	<-done
+
+	_, err := svc.LinkWallet(userB, LinkWalletInput{
+		Address:   addr,
+		Nonce:     nonce,
+		Signature: sig,
+	})
+	if err != ErrProviderLinked {
+		t.Errorf("want ErrProviderLinked, got %v", err)
+	}
+}
