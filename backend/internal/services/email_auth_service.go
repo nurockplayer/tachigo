@@ -100,8 +100,11 @@ func (s *EmailAuthService) VerifyEmail(rawToken string) error {
 func (s *EmailAuthService) ForgotPassword(email string) error {
 	var user models.User
 	if err := s.db.Where("email = ?", email).First(&user).Error; err != nil {
-		// Do not reveal whether the email exists
-		return nil
+		if errors.Is(err, gorm.ErrRecordNotFound) {
+			// Do not reveal whether the email exists (anti-enumeration)
+			return nil
+		}
+		return err
 	}
 
 	rawToken, err := generateNonce()
