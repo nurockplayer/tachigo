@@ -225,8 +225,14 @@ func TestWeb3Nonce_ReplacesExisting(t *testing.T) {
 	svc := NewAuthService(db, testConfig())
 	address := "0xd8dA6BF26964aF9D7eEd9e03E53415D37aA96045"
 
-	nonce1, _, _ := svc.Web3Nonce(address)
-	nonce2, _, _ := svc.Web3Nonce(address)
+	nonce1, _, err := svc.Web3Nonce(address)
+	if err != nil {
+		t.Fatalf("first Web3Nonce call failed: %v", err)
+	}
+	nonce2, _, err := svc.Web3Nonce(address)
+	if err != nil {
+		t.Fatalf("second Web3Nonce call failed: %v", err)
+	}
 
 	if nonce1 == nonce2 {
 		t.Error("expected different nonces on repeated calls")
