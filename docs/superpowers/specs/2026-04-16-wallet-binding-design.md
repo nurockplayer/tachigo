@@ -110,6 +110,7 @@ CREATE UNIQUE INDEX IF NOT EXISTS idx_auth_providers_provider_provider_id_active
 - [ ] 新增 `services/siwe.go`，搬移 `siweMessage` / `verifyEthSignature`
 - [ ] 修改 `services/auth_service.go`，移除原 helper 定義，保留呼叫
 - [ ] 實作 `UserService.LinkWallet`
+- [ ] 更新 `backend/internal/handlers/swagger_types.go`，新增 `WalletResponse`
 - [ ] 實作 `UserHandler.LinkWallet`
 - [ ] 更新 `router/router.go`
 - [ ] 補 `services/user_service_test.go` test cases
@@ -267,7 +268,7 @@ protected.POST("users/me/wallet", userH.LinkWallet)
 
 | Case | 預期結果 |
 |---|---|
-| 合法 address + nonce + 簽名，首次綁定 | 200，AuthProvider insert，checksumAddr 回傳 |
+| 合法 address + nonce + 簽名，首次綁定 | 成功，AuthProvider insert，checksumAddr 回傳 |
 | 合法，已有 active web3 row → 取代 | 舊 row soft deleted，新 row insert |
 | 同 user 重綁同一地址（soft-deleted row 存在） | restore deleted_at = NULL，不 insert 新 row |
 | nonce 不存在 | `ErrInvalidNonce` |
