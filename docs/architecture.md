@@ -5,7 +5,7 @@
 │                           CLIENT LAYER                             │
 │                                                                    │
 │  ┌──────────────────┐  ┌──────────────────┐  ┌──────────────────┐  │
-│  │ Twitch Extension │  │  Dashboard [TBD] │  │  Wallet [Phs.2]  │  │
+│  │ Chrome Sidepanel │  │  Dashboard [TBD] │  │  Wallet [Phs.2]  │  │
 │  │   (tachimint)    │  │  Agency/Streamer │  │  Claim on-chain  │  │
 │  │ React+TypeScript │  │  Mgmt Interface  │  │                  │  │
 │  └────────┬─────────┘  └────────┬─────────┘  └────────┬─────────┘  │
@@ -50,6 +50,8 @@
 ```
 
 ## 主要資料流
+
+> 補充：`tachimint` 的前端 runtime 方向已定為 Chrome sidepanel extension；本階段 viewer identity 與既有 API contract 仍沿用 Twitch / extension auth 流程。詳見 [docs/tachimint-chrome-sidepanel-migration.md](tachimint-chrome-sidepanel-migration.md)。
 
 ```
 觀眾觀看直播（定時 Heartbeat）

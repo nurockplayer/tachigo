@@ -1,6 +1,6 @@
 # tachigo
 
-Twitch extension + Web3 rewards platform.
+Chrome sidepanel extension + Web3 rewards platform.
 Viewers spend Bits to earn on-chain tokens; streamers manage rewards from the dashboard.
 
 ## Structure
@@ -8,7 +8,7 @@ Viewers spend Bits to earn on-chain tokens; streamers manage rewards from the da
 ```
 tachigo/
 ├── backend/      # Go API (Gin + GORM + PostgreSQL)
-├── tachimint/    # Twitch Extension frontend (React + TypeScript + Vite)
+├── tachimint/    # Chrome sidepanel frontend (React + TypeScript + Vite)
 └── dashboard/    # Admin dashboard (React + TypeScript + Vite)
 ```
 
@@ -62,8 +62,8 @@ docker compose run --no-deps --rm app go test ./...
 ### Frontend (`tachimint/`)
 
 - Hot reload via Vite HMR
-- `window.Twitch.ext` is mocked in dev mode — no Twitch Developer Rig needed
-- Open http://localhost:5173 to see the extension panel
+- current migration direction is Chrome sidepanel runtime
+- Twitch identity / extension auth related flows are still retained during the migration stage
 
 ```bash
 docker compose run --no-deps --rm frontend npm run build   # production build
@@ -102,6 +102,7 @@ Key backend variables:
 ## Architecture
 
 See [docs/architecture.md](docs/architecture.md) for the full system diagram.
+For the current frontend migration decision, see [docs/tachimint-chrome-sidepanel-migration.md](docs/tachimint-chrome-sidepanel-migration.md).
 
 ## Documentation
 
