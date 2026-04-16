@@ -191,7 +191,7 @@ func TestLinkWallet_Success(t *testing.T) {
 	key, addr := newTestWallet(t)
 	nonce := "link-wallet-success"
 	nr := seedWalletNonce(t, db, addr, nonce)
-	msg := siweMessage(strings.ToLower(addr), nonce, nr.CreatedAt.UTC().Format(time.RFC3339))
+	msg := siweMessage(addr, nonce, nr.CreatedAt.UTC().Format(time.RFC3339))
 	sig := signSIWE(t, msg, key)
 
 	got, err := svc.LinkWallet(userID, LinkWalletInput{
@@ -233,7 +233,7 @@ func TestLinkWallet_AddressAlreadyLinkedToOtherUser(t *testing.T) {
 	key, addr := newTestWallet(t)
 	nonceA := "duplicate-address-a"
 	nrA := seedWalletNonce(t, db, addr, nonceA)
-	msgA := siweMessage(strings.ToLower(addr), nonceA, nrA.CreatedAt.UTC().Format(time.RFC3339))
+	msgA := siweMessage(addr, nonceA, nrA.CreatedAt.UTC().Format(time.RFC3339))
 	if _, err := svc.LinkWallet(userA, LinkWalletInput{
 		Address:   addr,
 		Nonce:     nonceA,
@@ -244,7 +244,7 @@ func TestLinkWallet_AddressAlreadyLinkedToOtherUser(t *testing.T) {
 
 	nonceB := "duplicate-address-b"
 	nrB := seedWalletNonce(t, db, addr, nonceB)
-	msgB := siweMessage(strings.ToLower(addr), nonceB, nrB.CreatedAt.UTC().Format(time.RFC3339))
+	msgB := siweMessage(addr, nonceB, nrB.CreatedAt.UTC().Format(time.RFC3339))
 	_, err := svc.LinkWallet(userB, LinkWalletInput{
 		Address:   addr,
 		Nonce:     nonceB,
@@ -264,7 +264,7 @@ func TestLinkWallet_ReplacesUsersExistingPrimaryWallet(t *testing.T) {
 	key1, addr1 := newTestWallet(t)
 	nonce1 := "replace-primary-a"
 	nr1 := seedWalletNonce(t, db, addr1, nonce1)
-	msg1 := siweMessage(strings.ToLower(addr1), nonce1, nr1.CreatedAt.UTC().Format(time.RFC3339))
+	msg1 := siweMessage(addr1, nonce1, nr1.CreatedAt.UTC().Format(time.RFC3339))
 	if _, err := svc.LinkWallet(userID, LinkWalletInput{
 		Address:   addr1,
 		Nonce:     nonce1,
@@ -276,7 +276,7 @@ func TestLinkWallet_ReplacesUsersExistingPrimaryWallet(t *testing.T) {
 	key2, addr2 := newTestWallet(t)
 	nonce2 := "replace-primary-b"
 	nr2 := seedWalletNonce(t, db, addr2, nonce2)
-	msg2 := siweMessage(strings.ToLower(addr2), nonce2, nr2.CreatedAt.UTC().Format(time.RFC3339))
+	msg2 := siweMessage(addr2, nonce2, nr2.CreatedAt.UTC().Format(time.RFC3339))
 	got, err := svc.LinkWallet(userID, LinkWalletInput{
 		Address:   addr2,
 		Nonce:     nonce2,
@@ -367,7 +367,7 @@ func TestLinkWallet_InvalidSignature(t *testing.T) {
 	wrongKey, _ := newTestWallet(t)
 	nonce := "invalid-signature"
 	nr := seedWalletNonce(t, db, addr, nonce)
-	msg := siweMessage(strings.ToLower(addr), nonce, nr.CreatedAt.UTC().Format(time.RFC3339))
+	msg := siweMessage(addr, nonce, nr.CreatedAt.UTC().Format(time.RFC3339))
 
 	_, err := svc.LinkWallet(userID, LinkWalletInput{
 		Address:   addr,
@@ -394,7 +394,7 @@ func TestLinkWallet_ReplayConsumedNonceRejected(t *testing.T) {
 	key, addr := newTestWallet(t)
 	nonce := "replay-consumed-nonce"
 	nr := seedWalletNonce(t, db, addr, nonce)
-	msg := siweMessage(strings.ToLower(addr), nonce, nr.CreatedAt.UTC().Format(time.RFC3339))
+	msg := siweMessage(addr, nonce, nr.CreatedAt.UTC().Format(time.RFC3339))
 	input := LinkWalletInput{
 		Address:   addr,
 		Nonce:     nonce,
@@ -429,7 +429,7 @@ func TestLinkWallet_RestoresSoftDeletedSameWallet(t *testing.T) {
 
 	nonce := "restore-same-wallet"
 	nr := seedWalletNonce(t, db, addr, nonce)
-	msg := siweMessage(strings.ToLower(addr), nonce, nr.CreatedAt.UTC().Format(time.RFC3339))
+	msg := siweMessage(addr, nonce, nr.CreatedAt.UTC().Format(time.RFC3339))
 	got, err := svc.LinkWallet(userID, LinkWalletInput{
 		Address:   addr,
 		Nonce:     nonce,
@@ -477,7 +477,7 @@ func TestLinkWallet_IgnoresSoftDeletedWalletLinkedToOtherUser(t *testing.T) {
 
 	nonce := "soft-deleted-other-user"
 	nr := seedWalletNonce(t, db, addr, nonce)
-	msg := siweMessage(strings.ToLower(addr), nonce, nr.CreatedAt.UTC().Format(time.RFC3339))
+	msg := siweMessage(addr, nonce, nr.CreatedAt.UTC().Format(time.RFC3339))
 	got, err := svc.LinkWallet(newUser, LinkWalletInput{
 		Address:   addr,
 		Nonce:     nonce,
@@ -511,7 +511,7 @@ func TestLinkWallet_RaceUniqueViolation(t *testing.T) {
 	key, addr := newTestWallet(t)
 	nonce := "race-unique-violation"
 	nr := seedWalletNonce(t, db, addr, nonce)
-	msg := siweMessage(strings.ToLower(addr), nonce, nr.CreatedAt.UTC().Format(time.RFC3339))
+	msg := siweMessage(addr, nonce, nr.CreatedAt.UTC().Format(time.RFC3339))
 	sig := signSIWE(t, msg, key)
 
 	// Simulate a concurrent write: another actor claims the same address for userA
