@@ -84,7 +84,7 @@ jobs:
             const severeFailures = []
             const warnings = []
 
-            const allowedPrefixes = ['[backend]', '[frontend]', '[contract]', '[discussion]', '[release]']
+            const allowedPrefixes = ['[backend]', '[frontend]', '[contract]', '[discussion]', '[release]', '[infra]', '[chore]']
             const titlePrefix = allowedPrefixes.find((prefix) => title.startsWith(prefix))
             const dependsOnMatch = body.match(/Depends on PR[：:]\s*(.+)/i)
             const dependsOnRaw = dependsOnMatch?.[1]?.trim()
@@ -130,20 +130,24 @@ jobs:
                 policyFailures.push('`Depends on PR` must be `none` or a single PR number such as `#123`.')
               }
 
-              if (!backendContractYes && !backendContractNo) {
-                policyFailures.push('PR body must mark whether the backend contract is already in `develop`.')
-              }
-              if (backendContractYes && backendContractNo) {
-                policyFailures.push('`Backend contract already in develop` cannot select both yes and no.')
-              }
-              if (isReleasePromotionPr && !backendContractYes) {
-                policyFailures.push('Formal `[release]` PR must mark `Backend contract already in develop` as yes.')
-              }
+              const isInfraOrChore = titlePrefix === '[infra]' || titlePrefix === '[chore]'
 
-              if (backendContractNo && !stackedOnDependency && !intentionallyBlocked) {
-                policyFailures.push(
-                  'When backend contract is not yet in `develop`, PR body must mark this PR as stacked or intentionally blocked.',
-                )
+              if (!isInfraOrChore) {
+                if (!backendContractYes && !backendContractNo) {
+                  policyFailures.push('PR body must mark whether the backend contract is already in `develop`.')
+                }
+                if (backendContractYes && backendContractNo) {
+                  policyFailures.push('`Backend contract already in develop` cannot select both yes and no.')
+                }
+                if (isReleasePromotionPr && !backendContractYes) {
+                  policyFailures.push('Formal `[release]` PR must mark `Backend contract already in develop` as yes.')
+                }
+
+                if (backendContractNo && !stackedOnDependency && !intentionallyBlocked) {
+                  policyFailures.push(
+                    'When backend contract is not yet in `develop`, PR body must mark this PR as stacked or intentionally blocked.',
+                  )
+                }
               }
             }
 

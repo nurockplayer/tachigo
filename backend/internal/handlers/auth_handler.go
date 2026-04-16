@@ -6,6 +6,7 @@ import (
 	"errors"
 	"net/http"
 	"strings"
+	"time"
 
 	"github.com/gin-gonic/gin"
 	"github.com/google/uuid"
@@ -258,13 +259,16 @@ func (h *AuthHandler) Web3Nonce(c *gin.Context) {
 		return
 	}
 
-	nonce, err := h.auth.Web3Nonce(body.Address)
+	nonce, issuedAt, err := h.auth.Web3Nonce(body.Address)
 	if err != nil {
 		internal(c)
 		return
 	}
 
-	ok(c, gin.H{"nonce": nonce})
+	ok(c, NonceResponse{
+		Nonce:    nonce,
+		IssuedAt: issuedAt.UTC().Format(time.RFC3339),
+	})
 }
 
 // Web3Verify godoc

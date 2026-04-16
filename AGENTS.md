@@ -107,52 +107,74 @@ Type：`feat` / `fix` / `docs` / `chore` / `refactor` / `test`
 - 不得未經驗證就宣稱「已完成」；至少要回報實際執行過的測試、未驗證部分、以及已知風險
 - reviewer 應優先檢查 AI 是否偏離 issue、腦補需求、混入未要求的 schema / API / UI 改動，而不是只看程式碼表面是否完整
 
+## PR Review Strategy
+
+1. Load PR metadata first:
+   - linked issue
+   - changed files
+   - diff stat
+   - CI status
+   - test coverage signals
+
+2. Split the PR diff into logical chunks:
+   - group related files when behavior crosses file boundaries
+   - prefer small chunks for large diffs
+   - include only necessary unchanged context
+
+3. Use DeepSeek for initial low-cost review:
+   - possible bugs
+   - edge cases
+   - incorrect logic
+   - performance concerns
+   - missing tests for risky changes
+
+   If DeepSeek is unavailable or no API key is configured, skip the external-model pass and use Codex metadata-first triage before reading any patch.
+
+4. DeepSeek review prompt:
+   Review the following PR diff chunk.
+
+   Focus on:
+   - bugs
+   - edge cases
+   - incorrect logic
+   - performance issues
+   - missing tests for risky changes
+
+   Rules:
+   - prioritize changed lines
+   - use unchanged context only when needed
+   - limit response to 5 issues max
+   - ignore purely stylistic comments unless they affect maintainability
+
+   Return:
+   - issue
+   - why it is a problem
+   - suggested fix
+
+   Be concise.
+
+5. Summarize DeepSeek findings:
+   - merge duplicate issues
+   - discard vague or non-actionable comments
+   - keep only blockers, likely regressions, and meaningful test gaps
+
+6. Use Codex for validation:
+   - validate which DeepSeek findings are real
+   - identify false positives
+   - refine suggested fixes
+   - check for missing critical issues
+   - inspect minimal necessary patch context only when summary is insufficient
+
+7. Avoid using Codex on the full diff unless necessary.
+
+8. Generate the final PR review comment:
+   - group by severity: high / medium / low
+   - include actionable suggestions only
+   - avoid posting unverified DeepSeek findings
+
 ## 輸出格式
 
 回報結果時保持精簡：
 - 只列出關鍵變更（檔案名稱 + 一行說明），不貼完整 diff
 - 測試結果只報 pass/fail 數量與失敗原因，不貼完整 log
 - 遇到錯誤：先給出診斷與建議修法，再問是否繼續
-
-## PR Review 最小化規則
-
-目標：降低 Codex 在 PR review 的 token 使用量，同時維持 blocker 導向的審查品質。
-
-### Review policy
-
-- 預設先做輕量 review：先看 PR 描述、changed files、checks、未解 review thread，再決定是否深入讀碼
-- 優先找 blocker、regression、scope violation、缺失的必要測試；不要先做全面 code walkthrough
-- 若前一輪 blocker 已解除，優先更新 merge 判斷，不重做整份 review
-
-### Scope control
-
-- 只審查 PR changed files 與直接相關的最小必要上下文
-- 不主動延伸到未變更檔案，除非：
-  - 這次改動明確依賴該檔案行為
-  - review comment 指向跨檔案整合風險
-  - 需要驗證是否真的有 regression
-- 對 scope 外議題，直接標示為 follow-up issue / wrong PR，不展開長篇分析
-
-### Output constraints
-
-- findings 優先，摘要次之
-- 單次 review 以 3 個 finding 為上限；若沒有 blocker，直接明講 `no blocker found`
-- 每個 finding 只寫：
-  - 檔案 / 位置
-  - 風險一句
-  - 為什麼構成 blocker 或 non-blocker 一句
-- 不重述 PR 全貌，不貼大段 diff，不列與 merge 無關的觀察清單
-
-### Avoid unnecessary explanation
-
-- 不解釋顯而易見的程式碼流程
-- 不為了展現覆蓋率而列出已檢查但無問題的檔案
-- 不重複前一輪已成立的結論，除非新 commit 改變判斷
-- 對 minor / nit / future work，除非使用者明問，否則一句帶過即可
-
-### Escalate deeper review when
-
-- PR 涉及 auth、權限、金流、私鑰、contract interaction、schema migration、刪資料風險
-- CI fail、review thread 指向實際行為回歸、或 PR 描述與 diff 明顯不一致
-- changed files 雖少，但跨 service boundary、環境設定、部署流程或 release 流程
-- 使用者明確要求 full review / deep dive / second pass

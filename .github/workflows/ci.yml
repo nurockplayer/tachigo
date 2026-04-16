@@ -147,7 +147,7 @@ jobs:
         run: docker compose run --rm app go build -tags integration ./...
 
       - name: Run integration tests
-        run: docker compose run --rm app go test -tags integration ./internal/services -run TestAirdrop_ConcurrentSERIALIZABLE -count=1
+        run: docker compose run --rm app go test -tags integration ./... -count=1
 
       - name: Stop services
         if: always()
@@ -184,6 +184,9 @@ jobs:
       - name: Lint
         run: docker compose run --no-deps --rm dashboard pnpm lint
 
+      - name: Test
+        run: docker compose run --no-deps --rm dashboard pnpm test
+
       - name: Build
         run: docker compose run --no-deps --rm dashboard pnpm build
 
@@ -207,3 +210,15 @@ jobs:
       - name: Test
         working-directory: contracts
         run: forge test
+
+  notify-discord:
+    name: Notify Discord on failure
+    needs: [backend, backend-integration, frontend, dashboard, contracts]
+    if: failure()
+    runs-on: ubuntu-latest
+    steps:
+      - name: Send failure notification
+        run: |
+          curl -X POST "${{ secrets.DISCORD_CI_WEBHOOK_URL }}" \
+            -H "Content-Type: application/json" \
+            -d "{\"content\": \"CI failed on \`${{ github.ref_name }}\` (${{ github.event_name }})\n${{ github.server_url }}/${{ github.repository }}/actions/runs/${{ github.run_id }}\"}"

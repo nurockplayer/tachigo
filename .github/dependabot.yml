@@ -9,6 +9,33 @@ updates:
       - chore
 
   - package-ecosystem: npm
+    directory: /dashboard
+    schedule:
+      interval: weekly
+    target-branch: develop
+    labels:
+      - chore
+    groups:
+      typescript-tooling:
+        patterns:
+          - "typescript"
+          - "@typescript-eslint/*"
+          - "eslint*"
+          - "@eslint/*"
+      react:
+        patterns:
+          - "react"
+          - "react-dom"
+          - "@types/react*"
+      vite:
+        patterns:
+          - "vite"
+          - "@vitejs/*"
+      deps:
+        patterns:
+          - "*"
+
+  - package-ecosystem: npm
     directory: /tachimint
     schedule:
       interval: weekly
