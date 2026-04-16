@@ -4,6 +4,7 @@ import ProtectedRoute from '@/components/ProtectedRoute'
 import LoginPage from '@/pages/LoginPage'
 import DashboardPage from '@/pages/DashboardPage'
 import StreamersPage from '@/pages/StreamersPage'
+import StreamerDetailPage from '@/pages/StreamerDetailPage'
 import TransactionsPage from '@/pages/TransactionsPage'
 import SettingsPage from '@/pages/SettingsPage'
 
@@ -20,6 +21,7 @@ const router = createBrowserRouter([
         children: [
           { index: true, element: <DashboardPage /> },
           { path: 'streamers', element: <StreamersPage /> },
+          { path: 'streamers/:streamerId', element: <StreamerDetailPage /> },
           { path: 'transactions', element: <TransactionsPage /> },
           { path: 'settings', element: <SettingsPage /> },
         ],

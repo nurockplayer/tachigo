@@ -184,6 +184,9 @@ jobs:
       - name: Lint
         run: docker compose run --no-deps --rm dashboard pnpm lint
 
+      - name: Test
+        run: docker compose run --no-deps --rm dashboard pnpm test
+
       - name: Build
         run: docker compose run --no-deps --rm dashboard pnpm build
 
