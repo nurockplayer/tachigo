@@ -44,6 +44,12 @@ func migrateTestDB(db *gorm.DB) error {
 			updated_at DATETIME,
 			deleted_at DATETIME
 		)`,
+		`CREATE UNIQUE INDEX IF NOT EXISTS idx_auth_providers_provider_provider_id_active
+			ON auth_providers (provider, provider_id)
+			WHERE deleted_at IS NULL`,
+		`CREATE UNIQUE INDEX IF NOT EXISTS idx_auth_providers_web3_user_active
+			ON auth_providers (user_id, provider)
+			WHERE provider = 'web3' AND deleted_at IS NULL`,
 		`CREATE TABLE IF NOT EXISTS shipping_addresses (
 			id TEXT PRIMARY KEY,
 			user_id TEXT NOT NULL REFERENCES users(id),
@@ -215,6 +221,7 @@ func (m *mockMailer) Send(to, subject, body string) error {
 type testEnv struct {
 	db           *gorm.DB
 	authSvc      *services.AuthService
+	userSvc      *services.UserService
 	emailAuthSvc *services.EmailAuthService
 	router       *gin.Engine
 }
@@ -223,7 +230,8 @@ func newTestEnv(t *testing.T) *testEnv {
 	t.Helper()
 
 	db, err := gorm.Open(sqlite.Open(":memory:"), &gorm.Config{
-		Logger: logger.Default.LogMode(logger.Silent),
+		Logger:         logger.Default.LogMode(logger.Silent),
+		TranslateError: true,
 	})
 	if err != nil {
 		t.Fatalf("open db: %v", err)
@@ -274,6 +282,7 @@ func newTestEnv(t *testing.T) *testEnv {
 	protected.Use(middleware.JWTAuth(authSvc))
 	protected.GET("users/me", userH.Me)
 	protected.PUT("users/me", userH.UpdateMe)
+	protected.POST("users/me/wallet", userH.LinkWallet)
 	protected.GET("users/me/providers", userH.ListProviders)
 	protected.DELETE("auth/providers/:provider", authH.UnlinkProvider)
 	protected.POST("auth/verify-email/send", emailH.SendVerification)
@@ -285,7 +294,7 @@ func newTestEnv(t *testing.T) *testEnv {
 	addrs.DELETE("/:id", addrH.Delete)
 	addrs.PUT("/:id/default", addrH.SetDefault)
 
-	return &testEnv{db: db, authSvc: authSvc, emailAuthSvc: emailAuthSvc, router: r}
+	return &testEnv{db: db, authSvc: authSvc, userSvc: userSvc, emailAuthSvc: emailAuthSvc, router: r}
 }
 
 // registerUser is a helper that registers a user and returns access + refresh tokens.
