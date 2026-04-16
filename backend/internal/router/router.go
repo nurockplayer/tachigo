@@ -40,7 +40,12 @@ func New(
 	r.Use(gin.Logger(), gin.Recovery())
 	r.Use(middleware.CORS(allowedOrigins))
 
-	authH := handlers.NewAuthHandler(authSvc).WithEmailAuth(emailAuthSvc)
+	var cfg *config.Config
+	if len(internalRouterConfig) > 0 {
+		cfg = internalRouterConfig[0].Config
+	}
+
+	authH := handlers.NewAuthHandler(authSvc, cfg).WithEmailAuth(emailAuthSvc)
 	userH := handlers.NewUserHandler(userSvc)
 	addrH := handlers.NewAddressHandler(addrSvc)
 	extH := handlers.NewExtensionHandler(extSvc)

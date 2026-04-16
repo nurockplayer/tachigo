@@ -223,10 +223,10 @@ const docTemplate = `{
                 "summary": "Logout and invalidate refresh token",
                 "parameters": [
                     {
-                        "description": "Refresh token",
+                        "description": "Refresh token fallback when cookie is unavailable",
                         "name": "body",
                         "in": "body",
-                        "required": true,
+                        "required": false,
                         "schema": {
                             "type": "object",
                             "properties": {
@@ -343,10 +343,10 @@ const docTemplate = `{
                 "summary": "Refresh access token",
                 "parameters": [
                     {
-                        "description": "Refresh token",
+                        "description": "Refresh token fallback when cookie is unavailable",
                         "name": "body",
                         "in": "body",
-                        "required": true,
+                        "required": false,
                         "schema": {
                             "type": "object",
                             "properties": {

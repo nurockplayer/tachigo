@@ -3,6 +3,7 @@ package handlers_test
 import (
 	"bytes"
 	"fmt"
+	"crypto/tls"
 	"net/http"
 	"net/http/httptest"
 	"testing"
@@ -26,6 +27,7 @@ func TestRegisterHandler_Success(t *testing.T) {
 	if resp["success"] != true {
 		t.Error("want success: true")
 	}
+	assertRefreshCookieSet(t, w, "", http.SameSiteLaxMode, false)
 }
 
 func TestRegisterHandler_DuplicateEmail(t *testing.T) {
@@ -100,6 +102,41 @@ func TestLoginHandler_Success(t *testing.T) {
 	if w.Code != http.StatusOK {
 		t.Errorf("want 200, got %d: %s", w.Code, w.Body.String())
 	}
+	assertRefreshCookieSet(t, w, "", http.SameSiteLaxMode, false)
+}
+
+func TestLoginHandler_SetsSecureRefreshCookieInProduction(t *testing.T) {
+	env := newTestEnvWithServerEnv(t, "production")
+	env.registerUser(t, "prodlogin", "prodlogin@example.com", "mypassword")
+
+	body := `{"email":"prodlogin@example.com","password":"mypassword"}`
+	req := httptest.NewRequest(http.MethodPost, "/api/v1/auth/login", bytes.NewBufferString(body))
+	req.Header.Set("Content-Type", "application/json")
+	w := httptest.NewRecorder()
+	env.router.ServeHTTP(w, req)
+
+	if w.Code != http.StatusOK {
+		t.Errorf("want 200, got %d: %s", w.Code, w.Body.String())
+	}
+	assertRefreshCookieSet(t, w, "", http.SameSiteLaxMode, true)
+}
+
+func TestLoginHandler_SetsSameSiteNoneRefreshCookieForCrossSiteFrontendInProduction(t *testing.T) {
+	env := newTestEnvWithConfig(t, "production", "https://dashboard.example.org")
+	env.registerUser(t, "crosssite", "crosssite@example.com", "mypassword")
+
+	body := `{"email":"crosssite@example.com","password":"mypassword"}`
+	req := httptest.NewRequest(http.MethodPost, "https://api.example.com/api/v1/auth/login", bytes.NewBufferString(body))
+	req.Header.Set("Content-Type", "application/json")
+	req.Host = "api.example.com"
+	req.TLS = &tls.ConnectionState{}
+	w := httptest.NewRecorder()
+	env.router.ServeHTTP(w, req)
+
+	if w.Code != http.StatusOK {
+		t.Errorf("want 200, got %d: %s", w.Code, w.Body.String())
+	}
+	assertRefreshCookieSet(t, w, "", http.SameSiteNoneMode, true)
 }
 
 func TestLoginHandler_WrongPassword(t *testing.T) {
@@ -159,6 +196,43 @@ func TestRefreshHandler_Success(t *testing.T) {
 	if w.Code != http.StatusOK {
 		t.Errorf("want 200, got %d: %s", w.Code, w.Body.String())
 	}
+	assertRefreshCookieSet(t, w, refreshToken, http.SameSiteLaxMode, false)
+}
+
+func TestRefreshHandler_SuccessWithCookie(t *testing.T) {
+	env := newTestEnv(t)
+	_, refreshToken := env.registerUser(t, "cookieuser", "cookie@example.com", "password123")
+
+	req := httptest.NewRequest(http.MethodPost, "/api/v1/auth/refresh", bytes.NewBufferString(`{}`))
+	req.Header.Set("Content-Type", "application/json")
+	req.AddCookie(&http.Cookie{Name: "refresh_token", Value: refreshToken, Path: "/api/v1/auth"})
+	w := httptest.NewRecorder()
+	env.router.ServeHTTP(w, req)
+
+	if w.Code != http.StatusOK {
+		t.Errorf("want 200, got %d: %s", w.Code, w.Body.String())
+	}
+	assertRefreshCookieSet(t, w, refreshToken, http.SameSiteLaxMode, false)
+}
+
+func TestRefreshHandler_PrefersCookieOverBodyToken(t *testing.T) {
+	env := newTestEnv(t)
+	_, refreshToken := env.registerUser(t, "prefcookie", "prefcookie@example.com", "password123")
+
+	req := httptest.NewRequest(
+		http.MethodPost,
+		"/api/v1/auth/refresh",
+		bytes.NewBufferString(`{"refresh_token":"badtoken"}`),
+	)
+	req.Header.Set("Content-Type", "application/json")
+	req.AddCookie(&http.Cookie{Name: "refresh_token", Value: refreshToken, Path: "/api/v1/auth"})
+	w := httptest.NewRecorder()
+	env.router.ServeHTTP(w, req)
+
+	if w.Code != http.StatusOK {
+		t.Errorf("want 200, got %d: %s", w.Code, w.Body.String())
+	}
+	assertRefreshCookieSet(t, w, refreshToken, http.SameSiteLaxMode, false)
 }
 
 func TestRefreshHandler_InvalidToken(t *testing.T) {
@@ -202,6 +276,61 @@ func TestLogoutHandler_Success(t *testing.T) {
 	if w.Code != http.StatusOK {
 		t.Errorf("want 200, got %d", w.Code)
 	}
+	assertRefreshCookieCleared(t, w, http.SameSiteLaxMode, false)
+}
+
+func TestLogoutHandler_SuccessWithCookie(t *testing.T) {
+	env := newTestEnv(t)
+	_, refreshToken := env.registerUser(t, "cookielogout", "logout@example.com", "password123")
+
+	req := httptest.NewRequest(http.MethodPost, "/api/v1/auth/logout", bytes.NewBufferString(`{}`))
+	req.Header.Set("Content-Type", "application/json")
+	req.AddCookie(&http.Cookie{Name: "refresh_token", Value: refreshToken, Path: "/api/v1/auth"})
+	w := httptest.NewRecorder()
+	env.router.ServeHTTP(w, req)
+
+	if w.Code != http.StatusOK {
+		t.Errorf("want 200, got %d", w.Code)
+	}
+	assertRefreshCookieCleared(t, w, http.SameSiteLaxMode, false)
+}
+
+func TestLogoutHandler_PrefersCookieOverBodyToken(t *testing.T) {
+	env := newTestEnv(t)
+	_, refreshToken := env.registerUser(t, "logoutpref", "logoutpref@example.com", "password123")
+
+	req := httptest.NewRequest(
+		http.MethodPost,
+		"/api/v1/auth/logout",
+		bytes.NewBufferString(`{"refresh_token":"badtoken"}`),
+	)
+	req.Header.Set("Content-Type", "application/json")
+	req.AddCookie(&http.Cookie{Name: "refresh_token", Value: refreshToken, Path: "/api/v1/auth"})
+	w := httptest.NewRecorder()
+	env.router.ServeHTTP(w, req)
+
+	if w.Code != http.StatusOK {
+		t.Errorf("want 200, got %d", w.Code)
+	}
+	assertRefreshCookieCleared(t, w, http.SameSiteLaxMode, false)
+}
+
+func TestLogoutHandler_ClearsCookieWithSameSiteNoneForCrossSiteFrontendInProduction(t *testing.T) {
+	env := newTestEnvWithConfig(t, "production", "https://dashboard.example.org")
+	_, refreshToken := env.registerUser(t, "crosssitelogout", "crosssitelogout@example.com", "password123")
+
+	req := httptest.NewRequest(http.MethodPost, "https://api.example.com/api/v1/auth/logout", bytes.NewBufferString(`{}`))
+	req.Header.Set("Content-Type", "application/json")
+	req.Host = "api.example.com"
+	req.TLS = &tls.ConnectionState{}
+	req.AddCookie(&http.Cookie{Name: "refresh_token", Value: refreshToken, Path: "/api/v1/auth"})
+	w := httptest.NewRecorder()
+	env.router.ServeHTTP(w, req)
+
+	if w.Code != http.StatusOK {
+		t.Errorf("want 200, got %d", w.Code)
+	}
+	assertRefreshCookieCleared(t, w, http.SameSiteNoneMode, true)
 }
 
 func TestLogoutHandler_MissingToken(t *testing.T) {
@@ -215,6 +344,80 @@ func TestLogoutHandler_MissingToken(t *testing.T) {
 	if w.Code != http.StatusBadRequest {
 		t.Errorf("want 400, got %d", w.Code)
 	}
+}
+
+func assertRefreshCookieSet(
+	t *testing.T,
+	w *httptest.ResponseRecorder,
+	previousValue string,
+	expectedSameSite http.SameSite,
+	expectedSecure bool,
+) {
+	t.Helper()
+
+	cookie := responseCookie(t, w, "refresh_token")
+	if cookie.Value == "" {
+		t.Fatal("expected refresh token cookie to be set")
+	}
+	if cookie.MaxAge <= 0 {
+		t.Fatalf("expected refresh token cookie MaxAge > 0, got %d", cookie.MaxAge)
+	}
+	if previousValue != "" && cookie.Value == previousValue {
+		t.Fatal("expected refresh token cookie to rotate")
+	}
+	if !cookie.HttpOnly {
+		t.Fatal("expected refresh token cookie to be HttpOnly")
+	}
+	if cookie.Path != "/api/v1/auth" {
+		t.Fatalf("expected refresh token cookie path /api/v1/auth, got %q", cookie.Path)
+	}
+	if cookie.SameSite != expectedSameSite {
+		t.Fatalf("expected refresh token cookie SameSite %v, got %v", expectedSameSite, cookie.SameSite)
+	}
+	if cookie.Secure != expectedSecure {
+		t.Fatalf("expected refresh token cookie Secure %t, got %t", expectedSecure, cookie.Secure)
+	}
+}
+
+func assertRefreshCookieCleared(
+	t *testing.T,
+	w *httptest.ResponseRecorder,
+	expectedSameSite http.SameSite,
+	expectedSecure bool,
+) {
+	t.Helper()
+
+	cookie := responseCookie(t, w, "refresh_token")
+	if cookie.Value != "" {
+		t.Fatalf("expected cleared refresh token cookie, got %q", cookie.Value)
+	}
+	if cookie.MaxAge >= 0 {
+		t.Fatalf("expected cleared refresh token cookie MaxAge < 0, got %d", cookie.MaxAge)
+	}
+	if cookie.Path != "/api/v1/auth" {
+		t.Fatalf("expected refresh token cookie path /api/v1/auth, got %q", cookie.Path)
+	}
+	if !cookie.HttpOnly {
+		t.Fatal("expected cleared refresh token cookie to be HttpOnly")
+	}
+	if cookie.SameSite != expectedSameSite {
+		t.Fatalf("expected cleared refresh token cookie SameSite %v, got %v", expectedSameSite, cookie.SameSite)
+	}
+	if cookie.Secure != expectedSecure {
+		t.Fatalf("expected cleared refresh token cookie Secure %t, got %t", expectedSecure, cookie.Secure)
+	}
+}
+
+func responseCookie(t *testing.T, w *httptest.ResponseRecorder, name string) *http.Cookie {
+	t.Helper()
+
+	for _, cookie := range w.Result().Cookies() {
+		if cookie.Name == name {
+			return cookie
+		}
+	}
+	t.Fatalf("expected cookie %q to be present", name)
+	return nil
 }
 
 // ─── Web3 Nonce ───────────────────────────────────────────────────────────────

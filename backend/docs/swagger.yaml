@@ -395,10 +395,10 @@ paths:
       consumes:
       - application/json
       parameters:
-      - description: Refresh token
+      - description: Refresh token fallback when cookie is unavailable
         in: body
         name: body
-        required: true
+        required: false
         schema:
           properties:
             refresh_token:
@@ -467,10 +467,10 @@ paths:
       consumes:
       - application/json
       parameters:
-      - description: Refresh token
+      - description: Refresh token fallback when cookie is unavailable
         in: body
         name: body
-        required: true
+        required: false
         schema:
           properties:
             refresh_token:

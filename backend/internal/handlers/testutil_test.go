@@ -228,6 +228,16 @@ type testEnv struct {
 
 func newTestEnv(t *testing.T) *testEnv {
 	t.Helper()
+	return newTestEnvWithConfig(t, "development", "")
+}
+
+func newTestEnvWithServerEnv(t *testing.T, serverEnv string) *testEnv {
+	t.Helper()
+	return newTestEnvWithConfig(t, serverEnv, "")
+}
+
+func newTestEnvWithConfig(t *testing.T, serverEnv, frontendURL string) *testEnv {
+	t.Helper()
 
 	db, err := gorm.Open(sqlite.Open(":memory:"), &gorm.Config{
 		Logger:         logger.Default.LogMode(logger.Silent),
@@ -244,6 +254,12 @@ func newTestEnv(t *testing.T) *testEnv {
 	}
 
 	cfg := &config.Config{
+		Server: config.ServerConfig{
+			Env: serverEnv,
+		},
+		App: config.AppConfig{
+			FrontendURL: frontendURL,
+		},
 		JWT: config.JWTConfig{
 			AccessSecret:  "test-access-secret-at-least-32-chars!",
 			RefreshSecret: "test-refresh-secret",
@@ -257,7 +273,7 @@ func newTestEnv(t *testing.T) *testEnv {
 	addrSvc := services.NewAddressService(db)
 	emailAuthSvc := services.NewEmailAuthService(db, cfg, &mockMailer{})
 
-	authH := handlers.NewAuthHandler(authSvc).WithEmailAuth(emailAuthSvc)
+	authH := handlers.NewAuthHandler(authSvc, cfg).WithEmailAuth(emailAuthSvc)
 	userH := handlers.NewUserHandler(userSvc)
 	addrH := handlers.NewAddressHandler(addrSvc)
 	emailH := handlers.NewEmailAuthHandler(emailAuthSvc)
