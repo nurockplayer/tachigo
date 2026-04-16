@@ -98,8 +98,8 @@ func (s *UserService) LinkWallet(userID uuid.UUID, input LinkWalletInput) (strin
 	}
 
 	issuedAt := nonceRecord.CreatedAt.UTC().Format(time.RFC3339)
-	msg := siweMessage(lookupAddr, input.Nonce, issuedAt)
-	if !verifyEthSignature(msg, input.Signature, lookupAddr) {
+	msg := siweMessage(checksumAddr, input.Nonce, issuedAt)
+	if !verifyEthSignature(msg, input.Signature, checksumAddr) {
 		return "", ErrInvalidSignature
 	}
 
