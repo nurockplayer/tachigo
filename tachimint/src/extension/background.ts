@@ -29,6 +29,4 @@ chrome.action.onClicked.addListener((tab) => {
 })
 
 // Message listener stub — wired in PR 3
-chrome.runtime.onMessage.addListener((_message, _sender, _sendResponse) => {
-  // no-op placeholder
-})
+chrome.runtime.onMessage.addListener(() => undefined)

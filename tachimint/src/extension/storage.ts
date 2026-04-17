@@ -58,7 +58,7 @@ function getLocalStorageState(): DemoState {
     return createDefaultDemoState()
   }
 
-  let raw: string | null = null
+  let raw: string | null
 
   try {
     raw = window.localStorage.getItem(STORAGE_KEY)

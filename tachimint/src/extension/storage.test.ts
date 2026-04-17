@@ -1,6 +1,8 @@
 import assert from 'node:assert/strict'
 import test from 'node:test'
 
+const STORAGE_KEY = 'tachigo.sidepanel.demo-state.v2'
+
 type StorageLike = {
   getItem: (key: string) => string | null
   setItem: (key: string, value: string) => void
@@ -54,7 +56,10 @@ test('loadDemoState falls back to localStorage when chrome storage key is missin
   }
 
   setWindowLocalStorage({
-    getItem: () => JSON.stringify(localState),
+    getItem: (key) => {
+      assert.equal(key, STORAGE_KEY)
+      return JSON.stringify(localState)
+    },
     setItem: () => {},
   })
   setChromeStorage({
@@ -83,7 +88,10 @@ test('loadDemoState falls back to localStorage when chrome storage read errors',
   }
 
   setWindowLocalStorage({
-    getItem: () => JSON.stringify(localState),
+    getItem: (key) => {
+      assert.equal(key, STORAGE_KEY)
+      return JSON.stringify(localState)
+    },
     setItem: () => {},
   })
   setChromeStorage({
@@ -107,7 +115,8 @@ test('loadDemoState falls back to localStorage when chrome storage read errors',
 test('loadDemoState returns default state when localStorage read throws', async () => {
   setChromeStorage(undefined)
   setWindowLocalStorage({
-    getItem: () => {
+    getItem: (key) => {
+      assert.equal(key, STORAGE_KEY)
       throw new Error('denied')
     },
     setItem: () => {},
@@ -136,8 +145,12 @@ test('saveDemoState sanitizes values and ignores localStorage write errors', asy
 
   setChromeStorage(undefined)
   setWindowLocalStorage({
-    getItem: () => null,
+    getItem: (key) => {
+      assert.equal(key, STORAGE_KEY)
+      return null
+    },
     setItem: (key, value) => {
+      assert.equal(key, STORAGE_KEY)
       written = { key, value }
       throw new Error('quota exceeded')
     },
