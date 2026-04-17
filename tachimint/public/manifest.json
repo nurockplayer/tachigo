@@ -1,0 +1,24 @@
+{
+  "manifest_version": 3,
+  "name": "Tachimint",
+  "description": "Tachimint Chrome sidepanel extension.",
+  "version": "0.0.1",
+  "permissions": ["sidePanel", "storage", "tabs"],
+  "background": {
+    "service_worker": "assets/background.js",
+    "type": "module"
+  },
+  "content_scripts": [
+    {
+      "matches": ["http://localhost:3000/*"],
+      "js": ["assets/content.js"]
+    }
+  ],
+  "side_panel": {
+    "default_path": "sidepanel.html"
+  },
+  "action": {
+    "default_title": "Open Tachimint"
+  },
+  "host_permissions": ["http://localhost:8001/*"]
+}
