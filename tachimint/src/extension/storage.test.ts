@@ -2,6 +2,19 @@ import assert from 'node:assert/strict'
 import test, { afterEach } from 'node:test'
 
 const STORAGE_KEY = 'tachigo.sidepanel.demo-state.v2'
+const EXPECTED_DEFAULT_DEMO_STATE = {
+  screen: 'login',
+  language: 'en',
+  hud: {
+    points: 0,
+    totalPoints: 12847,
+    countdown: 60,
+    isWatching: true,
+    clickCount: 0,
+  },
+  tcgBalance: 0,
+  redeemedCouponIds: [],
+}
 
 type StorageLike = {
   getItem: (key: string) => string | null
@@ -24,10 +37,12 @@ type TestGlobal = typeof globalThis & {
 const globalForTest = globalThis as TestGlobal
 const originalWindow = globalForTest.window
 const originalChrome = globalForTest.chrome
+const originalConsoleWarn = console.warn
 
 afterEach(() => {
   globalForTest.window = originalWindow
   globalForTest.chrome = originalChrome
+  console.warn = originalConsoleWarn
 })
 
 function setWindowLocalStorage(localStorage: StorageLike) {
@@ -77,24 +92,17 @@ test('loadDemoState returns default state when chrome storage key is missing', a
 
   const storage = await importStorageModule()
 
-  assert.deepEqual(await storage.loadDemoState(), {
-    screen: 'login',
-    language: 'en',
-    hud: {
-      points: 0,
-      totalPoints: 12847,
-      countdown: 60,
-      isWatching: true,
-      clickCount: 0,
-    },
-    tcgBalance: 0,
-    redeemedCouponIds: [],
-  })
+  assert.deepEqual(await storage.loadDemoState(), EXPECTED_DEFAULT_DEMO_STATE)
   assert.equal(localStorageReads, 0)
 })
 
 test('loadDemoState returns default state when chrome storage read errors', async () => {
   let localStorageReads = 0
+  const warnings: unknown[][] = []
+
+  console.warn = (...args: unknown[]) => {
+    warnings.push(args)
+  }
 
   setWindowLocalStorage({
     getItem: (key) => {
@@ -131,18 +139,57 @@ test('loadDemoState returns default state when chrome storage read errors', asyn
 
   const storage = await importStorageModule()
 
+  assert.deepEqual(await storage.loadDemoState(), EXPECTED_DEFAULT_DEMO_STATE)
+  assert.equal(localStorageReads, 0)
+  assert.equal(warnings.length, 1)
+  assert.match(String(warnings[0]?.[0]), /Failed to read demo state from chrome\.storage\.local/)
+})
+
+test('loadDemoState returns sanitized chrome storage state without reading localStorage', async () => {
+  let localStorageReads = 0
+
+  setWindowLocalStorage({
+    getItem: (key) => {
+      assert.equal(key, STORAGE_KEY)
+      localStorageReads += 1
+      return JSON.stringify({ screen: 'coupon' })
+    },
+    setItem: () => {},
+  })
+  setChromeStorage({
+    get: (_key, callback) =>
+      callback({
+        [STORAGE_KEY]: {
+          screen: 'coupon',
+          language: 'unknown',
+          hud: {
+            points: -5,
+            totalPoints: 24,
+            countdown: -1,
+            isWatching: true,
+            clickCount: Number.NaN,
+          },
+          tcgBalance: -8,
+          redeemedCouponIds: ['coupon-1', 12],
+        },
+      }),
+    set: (_items, callback) => callback(),
+  })
+
+  const storage = await importStorageModule()
+
   assert.deepEqual(await storage.loadDemoState(), {
-    screen: 'login',
+    screen: 'coupon',
     language: 'en',
     hud: {
       points: 0,
-      totalPoints: 12847,
-      countdown: 60,
+      totalPoints: 24,
+      countdown: 0,
       isWatching: true,
       clickCount: 0,
     },
     tcgBalance: 0,
-    redeemedCouponIds: [],
+    redeemedCouponIds: ['coupon-1'],
   })
   assert.equal(localStorageReads, 0)
 })

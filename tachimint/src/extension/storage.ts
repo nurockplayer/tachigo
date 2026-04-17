@@ -91,7 +91,10 @@ function setLocalStorageState(state: DemoState) {
 
 export async function loadDemoState(): Promise<DemoState> {
   if (getChromeStorageArea()) {
-    const chromeState = await getChromeStoredState().catch(() => null)
+    const chromeState = await getChromeStoredState().catch((error) => {
+      console.warn('Failed to read demo state from chrome.storage.local', error)
+      return null
+    })
     return chromeState ?? createDefaultDemoState()
   }
 

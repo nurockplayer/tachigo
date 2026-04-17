@@ -1,6 +1,8 @@
+export type CouponItemKey = 'tachiya95' | 'freeShip' | 'bundle120'
+
 export interface DemoCouponMeta {
   id: string
-  itemKey: string
+  itemKey: CouponItemKey
   price: number
   code: string
 }

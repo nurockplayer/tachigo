@@ -67,6 +67,34 @@ function flattenKeys(value: unknown, prefix = ''): string[] {
   })
 }
 
+function flattenStringValues(value: unknown, prefix = ''): Record<string, string> {
+  if (typeof value === 'string') {
+    return { [prefix]: value }
+  }
+
+  if (!value || typeof value !== 'object') {
+    return {}
+  }
+
+  if (Array.isArray(value)) {
+    return value.reduce<Record<string, string>>((acc, child, index) => {
+      const nextPrefix = prefix ? `${prefix}.${index}` : `${index}`
+      return { ...acc, ...flattenStringValues(child, nextPrefix) }
+    }, {})
+  }
+
+  return Object.entries(value).reduce<Record<string, string>>((acc, [key, child]) => {
+    const nextPrefix = prefix ? `${prefix}.${key}` : key
+    return { ...acc, ...flattenStringValues(child, nextPrefix) }
+  }, {})
+}
+
+function extractInterpolationTokens(value: string): string[] {
+  return [...value.matchAll(/\{\{\s*([a-zA-Z0-9_]+)\s*\}\}/g)]
+    .map(([, token]) => token)
+    .sort()
+}
+
 const [baseFile, ...translatedFiles] = localeFiles
 const baseKeys = flattenKeys(readLocale(baseFile)).sort()
 const requiredKeys = [
@@ -87,6 +115,20 @@ for (const file of translatedFiles) {
     baseKeys,
     `${file} should have the same translation keys as ${baseFile}`,
   )
+}
+
+const baseLocaleStrings = flattenStringValues(readLocale(baseFile))
+
+for (const file of translatedFiles) {
+  const localeStrings = flattenStringValues(readLocale(file))
+
+  for (const key of Object.keys(baseLocaleStrings)) {
+    assert.deepEqual(
+      extractInterpolationTokens(localeStrings[key] ?? ''),
+      extractInterpolationTokens(baseLocaleStrings[key] ?? ''),
+      `${file} should use the same interpolation tokens as ${baseFile} for ${key}`,
+    )
+  }
 }
 
 function readProjectFile(file: string): string {
