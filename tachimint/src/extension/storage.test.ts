@@ -1,5 +1,5 @@
 import assert from 'node:assert/strict'
-import test from 'node:test'
+import test, { afterEach } from 'node:test'
 
 const STORAGE_KEY = 'tachigo.sidepanel.demo-state.v2'
 
@@ -22,6 +22,13 @@ type TestGlobal = typeof globalThis & {
 }
 
 const globalForTest = globalThis as TestGlobal
+const originalWindow = globalForTest.window
+const originalChrome = globalForTest.chrome
+
+afterEach(() => {
+  globalForTest.window = originalWindow
+  globalForTest.chrome = originalChrome
+})
 
 function setWindowLocalStorage(localStorage: StorageLike) {
   globalForTest.window = { localStorage }
