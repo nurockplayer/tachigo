@@ -3,6 +3,8 @@ import test, { afterEach } from 'node:test'
 
 const STORAGE_KEY = 'tachigo.sidepanel.demo-state.v2'
 
+const STORAGE_KEY = 'tachigo.sidepanel.demo-state.v2'
+
 type StorageLike = {
   getItem: (key: string) => string | null
   setItem: (key: string, value: string) => void
