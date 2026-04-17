@@ -13,6 +13,7 @@
     "build": "tsc -b && vite build",
     "check:i18n": "node --experimental-strip-types scripts/check-i18n.ts",
     "lint": "eslint .",
+    "test": "node --experimental-strip-types --test src/extension/*.test.ts",
     "preview": "vite preview"
   },
   "dependencies": {
@@ -25,6 +26,7 @@
   },
   "devDependencies": {
     "@eslint/js": "^10.0.1",
+    "@types/chrome": "^0.1.40",
     "@types/node": "^25.6.0",
     "@types/react": "^19.2.14",
     "@types/react-dom": "^19.2.3",
