@@ -13,6 +13,7 @@
     "build": "tsc -b && vite build",
     "check:i18n": "node --experimental-strip-types scripts/check-i18n.ts",
     "lint": "eslint .",
+    "test": "node --experimental-strip-types --test src/extension/*.test.ts",
     "preview": "vite preview"
   },
   "dependencies": {
