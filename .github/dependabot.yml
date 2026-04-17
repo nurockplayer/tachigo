@@ -36,6 +36,18 @@ updates:
           - "*"
 
   - package-ecosystem: npm
+    directory: /extensions/tachigo-demo-sidepanel
+    schedule:
+      interval: weekly
+    target-branch: develop
+    labels:
+      - chore
+    groups:
+      deps:
+        patterns:
+          - "*"
+
+  - package-ecosystem: npm
     directory: /tachimint
     schedule:
       interval: weekly
