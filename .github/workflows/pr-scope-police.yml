@@ -167,44 +167,46 @@ jobs:
               dependencyFailures.push(message)
             }
 
-            if (!isReleasePromotionPr && filenames.length > hardMaxChangedFiles) {
-              const message =
-                `PR changes ${filenames.length} files, which exceeds the hard limit of ${hardMaxChangedFiles}. Split the PR before review.`
-              failures.push(message)
-              severeFailures.push(message)
-            }
+            if (!isDependabotPr) {
+              if (!isReleasePromotionPr && filenames.length > hardMaxChangedFiles) {
+                const message =
+                  `PR changes ${filenames.length} files, which exceeds the hard limit of ${hardMaxChangedFiles}. Split the PR before review.`
+                failures.push(message)
+                severeFailures.push(message)
+              }
 
-            if (!isReleasePromotionPr && diffLines > hardMaxDiffLines) {
-              const message =
-                `PR diff size is ${diffLines} lines (+/-), which exceeds the hard limit of ${hardMaxDiffLines}. Split the PR before review.`
-              failures.push(message)
-              severeFailures.push(message)
-            }
+              if (!isReleasePromotionPr && diffLines > hardMaxDiffLines) {
+                const message =
+                  `PR diff size is ${diffLines} lines (+/-), which exceeds the hard limit of ${hardMaxDiffLines}. Split the PR before review.`
+                failures.push(message)
+                severeFailures.push(message)
+              }
 
-            if (!isReleasePromotionPr && productSurfaces.length > 1) {
-              const message =
-                `PR touches multiple product surfaces (${productSurfaces.join(', ')}). Keep one PR to one surface only.`
-              failures.push(message)
-              severeFailures.push(message)
-            }
+              if (!isReleasePromotionPr && productSurfaces.length > 1) {
+                const message =
+                  `PR touches multiple product surfaces (${productSurfaces.join(', ')}). Keep one PR to one surface only.`
+                failures.push(message)
+                severeFailures.push(message)
+              }
 
-            if (!isReleasePromotionPr && titlePrefix === '[backend]' && (touches.dashboard || touches.tachimint)) {
-              const message = '[backend] PR must not change dashboard/ or tachimint/.'
-              failures.push(message)
-              severeFailures.push(message)
-            }
+              if (!isReleasePromotionPr && titlePrefix === '[backend]' && (touches.dashboard || touches.tachimint)) {
+                const message = '[backend] PR must not change dashboard/ or tachimint/.'
+                failures.push(message)
+                severeFailures.push(message)
+              }
 
-            if (!isReleasePromotionPr && titlePrefix === '[frontend]' && touches.backend) {
-              const message =
-                '[frontend] PR must not change backend/. Move backend prerequisites into a separate PR.'
-              failures.push(message)
-              severeFailures.push(message)
-            }
+              if (!isReleasePromotionPr && titlePrefix === '[frontend]' && touches.backend) {
+                const message =
+                  '[frontend] PR must not change backend/. Move backend prerequisites into a separate PR.'
+                failures.push(message)
+                severeFailures.push(message)
+              }
 
-            if (!isReleasePromotionPr && titlePrefix === '[contract]' && (touches.backend || touches.dashboard || touches.tachimint)) {
-              const message = '[contract] PR must not change backend/, dashboard/, or tachimint/.'
-              failures.push(message)
-              severeFailures.push(message)
+              if (!isReleasePromotionPr && titlePrefix === '[contract]' && (touches.backend || touches.dashboard || touches.tachimint)) {
+                const message = '[contract] PR must not change backend/, dashboard/, or tachimint/.'
+                failures.push(message)
+                severeFailures.push(message)
+              }
             }
 
             if (titlePrefix === '[discussion]' && productSurfaces.length > 0) {
