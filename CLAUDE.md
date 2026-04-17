@@ -161,6 +161,16 @@ Type：`feat` / `fix` / `docs` / `chore` / `refactor` / `test`
 | `git` / `gh` / 檔案操作 / 實作 / 搜尋 | Claude Code |
 | 需要跑測試並根據失敗迭代修改的任務 | Codex（`/test-with-codex`） |
 
+## Review 流程
+
+有意義的程式碼變更完成後：
+
+1. 自我檢查實作
+2. 跑最低限度的測試
+3. 執行 `/codex:review`
+4. auth / payment / security 邏輯額外執行 `/codex:adversarial-review`
+5. 只套用有理由的建議
+
 ---
 
 ## 專案結構
