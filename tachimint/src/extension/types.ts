@@ -36,6 +36,22 @@ export const defaultDemoState: DemoState = {
   redeemedCouponIds: [],
 }
 
+export function createDefaultHudDemoState(): HudDemoState {
+  return { ...defaultHudDemoState }
+}
+
+export function createDefaultDemoState(): DemoState {
+  return {
+    ...defaultDemoState,
+    hud: createDefaultHudDemoState(),
+    redeemedCouponIds: [...defaultDemoState.redeemedCouponIds],
+  }
+}
+
+function toFiniteNumber(value: unknown, fallback: number) {
+  return typeof value === 'number' && Number.isFinite(value) ? value : fallback
+}
+
 export function normalizeAppLanguage(language: string | null | undefined): AppLanguage {
   if (language === 'en' || language === 'zh-TW' || language === 'zh-CN') {
     return language
@@ -46,23 +62,23 @@ export function normalizeAppLanguage(language: string | null | undefined): AppLa
 
 export function sanitizeHudDemoState(value: unknown): HudDemoState {
   if (!value || typeof value !== 'object') {
-    return defaultHudDemoState
+    return createDefaultHudDemoState()
   }
 
   const candidate = value as Partial<HudDemoState>
 
   return {
-    points: typeof candidate.points === 'number' ? candidate.points : defaultHudDemoState.points,
-    totalPoints: typeof candidate.totalPoints === 'number' ? candidate.totalPoints : defaultHudDemoState.totalPoints,
-    countdown: typeof candidate.countdown === 'number' ? candidate.countdown : defaultHudDemoState.countdown,
+    points: toFiniteNumber(candidate.points, defaultHudDemoState.points),
+    totalPoints: toFiniteNumber(candidate.totalPoints, defaultHudDemoState.totalPoints),
+    countdown: toFiniteNumber(candidate.countdown, defaultHudDemoState.countdown),
     isWatching: typeof candidate.isWatching === 'boolean' ? candidate.isWatching : defaultHudDemoState.isWatching,
-    clickCount: typeof candidate.clickCount === 'number' ? candidate.clickCount : defaultHudDemoState.clickCount,
+    clickCount: toFiniteNumber(candidate.clickCount, defaultHudDemoState.clickCount),
   }
 }
 
 export function sanitizeDemoState(value: unknown): DemoState {
   if (!value || typeof value !== 'object') {
-    return defaultDemoState
+    return createDefaultDemoState()
   }
 
   const candidate = value as Partial<DemoState>
@@ -78,13 +94,13 @@ export function sanitizeDemoState(value: unknown): DemoState {
   const redeemedRaw = candidate.redeemedCouponIds
   const redeemedCouponIds = Array.isArray(redeemedRaw)
     ? redeemedRaw.filter((id): id is string => typeof id === 'string')
-    : defaultDemoState.redeemedCouponIds
+    : createDefaultDemoState().redeemedCouponIds
 
   return {
     screen,
     language: normalizeAppLanguage(candidate.language),
     hud: sanitizeHudDemoState(candidate.hud),
     tcgBalance,
-    redeemedCouponIds,
+    redeemedCouponIds: [...redeemedCouponIds],
   }
 }

@@ -3,7 +3,7 @@
   "name": "Tachimint",
   "description": "Tachimint Chrome sidepanel extension.",
   "version": "0.0.1",
-  "permissions": ["sidePanel", "storage", "tabs"],
+  "permissions": ["sidePanel", "storage", "activeTab"],
   "background": {
     "service_worker": "assets/background.js",
     "type": "module"

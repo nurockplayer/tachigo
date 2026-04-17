@@ -1,4 +1,4 @@
-import { defaultDemoState, sanitizeDemoState, type DemoState } from './types'
+import { createDefaultDemoState, sanitizeDemoState, type DemoState } from './types.ts'
 
 const STORAGE_KEY = 'tachigo.sidepanel.demo-state.v2'
 
@@ -22,7 +22,12 @@ async function getChromeStoredState(): Promise<DemoState | null> {
         return
       }
 
-      resolve(sanitizeDemoState(result?.[STORAGE_KEY]))
+      if (!result || !Object.prototype.hasOwnProperty.call(result, STORAGE_KEY)) {
+        resolve(null)
+        return
+      }
+
+      resolve(sanitizeDemoState(result[STORAGE_KEY]))
     })
   })
 }
@@ -50,19 +55,25 @@ async function setChromeStoredState(state: DemoState): Promise<void> {
 
 function getLocalStorageState(): DemoState {
   if (typeof window === 'undefined') {
-    return defaultDemoState
+    return createDefaultDemoState()
   }
 
-  const raw = window.localStorage.getItem(STORAGE_KEY)
+  let raw: string | null = null
+
+  try {
+    raw = window.localStorage.getItem(STORAGE_KEY)
+  } catch {
+    return createDefaultDemoState()
+  }
 
   if (!raw) {
-    return defaultDemoState
+    return createDefaultDemoState()
   }
 
   try {
     return sanitizeDemoState(JSON.parse(raw))
   } catch {
-    return defaultDemoState
+    return createDefaultDemoState()
   }
 }
 
@@ -71,7 +82,11 @@ function setLocalStorageState(state: DemoState) {
     return
   }
 
-  window.localStorage.setItem(STORAGE_KEY, JSON.stringify(state))
+  try {
+    window.localStorage.setItem(STORAGE_KEY, JSON.stringify(state))
+  } catch {
+    // Ignore localStorage write failures in restricted environments.
+  }
 }
 
 export async function loadDemoState(): Promise<DemoState> {
