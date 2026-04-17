@@ -90,10 +90,9 @@ function setLocalStorageState(state: DemoState) {
 }
 
 export async function loadDemoState(): Promise<DemoState> {
-  const chromeState = await getChromeStoredState().catch(() => null)
-
-  if (chromeState) {
-    return chromeState
+  if (getChromeStorageArea()) {
+    const chromeState = await getChromeStoredState().catch(() => null)
+    return chromeState ?? createDefaultDemoState()
   }
 
   return getLocalStorageState()
