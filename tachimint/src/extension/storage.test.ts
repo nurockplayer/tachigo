@@ -190,3 +190,63 @@ test('saveDemoState sanitizes values and ignores localStorage write errors', asy
     redeemedCouponIds: ['coupon-1'],
   })
 })
+
+test('saveDemoState falls back to localStorage when chrome storage write fails', async () => {
+  let written: { key: string; value: string } | null = null
+
+  setChromeStorage({
+    get: (_key, callback) => callback({}),
+    set: (_items, callback) => {
+      if (globalForTest.chrome?.runtime) {
+        globalForTest.chrome.runtime.lastError = { message: 'write failed' }
+      }
+      callback()
+      if (globalForTest.chrome?.runtime) {
+        delete globalForTest.chrome.runtime.lastError
+      }
+    },
+  })
+  setWindowLocalStorage({
+    getItem: (key) => {
+      assert.equal(key, STORAGE_KEY)
+      return null
+    },
+    setItem: (key, value) => {
+      assert.equal(key, STORAGE_KEY)
+      written = { key, value }
+    },
+  })
+
+  const storage = await importStorageModule()
+
+  await assert.doesNotReject(() =>
+    storage.saveDemoState({
+      screen: 'claim',
+      language: 'zh-CN',
+      hud: {
+        points: Number.NaN,
+        totalPoints: 33,
+        countdown: Number.POSITIVE_INFINITY,
+        isWatching: true,
+        clickCount: 2,
+      },
+      tcgBalance: -5,
+      redeemedCouponIds: ['coupon-2'],
+    }),
+  )
+
+  assert.ok(written)
+  assert.deepEqual(JSON.parse(written.value), {
+    screen: 'claim',
+    language: 'zh-CN',
+    hud: {
+      points: 0,
+      totalPoints: 33,
+      countdown: 60,
+      isWatching: true,
+      clickCount: 2,
+    },
+    tcgBalance: 0,
+    redeemedCouponIds: ['coupon-2'],
+  })
+})

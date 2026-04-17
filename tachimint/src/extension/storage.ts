@@ -104,8 +104,13 @@ export async function saveDemoState(state: DemoState): Promise<void> {
 
   const chromeStorage = getChromeStorageArea()
   if (chromeStorage) {
-    await setChromeStoredState(sanitizedState)
-    return
+    try {
+      await setChromeStoredState(sanitizedState)
+      return
+    } catch {
+      setLocalStorageState(sanitizedState)
+      return
+    }
   }
 
   setLocalStorageState(sanitizedState)
