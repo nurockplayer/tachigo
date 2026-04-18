@@ -189,6 +189,7 @@ Terminology:
    validates final findings itself.
 
    If Gemini CLI is unavailable, skip the external-model pass and use Codex metadata-first triage before reading patches.
+   This fallback applies only to Codex's repo-level Review flow; it does not change or override Claude Code's local `/code-review` marker fallback behavior.
 
 5. Split only the necessary PR diff into logical chunks:
    - group related files when behavior crosses file boundaries
