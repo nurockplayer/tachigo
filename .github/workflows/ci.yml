@@ -15,6 +15,7 @@ jobs:
     runs-on: ubuntu-latest
     outputs:
       run_ci: ${{ steps.evaluate.outputs.run_ci }}
+      run_backend_integration: ${{ steps.evaluate.outputs.run_backend_integration }}
     steps:
       - name: Evaluate PR scope for CI
         id: evaluate
@@ -25,6 +26,7 @@ jobs:
             if (!pr) {
               core.notice('Non-PR event detected; running CI without scope gate restrictions.')
               core.setOutput('run_ci', 'true')
+              core.setOutput('run_backend_integration', 'true')
               return
             }
 
@@ -40,6 +42,7 @@ jobs:
             if (labels.some((label) => bypassLabels.has(label))) {
               core.notice('Scope gate bypassed by scope-exception label.')
               core.setOutput('run_ci', 'true')
+              core.setOutput('run_backend_integration', 'true')
               return
             }
 
@@ -111,9 +114,23 @@ jobs:
               (isReleasePromotionPr || !(titlePrefix === '[contract]' && (touches.backend || touches.dashboard || touches.tachimint))) &&
               !dependencyBlocked
 
+            const backendIntegrationPaths = [
+              /^backend\//,
+              /^contracts\//,
+              /^docker-compose(?:\..+)?\.ya?ml$/,
+              /^\.github\/workflows\/ci\.yml$/,
+            ]
+            const runBackendIntegration = filenames.some((name) =>
+              backendIntegrationPaths.some((pattern) => pattern.test(name)),
+            )
+
             core.setOutput('run_ci', runCi ? 'true' : 'false')
+            core.setOutput('run_backend_integration', runBackendIntegration ? 'true' : 'false')
             if (!runCi) {
               core.notice('Skipping heavy CI because this PR does not currently pass scope rules.')
+            }
+            if (runCi && !runBackendIntegration) {
+              core.notice('Skipping backend integration tests because this PR does not touch backend, contracts, docker compose, or CI workflow files.')
             }
 
   backend:
@@ -123,12 +140,6 @@ jobs:
     runs-on: ubuntu-latest
     steps:
       - uses: actions/checkout@v4
-
-      - name: Set up Go
-        uses: actions/setup-go@v4
-        with:
-          go-version: '1.22'
-          cache: true
 
       - name: Build image
         env:
@@ -141,8 +152,8 @@ jobs:
   backend-integration:
     name: Backend integration tests
     runs-on: ubuntu-latest
-    needs: [scope-gate]
-    if: (github.event_name == 'push' || needs.scope-gate.outputs.run_ci == 'true') && (github.event_name == 'push' || contains(github.event.pull_request.files.*.filename, 'backend/'))
+    needs: [scope-gate, backend]
+    if: github.event_name == 'push' || (needs.scope-gate.outputs.run_ci == 'true' && needs.scope-gate.outputs.run_backend_integration == 'true')
     steps:
       - uses: actions/checkout@v4
 
