@@ -162,12 +162,25 @@ Type：`feat` / `fix` / `docs` / `chore` / `refactor` / `test`
 
 絕不用 Claude token 做重複性搜尋。
 
+### Gemini 專責任務
+
+| 任務類型 | 說明 | 範例 |
+| --- | --- | --- |
+| **代碼掃描** | 全域 pattern 搜尋、dead code、冗餘邏輯 | `find . -name "*.go" \| xargs cat \| gemini -p "找出所有未使用的 helper function"` |
+| **文件生成** | 架構圖、技術文檔、README、API 規格提要 | 更新專案架構文件、生成依賴關係圖 |
+| **測試草稿** | 批量測試框架、測試覆蓋分析 | 給定測試風格，生成 20+ 個測試案例 |
+| **Log 分析** | 大量 error 日誌、build 失敗診斷 | `cat error.log \| gemini -p "分析這個日誌中的錯誤原因"` |
+| **依賴審查** | package.json / go.mod 升級影響分析 | 評估升級會影響哪些模組 |
+| **PR 初審** | scope pollution 檢查、風格一致性驗證 | 檢查 PR 是否混入了不相關的改動 |
+
+### 各角色職責總表
+
 | 操作 | 誰執行 |
 |---|---|
 | 摘要大量檔案、生成樣板、審查 log、搜尋 pattern、草擬測試 | Gemini（`gemini -p "<task>" --yolo`） |
 | 架構決策、安全審查、重構策略、最終 code review | Claude Code |
 | 需要跑測試並根據失敗迭代修改的任務 | Codex（`/test-with-codex`） |
-| `git` / `gh` / 檔案操作 / 實作 | Claude Code |
+| `git` / `gh` / 檔案操作 / 實作 / 決策 | Claude Code |
 
 ## Review 流程
 
