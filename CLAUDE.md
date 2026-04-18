@@ -116,31 +116,6 @@
 - 如果額外內容不是必要前置條件：先記錄成新的 issue / TODO，不要混進目前 PR
 - 若 PR 已經超出 issue 範圍，reviewer 可以直接要求拆 PR、縮 scope 或關閉 draft PR
 
-## 細粒度原則
-
-禁止 scope pollution 之外，還要**主動拆細** Issue / Commit / PR。細粒度帶來更好的可審查性、可追蹤性、可回滾性。
-
-### Issue
-
-- 單一職責：一個 issue 解決一個明確問題或實現一個完整功能
-- 避免「大雜燴」issue（如「優化所有頁面」、「重構整個模組」）
-- 如果做著做著發現要 touch 多個不相關的子任務，先拆成多個 issue
-- 細粒度 issue 更容易讓人專注、評估、以及日後追溯
-
-### Commit
-
-- 原子化：每個 commit 應該是獨立的工作單位，可以單獨 revert、cherry-pick、bisect
-- 避免「一次性 commit」（如一次改 schema + service + handler + 前端四個層）
-- 按邏輯層或步驟分割：schema migration → service 實作 → API 路由 → 前端整合，各為一個 commit
-- 細粒度 commit 讓 code review 和問題追蹤更精確
-
-### PR
-
-- 專注一個主題：一個 PR 應該對應一個 issue，不應跨越多個獨立功能
-- 保持可控大小：盡量 < 400 lines（除非不可避免的大改）
-- 大 PR 難以 review、容易漏漏、合併時風險高
-- 細粒度 PR 審查週期短、反饋快、merge 也快
-
 ## AI 協作守則
 
 若貢獻內容主要由 AI 產生，必須額外遵守以下規則：
