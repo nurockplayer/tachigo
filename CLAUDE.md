@@ -116,6 +116,31 @@
 - 如果額外內容不是必要前置條件：先記錄成新的 issue / TODO，不要混進目前 PR
 - 若 PR 已經超出 issue 範圍，reviewer 可以直接要求拆 PR、縮 scope 或關閉 draft PR
 
+## 細粒度原則
+
+禁止 scope pollution 之外，還要**主動拆細** Issue / Commit / PR。細粒度帶來更好的可審查性、可追蹤性、可回滾性。
+
+### Issue
+
+- 單一職責：一個 issue 解決一個明確問題或實現一個完整功能
+- 避免「大雜燴」issue（如「優化所有頁面」、「重構整個模組」）
+- 如果做著做著發現要 touch 多個不相關的子任務，先拆成多個 issue
+- 細粒度 issue 更容易讓人專注、評估、以及日後追溯
+
+### Commit
+
+- 原子化：每個 commit 應該是獨立的工作單位，可以單獨 revert、cherry-pick、bisect
+- 避免「一次性 commit」（如一次改 schema + service + handler + 前端四個層）
+- 按邏輯層或步驟分割：schema migration → service 實作 → API 路由 → 前端整合，各為一個 commit
+- 細粒度 commit 讓 code review 和問題追蹤更精確
+
+### PR
+
+- 專注一個主題：一個 PR 應該對應一個 issue，不應跨越多個獨立功能
+- 保持可控大小：盡量 < 400 lines（除非不可避免的大改）
+- 大 PR 難以 review、容易漏漏、合併時風險高
+- 細粒度 PR 審查週期短、反饋快、merge 也快
+
 ## AI 協作守則
 
 若貢獻內容主要由 AI 產生，必須額外遵守以下規則：
@@ -162,12 +187,25 @@ Type：`feat` / `fix` / `docs` / `chore` / `refactor` / `test`
 
 絕不用 Claude token 做重複性搜尋。
 
+### Gemini 專責任務
+
+| 任務類型 | 說明 | 範例 |
+| --- | --- | --- |
+| **代碼掃描** | 全域 pattern 搜尋、dead code、冗餘邏輯 | `find . -name "*.go" \| xargs cat \| gemini -p "找出所有未使用的 helper function"` |
+| **文件生成** | 架構圖、技術文檔、README、API 規格提要 | 更新專案架構文件、生成依賴關係圖 |
+| **測試草稿** | 批量測試框架、測試覆蓋分析 | 給定測試風格，生成 20+ 個測試案例 |
+| **Log 分析** | 大量 error 日誌、build 失敗診斷 | `cat error.log \| gemini -p "分析這個日誌中的錯誤原因"` |
+| **依賴審查** | package.json / go.mod 升級影響分析 | 評估升級會影響哪些模組 |
+| **PR 初審** | scope pollution 檢查、風格一致性驗證 | 檢查 PR 是否混入了不相關的改動 |
+
+### 各角色職責總表
+
 | 操作 | 誰執行 |
 |---|---|
 | 摘要大量檔案、生成樣板、審查 log、搜尋 pattern、草擬測試 | Gemini（`gemini -p "<task>" --yolo`） |
 | 架構決策、安全審查、重構策略、最終 code review | Claude Code |
 | 需要跑測試並根據失敗迭代修改的任務 | Codex（`/test-with-codex`） |
-| `git` / `gh` / 檔案操作 / 實作 | Claude Code |
+| `git` / `gh` / 檔案操作 / 實作 / 決策 | Claude Code |
 
 ## Review 流程
 
@@ -214,6 +252,7 @@ docker compose run --no-deps --rm app go test ./...
 | `README.md` | 所有人 | 開發環境建置（快速上手） |
 | `docs/` | 工程師 | 架構設計、API 規格、技術決策 |
 | `plans/` | 工程師 | 實作計畫（每個功能開始前先寫） |
+| `.claude/rules/` | 工程師 | agent 委託規則、工作流程決策（版控、共享） |
 | GitHub Wiki | 全體人員 | 產品說明、功能介紹、非技術文件 |
 
 ### plans/ 慣例

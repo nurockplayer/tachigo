@@ -58,6 +58,16 @@ Co-Authored-By: Codex <codex[bot]@openai.com>
 
 Type：`feat` / `fix` / `docs` / `chore` / `refactor` / `test`
 
+### Issue 對應策略
+
+尋找 commit / PR 對應 issue 時，預設使用省 token 路線：
+
+1. 先用 `gh issue list` / `gh search issues` 取得 issue metadata。
+2. 若候選很少（約 0-5 個），由 Codex / Claude 直接判斷。
+3. 若候選很多、搜尋詞不明確、或 backlog 很亂，交給 Gemini CLI 排序候選 issue。
+4. Gemini 只負責產出最多 3 個候選 issue 與理由；Codex / Claude 必須用 `gh issue view` 驗證最終選擇。
+5. 若沒有合適 issue，開新 issue；不得為了符合 commit 格式硬套不相關 issue。
+
 ### 注意事項
 
 - **不要** 直接推 `main`
@@ -110,6 +120,8 @@ Type：`feat` / `fix` / `docs` / `chore` / `refactor` / `test`
 ## Gemini CLI Delegation
 
 Gemini CLI 是 Codex 的低成本大範圍掃描工。Codex 可自行判斷何時使用 Gemini CLI，不需要每次先詢問使用者。
+
+詳見 [.claude/rules/delegation.md](./.claude/rules/delegation.md) 了解全局 delegation 策略與流程。以下為 Codex 角色的具體實踐：
 
 適合交給 Gemini CLI 的任務：
 
@@ -201,9 +213,9 @@ Terminology:
    Rules:
    - prioritize changed lines
    - use unchanged context only when needed
-   - return at most 5 high-confidence findings total
-   - omit findings with confidence below 70
+   - return at most 5 high-confidence findings total across `findings` and `scope_pollution`
    - ignore purely stylistic comments unless they affect correctness, maintainability, or repo rules
+   - omit findings with confidence below 70
    - every finding must include file path and concrete evidence
    - output concise JSON only
 
@@ -213,6 +225,16 @@ Terminology:
    - findings: [{title, file, evidence, why_it_matters, confidence}]
    - scope_pollution: [{file, evidence, reason, confidence}]
    - files_to_inspect_first
+
+   This schema is for Codex's repo-level Review workflow. It is not the same
+   contract as Claude Code's local `/code-review` script, which may return a
+   flat issue array for its own command pipeline. Claude Code's local script
+   documents 4 dimensions (`CLAUDE.md` compliance, bugs, git history, code
+   comments); Codex's repo-level Review uses the broader focus list above and
+   validates final findings itself.
+
+   If Gemini CLI is unavailable, skip the external-model pass and use Codex metadata-first triage before reading patches.
+   This fallback applies only to Codex's repo-level Review flow; it does not change or override Claude Code's local `/code-review` marker fallback behavior.
 
 6. Split only the necessary PR diff into logical chunks:
    - group related files when behavior crosses file boundaries
