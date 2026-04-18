@@ -62,7 +62,7 @@ jobs:
             const diffLines = files.reduce((sum, file) => sum + file.additions + file.deletions, 0)
             const body = pr.body || ''
             const title = pr.title || ''
-            const allowedPrefixes = ['[backend]', '[frontend]', '[contract]', '[discussion]', '[release]']
+            const allowedPrefixes = ['[backend]', '[frontend]', '[contract]', '[discussion]', '[release]', '[infra]', '[chore]']
             const titlePrefix = allowedPrefixes.find((prefix) => title.startsWith(prefix))
             const touches = {
               backend: filenames.some((name) => name.startsWith('backend/')),
