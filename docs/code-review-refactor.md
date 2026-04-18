@@ -49,7 +49,8 @@
 **檔案**：`~/.claude/scripts/code-review-with-gemini.sh`
 
 **功能**：
-```
+
+```text
 1. 驗證 Gemini CLI 是否可用
 2. 取得 PR diff (gh pr diff)
 3. 構造審查提示詞（5 個維度）
@@ -94,7 +95,8 @@
 ## Fallback Behavior
 
 如果 Gemini CLI 不可用：
-```
+
+```text
 ⚠️  Gemini CLI not found in PATH
 Options:
   [y] Use Haiku agents (original multi-agent review)
@@ -223,7 +225,7 @@ allowed-tools: ..., Bash(git log:*), Bash(gh api:*),
 
 ### 改進後的架構
 
-```
+```text
 執行 code-review script
   ↓
 蒐集完整上下文：
