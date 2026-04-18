@@ -124,7 +124,15 @@ jobs:
     steps:
       - uses: actions/checkout@v4
 
+      - name: Set up Go
+        uses: actions/setup-go@v4
+        with:
+          go-version: '1.22'
+          cache: true
+
       - name: Build image
+        env:
+          DOCKER_BUILDKIT: 1
         run: docker compose build app
 
       - name: Run tests
@@ -133,7 +141,8 @@ jobs:
   backend-integration:
     name: Backend integration tests
     runs-on: ubuntu-latest
-    needs: backend
+    needs: [scope-gate]
+    if: (github.event_name == 'push' || needs.scope-gate.outputs.run_ci == 'true') && (github.event_name == 'push' || contains(github.event.pull_request.files.*.filename, 'backend/'))
     steps:
       - uses: actions/checkout@v4
 
