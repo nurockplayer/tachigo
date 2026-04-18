@@ -141,10 +141,12 @@ Terminology:
    - If Claude Code, CodeRabbit, or another reviewer already commented, Codex should first validate those findings instead of restarting a full review.
 
 3. Use Gemini CLI for initial low-cost review:
+   - repo rule compliance, especially scope boundaries
    - possible bugs
    - edge cases
    - incorrect logic
    - scope pollution
+   - git history consistency
    - performance concerns
    - missing tests for risky changes
 
@@ -154,10 +156,12 @@ Terminology:
    Review the PR metadata and diff.
 
    Focus on:
+   - repo rule compliance, especially scope boundaries and review/CR terminology
    - likely bugs
    - scope pollution against linked issue / PR title / repo rules
    - edge cases
    - incorrect logic
+   - git history consistency against commit messages and incremental changes
    - performance issues
    - missing tests for risky changes
 
@@ -179,7 +183,10 @@ Terminology:
 
    This schema is for Codex's repo-level Review workflow. It is not the same
    contract as Claude Code's local `/code-review` script, which may return a
-   flat issue array for its own command pipeline.
+   flat issue array for its own command pipeline. Claude Code's local script
+   documents 4 dimensions (`CLAUDE.md` compliance, bugs, git history, code
+   comments); Codex's repo-level Review uses the broader focus list above and
+   validates final findings itself.
 
    If Gemini CLI is unavailable, skip the external-model pass and use Codex metadata-first triage before reading patches.
 
