@@ -164,7 +164,7 @@ Terminology:
    Rules:
    - prioritize changed lines
    - use unchanged context only when needed
-   - return at most 5 findings
+   - return at most 5 high-confidence findings total across `findings` and `scope_pollution`
    - ignore purely stylistic comments unless they affect correctness or maintainability
    - omit findings with confidence below 70
    - every finding must include file path and concrete evidence
@@ -174,7 +174,7 @@ Terminology:
    - summary
    - risk_level: low / medium / high
    - findings: [{title, file, evidence, why_it_matters, confidence}]
-   - scope_pollution: [{file, evidence, reason}]
+   - scope_pollution: [{file, evidence, reason, confidence}]
    - files_to_inspect_first
 
    This schema is for Codex's repo-level Review workflow. It is not the same

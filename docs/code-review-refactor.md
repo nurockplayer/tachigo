@@ -2,6 +2,7 @@
 
 **Date**: 2026-04-18  
 **Status**: ✅ Completed  
+**Document Type**: Design Decision Record（記錄本機 Claude Code workflow 的重構決策；不是 repo 內可直接執行的實作指南）
 **Decision**: Use Gemini CLI for PR code review instead of multiple Haiku agents
 
 ## Background
@@ -39,7 +40,7 @@
 ```markdown
 4. Execute `~/.claude/scripts/code-review-with-gemini.sh` to review and score issues.
    - Uses Gemini CLI as primary reviewer
-   - Audits across 5 dimensions (CLAUDE.md compliance, bugs, history, PR comments, code comments)
+   - Audits across 4 dimensions (CLAUDE.md compliance, bugs, git history, code comments)
    - Returns JSON array of issues with 0-100 confidence scores
    - Fallback: prompts user to switch to Haiku agents if Gemini unavailable
 ```
@@ -52,7 +53,7 @@
 ```
 1. 驗證 Gemini CLI 是否可用
 2. 取得 PR diff (gh pr diff)
-3. 構造審查提示詞（5 個維度）
+3. 構造審查提示詞（4 個維度）
 4. 調用 Gemini 進行審查和評分
 5. 解析並返回 JSON 格式的 issues
 6. 如果失敗或 Gemini 不可用，詢問用戶是否改用 Haiku agents
@@ -65,7 +66,7 @@
     "description": "問題描述",
     "location": "src/file.ts:10-20",
     "severity": 85,
-    "reason": "bug|CLAUDE.md|git history|PR comments|code comments"
+    "reason": "bug|CLAUDE.md|git history|code comments"
   }
 ]
 ```
@@ -74,6 +75,13 @@
 後續步驟直接過濾 `severity >= 80` 使用。它和 `AGENTS.md` 中的 Codex
 repo-level Review JSON schema 不同；若未來要共用同一個 Gemini wrapper，
 需要在 wrapper 或 caller 中明確轉換格式。
+
+目前不需要轉換邏輯：`code-review-with-gemini.sh` 使用自己的 Gemini prompt，
+直接要求 Gemini 輸出上述 flat array；`AGENTS.md` 的 nested schema 只適用於
+Codex 在本 repo 中執行 Review 時的工作流。若未來改成共用同一個 wrapper，
+轉換規則應明確定義為：
+`findings[]` / `scope_pollution[]` → flat issue array，並映射成
+`description`、`location`、`severity`、`reason`。
 
 ### 3. 輔助腳本
 
@@ -119,7 +127,7 @@ Use Haiku agents? [y/N]
 
 ### 劣勢 ⚠️
 - **多樣性降低**：單個視角 vs 5 個獨立審查者
-  - 但 Gemini 指令明確涵蓋 5 個維度，應該足夠
+  - 但 Gemini 指令明確涵蓋 4 個維度，應該足夠
 - **依賴 Gemini 可用性**：如果 Gemini CLI 不可用，需要降級
 - **迭代成本**：如果效果不理想，需要調整提示詞並重新測試
 
@@ -223,7 +231,7 @@ allowed-tools: ..., Bash(git log:*), Bash(gh api:*),
 |-----|------|------|
 | **CLAUDE.md 是 placeholder** | 實現 `get_claude_md_content()` 用 `gh api repos/.../contents/CLAUDE.md` 動態獲取 | 第 44-56 行 |
 | **git history 只是 prompt 宣稱** | 實現 `get_git_history()` 用 `git log --oneline -10` 完整蒐集 | 第 59-63 行 |
-| **previous PR comments 未傳遞** | 實現 `get_related_pr_comments()` 收集相關 PR 資訊 | 第 66-75 行 |
+| **previous PR comments 未傳遞** | 曾嘗試實現 `get_related_pr_comments()`，後續因資料不完整已刪除（見後續 Codex 反饋） | 不適用 |
 | **grep -P 第二次出現** | 改用 `sed` 提取 JSON | 第 98 行 |
 
 ### 改進後的架構
@@ -235,13 +243,11 @@ allowed-tools: ..., Bash(git log:*), Bash(gh api:*),
   • PR diff (gh pr diff)
   • CLAUDE.md 內容 (gh api)
   • git history (git log)
-  • related PRs (gh api)
   ↓
-調用 Gemini 進行 5 維度審查：
+調用 Gemini 進行 4 維度審查：
   • CLAUDE.md 遵循性
   • 明顯 bug
   • git 歷史背景
-  • 先前 PR 評論
   • 代碼註釋遵循性
   ↓
   ├─ Gemini 成功 → 返回 JSON issues
