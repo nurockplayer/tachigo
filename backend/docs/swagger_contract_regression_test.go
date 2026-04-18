@@ -8,8 +8,6 @@ import (
 )
 
 func TestSwaggerArtifacts_NoInvalidEmptySecurityScheme(t *testing.T) {
-	t.Helper()
-
 	path := filepath.Join("swagger.json")
 	raw, err := os.ReadFile(path)
 	if err != nil {

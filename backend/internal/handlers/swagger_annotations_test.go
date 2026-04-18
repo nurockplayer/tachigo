@@ -8,8 +8,6 @@ import (
 )
 
 func TestSwaggerAnnotations_NoEmptySecurityDirective(t *testing.T) {
-	t.Helper()
-
 	emptySecurity := regexp.MustCompile(`(?m)^//\s*@Security\s*$`)
 
 	for _, rel := range []string{
