@@ -146,10 +146,14 @@ Terminology:
    - include PR body and scope summary
    - include changed files and diff stat
    - include existing review findings as a concise summary
+   - prefer `gh pr view` / GitHub PR files API for metadata and file lists; do not start with local `git fetch` for large or stacked PRs
+   - if local refs are needed, fetch the smallest specific refs with `--no-tags` and avoid broad branch fetches
+   - for stacked PRs, verify base/head ancestry before using local triple-dot diffs; if the base branch is not an ancestor of the head, report that the stack needs rebasing or use GitHub's PR file list instead of local `git diff`
    - exclude binary assets, generated files, fonts, images, and large static blobs unless directly relevant
    - include only text diffs by default
    - group files by subsystem
    - for existing follow-up reviews, prioritize changed commits and unresolved comments over re-reading the whole PR
+   - if a Git command appears stuck for more than ~30 seconds with no output, check for `.git/index.lock` and long-running editor Git processes such as `git status -z -uall`; stop the stale process before retrying instead of stacking more Git commands
 
 3. Decide review depth:
    - Small PR: Codex may review directly.
