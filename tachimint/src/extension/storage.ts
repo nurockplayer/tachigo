@@ -152,7 +152,7 @@ export async function saveDemoState(state: DemoState): Promise<void> {
   if (chromeStorage) {
     try {
       await setChromeStoredState(sanitizedState)
-      clearLocalStorageState()
+      setLocalStorageState(sanitizedState)
       return
     } catch (error) {
       warnStorageFailure(

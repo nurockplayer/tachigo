@@ -259,7 +259,7 @@ test('saveDemoState falls back to localStorage when chrome storage write fails',
   })
 })
 
-test('saveDemoState clears legacy localStorage after a successful chrome storage write', async () => {
+test('saveDemoState mirrors state to localStorage after a successful chrome storage write', async () => {
   let chromeStoredValue: DemoState | null = null
 
   setChromeStorage({
@@ -268,19 +268,7 @@ test('saveDemoState clears legacy localStorage after a successful chrome storage
       callback()
     },
   })
-  const localStorage = setWindowLocalStorage({
-    screen: 'login',
-    language: 'en',
-    hud: {
-      points: 1,
-      totalPoints: 2,
-      countdown: 3,
-      isWatching: true,
-      clickCount: 4,
-    },
-    tcgBalance: 5,
-    redeemedCouponIds: ['stale-coupon'],
-  })
+  const localStorage = setWindowLocalStorage()
 
   const storage = await importStorageModule()
 
@@ -298,7 +286,7 @@ test('saveDemoState clears legacy localStorage after a successful chrome storage
     redeemedCouponIds: ['tachiya-95'],
   })
 
-  assert.deepEqual(chromeStoredValue, {
+  const expectedState = {
     screen: 'hud',
     language: 'zh-TW',
     hud: {
@@ -310,7 +298,9 @@ test('saveDemoState clears legacy localStorage after a successful chrome storage
     },
     tcgBalance: 5,
     redeemedCouponIds: ['tachiya-95'],
-  })
-  assert.equal(localStorage.removes, 1)
-  assert.equal(localStorage.getItem(STORAGE_KEY), null)
+  }
+
+  assert.deepEqual(chromeStoredValue, expectedState)
+  assert.equal(localStorage.writes, 1)
+  assert.deepEqual(JSON.parse(localStorage.getItem(STORAGE_KEY) ?? 'null'), expectedState)
 })
