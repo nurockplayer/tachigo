@@ -177,6 +177,10 @@ Terminology:
    - scope_pollution: [{file, evidence, reason}]
    - files_to_inspect_first
 
+   This schema is for Codex's repo-level Review workflow. It is not the same
+   contract as Claude Code's local `/code-review` script, which may return a
+   flat issue array for its own command pipeline.
+
    If Gemini CLI is unavailable, skip the external-model pass and use Codex metadata-first triage before reading patches.
 
 5. Split only the necessary PR diff into logical chunks:

@@ -70,6 +70,11 @@
 ]
 ```
 
+此輸出格式是 Claude Code 本機 `/code-review` script contract，供該 command
+後續步驟直接過濾 `severity >= 80` 使用。它和 `AGENTS.md` 中的 Codex
+repo-level Review JSON schema 不同；若未來要共用同一個 Gemini wrapper，
+需要在 wrapper 或 caller 中明確轉換格式。
+
 ### 3. 輔助腳本
 
 **檔案**：`~/.claude/scripts/code-review-gemini-score.sh`  
