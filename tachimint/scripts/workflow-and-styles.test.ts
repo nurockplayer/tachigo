@@ -15,7 +15,7 @@ test('backend integration job keeps an explicit pull_request CI gate', async () 
 
   assert.match(
     workflow,
-    /backend-integration:[\s\S]*needs:\s*\[scope-gate,\s*backend\][\s\S]*if:\s*github\.event_name == 'push' \|\| needs\.scope-gate\.outputs\.run_ci == 'true'/,
+    /backend-integration:[\s\S]*needs:\s*\[scope-gate,\s*backend\][\s\S]*if:\s*github\.event_name == 'push' \|\| \(needs\.scope-gate\.outputs\.run_ci == 'true' && needs\.scope-gate\.outputs\.run_backend_integration == 'true'\)/,
   )
 })
 
