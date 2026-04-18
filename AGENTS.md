@@ -107,70 +107,124 @@ Type：`feat` / `fix` / `docs` / `chore` / `refactor` / `test`
 - 不得未經驗證就宣稱「已完成」；至少要回報實際執行過的測試、未驗證部分、以及已知風險
 - reviewer 應優先檢查 AI 是否偏離 issue、腦補需求、混入未要求的 schema / API / UI 改動，而不是只看程式碼表面是否完整
 
+## Gemini CLI Delegation
+
+Gemini CLI 是 Codex 的低成本大範圍掃描工。Codex 可自行判斷何時使用 Gemini CLI，不需要每次先詢問使用者。
+
+適合交給 Gemini CLI 的任務：
+
+- PR first-pass review
+- repo-wide scans 與架構盤點
+- 大型重構前的影響範圍分析
+- duplicate / dead-code 候選掃描
+- 長 CI / build / runtime log 摘要與初步診斷
+- 批量測試案例或測試草稿生成
+
+Gemini CLI 的輸出只作為線索與候選，不是最終判斷。Codex 必須在回報 findings、修改程式、做 review 結論或宣稱完成前，用本機檔案、diff、測試、型別檢查或其他可靠來源驗證重要主張。
+
 ## PR Review Strategy
+
+Terminology:
+- `Review` = code review.
+- `CR` = change request / requested changes, not code review.
+
+預設使用省 token 路線：metadata-first + reduced review bundle + Gemini CLI first pass + Codex validation。
+除非使用者明確要求「不要用 Gemini」或 PR 很小，否則不要讓 Codex 一開始就完整讀整張 diff。
 
 1. Load PR metadata first:
    - linked issue
+   - PR title / body
    - changed files
    - diff stat
    - CI status
    - test coverage signals
+   - labels, especially `needs-codex-review` / `changes-requested`
+   - existing PR comments / reviews
 
-2. Split the PR diff into logical chunks:
-   - group related files when behavior crosses file boundaries
-   - prefer small chunks for large diffs
-   - include only necessary unchanged context
+2. Prepare a reduced review bundle before invoking Gemini:
+   - include issue / source-of-truth summary
+   - include PR body and scope summary
+   - include changed files and diff stat
+   - include existing review findings as a concise summary
+   - exclude binary assets, generated files, fonts, images, and large static blobs unless directly relevant
+   - include only text diffs by default
+   - group files by subsystem
+   - for existing follow-up reviews, prioritize changed commits and unresolved comments over re-reading the whole PR
 
-3. Use DeepSeek for initial low-cost review:
-   - possible bugs
+3. Decide review depth:
+   - Small PR: Codex may review directly.
+   - Normal / large PR: use Gemini CLI for first-pass scanning before Codex opens patches.
+   - Auth / payment / security / migration / production-risk PR: Gemini may help summarize, but Codex must do the final deep review itself.
+   - If Claude Code, CodeRabbit, or another reviewer already commented, Codex should first validate those findings instead of restarting a full review.
+
+4. Use Gemini CLI for initial low-cost review:
+   - repo rule compliance, especially scope boundaries and review/CR terminology
+   - likely bugs
    - edge cases
    - incorrect logic
+   - scope pollution against linked issue / PR title / repo rules
+   - git history consistency against commit messages and incremental changes
    - performance concerns
    - missing tests for risky changes
 
-   If DeepSeek is unavailable or no API key is configured, skip the external-model pass and use Codex metadata-first triage before reading any patch.
+   Gemini is a scanner only. Codex keeps final judgment.
 
-4. DeepSeek review prompt:
-   Review the following PR diff chunk.
+   If Gemini CLI is unavailable, skip the external-model pass and use Codex metadata-first triage before reading patches.
+
+5. Gemini review prompt:
+   Review the PR metadata, scope summary, existing review summary, and reduced text diff.
 
    Focus on:
-   - bugs
+   - repo rule compliance, especially scope boundaries and review/CR terminology
+   - likely bugs
+   - scope pollution against linked issue / PR title / repo rules
    - edge cases
    - incorrect logic
+   - git history consistency against commit messages and incremental changes
    - performance issues
    - missing tests for risky changes
 
    Rules:
    - prioritize changed lines
    - use unchanged context only when needed
-   - limit response to 5 issues max
-   - ignore purely stylistic comments unless they affect maintainability
+   - return at most 5 high-confidence findings total
+   - omit findings with confidence below 70
+   - ignore purely stylistic comments unless they affect correctness, maintainability, or repo rules
+   - every finding must include file path and concrete evidence
+   - output concise JSON only
 
-   Return:
-   - issue
-   - why it is a problem
-   - suggested fix
+   Return JSON:
+   - summary
+   - risk_level: low / medium / high
+   - findings: [{title, file, evidence, why_it_matters, confidence}]
+   - scope_pollution: [{file, evidence, reason, confidence}]
+   - files_to_inspect_first
 
-   Be concise.
+6. Split only the necessary PR diff into logical chunks:
+   - group related files when behavior crosses file boundaries
+   - prefer small chunks for large diffs
+   - include only necessary unchanged context
 
-5. Summarize DeepSeek findings:
+7. Summarize Gemini findings:
    - merge duplicate issues
    - discard vague or non-actionable comments
    - keep only blockers, likely regressions, and meaningful test gaps
 
-6. Use Codex for validation:
-   - validate which DeepSeek findings are real
+8. Use Codex for validation:
+   - validate which Gemini findings are real
    - identify false positives
    - refine suggested fixes
    - check for missing critical issues
+   - re-read cited files or diffs before reporting findings
+   - verify against issue scope and repo rules
    - inspect minimal necessary patch context only when summary is insufficient
 
-7. Avoid using Codex on the full diff unless necessary.
+9. Avoid using Codex on the full diff unless necessary.
 
-8. Generate the final PR review comment:
+10. Generate the final PR review comment:
    - group by severity: high / medium / low
    - include actionable suggestions only
-   - avoid posting unverified DeepSeek findings
+   - avoid posting unverified Gemini findings
 
 ## 輸出格式
 
