@@ -2,7 +2,7 @@
 
 > 用途：記錄 `tachigo` 對大型前端 binary assets 採用 Git LFS 的決策、設定方式與 PR #265 後續修復流程。
 > 狀態：決策與操作計畫；本分支同時落地 `tachimint/src/assets/` 的 Git LFS tracking 與 frontend CI checkout 設定。
-> 最後更新：2026-04-19
+> 最後更新：2026-04-18
 
 ---
 
@@ -112,6 +112,7 @@ tachimint/src/assets/**/*.woff2 filter=lfs diff=lfs merge=lfs -text
 
 - `.gitattributes`
 - 必要的 CI checkout `lfs: true`
+- 既有且已符合新規則的 `tachimint/src/assets/hero.png` LFS pointer 轉換
 - 這份文件或對應決策文件
 
 PR title 可使用：
