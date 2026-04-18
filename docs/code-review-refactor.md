@@ -260,17 +260,93 @@ allowed-tools: ..., Bash(git log:*), Bash(gh api:*),
 | **allowed-tools** | ✅ 已授權 | 脚本可執行 |
 | **Fallback 機制** | ✅ 已實現 | marker file + skill step 4b |
 
+### Codex 反饋與進一步修復 (2026-04-18 後)
+
+Codex 對初版實作提出 3 個 High Priority issues：
+
+#### 1️⃣ gh pr diff 失敗被吞掉 → **✅ 已修復**
+
+**問題**：
+```bash
+# 舊：失敗被吞掉，改成字串 "Failed to fetch PR diff"
+get_pr_diff() {
+  gh pr diff ... 2>/dev/null || echo "Failed to fetch PR diff"
+}
+# Gemini 收到假字串，回 []，誤判「無問題」
+```
+
+**修復**：
+```bash
+# 新：失敗時 return 1，中止流程
+get_pr_diff() {
+  if ! gh pr diff "$PR_NUMBER" --repo "$REPO_PATH" 2>/dev/null; then
+    echo "❌ Failed to fetch PR diff. Aborting review." >&2
+    return 1
+  fi
+}
+# 呼叫端檢查錯誤
+if ! PR_DIFF=$(get_pr_diff); then
+  echo "❌ Cannot proceed without PR diff."
+  return 1
+fi
+```
+
+**位置**：code-review-with-gemini.sh 第 33-39 行、93-96 行
+
+---
+
+#### 2️⃣ related PR comments 是假資料 → **✅ 已刪除**
+
+**問題**：
+- `get_related_pr_comments()` 只列出文件名，沒抓實際 comments
+- 但文檔宣稱第 4 維度「先前 PR 評論」
+- Gemini 根據不存在的上下文判斷
+
+**修復**：
+- 刪除 `get_related_pr_comments()` 函數及相關調用
+- 將審查維度從 5 個改為 4 個（刪除「先前 PR 評論」）
+- 保留註釋說明未來改進方向
+
+**位置**：code-review-with-gemini.sh 第 77-80（註釋）、第 104-105 行（已刪除）、第 127-133 行（維度更新）
+
+---
+
+#### 3️⃣ 沒產生真正的 GitHub Review / CR → **✅ 已改進**
+
+**問題**：
+```bash
+# 舊：只是 comment
+gh pr comment ...
+# 無法產生 CHANGES_REQUESTED 或 APPROVED 狀態
+```
+
+**修復**：
+```bash
+# 新：用 gh pr review
+# 有問題：
+gh pr review <PR_NUMBER> --request-changes --body "..."
+# 無問題：
+gh pr review <PR_NUMBER> --approve --body "..."
+```
+
+**位置**：code-review.md 第 45-49 行（步驟 8 更新）
+
+---
+
 ### 現狀
 
-**方案B 已生產可用**（2026-04-18）
+**方案B 已修復 Codex 指出的關鍵問題**（2026-04-18）
 
-脚本現已：
+脚本與 skill 現已：
 1. ✅ macOS 兼容（sed 代替 grep -P）
-2. ✅ 蒐集完整上下文（CLAUDE.md、git history、related PRs）
-3. ✅ Gemini 失敗時自動降級到 Haiku agents
-4. ✅ 完整的錯誤處理和用戶提示
+2. ✅ **gh pr diff 失敗時中止**（不產生假結果）
+3. ✅ **刪除假的 related PR comments 宣稱**（維度降為 4）
+4. ✅ **產生真正的 GitHub Review**（CHANGES_REQUESTED / APPROVED）
+5. ✅ Gemini 失敗時自動降級到 Haiku agents
+6. ✅ 完整的錯誤處理和用戶提示
 
-下次運行 code review 時會自動使用修復後的版本。
+**狀態**：✅ **High Priority issues 已全數修復**  
+**可用性**：建議用 Beta 版繼續測試，待驗證無其他問題後升為 Production
 
 ## References
 
