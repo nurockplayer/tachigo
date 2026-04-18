@@ -83,6 +83,7 @@ func (h *UserHandler) UpdateMe(c *gin.Context) {
 // @Failure      400  {object}  Response
 // @Failure      401  {object}  Response
 // @Failure      409  {object}  Response
+// @Failure      500  {object}  Response
 // @Security     BearerAuth
 // @Router       /users/me/wallet [post]
 func (h *UserHandler) LinkWallet(c *gin.Context) {
