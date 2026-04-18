@@ -58,6 +58,16 @@ Co-Authored-By: Codex <codex[bot]@openai.com>
 
 Type：`feat` / `fix` / `docs` / `chore` / `refactor` / `test`
 
+### Issue 對應策略
+
+尋找 commit / PR 對應 issue 時，預設使用省 token 路線：
+
+1. 先用 `gh issue list` / `gh search issues` 取得 issue metadata。
+2. 若候選很少（約 0-5 個），由 Codex / Claude 直接判斷。
+3. 若候選很多、搜尋詞不明確、或 backlog 很亂，交給 Gemini CLI 排序候選 issue。
+4. Gemini 只負責產出最多 3 個候選 issue 與理由；Codex / Claude 必須用 `gh issue view` 驗證最終選擇。
+5. 若沒有合適 issue，開新 issue；不得為了符合 commit 格式硬套不相關 issue。
+
 ### 注意事項
 
 - **不要** 直接推 `main`

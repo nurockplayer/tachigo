@@ -6,6 +6,10 @@ Gemini CLI is the low-cost worker for broad, repetitive, or high-volume tasks.
 For PR review, default to metadata-first + Gemini first-pass + Claude/Codex verification
 unless the PR is small or the user explicitly says not to use Gemini.
 
+For issue matching, first gather GitHub issue metadata with `gh`. If there are
+many candidates, use Gemini to rank the top 3 likely issues with reasons, then
+Claude / Codex verifies the final issue with `gh issue view`.
+
 ## Delegate to Gemini for:
 
 - codebase-wide summarization
@@ -17,6 +21,7 @@ unless the PR is small or the user explicitly says not to use Gemini.
 - grouping related files by topic
 - first-pass PR review before Claude / Codex review
 - scope pollution scanning against linked issue, PR title, and repo rules
+- ranking many candidate GitHub issues before Claude / Codex chooses the final reference
 
 ## Do NOT delegate to Gemini for:
 
