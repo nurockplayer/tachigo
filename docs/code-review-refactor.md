@@ -29,7 +29,7 @@
 
 ### 1. 修改 Code-Review Skill
 
-**檔案**：`/Users/tachikoma/.claude/plugins/marketplaces/claude-plugins-official/plugins/code-review/commands/code-review.md`
+**檔案**：`~/.claude/plugins/marketplaces/claude-plugins-official/plugins/code-review/commands/code-review.md`
 
 **改動**：
 - 步驟 4-5：改為執行 `~/.claude/scripts/code-review-with-gemini.sh`
@@ -172,7 +172,7 @@ allowed-tools: Bash(gh issue view:*), Bash(gh pr diff:*), ...
 **修復**：
 ```yaml
 allowed-tools: ..., Bash(git log:*), Bash(gh api:*), 
-              Bash(/Users/tachikoma/.claude/scripts/code-review-with-gemini.sh:*),
+              Bash(~/.claude/scripts/code-review-with-gemini.sh:*),
               Bash(gemini:*), Bash(test:*), Bash(rm:*)
 ```
 
@@ -193,7 +193,7 @@ allowed-tools: ..., Bash(git log:*), Bash(gh api:*),
 1. **脚本端**：創建 fallback marker 檔案
    ```bash
    set_fallback_marker() {
-     local marker_file="/tmp/code-review-fallback-$PR_NUMBER"
+     local marker_file="${TMPDIR:-/tmp}/code-review-fallback-$PR_NUMBER"
      touch "$marker_file"
    }
    ```
@@ -201,9 +201,9 @@ allowed-tools: ..., Bash(git log:*), Bash(gh api:*),
 2. **Skill 端**：新增步驟 4b 檢查並處理 fallback
    ```markdown
    4b. (Only if step 4 script indicated fallback) 
-       Check for marker: test -f /tmp/code-review-fallback-<PR_NUMBER>
+       Check for marker: test -f ${TMPDIR:-/tmp}/code-review-fallback-<PR_NUMBER>
        If exists, launch 5 parallel Sonnet agents + Haiku scoring (original flow)
-       Clean up: rm -f /tmp/code-review-fallback-<PR_NUMBER>
+       Clean up: rm -f ${TMPDIR:-/tmp}/code-review-fallback-<PR_NUMBER>
    ```
 
 **位置**：
@@ -274,7 +274,7 @@ allowed-tools: ..., Bash(git log:*), Bash(gh api:*),
 
 ## References
 
-- **Skill 定義**：`/Users/tachikoma/.claude/plugins/marketplaces/claude-plugins-official/plugins/code-review/commands/code-review.md`
+- **Skill 定義**：`~/.claude/plugins/marketplaces/claude-plugins-official/plugins/code-review/commands/code-review.md`
 - **實作腳本**：`~/.claude/scripts/code-review-with-gemini.sh`
-- **Delegation 策略**：`/Users/tachikoma/Documents/Web3/tachigo/.claude/rules/delegation.md`
-- **Memory 記錄**：`/Users/tachikoma/.claude/projects/-Users-tachikoma-Documents-Web3-tachigo/memory/feedback_code_review_gemini.md`
+- **Delegation 策略**：`.claude/rules/delegation.md`
+- **Memory 記錄**：`~/.claude/projects/<project-id>/memory/feedback_code_review_gemini.md`

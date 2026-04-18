@@ -22,15 +22,15 @@
 
 ### 已有基礎
 
-- [`dashboard/src/App.tsx`](/Users/tachikoma/Documents/Web3/tachigo/dashboard/src/App.tsx)
+- [`dashboard/src/App.tsx`](../dashboard/src/App.tsx)
   - 已建立登入頁、受保護路由、Layout 與幾個基礎頁面
-- [`dashboard/src/components/Layout.tsx`](/Users/tachikoma/Documents/Web3/tachigo/dashboard/src/components/Layout.tsx)
+- [`dashboard/src/components/Layout.tsx`](../dashboard/src/components/Layout.tsx)
   - 已有基本側邊欄與頁面容器
-- [`dashboard/src/pages/LoginPage.tsx`](/Users/tachikoma/Documents/Web3/tachigo/dashboard/src/pages/LoginPage.tsx)
+- [`dashboard/src/pages/LoginPage.tsx`](../dashboard/src/pages/LoginPage.tsx)
   - 已完成登入 UI，並串接登入 API
-- [`dashboard/src/services/auth.ts`](/Users/tachikoma/Documents/Web3/tachigo/dashboard/src/services/auth.ts)
+- [`dashboard/src/services/auth.ts`](../dashboard/src/services/auth.ts)
   - 已有 login/logout 邏輯與 token 設定
-- [`backend/internal/router/router.go`](/Users/tachikoma/Documents/Web3/tachigo/backend/internal/router/router.go)
+- [`backend/internal/router/router.go`](../backend/internal/router/router.go)
   - 後端已提供 auth 與部分 dashboard/API 路由骨架
 
 ### 尚未成形的部分
@@ -41,12 +41,12 @@
 
 ### 目前技術風險
 
-- [`dashboard/src/services/auth.ts`](/Users/tachikoma/Documents/Web3/tachigo/dashboard/src/services/auth.ts)
+- [`dashboard/src/services/auth.ts`](../dashboard/src/services/auth.ts)
   - `accessToken` 僅保存在記憶體
   - 重新整理頁面後，`isAuthenticated()` 會回傳 false
-- [`dashboard/src/components/ProtectedRoute.tsx`](/Users/tachikoma/Documents/Web3/tachigo/dashboard/src/components/ProtectedRoute.tsx)
+- [`dashboard/src/components/ProtectedRoute.tsx`](../dashboard/src/components/ProtectedRoute.tsx)
   - 現在的 route guard 只適合非常早期原型
-- [`dashboard/README.md`](/Users/tachikoma/Documents/Web3/tachigo/dashboard/README.md)
+- [`dashboard/README.md`](../dashboard/README.md)
   - 仍是 Vite 預設內容，尚未反映專案實際開發方式
 
 ---
@@ -179,4 +179,4 @@
 
 對應的實作規劃見：
 
-- [`plans/refine-dashboard-mvp.md`](/Users/tachikoma/Documents/Web3/tachigo/plans/refine-dashboard-mvp.md)
+- [`plans/refine-dashboard-mvp.md`](../plans/refine-dashboard-mvp.md)
