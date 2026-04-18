@@ -175,25 +175,6 @@ Type：`feat` / `fix` / `docs` / `chore` / `refactor` / `test`
 
 ---
 
-## AI 分工
-
-本專案使用 Claude Code + Gemini CLI + Codex CLI 協作開發。
-
-**預設工作流程：**
-
-1. 大範圍掃描 / 重複性工作 → 先交給 **Gemini**
-2. 推理、架構決策、最終實作 → **Claude**
-3. 需要跑測試並根據失敗迭代修改 → **Codex**
-
-絕不用 Claude token 做重複性搜尋。
-
-| 操作 | 誰執行 |
-|---|---|
-| 摘要大量檔案、生成樣板、審查 log、搜尋 pattern、草擬測試 | Gemini（`gemini -p "<task>" --yolo`） |
-| 架構決策、安全審查、重構策略、最終 code review | Claude Code |
-| 需要跑測試並根據失敗迭代修改的任務 | Codex（`/test-with-codex`） |
-| `git` / `gh` / 檔案操作 / 實作 | Claude Code |
-
 ## Review 流程
 
 有意義的程式碼變更完成後：
