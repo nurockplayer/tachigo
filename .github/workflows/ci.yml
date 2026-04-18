@@ -141,13 +141,21 @@ jobs:
     steps:
       - uses: actions/checkout@v4
 
-      - name: Build image
-        env:
-          DOCKER_BUILDKIT: 1
-        run: docker compose build app
+      - name: Set up Docker Buildx
+        uses: docker/setup-buildx-action@v3
+
+      - name: Build backend image
+        uses: docker/build-push-action@v6
+        with:
+          context: ./backend
+          target: dev
+          load: true
+          tags: tachigo-app:latest
+          cache-from: type=gha
+          cache-to: type=gha,mode=max
 
       - name: Run tests
-        run: docker compose run --no-deps --rm app go test ./...
+        run: docker compose run --pull never --no-deps --rm app go test ./...
 
   backend-integration:
     name: Backend integration tests
@@ -157,19 +165,27 @@ jobs:
     steps:
       - uses: actions/checkout@v4
 
-      - name: Build image
-        env:
-          DOCKER_BUILDKIT: 1
-        run: docker compose build app
+      - name: Set up Docker Buildx
+        uses: docker/setup-buildx-action@v3
+
+      - name: Build backend image
+        uses: docker/build-push-action@v6
+        with:
+          context: ./backend
+          target: dev
+          load: true
+          tags: tachigo-app:latest
+          cache-from: type=gha
+          cache-to: type=gha,mode=max
 
       - name: Start PostgreSQL
         run: docker compose up -d --wait postgres
 
       - name: Run integration build
-        run: docker compose run --rm app go build -tags integration ./...
+        run: docker compose run --pull never --rm app go build -tags integration ./...
 
       - name: Run integration tests
-        run: docker compose run --rm app go test -tags integration ./... -count=1
+        run: docker compose run --pull never --rm app go test -tags integration ./... -count=1
 
       - name: Stop services
         if: always()
