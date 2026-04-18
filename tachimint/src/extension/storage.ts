@@ -93,6 +93,18 @@ function setLocalStorageState(state: DemoState) {
   }
 }
 
+function clearLocalStorageState() {
+  if (typeof window === 'undefined') {
+    return
+  }
+
+  try {
+    window.localStorage.removeItem(STORAGE_KEY)
+  } catch {
+    // Ignore localStorage removal failures in restricted environments.
+  }
+}
+
 export async function loadDemoState(): Promise<DemoState> {
   const chromeStorage = getChromeStorageArea()
 
@@ -115,12 +127,16 @@ export async function loadDemoState(): Promise<DemoState> {
 
   if (legacyState) {
     if (chromeStorage) {
-      await setChromeStoredState(legacyState).catch((error) => {
-        warnStorageFailure(
-          'Failed to migrate legacy demo state into Chrome storage during loadDemoState().',
-          error,
-        )
-      })
+      await setChromeStoredState(legacyState)
+        .then(() => {
+          clearLocalStorageState()
+        })
+        .catch((error) => {
+          warnStorageFailure(
+            'Failed to migrate legacy demo state into Chrome storage during loadDemoState().',
+            error,
+          )
+        })
     }
 
     return legacyState
@@ -136,6 +152,7 @@ export async function saveDemoState(state: DemoState): Promise<void> {
   if (chromeStorage) {
     try {
       await setChromeStoredState(sanitizedState)
+      clearLocalStorageState()
       return
     } catch (error) {
       warnStorageFailure(
