@@ -1,0 +1,143 @@
+# Code Review Workflow Refactoring
+
+**Date**: 2026-04-18  
+**Status**: ✅ Completed  
+**Decision**: Use Gemini CLI for PR code review instead of multiple Haiku agents
+
+## Background
+
+原始的 `code-review` skill（通過 `/code-review <PR_URL>` 調用）使用多個 agents 來審查 PR：
+- 步驟 4：5 個並行 Sonnet agents 獨立審查
+- 步驟 5：多個 Haiku agents 對每個問題評分
+
+**問題**：
+- Token 消耗高（多個 agents 各自運行）
+- 執行時間長（需要啟動和協調多個 agents）
+- 與 delegation 策略不符（重複性工作應由 Gemini 負責）
+
+## Decision
+
+使用 Gemini CLI 統一執行步驟 4-5 的審查和評分，保留對 Haiku agents 的自動降級選項。
+
+**理由**：
+1. **Token 效率**：單個 Gemini agent 一次性審查，而不是 5+6=11 個 agents
+2. **速度**：減少 agent 啟動開銷
+3. **策略對齊**：符合 delegation.md — Gemini 做「broad scans」，Claude 做決策
+4. **長上下文優勢**：Gemini 可一次看完整個 PR diff，不受行數限制
+
+## Implementation
+
+### 1. 修改 Code-Review Skill
+
+**檔案**：`/Users/tachikoma/.claude/plugins/marketplaces/claude-plugins-official/plugins/code-review/commands/code-review.md`
+
+**改動**：
+- 步驟 4-5：改為執行 `~/.claude/scripts/code-review-with-gemini.sh`
+- 原始的「5 個 Sonnet agents + 多個 Haiku agents」改為「Gemini 單一 agent」
+- 保留自動降級邏輯
+
+```markdown
+4. Execute `~/.claude/scripts/code-review-with-gemini.sh` to review and score issues.
+   - Uses Gemini CLI as primary reviewer
+   - Audits across 5 dimensions (CLAUDE.md compliance, bugs, history, PR comments, code comments)
+   - Returns JSON array of issues with 0-100 confidence scores
+   - Fallback: prompts user to switch to Haiku agents if Gemini unavailable
+```
+
+### 2. 建立審查腳本
+
+**檔案**：`~/.claude/scripts/code-review-with-gemini.sh`
+
+**功能**：
+```
+1. 驗證 Gemini CLI 是否可用
+2. 取得 PR diff (gh pr diff)
+3. 構造審查提示詞（5 個維度）
+4. 調用 Gemini 進行審查和評分
+5. 解析並返回 JSON 格式的 issues
+6. 如果失敗或 Gemini 不可用，詢問用戶是否改用 Haiku agents
+```
+
+**輸出格式**：
+```json
+[
+  {
+    "description": "問題描述",
+    "location": "src/file.ts:10-20",
+    "severity": 85,
+    "reason": "bug|CLAUDE.md|git history|PR comments|code comments"
+  }
+]
+```
+
+### 3. 輔助腳本
+
+**檔案**：`~/.claude/scripts/code-review-gemini-score.sh`  
+備用工具，用於獨立評分任務。
+
+## Usage
+
+執行代碼審查：
+```bash
+/code-review https://github.com/nurockplayer/tachigo/pull/265
+```
+
+工作流程：
+1. ✅ 檢查 PR 是否合格（Haiku）
+2. ✅ 尋找相關 CLAUDE.md 檔案（Haiku）
+3. ✅ 查看 PR 摘要（Haiku）
+4. 🧠 **[改動]** Gemini 審查和評分（取代步驟 4-5 的多個 agents）
+5. ✅ 過濾高分問題（Haiku）
+6. ✅ 再次檢查 PR 狀態（Haiku）
+7. ✅ 發送 GitHub 評論（gh 命令）
+
+## Fallback Behavior
+
+如果 Gemini CLI 不可用：
+```
+⚠️  Gemini CLI not found in PATH
+Options:
+  [y] Use Haiku agents (original multi-agent review)
+  [n] Abort code review
+Use Haiku agents? [y/N]
+```
+
+用戶可選擇改用原始 Haiku agents 方案。
+
+## Trade-offs
+
+### 優勢 ✅
+- **更快**：單個 agent vs 11 個 agents
+- **更省 token**：Gemini 一次性處理
+- **符合策略**：delegation 規範
+- **容易迭代**：調整提示詞比調整 11 個 agents 簡單
+
+### 劣勢 ⚠️
+- **多樣性降低**：單個視角 vs 5 個獨立審查者
+  - 但 Gemini 指令明確涵蓋 5 個維度，應該足夠
+- **依賴 Gemini 可用性**：如果 Gemini CLI 不可用，需要降級
+- **迭代成本**：如果效果不理想，需要調整提示詞並重新測試
+
+## Verification
+
+首次使用時應驗證：
+1. Gemini 審查的品質是否等同於多 agents
+2. 評分準確性（和歷史 code review 比較）
+3. 降級路徑是否正常工作
+
+建議用 PR #265 作為測試用例。
+
+## Revert Path
+
+如果發現 Gemini 方案不合適，可快速改回：
+1. 恢復 code-review.md 的步驟 4-5（啟動 5 個 Sonnet + 多個 Haiku agents）
+2. 或為特定 PR 手動選擇 Haiku agents 路徑
+
+改動已在 memory 中記錄，便於未來追溯。
+
+## References
+
+- **Skill 定義**：`/Users/tachikoma/.claude/plugins/marketplaces/claude-plugins-official/plugins/code-review/commands/code-review.md`
+- **實作腳本**：`~/.claude/scripts/code-review-with-gemini.sh`
+- **Delegation 策略**：`/Users/tachikoma/Documents/Web3/tachigo/.claude/rules/delegation.md`
+- **Memory 記錄**：`/Users/tachikoma/.claude/projects/-Users-tachikoma-Documents-Web3-tachigo/memory/feedback_code_review_gemini.md`
