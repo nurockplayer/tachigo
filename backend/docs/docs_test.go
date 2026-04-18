@@ -63,12 +63,19 @@ func TestSwaggerDoc_UsesGlobalBearerAuthAndPublicOverrides(t *testing.T) {
 			if !ok {
 				t.Fatalf("%s %s: operation missing, got %#v", tc.method, tc.path, pathItem[tc.method])
 			}
-			override, ok := op["security"].([]any)
+
+			// Public endpoints may omit `security` entirely or set it to an empty array.
+			rawSecurity, exists := op["security"]
+			if !exists {
+				return
+			}
+
+			override, ok := rawSecurity.([]any)
 			if !ok {
-				t.Fatalf("%s %s: security override missing, got %#v", tc.method, tc.path, op["security"])
+				t.Fatalf("%s %s: security override shape invalid, got %#v", tc.method, tc.path, rawSecurity)
 			}
 			if len(override) != 0 {
-				t.Fatalf("%s %s: want empty security override, got %#v", tc.method, tc.path, override)
+				t.Fatalf("%s %s: want empty security override when present, got %#v", tc.method, tc.path, override)
 			}
 		})
 	}

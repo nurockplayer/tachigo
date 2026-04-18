@@ -3,7 +3,7 @@ FROM golang:1.25-alpine AS dev
 
 RUN apk add --no-cache git build-base && \
     go install github.com/air-verse/air@latest && \
-    go install github.com/swaggo/swag/cmd/swag@v1.8.12
+    go install github.com/swaggo/swag/cmd/swag@v1.16.6
 
 WORKDIR /app
 
