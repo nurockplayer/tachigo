@@ -75,13 +75,13 @@
 }
 
 /* ─── Balance bump ─────────────────────────────── */
-@keyframes tm-balance-bump {
+@keyframes game-balance-bump {
   0%   { transform: scale(1); }
   40%  { transform: scale(1.18); color: #f5c842; }
   100% { transform: scale(1); }
 }
 .balance-bump {
-  animation: tm-balance-bump 0.4s ease-out;
+  animation: game-balance-bump 0.4s ease-out;
 }
 
 /* ─── Glow pulse on HUD point capsule ──────────── */

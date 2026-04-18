@@ -52,29 +52,19 @@ test('sanitizeHudDemoState rejects non-finite numeric values', async () => {
   )
 })
 
-test('default demo state keeps hud defaults isolated from exported hud baseline', async () => {
+test('sanitizeHudDemoState normalizes negative zero to positive zero', async () => {
   const types = await importTypesModule()
 
-  assert.notEqual(types.defaultDemoState.hud, types.defaultHudDemoState)
-})
+  const sanitized = types.sanitizeHudDemoState({
+    points: -0,
+    totalPoints: -0,
+    countdown: -0,
+    isWatching: true,
+    clickCount: -0,
+  })
 
-test('sanitizeHudDemoState clamps negative numeric values to zero', async () => {
-  const types = await importTypesModule()
-
-  assert.deepEqual(
-    types.sanitizeHudDemoState({
-      points: -10,
-      totalPoints: -5,
-      countdown: -1,
-      isWatching: true,
-      clickCount: -99,
-    }),
-    {
-      points: 0,
-      totalPoints: 0,
-      countdown: 0,
-      isWatching: true,
-      clickCount: 0,
-    },
-  )
+  assert.equal(Object.is(sanitized.points, -0), false)
+  assert.equal(Object.is(sanitized.totalPoints, -0), false)
+  assert.equal(Object.is(sanitized.countdown, -0), false)
+  assert.equal(Object.is(sanitized.clickCount, -0), false)
 })

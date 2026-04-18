@@ -53,9 +53,13 @@ async function setChromeStoredState(state: DemoState): Promise<void> {
   })
 }
 
-function getLocalStorageState(): DemoState {
+function warnStorageFailure(context: string, error: unknown) {
+  console.warn(context, error)
+}
+
+function getLocalStorageState(): DemoState | null {
   if (typeof window === 'undefined') {
-    return createDefaultDemoState()
+    return null
   }
 
   let raw: string | null
@@ -63,17 +67,17 @@ function getLocalStorageState(): DemoState {
   try {
     raw = window.localStorage.getItem(STORAGE_KEY)
   } catch {
-    return createDefaultDemoState()
+    return null
   }
 
   if (!raw) {
-    return createDefaultDemoState()
+    return null
   }
 
   try {
     return sanitizeDemoState(JSON.parse(raw))
   } catch {
-    return createDefaultDemoState()
+    return null
   }
 }
 
@@ -90,15 +94,39 @@ function setLocalStorageState(state: DemoState) {
 }
 
 export async function loadDemoState(): Promise<DemoState> {
-  if (getChromeStorageArea()) {
-    const chromeState = await getChromeStoredState().catch((error) => {
-      console.warn('Failed to read demo state from chrome.storage.local', error)
-      return null
-    })
-    return chromeState ?? createDefaultDemoState()
+  const chromeStorage = getChromeStorageArea()
+
+  if (chromeStorage) {
+    try {
+      const chromeState = await getChromeStoredState()
+
+      if (chromeState) {
+        return chromeState
+      }
+    } catch (error) {
+      warnStorageFailure(
+        'Failed to read Chrome storage in loadDemoState(); falling back to legacy storage/default state.',
+        error,
+      )
+    }
   }
 
-  return getLocalStorageState()
+  const legacyState = getLocalStorageState()
+
+  if (legacyState) {
+    if (chromeStorage) {
+      await setChromeStoredState(legacyState).catch((error) => {
+        warnStorageFailure(
+          'Failed to migrate legacy demo state into Chrome storage during loadDemoState().',
+          error,
+        )
+      })
+    }
+
+    return legacyState
+  }
+
+  return createDefaultDemoState()
 }
 
 export async function saveDemoState(state: DemoState): Promise<void> {
@@ -106,8 +134,15 @@ export async function saveDemoState(state: DemoState): Promise<void> {
 
   const chromeStorage = getChromeStorageArea()
   if (chromeStorage) {
-    await setChromeStoredState(sanitizedState)
-    return
+    try {
+      await setChromeStoredState(sanitizedState)
+      return
+    } catch (error) {
+      warnStorageFailure(
+        'Failed to write Chrome storage in saveDemoState(); falling back to localStorage.',
+        error,
+      )
+    }
   }
 
   setLocalStorageState(sanitizedState)
