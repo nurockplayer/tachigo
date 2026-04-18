@@ -150,7 +150,7 @@ git commit -m "chore: store tachimint assets with Git LFS"
 
 ```bash
 git lfs migrate import \
-  --include="tachimint/src/assets/**/*.png,tachimint/src/assets/**/*.ttf,tachimint/src/assets/**/*.woff,tachimint/src/assets/**/*.woff2"
+  --include="tachimint/src/assets/**/*.png,tachimint/src/assets/**/*.jpg,tachimint/src/assets/**/*.jpeg,tachimint/src/assets/**/*.webp,tachimint/src/assets/**/*.gif,tachimint/src/assets/**/*.ttf,tachimint/src/assets/**/*.otf,tachimint/src/assets/**/*.woff,tachimint/src/assets/**/*.woff2"
 ```
 
 接著確認結果後 force push：
