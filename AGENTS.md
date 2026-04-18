@@ -117,6 +117,21 @@ Type：`feat` / `fix` / `docs` / `chore` / `refactor` / `test`
 - 不得未經驗證就宣稱「已完成」；至少要回報實際執行過的測試、未驗證部分、以及已知風險
 - reviewer 應優先檢查 AI 是否偏離 issue、腦補需求、混入未要求的 schema / API / UI 改動，而不是只看程式碼表面是否完整
 
+## Gemini CLI Delegation
+
+Gemini CLI 是 Codex 的低成本大範圍掃描工。Codex 可自行判斷何時使用 Gemini CLI，不需要每次先詢問使用者。
+
+適合交給 Gemini CLI 的任務：
+
+- PR first-pass review
+- repo-wide scans 與架構盤點
+- 大型重構前的影響範圍分析
+- duplicate / dead-code 候選掃描
+- 長 CI / build / runtime log 摘要與初步診斷
+- 批量測試案例或測試草稿生成
+
+Gemini CLI 的輸出只作為線索與候選，不是最終判斷。Codex 必須在回報 findings、修改程式、做 review 結論或宣稱完成前，用本機檔案、diff、測試、型別檢查或其他可靠來源驗證重要主張。
+
 ## PR Review Strategy
 
 Terminology:
