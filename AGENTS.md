@@ -121,6 +121,8 @@ Type：`feat` / `fix` / `docs` / `chore` / `refactor` / `test`
 
 Gemini CLI 是 Codex 的低成本大範圍掃描工。Codex 可自行判斷何時使用 Gemini CLI，不需要每次先詢問使用者。
 
+詳見 [.claude/rules/delegation.md](./.claude/rules/delegation.md) 了解全局 delegation 策略與流程。以下為 Codex 角色的具體實踐：
+
 適合交給 Gemini CLI 的任務：
 
 - PR first-pass review
@@ -236,3 +238,30 @@ Terminology:
 - 只列出關鍵變更（檔案名稱 + 一行說明），不貼完整 diff
 - 測試結果只報 pass/fail 數量與失敗原因，不貼完整 log
 - 遇到錯誤：先給出診斷與建議修法，再問是否繼續
+
+
+<claude-mem-context>
+# Memory Context
+
+# [tachigo] recent context, 2026-04-18 7:56pm GMT+9
+
+Legend: 🎯session 🔴bugfix 🟣feature 🔄refactor ✅change 🔵discovery ⚖️decision
+Format: ID TIME TYPE TITLE
+Fetch details: get_observations([IDs]) | Search: mem-search skill
+
+Stats: 10 obs (3,889t read) | 51,366t work | 92% savings
+
+### Apr 18, 2026
+3 7:49p ⚖️ Prefer Gemini 2.5 Flash over Pro for development task delegation
+5 " 🔵 tachigo project structure and Codex agent workflow documented in AGENTS.md
+7 7:50p 🔵 git status hung in tachigo due to stale long-running git processes; Codex sandbox blocked kill
+9 " 🔵 Codex sandbox kill restriction bypassed via require_escalated permission with justification
+11 " ✅ AGENTS.md updated with Gemini model and quota strategy section
+12 7:52p 🔵 Codex sandbox blocks git add by denying .git/index.lock creation
+14 " ✅ AGENTS.md Gemini model strategy committed to docs/gemini-pr-review-flow (refs #271)
+16 7:53p 🔵 git push to nurockplayer/tachigo actively in-flight; githd VS Code extension spawning unbounded git log processes
+17 7:54p ✅ Commit 727ed0e pushed to GitHub; PR #278 updated to docs/gemini-pr-review-flow
+21 " 🔵 Stale git processes are children of VS Code's Codex extension Node.js helper, not the active Codex session
+
+Access 51k tokens of past work via get_observations([IDs]) or mem-search skill.
+</claude-mem-context>

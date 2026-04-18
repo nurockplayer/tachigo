@@ -2,7 +2,8 @@
 
 **Date**: 2026-04-18  
 **Status**: ✅ Completed  
-**Document Type**: Design Decision Record（記錄本機 Claude Code workflow 的重構決策；不是 repo 內可直接執行的實作指南）
+**Document Type**: Design Decision Record  
+**Scope**: 本文檔記錄本機 Claude Code workflow 的重構決策，不是 repo 內可直接執行的實作指南。涉及本機路徑（如 `~/.claude/scripts/`）的內容僅存在於貢獻者的本機環境，其他人無法執行。
 **Decision**: Use Gemini CLI for PR code review instead of multiple Haiku agents
 
 ## Background
@@ -30,10 +31,10 @@
 
 ### 1. 修改 Code-Review Skill
 
-**檔案**：`~/.claude/plugins/marketplaces/claude-plugins-official/plugins/code-review/commands/code-review.md`
+**位置**：本機 Claude Code plugins 目錄下的 code-review command 定義
 
 **改動**：
-- 步驟 4-5：改為執行 `~/.claude/scripts/code-review-with-gemini.sh`
+- 步驟 4-5：改為執行本機 Gemini 審查腳本
 - 原始的「5 個 Sonnet agents + 多個 Haiku agents」改為「Gemini 單一 agent」
 - 保留自動降級邏輯
 
@@ -47,12 +48,13 @@
 
 ### 2. 建立審查腳本
 
-**檔案**：`~/.claude/scripts/code-review-with-gemini.sh`
+**位置**：本機審查腳本（內部實作細節）
 
 **功能**：
+
 ```
 1. 驗證 Gemini CLI 是否可用
-2. 取得 PR diff (gh pr diff)
+2. 取得 PR diff
 3. 構造審查提示詞（4 個維度）
 4. 調用 Gemini 進行審查和評分
 5. 解析並返回 JSON 格式的 issues
@@ -78,8 +80,9 @@ repo-level Review JSON schema 不同；若未來要共用同一個 Gemini wrappe
 
 目前不需要轉換邏輯：`code-review-with-gemini.sh` 使用自己的 Gemini prompt，
 直接要求 Gemini 輸出上述 flat array；`AGENTS.md` 的 nested schema 只適用於
-Codex 在本 repo 中執行 Review 時的工作流。若未來改成共用同一個 wrapper，
-轉換規則應明確定義為：
+Codex 在本 repo 中執行 Review 時的工作流。
+
+**TODO**: 若未來改成共用同一個 Gemini wrapper，轉換規則應明確定義為：
 `findings[]` / `scope_pollution[]` → flat issue array，並映射成
 `description`、`location`、`severity`、`reason`。
 

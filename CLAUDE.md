@@ -227,6 +227,7 @@ docker compose run --no-deps --rm app go test ./...
 | `README.md` | 所有人 | 開發環境建置（快速上手） |
 | `docs/` | 工程師 | 架構設計、API 規格、技術決策 |
 | `plans/` | 工程師 | 實作計畫（每個功能開始前先寫） |
+| `.claude/rules/` | 工程師 | agent 委託規則、工作流程決策（版控、共享） |
 | GitHub Wiki | 全體人員 | 產品說明、功能介紹、非技術文件 |
 
 ### plans/ 慣例
