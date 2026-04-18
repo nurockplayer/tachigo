@@ -5,7 +5,7 @@
   font-family: var(--ui-font-family, 'Inter', system-ui, sans-serif);
 }
 .game-pixel {
-  font-family: var(--pixel-font-family, 'Press Start 2P', monospace);
+  font-family: var(--pixel-font-family, 'Press Start 2P', 'Zpix CJK', Zpix, monospace);
 }
 
 /* ─── Capybara wrapper animations ──────────────── */

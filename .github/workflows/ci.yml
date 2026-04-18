@@ -132,8 +132,9 @@ jobs:
 
   backend-integration:
     name: Backend integration tests
+    needs: [scope-gate, backend]
+    if: github.event_name == 'push' || needs.scope-gate.outputs.run_ci == 'true'
     runs-on: ubuntu-latest
-    needs: backend
     steps:
       - uses: actions/checkout@v4
 
