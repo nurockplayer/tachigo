@@ -29,7 +29,7 @@
 
 ### 1. 修改 Code-Review Skill
 
-**檔案**：`/Users/tachikoma/.claude/plugins/marketplaces/claude-plugins-official/plugins/code-review/commands/code-review.md`
+**檔案**：`~/.claude/plugins/marketplaces/claude-plugins-official/plugins/code-review/commands/code-review.md`
 
 **改動**：
 - 步驟 4-5：改為執行 `~/.claude/scripts/code-review-with-gemini.sh`
@@ -274,7 +274,7 @@ allowed-tools: ..., Bash(git log:*), Bash(gh api:*),
 
 ## References
 
-- **Skill 定義**：`/Users/tachikoma/.claude/plugins/marketplaces/claude-plugins-official/plugins/code-review/commands/code-review.md`
+- **Skill 定義**：`~/.claude/plugins/marketplaces/claude-plugins-official/plugins/code-review/commands/code-review.md`
 - **實作腳本**：`~/.claude/scripts/code-review-with-gemini.sh`
-- **Delegation 策略**：`/Users/tachikoma/Documents/Web3/tachigo/.claude/rules/delegation.md`
-- **Memory 記錄**：`/Users/tachikoma/.claude/projects/-Users-tachikoma-Documents-Web3-tachigo/memory/feedback_code_review_gemini.md`
+- **Delegation 策略**：CLAUDE.md 的「AI 分工」章節
+- **Memory 記錄**：`~/.claude/projects/*/memory/feedback_code_review_gemini.md`
