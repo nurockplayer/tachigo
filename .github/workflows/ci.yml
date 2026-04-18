@@ -42,6 +42,7 @@ jobs:
             if (labels.some((label) => bypassLabels.has(label))) {
               core.notice('Scope gate bypassed by scope-exception label.')
               core.setOutput('run_ci', 'true')
+              core.setOutput('run_backend_integration', 'true')
               return
             }
 
