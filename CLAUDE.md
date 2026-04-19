@@ -141,6 +141,40 @@
 - 大 PR 難以 review、容易漏漏、合併時風險高
 - 細粒度 PR 審查週期短、反饋快、merge 也快
 
+#### PR Diff 限制
+
+**建議的 PR 大小區間**（performance guideline）：
+
+| 區間 | 評估 | 審查策略 |
+| --- | --- | --- |
+| < 200 行 | ✅ 最佳 | 直接秒審，無需分段 |
+| 200-400 行 | ✅ 很好 | 標準單次審查 |
+| 400-800 行 | ✅ 可接受 | 需分段審查（上下文切換） |
+| 800-1500 行 | ⚠️ 危險區間 | 建議拆分（token 成本高） |
+| 1500+ 行 | ❌ 超限 | 自動擋下（特例除外） |
+
+**自動化規則**（`PR Scope Police`）：
+
+| 限制 | 行數 | 處理 |
+| --- | --- | --- |
+| **警告門檻** | 800+ | 建議拆分（不阻擋） |
+| **硬限制** | 1500+ | 自動擋下（`scope-violation` label） |
+| **例外上限** | 2500 | migration / generated code / dependency bump 可用 `scope-exception` label |
+| **發佈無限** | — | release promotion PR (develop → main) 不受限制 |
+
+**何時使用 `scope-exception`**：
+
+- Generated code（Swagger、protobuf 等自動產物）被迫大幅變動
+- Database migration 或 schema refactor 難以分段
+- 大型 dependency 升級的一次性改動
+- **不可** 用於變相迴避 PR 大小限制
+
+**發現超限時**：
+
+1. 先嘗試拆 PR（儘量在 200-400 行，最多到 800）
+2. 若無法降到 1500 以下，評估是否 `[release]` 或符合例外條件
+3. 若符合例外，使用 `scope-exception` label（maintainer 可授權）
+
 ## AI 協作守則
 
 若貢獻內容主要由 AI 產生，必須額外遵守以下規則：
