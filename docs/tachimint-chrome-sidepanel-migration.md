@@ -42,14 +42,42 @@
 
 ---
 
-## 4. 後續 PR 期望拆法
+## 4. Implementation Slice 計畫
 
-後續實作以小顆粒 frontend PR 進行，原則如下：
+後續實作以小顆粒 frontend PR 進行，拆成以下 4 個 slice：
 
-1. 先建立 `tachimint` 的 sidepanel runtime 骨架
-2. 再導入新 app shell 與視覺
-3. 再把 Twitch auth、heartbeat、claim 等既有邏輯接回
-4. 最後再移除 `extensions/tachigo-demo-sidepanel/` 與過時舊殼
+| Slice | PR | 內容 |
+|---|---|---|
+| 1 / 4 | #265 | assets、fonts、base styles、i18n keys、demo coupon catalog；demo state foundation（storage / sanitization） |
+| 2 / 4 | #266 | LoginScreen、LoadingScreen、LanguageSwitcher、useSound、theme |
+| 3 / 4 | #267 | ClaimPanel、CouponShopPanel、MarioHUD |
+| 4 / 4 | #268 | App 整合、state machine 接線、Twitch entrypoint 保留 |
+
+### Slice 1 (#265) 詳細 Scope
+
+**搬移內容**
+
+- `src/assets/` — logo PNG
+- `src/styles/fonts.css`、`src/styles/index.css` — pixel UI 主題、字型
+- `src/i18n/locales/` — en / zh-TW / zh-CN 的 loading / login / hud / nonViewer / coupon / error keys
+- `src/extension/couponCatalog.ts` — 靜態 demo coupon catalog
+- `src/extension/storage.ts` — Chrome storage 為主、localStorage 為 fallback mirror 的 demo state 儲存層
+- `src/extension/types.ts` — HUD demo state 型別與清洗函式
+- `.github/workflows/ci.yml` — 新增 `workflow-regression` job 以驗證 CI YAML 正確性（在 frontend Docker container 範圍外獨立執行）
+
+**Storage 設計**
+
+Chrome storage 為主要儲存，localStorage 作為持續同步的 fallback mirror：
+
+- `saveDemoState()` Chrome 寫入成功後同步 mirror 到 localStorage（確保 Chrome read 失敗時仍可回復最新狀態）
+- `saveDemoState()` Chrome 寫入失敗時 fallback 直接寫入 localStorage
+- `loadDemoState()` Chrome 無資料時讀 legacy localStorage 並嘗試 migrate；migrate 成功後清除 legacy key
+
+**明確不含**
+
+- 不含 UI 元件（LoginScreen / HUD / ClaimPanel / CouponShopPanel）
+- 不改 App 進入點或路由邏輯
+- 不移除 `extensions/tachigo-demo-sidepanel/`
 
 ---
 

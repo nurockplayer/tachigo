@@ -51,3 +51,20 @@ test('sanitizeHudDemoState rejects non-finite numeric values', async () => {
     },
   )
 })
+
+test('sanitizeHudDemoState normalizes negative zero to positive zero', async () => {
+  const types = await importTypesModule()
+
+  const sanitized = types.sanitizeHudDemoState({
+    points: -0,
+    totalPoints: -0,
+    countdown: -0,
+    isWatching: true,
+    clickCount: -0,
+  })
+
+  assert.equal(Object.is(sanitized.points, -0), false)
+  assert.equal(Object.is(sanitized.totalPoints, -0), false)
+  assert.equal(Object.is(sanitized.countdown, -0), false)
+  assert.equal(Object.is(sanitized.clickCount, -0), false)
+})
