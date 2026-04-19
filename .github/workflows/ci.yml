@@ -310,18 +310,13 @@ jobs:
     steps:
       - name: Check backend CI status
         run: |
-          if [ "${{ needs.backend-build.result }}" = "failure" ]; then
-            echo "❌ Backend build failed"
-            exit 1
-          fi
-          if [ "${{ needs.backend.result }}" = "failure" ]; then
-            echo "❌ Backend tests failed"
-            exit 1
-          fi
-          if [ "${{ needs.backend-integration.result }}" = "failure" ]; then
-            echo "❌ Backend integration tests failed"
-            exit 1
-          fi
+          for job in backend-build backend backend-integration; do
+            result=$(eval echo "\${{ needs.$job.result }}")
+            if [ "$result" != "success" ] && [ "$result" != "skipped" ]; then
+              echo "❌ $job: $result"
+              exit 1
+            fi
+          done
           echo "✓ Backend CI passed"
 
   notify-discord:
