@@ -60,6 +60,18 @@ jobs:
 
             const filenames = files.map((file) => file.filename)
             const diffLines = files.reduce((sum, file) => sum + file.additions + file.deletions, 0)
+            const isDocsOrTemplatePath = (name) =>
+              name.startsWith('docs/') ||
+              name.startsWith('plans/') ||
+              name.startsWith('.github/ISSUE_TEMPLATE/') ||
+              name === '.github/PULL_REQUEST_TEMPLATE.md' ||
+              /^[^/]+\.md$/i.test(name)
+            const isNonProductMetadataPath = (name) =>
+              isDocsOrTemplatePath(name) ||
+              name === '.gitignore' ||
+              name === '.gitattributes'
+            const isDocsTemplateOrMetadataOnly =
+              filenames.length > 0 && filenames.every(isNonProductMetadataPath)
 
             const touches = {
               backend: filenames.some((name) => name.startsWith('backend/')),
@@ -88,12 +100,14 @@ jobs:
 
             const allowedPrefixes = ['[backend]', '[frontend]', '[contract]', '[discussion]', '[release]', '[infra]', '[chore]']
             const titlePrefix = allowedPrefixes.find((prefix) => title.startsWith(prefix))
-            const dependsOnMatch = body.match(/Depends on PR[：:]\s*(.+)/i)
+            const hasSourceOfTruth = /(?:^|\n)\s*-?\s*Source of truth\s*[：:]/i.test(body)
+            const hasExplicitNonGoals = body.includes('本 PR 明確不做')
+            const dependsOnMatch = body.match(/(?:^|\n)\s*-?\s*Depends on PR\s*[：:]\s*(.+)/i)
             const dependsOnRaw = dependsOnMatch?.[1]?.trim()
             const dependsOnNone = dependsOnRaw?.toLowerCase() === 'none'
             const dependsOnPrMatch = dependsOnRaw?.match(/^#(\d+)$/)
-            const backendContractYes = /Backend contract already in develop:[\s\S]*?- \[[xX]\] yes/i.test(body)
-            const backendContractNo = /Backend contract already in develop:[\s\S]*?- \[[xX]\] no/i.test(body)
+            const backendContractYes = /Backend contract already in develop\s*[：:][\s\S]*?- \[[xX]\] yes/i.test(body)
+            const backendContractNo = /Backend contract already in develop\s*[：:][\s\S]*?- \[[xX]\] no/i.test(body)
             const stackedOnDependency = /If no, this PR is:[\s\S]*?- \[[xX]\] stacked on dependency branch/i.test(body)
             const intentionallyBlocked = /If no, this PR is:[\s\S]*?- \[[xX]\] intentionally blocked until dependency merges/i.test(body)
 
@@ -116,11 +130,11 @@ jobs:
                 policyFailures.push('PR body must reference at least one issue or PR number such as `#123`.')
               }
 
-              if (!body.includes('Source of truth：') && !body.includes('Source of truth:')) {
+              if (!hasSourceOfTruth) {
                 policyFailures.push('PR body must include a `Source of truth` line in the Scope 對齊 section.')
               }
 
-              if (!body.includes('本 PR 明確不做')) {
+              if (!hasExplicitNonGoals) {
                 policyFailures.push('PR body must include a `本 PR 明確不做` section.')
               }
 
@@ -134,7 +148,7 @@ jobs:
 
               const isInfraOrChore = titlePrefix === '[infra]' || titlePrefix === '[chore]'
 
-              if (!isInfraOrChore) {
+              if (!isInfraOrChore && !isDocsTemplateOrMetadataOnly) {
                 if (!backendContractYes && !backendContractNo) {
                   policyFailures.push('PR body must mark whether the backend contract is already in `develop`.')
                 }
@@ -287,9 +301,17 @@ jobs:
               summaryLines.push('- Dependency gate is not evaluated for Dependabot PRs.')
             }
 
+            if (isDocsTemplateOrMetadataOnly && !isDependabotPr) {
+              summaryLines.push('')
+              summaryLines.push('### Docs / Template Mode')
+              summaryLines.push('- Backend contract checks are skipped for non-product docs/template/metadata PRs.')
+              summaryLines.push('- Title prefix, source of truth, dependency line, explicit non-goals, size, and surface checks still apply.')
+            }
+
             summaryLines.push('')
             summaryLines.push('### Snapshot')
             summaryLines.push(`- Mode: ${isReleasePromotionPr ? 'release promotion (develop -> main)' : 'standard PR'}`)
+            summaryLines.push(`- Docs/template/metadata only: ${isDocsTemplateOrMetadataOnly ? 'yes' : 'no'}`)
             summaryLines.push(`- Changed files: ${filenames.length}`)
             summaryLines.push(`- Diff lines (+/-): ${diffLines}`)
             summaryLines.push(
