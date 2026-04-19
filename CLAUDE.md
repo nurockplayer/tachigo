@@ -270,7 +270,10 @@ Claude Code 負責 PR 審查的驗證與決策階段。
 
 ### 操作權限邊界
 
-- **Read-only 操作**可直接執行：查看 PR metadata、讀檔、掃描代碼、檢查 diff、產生本機分析
+- **Read-only 操作**可直接執行（無需詢問）：
+  - `gh pr view`、`gh pr list`、`gh issue view` 等 GitHub 查詢
+  - `gh api` 讀取請求
+  - 查看 PR metadata、讀檔、掃描代碼、檢查 diff、產生本機分析
 - **變動操作**必須事先詢問用戶並取得明確同意：Edit / 寫檔、format 造成檔案變更、commit、push、branch switch / rebase / merge、GitHub comment、GitHub review、Change Request、Approve、Merge、issue / PR 建立或編輯
 
 ### 審查流程
