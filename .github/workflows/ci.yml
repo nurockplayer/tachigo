@@ -133,30 +133,29 @@ jobs:
               core.notice('Skipping backend integration tests because this PR does not touch backend, contracts, docker compose, or CI workflow files.')
             }
 
-<<<<<<< HEAD
   check-cache-wiring:
     name: Check backend CI cache wiring
     needs: [scope-gate]
     if: github.event_name == 'push' || needs.scope-gate.outputs.run_ci == 'true'
-=======
-  workflow-regression:
-    name: Workflow regression tests
->>>>>>> origin/develop
     runs-on: ubuntu-latest
     steps:
       - uses: actions/checkout@v4
 
-<<<<<<< HEAD
       - name: Verify Docker Buildx cache configuration
         run: bash scripts/check-backend-ci-cache.sh
-=======
+
+  workflow-regression:
+    name: Workflow regression tests
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+
       - uses: actions/setup-node@v4
         with:
           node-version: 22.12.0
 
       - name: Verify CI workflow assertions
         run: node --test .github/workflows/ci.test.mjs
->>>>>>> origin/develop
 
   backend:
     name: Backend tests
