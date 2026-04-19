@@ -10,6 +10,12 @@ labels: feature
 ## 建議的做法
 <!-- 有想法的話描述一下，沒有可以留空 -->
 
+## 介面／規格
+<!-- Go interface、API 規格、React component props、DB schema 等；若已在其他文件定義可連結 -->
+
+## 參考
+<!-- 現有的相似實作、範本檔案路徑、設計文件、相關 issue 等；用於實作時快速定位決策依據 -->
+
 ## Scope
 <!-- 這個 issue 應該包含哪些事情 -->
 
