@@ -133,6 +133,17 @@ jobs:
               core.notice('Skipping backend integration tests because this PR does not touch backend, contracts, docker compose, or CI workflow files.')
             }
 
+  check-cache-wiring:
+    name: Check backend CI cache wiring
+    needs: [scope-gate]
+    if: github.event_name == 'push' || needs.scope-gate.outputs.run_ci == 'true'
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+
+      - name: Verify Docker Buildx cache configuration
+        run: bash scripts/check-backend-ci-cache.sh
+
   backend:
     name: Backend tests
     needs: [scope-gate]
@@ -254,7 +265,7 @@ jobs:
 
   notify-discord:
     name: Notify Discord on failure
-    needs: [backend, backend-integration, frontend, dashboard, contracts]
+    needs: [check-cache-wiring, backend, backend-integration, frontend, dashboard, contracts]
     if: failure()
     runs-on: ubuntu-latest
     steps:
