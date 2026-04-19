@@ -200,7 +200,6 @@ jobs:
           load: true
           tags: tachigo-app:latest
           cache-from: type=gha
-          cache-to: type=gha,mode=max
 
       - name: Start PostgreSQL
         run: docker compose up -d --wait postgres
