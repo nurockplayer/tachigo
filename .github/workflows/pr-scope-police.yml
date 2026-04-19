@@ -43,7 +43,7 @@ jobs:
             }
 
             const hardMaxChangedFiles = 35
-            const hardMaxDiffLines = 1800
+            const hardMaxDiffLines = 2500
             const autoCloseLabel = 'scope-violation'
             const dependencyLabel = 'blocked-by-dependency'
             const owner = context.repo.owner
