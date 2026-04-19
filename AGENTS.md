@@ -117,6 +117,60 @@ Type：`feat` / `fix` / `docs` / `chore` / `refactor` / `test`
 - 如果額外內容不是必要前置條件：先記錄成新的 issue / TODO，不要混進目前 PR
 - 若目前 PR 已經超出 issue 範圍，應主動建議拆 PR 或縮回原範圍
 
+## Task / PR 拆分規則
+
+Claude Code / Codex 在實作前必須先判斷任務是否需要拆分。核心原則：
+
+> 一個 PR = 一個可獨立理解、可獨立驗證的行為變更；跨層變更要有明確理由；非必要改動另開 issue。
+
+### 預設拆分邊界
+
+每個 PR 應只完成一個可獨立 review、可獨立測試的任務。優先依照以下邊界拆分：
+
+- migration / schema change
+- backend domain service
+- API handler / router
+- frontend integration
+- tests
+- docs
+- refactor / cleanup
+
+除非 issue 明確要求，否則不得把上述多個層級混在同一個 PR。若必須跨層，PR 描述需說明為什麼這些變更無法獨立拆開驗證。
+
+### 必須先建議拆分的情況
+
+若符合以下任一條件，Claude Code / Codex 必須先回報拆分建議，不得直接實作成單一 PR：
+
+- 預估 diff 超過 400 行
+- 同時修改 backend 與 frontend
+- 同時包含 schema、service、handler、UI 任兩種以上
+- 包含非必要 refactor
+- 包含 future work、design exploration、nice-to-have
+- 需要跨多個使用者流程或多個 API endpoint
+- 測試策略無法用單一驗收條件描述
+
+### 可接受的單一 PR
+
+單一 PR 應符合：
+
+- 對應單一 issue 或單一明確子任務
+- 變更目的可以用一句話說清楚
+- reviewer 不需要理解未合併的其他 PR 才能審查
+- 有明確測試或驗證方式
+- diff 目標控制在 200-400 行，最多不超過 800 行
+
+### 拆分流程
+
+實作前若任務偏大，先輸出：
+
+1. 建議拆成哪些 PR
+2. 每個 PR 的目的
+3. 每個 PR 修改哪些檔案或模組
+4. 每個 PR 的驗收方式
+5. 哪些 PR 有依賴順序
+
+除非使用者明確同意，AI 不得自行把多個 PR 的內容合併實作。
+
 ### PR Diff 大小限制
 
 自動化規則會檢查 PR diff 大小，詳見 [CLAUDE.md 的 PR Diff 限制](CLAUDE.md#pr-diff-限制) 一節。
