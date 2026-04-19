@@ -208,12 +208,15 @@ func TestWeb3Nonce_Success(t *testing.T) {
 	db := newTestDB(t)
 	svc := NewAuthService(db, testConfig())
 
-	nonce, err := svc.Web3Nonce("0xd8dA6BF26964aF9D7eEd9e03E53415D37aA96045")
+	nonce, issuedAt, err := svc.Web3Nonce("0xd8dA6BF26964aF9D7eEd9e03E53415D37aA96045")
 	if err != nil {
 		t.Fatalf("unexpected error: %v", err)
 	}
 	if nonce == "" {
 		t.Error("expected non-empty nonce")
+	}
+	if issuedAt.IsZero() {
+		t.Error("expected non-zero issuedAt")
 	}
 }
 
@@ -222,8 +225,14 @@ func TestWeb3Nonce_ReplacesExisting(t *testing.T) {
 	svc := NewAuthService(db, testConfig())
 	address := "0xd8dA6BF26964aF9D7eEd9e03E53415D37aA96045"
 
-	nonce1, _ := svc.Web3Nonce(address)
-	nonce2, _ := svc.Web3Nonce(address)
+	nonce1, _, err := svc.Web3Nonce(address)
+	if err != nil {
+		t.Fatalf("first Web3Nonce call failed: %v", err)
+	}
+	nonce2, _, err := svc.Web3Nonce(address)
+	if err != nil {
+		t.Fatalf("second Web3Nonce call failed: %v", err)
+	}
 
 	if nonce1 == nonce2 {
 		t.Error("expected different nonces on repeated calls")

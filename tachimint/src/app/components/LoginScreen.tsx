@@ -209,6 +209,7 @@ export function LoginScreen({ onLogin }: { onLogin?: () => void }) {
             onKeyDown={handleKey}
             onFocus={() => setFocusedUser(true)}
             onBlur={() => setFocusedUser(false)}
+            aria-label={t('login.usernamePlaceholder')}
             placeholder={t('login.usernamePlaceholder')}
             autoComplete="username"
             style={{
@@ -240,6 +241,7 @@ export function LoginScreen({ onLogin }: { onLogin?: () => void }) {
             onKeyDown={handleKey}
             onFocus={() => setFocusedPass(true)}
             onBlur={() => setFocusedPass(false)}
+            aria-label={t('login.passwordPlaceholder')}
             placeholder={t('login.passwordPlaceholder')}
             autoComplete="current-password"
             style={{

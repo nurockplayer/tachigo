@@ -179,11 +179,16 @@ export function useSound() {
   const bgTimerRef = useRef<ReturnType<typeof setTimeout> | null>(null);
   const bgStepRef  = useRef(0);
   const bgSessionRef = useRef(0);
+  const bgPlayingRef = useRef(false);
   const [bridgeStatus, setBridgeStatus] = useState<'ready' | 'unsupported'>('ready');
 
   const sendBridgeSound = useCallback(async (type: SoundType, variant?: HitVariant) => {
     try {
-      await sendToContentScript(type, variant);
+      const delivered = await sendToContentScript(type, variant);
+      if (!delivered) {
+        setBridgeStatus('unsupported');
+        return false;
+      }
       setBridgeStatus('ready');
       return true;
     } catch (error) {
@@ -264,44 +269,57 @@ export function useSound() {
 
   // ── 背景音樂（原創 8-bit 冒險主題）──────────────────────
   const startBgMusic = useCallback(() => {
-    if (bgTimerRef.current !== null) return;
+    if (bgPlayingRef.current) return;
+    bgPlayingRef.current = true;
     const sessionId = bgSessionRef.current + 1;
     bgSessionRef.current = sessionId;
     void (async () => {
-      if (await sendBridgeSound('start-bg-music')) return;
-      const ctx = await getReadyCtx(ctxRef);
-      if (bgSessionRef.current !== sessionId || bgTimerRef.current !== null) {
-        return;
-      }
-
-      const playStep = () => {
+      try {
+        if (await sendBridgeSound('start-bg-music')) return;
+        const ctx = await getReadyCtx(ctxRef);
         if (bgSessionRef.current !== sessionId) {
+          bgPlayingRef.current = false;
+          return;
+        }
+        if (bgTimerRef.current !== null) {
           return;
         }
 
-        const [freq, durMs] = BG_NOTES[bgStepRef.current % BG_NOTES.length];
-        bgStepRef.current++;
+        const playStep = () => {
+          if (bgSessionRef.current !== sessionId) {
+            return;
+          }
 
-        if (freq > 0) {
-          const osc  = ctx.createOscillator();
-          const gain = ctx.createGain();
-          osc.type = 'square';
-          osc.frequency.setValueAtTime(freq, ctx.currentTime);
-          gain.gain.setValueAtTime(0.036, ctx.currentTime);
-          gain.gain.exponentialRampToValueAtTime(0.001, ctx.currentTime + (durMs / 1000) * 0.85);
-          osc.connect(gain); gain.connect(ctx.destination);
-          osc.start(ctx.currentTime); osc.stop(ctx.currentTime + durMs / 1000);
+          const [freq, durMs] = BG_NOTES[bgStepRef.current % BG_NOTES.length];
+          bgStepRef.current++;
+
+          if (freq > 0) {
+            const osc  = ctx.createOscillator();
+            const gain = ctx.createGain();
+            osc.type = 'square';
+            osc.frequency.setValueAtTime(freq, ctx.currentTime);
+            gain.gain.setValueAtTime(0.036, ctx.currentTime);
+            gain.gain.exponentialRampToValueAtTime(0.001, ctx.currentTime + (durMs / 1000) * 0.85);
+            osc.connect(gain); gain.connect(ctx.destination);
+            osc.start(ctx.currentTime); osc.stop(ctx.currentTime + durMs / 1000);
+          }
+
+          bgTimerRef.current = setTimeout(playStep, durMs);
+        };
+
+        playStep();
+      } catch (error) {
+        if (bgSessionRef.current === sessionId) {
+          bgPlayingRef.current = false;
         }
-
-        bgTimerRef.current = setTimeout(playStep, durMs);
-      };
-
-      playStep();
+        console.warn('Failed to start background music.', error);
+      }
     })();
   }, [sendBridgeSound]);
 
   const stopBgMusic = useCallback(() => {
     bgSessionRef.current += 1;
+    bgPlayingRef.current = false;
     if (bgTimerRef.current !== null) {
       clearTimeout(bgTimerRef.current);
       bgTimerRef.current = null;

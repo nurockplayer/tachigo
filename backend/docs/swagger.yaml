@@ -26,6 +26,8 @@ definitions:
     type: object
   handlers.NonceResponse:
     properties:
+      issued_at:
+        type: string
       nonce:
         type: string
     type: object
@@ -84,6 +86,35 @@ definitions:
     properties:
       user:
         $ref: '#/definitions/models.User'
+    type: object
+  handlers.WalletResponse:
+    properties:
+      address:
+        type: string
+    type: object
+  handlers.claimRequest:
+    properties:
+      amount:
+        description: 0 = claim all
+        type: integer
+    type: object
+  handlers.redeemRequest:
+    properties:
+      amount:
+        minimum: 1
+        type: integer
+    required:
+    - amount
+    type: object
+  handlers.redeemResponse:
+    properties:
+      balance:
+        type: integer
+    type: object
+  handlers.tachiBalanceResponse:
+    properties:
+      tachi_balance:
+        type: integer
     type: object
   models.AuthProvider:
     properties:
@@ -209,6 +240,19 @@ definitions:
     - city
     - recipient_name
     type: object
+  services.LinkWalletInput:
+    properties:
+      address:
+        type: string
+      nonce:
+        type: string
+      signature:
+        type: string
+    required:
+    - address
+    - nonce
+    - signature
+    type: object
   services.LoginInput:
     properties:
       email:
@@ -303,7 +347,6 @@ paths:
           description: Bad Request
           schema:
             $ref: '#/definitions/handlers.Response'
-      security: []
       summary: Request a password reset email
       tags:
       - auth
@@ -314,7 +357,6 @@ paths:
       responses:
         "302":
           description: Found
-      security: []
       summary: Redirect to Google OAuth
       tags:
       - auth
@@ -351,7 +393,6 @@ paths:
           description: Unauthorized
           schema:
             $ref: '#/definitions/handlers.Response'
-      security: []
       summary: Google OAuth callback
       tags:
       - auth
@@ -386,7 +427,6 @@ paths:
           description: Unauthorized
           schema:
             $ref: '#/definitions/handlers.Response'
-      security: []
       summary: Login with email and password
       tags:
       - auth
@@ -395,10 +435,9 @@ paths:
       consumes:
       - application/json
       parameters:
-      - description: Refresh token
+      - description: Refresh token fallback when cookie is unavailable
         in: body
         name: body
-        required: true
         schema:
           properties:
             refresh_token:
@@ -420,7 +459,6 @@ paths:
           description: Bad Request
           schema:
             $ref: '#/definitions/handlers.Response'
-      security: []
       summary: Logout and invalidate refresh token
       tags:
       - auth
@@ -467,10 +505,9 @@ paths:
       consumes:
       - application/json
       parameters:
-      - description: Refresh token
+      - description: Refresh token fallback when cookie is unavailable
         in: body
         name: body
-        required: true
         schema:
           properties:
             refresh_token:
@@ -496,7 +533,6 @@ paths:
           description: Unauthorized
           schema:
             $ref: '#/definitions/handlers.Response'
-      security: []
       summary: Refresh access token
       tags:
       - auth
@@ -531,7 +567,6 @@ paths:
           description: Conflict
           schema:
             $ref: '#/definitions/handlers.Response'
-      security: []
       summary: Register a new user
       tags:
       - auth
@@ -567,7 +602,6 @@ paths:
           description: Bad Request
           schema:
             $ref: '#/definitions/handlers.Response'
-      security: []
       summary: Reset password using token
       tags:
       - auth
@@ -578,7 +612,6 @@ paths:
       responses:
         "302":
           description: Found
-      security: []
       summary: Redirect to Twitch OAuth
       tags:
       - auth
@@ -615,7 +648,6 @@ paths:
           description: Unauthorized
           schema:
             $ref: '#/definitions/handlers.Response'
-      security: []
       summary: Twitch OAuth callback
       tags:
       - auth
@@ -649,7 +681,6 @@ paths:
           description: Bad Request
           schema:
             $ref: '#/definitions/handlers.Response'
-      security: []
       summary: Confirm email verification token
       tags:
       - auth
@@ -714,7 +745,6 @@ paths:
           description: Internal Server Error
           schema:
             $ref: '#/definitions/handlers.Response'
-      security: []
       summary: Get a sign-in nonce for a wallet address
       tags:
       - auth
@@ -749,7 +779,6 @@ paths:
           description: Unauthorized
           schema:
             $ref: '#/definitions/handlers.Response'
-      security: []
       summary: Verify wallet signature and authenticate
       tags:
       - auth
@@ -787,7 +816,6 @@ paths:
           description: Unauthorized
           schema:
             $ref: '#/definitions/handlers.Response'
-      security: []
       summary: Authenticate via Twitch Extension JWT
       tags:
       - extension
@@ -829,10 +857,49 @@ paths:
           description: Unauthorized
           schema:
             $ref: '#/definitions/handlers.Response'
-      security: []
       summary: Complete a Bits transaction
       tags:
       - extension
+  /spend/redeem:
+    post:
+      consumes:
+      - application/json
+      parameters:
+      - description: Amount to burn (must be > 0)
+        in: body
+        name: body
+        required: true
+        schema:
+          $ref: '#/definitions/handlers.redeemRequest'
+      produces:
+      - application/json
+      responses:
+        "200":
+          description: OK
+          schema:
+            allOf:
+            - $ref: '#/definitions/handlers.Response'
+            - properties:
+                data:
+                  $ref: '#/definitions/handlers.redeemResponse'
+              type: object
+        "400":
+          description: Bad Request
+          schema:
+            $ref: '#/definitions/handlers.Response'
+        "401":
+          description: Unauthorized
+          schema:
+            $ref: '#/definitions/handlers.Response'
+        "500":
+          description: Internal Server Error
+          schema:
+            $ref: '#/definitions/handlers.Response'
+      security:
+      - BearerAuth: []
+      summary: Burn $TACHI to redeem a discount coupon
+      tags:
+      - spend
   /users/me:
     get:
       produces:
@@ -1080,6 +1147,45 @@ paths:
       summary: Get my points balance
       tags:
       - points
+  /users/me/points/claim:
+    post:
+      consumes:
+      - application/json
+      parameters:
+      - description: Amount to claim (0 = all)
+        in: body
+        name: body
+        schema:
+          $ref: '#/definitions/handlers.claimRequest'
+      produces:
+      - application/json
+      responses:
+        "200":
+          description: OK
+          schema:
+            allOf:
+            - $ref: '#/definitions/handlers.Response'
+            - properties:
+                data:
+                  $ref: '#/definitions/handlers.tachiBalanceResponse'
+              type: object
+        "400":
+          description: Bad Request
+          schema:
+            $ref: '#/definitions/handlers.Response'
+        "401":
+          description: Unauthorized
+          schema:
+            $ref: '#/definitions/handlers.Response'
+        "422":
+          description: Unprocessable Entity
+          schema:
+            $ref: '#/definitions/handlers.Response'
+      security:
+      - BearerAuth: []
+      summary: Claim T-Points as $TACHI
+      tags:
+      - tachi
   /users/me/points/history:
     get:
       parameters:
@@ -1132,8 +1238,75 @@ paths:
       summary: List linked OAuth providers
       tags:
       - users
-security:
-- BearerAuth: []
+  /users/me/tachi/balance:
+    get:
+      produces:
+      - application/json
+      responses:
+        "200":
+          description: OK
+          schema:
+            allOf:
+            - $ref: '#/definitions/handlers.Response'
+            - properties:
+                data:
+                  $ref: '#/definitions/handlers.tachiBalanceResponse'
+              type: object
+        "401":
+          description: Unauthorized
+          schema:
+            $ref: '#/definitions/handlers.Response'
+      security:
+      - BearerAuth: []
+      summary: Get my $TACHI balance
+      tags:
+      - tachi
+  /users/me/wallet:
+    post:
+      consumes:
+      - application/json
+      description: Verifies a SIWE signature and links the wallet address to the authenticated
+        user.
+      parameters:
+      - description: address, nonce, signature
+        in: body
+        name: body
+        required: true
+        schema:
+          $ref: '#/definitions/services.LinkWalletInput'
+      produces:
+      - application/json
+      responses:
+        "200":
+          description: OK
+          schema:
+            allOf:
+            - $ref: '#/definitions/handlers.Response'
+            - properties:
+                data:
+                  $ref: '#/definitions/handlers.WalletResponse'
+              type: object
+        "400":
+          description: Bad Request
+          schema:
+            $ref: '#/definitions/handlers.Response'
+        "401":
+          description: Unauthorized
+          schema:
+            $ref: '#/definitions/handlers.Response'
+        "409":
+          description: Conflict
+          schema:
+            $ref: '#/definitions/handlers.Response'
+        "500":
+          description: Internal Server Error
+          schema:
+            $ref: '#/definitions/handlers.Response'
+      security:
+      - BearerAuth: []
+      summary: Bind a MetaMask wallet to the current user
+      tags:
+      - users
 securityDefinitions:
   BearerAuth:
     description: 'Enter: Bearer {access_token}'

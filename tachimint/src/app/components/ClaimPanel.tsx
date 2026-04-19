@@ -18,17 +18,15 @@ function GearIcon() {
 interface TokenBlockProps {
   label: string
   tokenSymbol: string
-  balance: number
   balanceLabel: string
   value: string
   readOnly: boolean
-  maxValue?: number
   onValueChange?: (v: string) => void
   onMax?: () => void
   maxLabel: string
 }
 
-function TokenBlock({ label, tokenSymbol, balance: _balance, balanceLabel, value, readOnly, maxValue: _maxValue, onValueChange, onMax, maxLabel }: TokenBlockProps) {
+function TokenBlock({ label, tokenSymbol, balanceLabel, value, readOnly, onValueChange, onMax, maxLabel }: TokenBlockProps) {
   return (
     <div
       style={{
@@ -251,11 +249,9 @@ export function ClaimPanel({ onBack, cpcBalance, tcgBalance, onClaim }: ClaimPan
         <TokenBlock
           label={t('claim.from')}
           tokenSymbol="CPC"
-          balance={cpcBalance}
           balanceLabel={t('claim.balance', { amount: cpcBalance.toLocaleString() })}
           value={cpcInput}
           readOnly={false}
-          maxValue={cpcBalance}
           onValueChange={setCpcInput}
           onMax={() => setCpcInput(String(cpcBalance))}
           maxLabel={t('claim.max')}
@@ -278,7 +274,6 @@ export function ClaimPanel({ onBack, cpcBalance, tcgBalance, onClaim }: ClaimPan
         <TokenBlock
           label={t('claim.to')}
           tokenSymbol="TCG"
-          balance={tcgBalance}
           balanceLabel={t('claim.balance', { amount: tcgBalance.toLocaleString() })}
           value={tcgOutput}
           readOnly

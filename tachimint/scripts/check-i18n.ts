@@ -1,6 +1,7 @@
 import assert from 'node:assert/strict'
 import { existsSync } from 'node:fs'
 import { readFileSync } from 'node:fs'
+import { fileURLToPath } from 'node:url'
 
 import {
   mapTwitchLocaleToAppLanguage,
@@ -51,24 +52,88 @@ function readLocale(file: string): Record<string, unknown> {
   ) as Record<string, unknown>
 }
 
-function flattenKeys(value: unknown, prefix = ''): string[] {
-  if (!value || typeof value !== 'object') return [prefix]
-
-  if (Array.isArray(value)) {
-    return value.flatMap((child, index) => {
-      const nextPrefix = prefix ? `${prefix}.${index}` : `${index}`
-      return flattenKeys(child, nextPrefix)
-    })
+export function flattenStringValues(
+  value: unknown,
+  prefix = '',
+): Record<string, string> {
+  if (typeof value === 'string') {
+    return prefix ? { [prefix]: value } : {}
   }
 
-  return Object.entries(value).flatMap(([key, child]) => {
+  if (!value || typeof value !== 'object') {
+    return {}
+  }
+
+  if (Array.isArray(value)) {
+    return value.reduce<Record<string, string>>((accumulator, child, index) => {
+      const nextPrefix = prefix ? `${prefix}.${index}` : `${index}`
+      return {
+        ...accumulator,
+        ...flattenStringValues(child, nextPrefix),
+      }
+    }, {})
+  }
+
+  return Object.entries(value).reduce<Record<string, string>>((accumulator, [key, child]) => {
     const nextPrefix = prefix ? `${prefix}.${key}` : key
-    return flattenKeys(child, nextPrefix)
-  })
+    return {
+      ...accumulator,
+      ...flattenStringValues(child, nextPrefix),
+    }
+  }, {})
 }
 
-const [baseFile, ...translatedFiles] = localeFiles
-const baseKeys = flattenKeys(readLocale(baseFile)).sort()
+export function extractInterpolationTokens(value: string): string[] {
+  return Array.from(
+    new Set(
+      Array.from(value.matchAll(/\{\{\s*([a-zA-Z0-9_]+)\s*\}\}/g), (match) => match[1]),
+    ),
+  ).sort()
+}
+
+export function checkLocaleParity(locales: Record<string, Record<string, unknown>>) {
+  const entries = Object.entries(locales)
+  assert.ok(entries.length > 0, 'locale parity check requires at least one locale')
+
+  const [baseFile, baseLocale] = entries[0]
+  const baseLocaleStrings = flattenStringValues(baseLocale)
+  const baseKeys = Object.keys(baseLocaleStrings).sort()
+
+  for (const [file, locale] of entries.slice(1)) {
+    const localeStrings = flattenStringValues(locale)
+
+    for (const key of baseKeys) {
+      const localeValue = localeStrings[key]
+
+      assert.equal(
+        typeof localeValue,
+        'string',
+        `${file} should provide a string value for ${key}`,
+      )
+
+      assert.deepEqual(
+        extractInterpolationTokens(localeValue),
+        extractInterpolationTokens(baseLocaleStrings[key]),
+        `${file} has mismatched interpolation tokens for ${key}`,
+      )
+    }
+
+    assert.deepEqual(
+      Object.keys(localeStrings).sort(),
+      baseKeys,
+      `${file} should have the same translation keys as ${baseFile}`,
+    )
+  }
+
+  return {
+    baseFile,
+    baseKeys,
+  }
+}
+
+const [baseFile] = localeFiles
+const loadedLocales = Object.fromEntries(localeFiles.map((file) => [file, readLocale(file)]))
+const { baseKeys } = checkLocaleParity(loadedLocales)
 const requiredKeys = [
   'contextLoading.title',
   'contextLoading.subtitle',
@@ -79,14 +144,6 @@ const requiredKeys = [
 
 for (const key of requiredKeys) {
   assert.ok(baseKeys.includes(key), `${baseFile} should include ${key}`)
-}
-
-for (const file of translatedFiles) {
-  assert.deepEqual(
-    flattenKeys(readLocale(file)).sort(),
-    baseKeys,
-    `${file} should have the same translation keys as ${baseFile}`,
-  )
 }
 
 function readProjectFile(file: string): string {
@@ -125,4 +182,10 @@ assert.match(
   'vite config should include a chunk size warning limit for the extension bundle',
 )
 
-console.log(`i18n check passed: ${localeCases.length} locale mappings, ${baseKeys.length} keys`)
+function runCheckI18n() {
+  console.log(`i18n check passed: ${localeCases.length} locale mappings, ${baseKeys.length} keys`)
+}
+
+if (process.argv[1] && fileURLToPath(import.meta.url) === process.argv[1]) {
+  runCheckI18n()
+}

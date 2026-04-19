@@ -170,6 +170,86 @@ func TestAgencyService_Create_DuplicateEmail(t *testing.T) {
 	}
 }
 
+func TestAgencyService_GetByID_NotFound(t *testing.T) {
+	db := newTestDB(t)
+	svc := NewAgencyService(db)
+
+	_, _, err := svc.GetByID(uuid.New())
+	if !errors.Is(err, ErrAgencyNotFound) {
+		t.Fatalf("expected ErrAgencyNotFound, got %v", err)
+	}
+}
+
+func TestAgencyService_GetByID_Found_OnboardingIncomplete(t *testing.T) {
+	db := newTestDB(t)
+	svc := NewAgencyService(db)
+
+	id := uuid.New()
+	name := "test-agency-get"
+	email := "ta-get@example.com"
+	if err := db.Exec(
+		`INSERT INTO users (id, username, email, role, is_active, email_verified, password_hash, created_at, updated_at)
+		 VALUES (?, ?, ?, 'agency', 1, 1, NULL, CURRENT_TIMESTAMP, CURRENT_TIMESTAMP)`,
+		id, name, email,
+	).Error; err != nil {
+		t.Fatalf("seed: %v", err)
+	}
+
+	user, complete, err := svc.GetByID(id)
+	if err != nil {
+		t.Fatalf("unexpected error: %v", err)
+	}
+	if user.ID != id {
+		t.Fatalf("expected id %v, got %v", id, user.ID)
+	}
+	if complete {
+		t.Fatal("expected onboarding_complete=false when password_hash IS NULL")
+	}
+}
+
+func TestAgencyService_GetByID_Found_OnboardingComplete(t *testing.T) {
+	db := newTestDB(t)
+	svc := NewAgencyService(db)
+
+	id := uuid.New()
+	name := "done-agency-get"
+	email := "done-get@example.com"
+	if err := db.Exec(
+		`INSERT INTO users (id, username, email, role, is_active, email_verified, password_hash, created_at, updated_at)
+		 VALUES (?, ?, ?, 'agency', 1, 1, 'hashed', CURRENT_TIMESTAMP, CURRENT_TIMESTAMP)`,
+		id, name, email,
+	).Error; err != nil {
+		t.Fatalf("seed: %v", err)
+	}
+
+	_, complete, err := svc.GetByID(id)
+	if err != nil {
+		t.Fatalf("unexpected error: %v", err)
+	}
+	if !complete {
+		t.Fatal("expected onboarding_complete=true when password_hash IS NOT NULL")
+	}
+}
+
+func TestAgencyService_GetByID_WrongRole(t *testing.T) {
+	db := newTestDB(t)
+	svc := NewAgencyService(db)
+
+	id := uuid.New()
+	if err := db.Exec(
+		`INSERT INTO users (id, username, email, role, is_active, email_verified, created_at, updated_at)
+		 VALUES (?, ?, ?, 'viewer', 1, 1, CURRENT_TIMESTAMP, CURRENT_TIMESTAMP)`,
+		id, "not-agency", "not-agency@example.com",
+	).Error; err != nil {
+		t.Fatalf("seed: %v", err)
+	}
+
+	_, _, err := svc.GetByID(id)
+	if !errors.Is(err, ErrAgencyNotFound) {
+		t.Fatalf("expected ErrAgencyNotFound for non-agency role, got %v", err)
+	}
+}
+
 func TestAgencyService_Create_Success(t *testing.T) {
 	db := newTestDB(t)
 	svc := NewAgencyService(db)

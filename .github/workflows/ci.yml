@@ -15,6 +15,7 @@ jobs:
     runs-on: ubuntu-latest
     outputs:
       run_ci: ${{ steps.evaluate.outputs.run_ci }}
+      run_backend_integration: ${{ steps.evaluate.outputs.run_backend_integration }}
     steps:
       - name: Evaluate PR scope for CI
         id: evaluate
@@ -25,6 +26,7 @@ jobs:
             if (!pr) {
               core.notice('Non-PR event detected; running CI without scope gate restrictions.')
               core.setOutput('run_ci', 'true')
+              core.setOutput('run_backend_integration', 'true')
               return
             }
 
@@ -40,6 +42,7 @@ jobs:
             if (labels.some((label) => bypassLabels.has(label))) {
               core.notice('Scope gate bypassed by scope-exception label.')
               core.setOutput('run_ci', 'true')
+              core.setOutput('run_backend_integration', 'true')
               return
             }
 
@@ -59,7 +62,7 @@ jobs:
             const diffLines = files.reduce((sum, file) => sum + file.additions + file.deletions, 0)
             const body = pr.body || ''
             const title = pr.title || ''
-            const allowedPrefixes = ['[backend]', '[frontend]', '[contract]', '[discussion]', '[release]']
+            const allowedPrefixes = ['[backend]', '[frontend]', '[contract]', '[discussion]', '[release]', '[infra]', '[chore]']
             const titlePrefix = allowedPrefixes.find((prefix) => title.startsWith(prefix))
             const touches = {
               backend: filenames.some((name) => name.startsWith('backend/')),
@@ -111,10 +114,37 @@ jobs:
               (isReleasePromotionPr || !(titlePrefix === '[contract]' && (touches.backend || touches.dashboard || touches.tachimint))) &&
               !dependencyBlocked
 
+            const backendIntegrationPaths = [
+              /^backend\//,
+              /^contracts\//,
+              /^docker-compose(?:\..+)?\.ya?ml$/,
+              /^\.github\/workflows\/ci\.yml$/,
+            ]
+            const runBackendIntegration = filenames.some((name) =>
+              backendIntegrationPaths.some((pattern) => pattern.test(name)),
+            )
+
             core.setOutput('run_ci', runCi ? 'true' : 'false')
+            core.setOutput('run_backend_integration', runBackendIntegration ? 'true' : 'false')
             if (!runCi) {
               core.notice('Skipping heavy CI because this PR does not currently pass scope rules.')
             }
+            if (runCi && !runBackendIntegration) {
+              core.notice('Skipping backend integration tests because this PR does not touch backend, contracts, docker compose, or CI workflow files.')
+            }
+
+  workflow-regression:
+    name: Workflow regression tests
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+
+      - uses: actions/setup-node@v4
+        with:
+          node-version: 22.12.0
+
+      - name: Verify CI workflow assertions
+        run: node --test .github/workflows/ci.test.mjs
 
   backend:
     name: Backend tests
@@ -125,6 +155,8 @@ jobs:
       - uses: actions/checkout@v4
 
       - name: Build image
+        env:
+          DOCKER_BUILDKIT: 1
         run: docker compose build app
 
       - name: Run tests
@@ -132,12 +164,15 @@ jobs:
 
   backend-integration:
     name: Backend integration tests
+    needs: [scope-gate, backend]
     runs-on: ubuntu-latest
-    needs: backend
+    if: github.event_name == 'push' || (needs.scope-gate.outputs.run_ci == 'true' && needs.scope-gate.outputs.run_backend_integration == 'true')
     steps:
       - uses: actions/checkout@v4
 
       - name: Build image
+        env:
+          DOCKER_BUILDKIT: 1
         run: docker compose build app
 
       - name: Start PostgreSQL
@@ -160,12 +195,17 @@ jobs:
     runs-on: ubuntu-latest
     steps:
       - uses: actions/checkout@v4
+        with:
+          lfs: true
 
       - name: Build image
         run: docker compose build frontend
 
       - name: Lint
         run: docker compose run --no-deps --rm frontend pnpm lint
+
+      - name: Test
+        run: docker compose run --no-deps --rm frontend pnpm test
 
       - name: Build
         run: docker compose run --no-deps --rm frontend pnpm build
@@ -183,6 +223,9 @@ jobs:
 
       - name: Lint
         run: docker compose run --no-deps --rm dashboard pnpm lint
+
+      - name: Test
+        run: docker compose run --no-deps --rm dashboard pnpm test
 
       - name: Build
         run: docker compose run --no-deps --rm dashboard pnpm build
@@ -210,7 +253,7 @@ jobs:
 
   notify-discord:
     name: Notify Discord on failure
-    needs: [backend, backend-integration, frontend, dashboard, contracts]
+    needs: [workflow-regression, backend, backend-integration, frontend, dashboard, contracts]
     if: failure()
     runs-on: ubuntu-latest
     steps:

@@ -43,7 +43,9 @@ jobs:
             }
 
             const hardMaxChangedFiles = 35
-            const hardMaxDiffLines = 1800
+            const hardMaxDiffLines = 1500
+            const warningDiffLines = 800
+            const exceptionMaxDiffLines = 2500  // max for scope-exception PRs
             const autoCloseLabel = 'scope-violation'
             const dependencyLabel = 'blocked-by-dependency'
             const owner = context.repo.owner
@@ -58,6 +60,18 @@ jobs:
 
             const filenames = files.map((file) => file.filename)
             const diffLines = files.reduce((sum, file) => sum + file.additions + file.deletions, 0)
+            const isDocsOrTemplatePath = (name) =>
+              name.startsWith('docs/') ||
+              name.startsWith('plans/') ||
+              name.startsWith('.github/ISSUE_TEMPLATE/') ||
+              name === '.github/PULL_REQUEST_TEMPLATE.md' ||
+              /^[^/]+\.md$/i.test(name)
+            const isNonProductMetadataPath = (name) =>
+              isDocsOrTemplatePath(name) ||
+              name === '.gitignore' ||
+              name === '.gitattributes'
+            const isDocsTemplateOrMetadataOnly =
+              filenames.length > 0 && filenames.every(isNonProductMetadataPath)
 
             const touches = {
               backend: filenames.some((name) => name.startsWith('backend/')),
@@ -86,12 +100,14 @@ jobs:
 
             const allowedPrefixes = ['[backend]', '[frontend]', '[contract]', '[discussion]', '[release]', '[infra]', '[chore]']
             const titlePrefix = allowedPrefixes.find((prefix) => title.startsWith(prefix))
-            const dependsOnMatch = body.match(/Depends on PR[：:]\s*(.+)/i)
+            const hasSourceOfTruth = /(?:^|\n)\s*-?\s*Source of truth\s*[：:]/i.test(body)
+            const hasExplicitNonGoals = body.includes('本 PR 明確不做')
+            const dependsOnMatch = body.match(/(?:^|\n)\s*-?\s*Depends on PR\s*[：:]\s*(.+)/i)
             const dependsOnRaw = dependsOnMatch?.[1]?.trim()
             const dependsOnNone = dependsOnRaw?.toLowerCase() === 'none'
             const dependsOnPrMatch = dependsOnRaw?.match(/^#(\d+)$/)
-            const backendContractYes = /Backend contract already in develop:[\s\S]*?- \[[xX]\] yes/i.test(body)
-            const backendContractNo = /Backend contract already in develop:[\s\S]*?- \[[xX]\] no/i.test(body)
+            const backendContractYes = /Backend contract already in develop\s*[：:][\s\S]*?- \[[xX]\] yes/i.test(body)
+            const backendContractNo = /Backend contract already in develop\s*[：:][\s\S]*?- \[[xX]\] no/i.test(body)
             const stackedOnDependency = /If no, this PR is:[\s\S]*?- \[[xX]\] stacked on dependency branch/i.test(body)
             const intentionallyBlocked = /If no, this PR is:[\s\S]*?- \[[xX]\] intentionally blocked until dependency merges/i.test(body)
 
@@ -114,11 +130,11 @@ jobs:
                 policyFailures.push('PR body must reference at least one issue or PR number such as `#123`.')
               }
 
-              if (!body.includes('Source of truth：') && !body.includes('Source of truth:')) {
+              if (!hasSourceOfTruth) {
                 policyFailures.push('PR body must include a `Source of truth` line in the Scope 對齊 section.')
               }
 
-              if (!body.includes('本 PR 明確不做')) {
+              if (!hasExplicitNonGoals) {
                 policyFailures.push('PR body must include a `本 PR 明確不做` section.')
               }
 
@@ -132,7 +148,7 @@ jobs:
 
               const isInfraOrChore = titlePrefix === '[infra]' || titlePrefix === '[chore]'
 
-              if (!isInfraOrChore) {
+              if (!isInfraOrChore && !isDocsTemplateOrMetadataOnly) {
                 if (!backendContractYes && !backendContractNo) {
                   policyFailures.push('PR body must mark whether the backend contract is already in `develop`.')
                 }
@@ -167,44 +183,61 @@ jobs:
               dependencyFailures.push(message)
             }
 
-            if (!isReleasePromotionPr && filenames.length > hardMaxChangedFiles) {
-              const message =
-                `PR changes ${filenames.length} files, which exceeds the hard limit of ${hardMaxChangedFiles}. Split the PR before review.`
-              failures.push(message)
-              severeFailures.push(message)
-            }
+            if (!isDependabotPr) {
+              if (!isReleasePromotionPr && filenames.length > hardMaxChangedFiles) {
+                const message =
+                  `PR changes ${filenames.length} files, which exceeds the hard limit of ${hardMaxChangedFiles}. Split the PR before review.`
+                failures.push(message)
+                severeFailures.push(message)
+              }
 
-            if (!isReleasePromotionPr && diffLines > hardMaxDiffLines) {
-              const message =
-                `PR diff size is ${diffLines} lines (+/-), which exceeds the hard limit of ${hardMaxDiffLines}. Split the PR before review.`
-              failures.push(message)
-              severeFailures.push(message)
-            }
+              if (!isReleasePromotionPr && diffLines > warningDiffLines && diffLines <= hardMaxDiffLines) {
+                const message =
+                  `PR diff size is ${diffLines} lines (+/-), which exceeds the soft limit of ${warningDiffLines}. Consider splitting this PR for easier review.`
+                warnings.push(message)
+              }
 
-            if (!isReleasePromotionPr && productSurfaces.length > 1) {
-              const message =
-                `PR touches multiple product surfaces (${productSurfaces.join(', ')}). Keep one PR to one surface only.`
-              failures.push(message)
-              severeFailures.push(message)
-            }
+              if (!isReleasePromotionPr && diffLines > hardMaxDiffLines) {
+                const hasException = bypassed
+                const limit = hasException ? exceptionMaxDiffLines : hardMaxDiffLines
+                if (diffLines > limit) {
+                  const message =
+                    `PR diff size is ${diffLines} lines (+/-), which exceeds the ${hasException ? 'exception' : 'hard'} limit of ${limit}. Only release promotion PRs (develop -> main) can exceed this.`
+                  failures.push(message)
+                  severeFailures.push(message)
+                } else if (!hasException) {
+                  const message =
+                    `PR diff size is ${diffLines} lines (+/-), which exceeds the hard limit of ${hardMaxDiffLines}. Split the PR before review. (Use \`scope-exception\` label only for migration/generated/dependency changes that truly cannot be split.)`
+                  failures.push(message)
+                  severeFailures.push(message)
+                }
+              }
 
-            if (!isReleasePromotionPr && titlePrefix === '[backend]' && (touches.dashboard || touches.tachimint)) {
-              const message = '[backend] PR must not change dashboard/ or tachimint/.'
-              failures.push(message)
-              severeFailures.push(message)
-            }
+              if (!isReleasePromotionPr && productSurfaces.length > 1) {
+                const message =
+                  `PR touches multiple product surfaces (${productSurfaces.join(', ')}). Keep one PR to one surface only.`
+                failures.push(message)
+                severeFailures.push(message)
+              }
 
-            if (!isReleasePromotionPr && titlePrefix === '[frontend]' && touches.backend) {
-              const message =
-                '[frontend] PR must not change backend/. Move backend prerequisites into a separate PR.'
-              failures.push(message)
-              severeFailures.push(message)
-            }
+              if (!isReleasePromotionPr && titlePrefix === '[backend]' && (touches.dashboard || touches.tachimint)) {
+                const message = '[backend] PR must not change dashboard/ or tachimint/.'
+                failures.push(message)
+                severeFailures.push(message)
+              }
 
-            if (!isReleasePromotionPr && titlePrefix === '[contract]' && (touches.backend || touches.dashboard || touches.tachimint)) {
-              const message = '[contract] PR must not change backend/, dashboard/, or tachimint/.'
-              failures.push(message)
-              severeFailures.push(message)
+              if (!isReleasePromotionPr && titlePrefix === '[frontend]' && touches.backend) {
+                const message =
+                  '[frontend] PR must not change backend/. Move backend prerequisites into a separate PR.'
+                failures.push(message)
+                severeFailures.push(message)
+              }
+
+              if (!isReleasePromotionPr && titlePrefix === '[contract]' && (touches.backend || touches.dashboard || touches.tachimint)) {
+                const message = '[contract] PR must not change backend/, dashboard/, or tachimint/.'
+                failures.push(message)
+                severeFailures.push(message)
+              }
             }
 
             if (titlePrefix === '[discussion]' && productSurfaces.length > 0) {
@@ -268,9 +301,17 @@ jobs:
               summaryLines.push('- Dependency gate is not evaluated for Dependabot PRs.')
             }
 
+            if (isDocsTemplateOrMetadataOnly && !isDependabotPr) {
+              summaryLines.push('')
+              summaryLines.push('### Docs / Template Mode')
+              summaryLines.push('- Backend contract checks are skipped for non-product docs/template/metadata PRs.')
+              summaryLines.push('- Title prefix, source of truth, dependency line, explicit non-goals, size, and surface checks still apply.')
+            }
+
             summaryLines.push('')
             summaryLines.push('### Snapshot')
             summaryLines.push(`- Mode: ${isReleasePromotionPr ? 'release promotion (develop -> main)' : 'standard PR'}`)
+            summaryLines.push(`- Docs/template/metadata only: ${isDocsTemplateOrMetadataOnly ? 'yes' : 'no'}`)
             summaryLines.push(`- Changed files: ${filenames.length}`)
             summaryLines.push(`- Diff lines (+/-): ${diffLines}`)
             summaryLines.push(
@@ -345,6 +386,16 @@ jobs:
               })
 
               if (pr.state === 'open') {
+                const closeReason = severeFailures.map(f => `- ${f}`).join('\n')
+                const closeComment = `🚨 **Closed by scope police**\n\nThis PR has been automatically closed due to scope violations:\n\n${closeReason}\n\nPlease see the scope police comment above and [CLAUDE.md](https://github.com/${owner}/${repo}/blob/develop/CLAUDE.md) for details. Feel free to reopen once issues are resolved.`
+
+                await github.rest.issues.createComment({
+                  owner,
+                  repo,
+                  issue_number: pr.number,
+                  body: closeComment,
+                })
+
                 await github.rest.pulls.update({
                   owner,
                   repo,

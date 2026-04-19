@@ -1,9 +1,17 @@
 package services
 
 import (
+	"crypto/ecdsa"
+	"encoding/hex"
+	"fmt"
+	"strings"
 	"testing"
+	"time"
 
+	"github.com/ethereum/go-ethereum/common"
+	"github.com/ethereum/go-ethereum/crypto"
 	"github.com/google/uuid"
+	"gorm.io/gorm"
 
 	"github.com/tachigo/tachigo/internal/models"
 )
@@ -125,5 +133,408 @@ func TestListProviders_EmptyForNewUser(t *testing.T) {
 	}
 	if len(providers) != 0 {
 		t.Errorf("want 0 providers, got %d", len(providers))
+	}
+}
+
+func newTestWallet(t *testing.T) (*ecdsa.PrivateKey, string) {
+	t.Helper()
+	key, err := crypto.GenerateKey()
+	if err != nil {
+		t.Fatalf("generate key: %v", err)
+	}
+	addr := common.HexToAddress(crypto.PubkeyToAddress(key.PublicKey).Hex()).Hex()
+	return key, addr
+}
+
+func signSIWE(t *testing.T, message string, key *ecdsa.PrivateKey) string {
+	t.Helper()
+	prefixed := fmt.Sprintf("\x19Ethereum Signed Message:\n%d%s", len(message), message)
+	hash := crypto.Keccak256Hash([]byte(prefixed))
+	sig, err := crypto.Sign(hash.Bytes(), key)
+	if err != nil {
+		t.Fatalf("sign: %v", err)
+	}
+	sig[64] += 27
+	return "0x" + hex.EncodeToString(sig)
+}
+
+func seedWalletNonce(t *testing.T, db *gorm.DB, address, nonce string) *models.Web3Nonce {
+	t.Helper()
+	record := &models.Web3Nonce{
+		Nonce:     nonce,
+		Address:   strings.ToLower(address),
+		ExpiresAt: time.Now().Add(5 * time.Minute),
+	}
+	if err := db.Create(record).Error; err != nil {
+		t.Fatalf("seed nonce: %v", err)
+	}
+	return record
+}
+
+func seedExpiredWalletNonce(t *testing.T, db *gorm.DB, address, nonce string) {
+	t.Helper()
+	if err := db.Create(&models.Web3Nonce{
+		Nonce:     nonce,
+		Address:   strings.ToLower(address),
+		ExpiresAt: time.Now().Add(-time.Minute),
+	}).Error; err != nil {
+		t.Fatalf("seed expired nonce: %v", err)
+	}
+}
+
+func TestLinkWallet_Success(t *testing.T) {
+	db := newTestDB(t)
+	svc := NewUserService(db)
+	userID := uuid.New()
+	db.Create(&models.User{ID: userID, Role: models.RoleViewer})
+
+	key, addr := newTestWallet(t)
+	nonce := "link-wallet-success"
+	nr := seedWalletNonce(t, db, addr, nonce)
+	msg := siweMessage(addr, nonce, nr.CreatedAt.UTC().Format(time.RFC3339))
+	sig := signSIWE(t, msg, key)
+
+	got, err := svc.LinkWallet(userID, LinkWalletInput{
+		Address:   addr,
+		Nonce:     nonce,
+		Signature: sig,
+	})
+	if err != nil {
+		t.Fatalf("unexpected error: %v", err)
+	}
+	if got != addr {
+		t.Errorf("address: want %s, got %s", addr, got)
+	}
+
+	var ap models.AuthProvider
+	if err := db.Where("user_id = ? AND provider = ?", userID, models.ProviderWeb3).First(&ap).Error; err != nil {
+		t.Fatalf("auth provider not found: %v", err)
+	}
+	if ap.ProviderID != addr {
+		t.Errorf("provider_id: want %s, got %s", addr, ap.ProviderID)
+	}
+
+	var nonceCount int64
+	db.Model(&models.Web3Nonce{}).Where("nonce = ?", nonce).Count(&nonceCount)
+	if nonceCount != 0 {
+		t.Errorf("nonce should be consumed, got %d rows", nonceCount)
+	}
+}
+
+func TestLinkWallet_AddressAlreadyLinkedToOtherUser(t *testing.T) {
+	db := newTestDB(t)
+	svc := NewUserService(db)
+
+	userA := uuid.New()
+	userB := uuid.New()
+	db.Create(&models.User{ID: userA, Role: models.RoleViewer})
+	db.Create(&models.User{ID: userB, Role: models.RoleViewer})
+
+	key, addr := newTestWallet(t)
+	nonceA := "duplicate-address-a"
+	nrA := seedWalletNonce(t, db, addr, nonceA)
+	msgA := siweMessage(addr, nonceA, nrA.CreatedAt.UTC().Format(time.RFC3339))
+	if _, err := svc.LinkWallet(userA, LinkWalletInput{
+		Address:   addr,
+		Nonce:     nonceA,
+		Signature: signSIWE(t, msgA, key),
+	}); err != nil {
+		t.Fatalf("first link: %v", err)
+	}
+
+	nonceB := "duplicate-address-b"
+	nrB := seedWalletNonce(t, db, addr, nonceB)
+	msgB := siweMessage(addr, nonceB, nrB.CreatedAt.UTC().Format(time.RFC3339))
+	_, err := svc.LinkWallet(userB, LinkWalletInput{
+		Address:   addr,
+		Nonce:     nonceB,
+		Signature: signSIWE(t, msgB, key),
+	})
+	if err != ErrProviderLinked {
+		t.Errorf("want ErrProviderLinked, got %v", err)
+	}
+}
+
+func TestLinkWallet_ReplacesUsersExistingPrimaryWallet(t *testing.T) {
+	db := newTestDB(t)
+	svc := NewUserService(db)
+	userID := uuid.New()
+	db.Create(&models.User{ID: userID, Role: models.RoleViewer})
+
+	key1, addr1 := newTestWallet(t)
+	nonce1 := "replace-primary-a"
+	nr1 := seedWalletNonce(t, db, addr1, nonce1)
+	msg1 := siweMessage(addr1, nonce1, nr1.CreatedAt.UTC().Format(time.RFC3339))
+	if _, err := svc.LinkWallet(userID, LinkWalletInput{
+		Address:   addr1,
+		Nonce:     nonce1,
+		Signature: signSIWE(t, msg1, key1),
+	}); err != nil {
+		t.Fatalf("first link: %v", err)
+	}
+
+	key2, addr2 := newTestWallet(t)
+	nonce2 := "replace-primary-b"
+	nr2 := seedWalletNonce(t, db, addr2, nonce2)
+	msg2 := siweMessage(addr2, nonce2, nr2.CreatedAt.UTC().Format(time.RFC3339))
+	got, err := svc.LinkWallet(userID, LinkWalletInput{
+		Address:   addr2,
+		Nonce:     nonce2,
+		Signature: signSIWE(t, msg2, key2),
+	})
+	if err != nil {
+		t.Fatalf("second link: %v", err)
+	}
+	if got != addr2 {
+		t.Errorf("address: want %s, got %s", addr2, got)
+	}
+
+	var activeCount int64
+	db.Model(&models.AuthProvider{}).
+		Where("user_id = ? AND provider = ?", userID, models.ProviderWeb3).
+		Count(&activeCount)
+	if activeCount != 1 {
+		t.Errorf("want 1 active wallet, got %d", activeCount)
+	}
+
+	var old models.AuthProvider
+	if err := db.Unscoped().
+		Where("user_id = ? AND provider = ? AND provider_id = ?", userID, models.ProviderWeb3, addr1).
+		First(&old).Error; err != nil {
+		t.Fatalf("old wallet row not found: %v", err)
+	}
+	if !old.DeletedAt.Valid {
+		t.Error("old wallet row should be soft-deleted")
+	}
+}
+
+func TestLinkWallet_InvalidAddress(t *testing.T) {
+	svc := NewUserService(newTestDB(t))
+
+	_, err := svc.LinkWallet(uuid.New(), LinkWalletInput{
+		Address:   "not-an-address",
+		Nonce:     "invalid-address",
+		Signature: "0xdeadbeef",
+	})
+	if err != ErrInvalidWalletAddress {
+		t.Errorf("want ErrInvalidWalletAddress, got %v", err)
+	}
+}
+
+func TestLinkWallet_NonceNotFound(t *testing.T) {
+	db := newTestDB(t)
+	svc := NewUserService(db)
+	userID := uuid.New()
+	db.Create(&models.User{ID: userID, Role: models.RoleViewer})
+	_, addr := newTestWallet(t)
+
+	_, err := svc.LinkWallet(userID, LinkWalletInput{
+		Address:   addr,
+		Nonce:     "missing-nonce",
+		Signature: "0x" + strings.Repeat("ab", 65),
+	})
+	if err != ErrInvalidNonce {
+		t.Errorf("want ErrInvalidNonce, got %v", err)
+	}
+}
+
+func TestLinkWallet_ExpiredNonce(t *testing.T) {
+	db := newTestDB(t)
+	svc := NewUserService(db)
+	userID := uuid.New()
+	db.Create(&models.User{ID: userID, Role: models.RoleViewer})
+	_, addr := newTestWallet(t)
+	nonce := "expired-nonce"
+	seedExpiredWalletNonce(t, db, addr, nonce)
+
+	_, err := svc.LinkWallet(userID, LinkWalletInput{
+		Address:   addr,
+		Nonce:     nonce,
+		Signature: "0x" + strings.Repeat("ab", 65),
+	})
+	if err != ErrInvalidNonce {
+		t.Errorf("want ErrInvalidNonce, got %v", err)
+	}
+}
+
+func TestLinkWallet_InvalidSignature(t *testing.T) {
+	db := newTestDB(t)
+	svc := NewUserService(db)
+	userID := uuid.New()
+	db.Create(&models.User{ID: userID, Role: models.RoleViewer})
+
+	_, addr := newTestWallet(t)
+	wrongKey, _ := newTestWallet(t)
+	nonce := "invalid-signature"
+	nr := seedWalletNonce(t, db, addr, nonce)
+	msg := siweMessage(addr, nonce, nr.CreatedAt.UTC().Format(time.RFC3339))
+
+	_, err := svc.LinkWallet(userID, LinkWalletInput{
+		Address:   addr,
+		Nonce:     nonce,
+		Signature: signSIWE(t, msg, wrongKey),
+	})
+	if err != ErrInvalidSignature {
+		t.Errorf("want ErrInvalidSignature, got %v", err)
+	}
+
+	var nonceCount int64
+	db.Model(&models.Web3Nonce{}).Where("nonce = ?", nonce).Count(&nonceCount)
+	if nonceCount != 1 {
+		t.Errorf("nonce should remain after invalid signature, got %d rows", nonceCount)
+	}
+}
+
+func TestLinkWallet_ReplayConsumedNonceRejected(t *testing.T) {
+	db := newTestDB(t)
+	svc := NewUserService(db)
+	userID := uuid.New()
+	db.Create(&models.User{ID: userID, Role: models.RoleViewer})
+
+	key, addr := newTestWallet(t)
+	nonce := "replay-consumed-nonce"
+	nr := seedWalletNonce(t, db, addr, nonce)
+	msg := siweMessage(addr, nonce, nr.CreatedAt.UTC().Format(time.RFC3339))
+	input := LinkWalletInput{
+		Address:   addr,
+		Nonce:     nonce,
+		Signature: signSIWE(t, msg, key),
+	}
+
+	if _, err := svc.LinkWallet(userID, input); err != nil {
+		t.Fatalf("first link: %v", err)
+	}
+	_, err := svc.LinkWallet(userID, input)
+	if err != ErrInvalidNonce {
+		t.Errorf("want ErrInvalidNonce, got %v", err)
+	}
+}
+
+func TestLinkWallet_RestoresSoftDeletedSameWallet(t *testing.T) {
+	db := newTestDB(t)
+	svc := NewUserService(db)
+	userID := uuid.New()
+	db.Create(&models.User{ID: userID, Role: models.RoleViewer})
+
+	key, addr := newTestWallet(t)
+	deletedAt := time.Now().Add(-time.Hour)
+	if err := db.Create(&models.AuthProvider{
+		UserID:     userID,
+		Provider:   models.ProviderWeb3,
+		ProviderID: addr,
+		DeletedAt:  gorm.DeletedAt{Time: deletedAt, Valid: true},
+	}).Error; err != nil {
+		t.Fatalf("seed soft-deleted auth provider: %v", err)
+	}
+
+	nonce := "restore-same-wallet"
+	nr := seedWalletNonce(t, db, addr, nonce)
+	msg := siweMessage(addr, nonce, nr.CreatedAt.UTC().Format(time.RFC3339))
+	got, err := svc.LinkWallet(userID, LinkWalletInput{
+		Address:   addr,
+		Nonce:     nonce,
+		Signature: signSIWE(t, msg, key),
+	})
+	if err != nil {
+		t.Fatalf("unexpected error: %v", err)
+	}
+	if got != addr {
+		t.Errorf("address: want %s, got %s", addr, got)
+	}
+
+	var rows []models.AuthProvider
+	if err := db.Unscoped().
+		Where("user_id = ? AND provider = ? AND provider_id = ?", userID, models.ProviderWeb3, addr).
+		Find(&rows).Error; err != nil {
+		t.Fatalf("find auth providers: %v", err)
+	}
+	if len(rows) != 1 {
+		t.Fatalf("want restored existing row only, got %d rows", len(rows))
+	}
+	if rows[0].DeletedAt.Valid {
+		t.Error("restored wallet should be active")
+	}
+}
+
+func TestLinkWallet_IgnoresSoftDeletedWalletLinkedToOtherUser(t *testing.T) {
+	db := newTestDB(t)
+	svc := NewUserService(db)
+
+	oldUser := uuid.New()
+	newUser := uuid.New()
+	db.Create(&models.User{ID: oldUser, Role: models.RoleViewer})
+	db.Create(&models.User{ID: newUser, Role: models.RoleViewer})
+
+	key, addr := newTestWallet(t)
+	if err := db.Create(&models.AuthProvider{
+		UserID:     oldUser,
+		Provider:   models.ProviderWeb3,
+		ProviderID: addr,
+		DeletedAt:  gorm.DeletedAt{Time: time.Now().Add(-time.Hour), Valid: true},
+	}).Error; err != nil {
+		t.Fatalf("seed soft-deleted auth provider: %v", err)
+	}
+
+	nonce := "soft-deleted-other-user"
+	nr := seedWalletNonce(t, db, addr, nonce)
+	msg := siweMessage(addr, nonce, nr.CreatedAt.UTC().Format(time.RFC3339))
+	got, err := svc.LinkWallet(newUser, LinkWalletInput{
+		Address:   addr,
+		Nonce:     nonce,
+		Signature: signSIWE(t, msg, key),
+	})
+	if err != nil {
+		t.Fatalf("unexpected error: %v", err)
+	}
+	if got != addr {
+		t.Errorf("address: want %s, got %s", addr, got)
+	}
+
+	var activeCount int64
+	db.Model(&models.AuthProvider{}).
+		Where("provider = ? AND provider_id = ?", models.ProviderWeb3, addr).
+		Count(&activeCount)
+	if activeCount != 1 {
+		t.Errorf("want 1 active wallet, got %d", activeCount)
+	}
+}
+
+func TestLinkWallet_RaceUniqueViolation(t *testing.T) {
+	db := newTestDB(t)
+	svc := NewUserService(db)
+
+	userA := uuid.New()
+	userB := uuid.New()
+	db.Create(&models.User{ID: userA, Role: models.RoleViewer})
+	db.Create(&models.User{ID: userB, Role: models.RoleViewer})
+
+	key, addr := newTestWallet(t)
+	nonce := "race-unique-violation"
+	nr := seedWalletNonce(t, db, addr, nonce)
+	msg := siweMessage(addr, nonce, nr.CreatedAt.UTC().Format(time.RFC3339))
+	sig := signSIWE(t, msg, key)
+
+	// Simulate a concurrent write: another actor claims the same address for userA
+	// before LinkWallet runs. Whether the count-check or the unique-constraint on
+	// INSERT fires, ErrProviderLinked must be returned — verifying the
+	// gorm.ErrDuplicatedKey → ErrProviderLinked translation branch.
+	done := make(chan struct{})
+	go func() {
+		defer close(done)
+		db.Create(&models.AuthProvider{
+			UserID:     userA,
+			Provider:   models.ProviderWeb3,
+			ProviderID: addr,
+		})
+	}()
+	<-done
+
+	_, err := svc.LinkWallet(userB, LinkWalletInput{
+		Address:   addr,
+		Nonce:     nonce,
+		Signature: sig,
+	})
+	if err != ErrProviderLinked {
+		t.Errorf("want ErrProviderLinked, got %v", err)
 	}
 }

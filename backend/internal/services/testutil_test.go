@@ -61,6 +61,12 @@ func migrateTestDB(db *gorm.DB) error {
 			updated_at DATETIME,
 			deleted_at DATETIME
 		)`,
+		`CREATE UNIQUE INDEX IF NOT EXISTS idx_auth_providers_provider_provider_id_active
+			ON auth_providers (provider, provider_id)
+			WHERE deleted_at IS NULL`,
+		`CREATE UNIQUE INDEX IF NOT EXISTS idx_auth_providers_web3_user_active
+			ON auth_providers (user_id, provider)
+			WHERE provider = 'web3' AND deleted_at IS NULL`,
 		`CREATE TABLE IF NOT EXISTS shipping_addresses (
 			id TEXT PRIMARY KEY,
 			user_id TEXT NOT NULL REFERENCES users(id),
