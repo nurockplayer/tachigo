@@ -368,6 +368,20 @@ func (h *RaffleHandler) SubmitClaim(c *gin.Context) {
 
 // ── Extension endpoint ────────────────────────────────────────────────────────
 
+// publicDrawView is a safe projection of RaffleDraw for the public Extension
+// endpoint. It intentionally omits ClaimToken and ClaimExpiresAt to prevent
+// unauthenticated claim-token harvesting.
+type publicDrawView struct {
+	ID       string `json:"id"`
+	RaffleID string `json:"raffle_id"`
+	DrawnAt  string `json:"drawn_at"`
+	Entry    struct {
+		ID          string `json:"id"`
+		TwitchLogin string `json:"twitch_login"`
+		DisplayName string `json:"display_name"`
+	} `json:"entry"`
+}
+
 // GetResult godoc
 // @Summary      Get drawn winners for a raffle (Extension)
 // @Tags         raffles
@@ -388,5 +402,17 @@ func (h *RaffleHandler) GetResult(c *gin.Context) {
 		internal(c)
 		return
 	}
-	ok(c, gin.H{"draws": draws})
+
+	views := make([]publicDrawView, len(draws))
+	for i, d := range draws {
+		views[i] = publicDrawView{
+			ID:       d.ID.String(),
+			RaffleID: d.RaffleID.String(),
+			DrawnAt:  d.DrawnAt.UTC().Format("2006-01-02T15:04:05Z"),
+		}
+		views[i].Entry.ID = d.Entry.ID.String()
+		views[i].Entry.TwitchLogin = d.Entry.TwitchLogin
+		views[i].Entry.DisplayName = d.Entry.DisplayName
+	}
+	ok(c, gin.H{"draws": views})
 }
