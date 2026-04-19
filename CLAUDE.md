@@ -236,7 +236,7 @@ Type：`feat` / `fix` / `docs` / `chore` / `refactor` / `test`
 
 | 操作 | 誰執行 |
 |---|---|
-| 摘要大量檔案、生成樣板、審查 log、搜尋 pattern、草擬測試 | Gemini（`gemini -p "<task>"`；確認無風險時可加 `--yolo`） |
+| 摘要大量檔案、生成樣板、審查 log、搜尋 pattern、草擬測試 | Gemini（`gemini -p "<task>" --yolo`） |
 | 架構決策、安全審查、重構策略、最終 code review | Claude Code |
 | 需要跑測試並根據失敗迭代修改的任務 | Codex（`/test-with-codex`） |
 | `git` / `gh` / 檔案操作 / 實作 / 決策 | Claude Code |
