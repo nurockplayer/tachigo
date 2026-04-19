@@ -116,7 +116,6 @@ func (e *raffleTestEnv) registerStreamer(t *testing.T, username, email, password
 // ImportCSV can match the entry.
 func (e *raffleTestEnv) createTwitchLinkedUser(t *testing.T, twitchLogin string) {
 	t.Helper()
-	// username matches Twitch login name; provider_id stores the numeric Twitch ID.
 	user, _, err := e.authSvc.Register(services.RegisterInput{
 		Username: twitchLogin,
 		Email:    twitchLogin + "@test.com",
@@ -125,7 +124,7 @@ func (e *raffleTestEnv) createTwitchLinkedUser(t *testing.T, twitchLogin string)
 	if err != nil {
 		t.Fatalf("register %s: %v", twitchLogin, err)
 	}
-	providerID := "twitch_id_" + twitchLogin // simulate numeric Twitch ID
+	providerID := "twitch_id_" + twitchLogin
 	id, _ := uuid.NewV7()
 	if err := e.db.Exec(
 		`INSERT INTO auth_providers (id, user_id, provider, provider_id, created_at, updated_at) VALUES (?, ?, 'twitch', ?, CURRENT_TIMESTAMP, CURRENT_TIMESTAMP)`,

@@ -129,7 +129,6 @@ func (s *RaffleService) ImportCSV(raffleID, userID uuid.UUID, r io.Reader) (*Imp
 		}
 
 		// Only import users who have a tachigo account linked to this Twitch login.
-		// provider_id stores the Twitch numeric ID; login name is stored in users.username.
 		var provider models.AuthProvider
 		if err := s.db.
 			Joins("JOIN users ON users.id = auth_providers.user_id AND users.deleted_at IS NULL").
