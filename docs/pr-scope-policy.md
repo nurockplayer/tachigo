@@ -183,7 +183,7 @@ repo 的 CI 目前改成：
 至少設成 required：
 
 - `PR Scope Police / Scope police`
-- `CI / Backend tests`
+- `CI / Backend CI (gate)`
 - `CI / Frontend build`
 - `CI / Dashboard build`
 

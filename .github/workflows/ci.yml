@@ -302,9 +302,31 @@ jobs:
         working-directory: contracts
         run: forge test
 
+  backend-ci:
+    name: Backend CI (gate)
+    needs: [backend-build, backend, backend-integration]
+    if: always()
+    runs-on: ubuntu-latest
+    steps:
+      - name: Check backend CI status
+        run: |
+          if [ "${{ needs.backend-build.result }}" != "success" ]; then
+            echo "❌ Backend build failed"
+            exit 1
+          fi
+          if [ "${{ needs.backend.result }}" = "failure" ]; then
+            echo "❌ Backend tests failed"
+            exit 1
+          fi
+          if [ "${{ needs.backend-integration.result }}" = "failure" ]; then
+            echo "❌ Backend integration tests failed"
+            exit 1
+          fi
+          echo "✓ Backend CI passed"
+
   notify-discord:
     name: Notify Discord on failure
-    needs: [workflow-regression, check-cache-wiring, backend-build, backend, backend-integration, frontend, dashboard, contracts]
+    needs: [workflow-regression, check-cache-wiring, backend-ci, frontend, dashboard, contracts]
     if: failure()
     runs-on: ubuntu-latest
     steps:
