@@ -66,11 +66,11 @@ func (h *AgencyHandler) Create(c *gin.Context) {
 
 	if err := h.emailAuthSvc.ForgotPassword(*user.Email); err != nil {
 		// Agency is already committed; ForgotPassword failure is non-fatal.
-		// Admin can re-trigger via POST /auth/forgot-password if needed.
+		// Admin can re-trigger via POST /agencies/:id/resend-setup.
 		if errors.Is(err, services.ErrPasswordResetEmailSend) {
-			log.Printf("agency create: password setup email not delivered for user %s: %v", user.ID, err)
+			log.Printf("agency create: email delivery failed agency_id=%s email=%s err=%v", user.ID, *user.Email, err)
 		} else {
-			log.Printf("agency create: password reset token setup failed for user %s: %v", user.ID, err)
+			log.Printf("agency create: token write failed agency_id=%s email=%s err=%v", user.ID, *user.Email, err)
 		}
 	}
 
@@ -79,6 +79,101 @@ func (h *AgencyHandler) Create(c *gin.Context) {
 		Name:  req.Name,
 		Email: req.Email,
 	})
+}
+
+type getAgencyResponse struct {
+	ID                 uuid.UUID `json:"id"`
+	Name               string    `json:"name"`
+	Email              string    `json:"email"`
+	OnboardingComplete bool      `json:"onboarding_complete"`
+}
+
+func (h *AgencyHandler) Get(c *gin.Context) {
+	agencyID, err := uuid.Parse(c.Param("id"))
+	if err != nil {
+		badRequest(c, "invalid agency id")
+		return
+	}
+
+	claims := middleware.MustClaims(c)
+	if claims.Role == models.RoleAgency && claims.UserID != agencyID.String() {
+		c.JSON(http.StatusForbidden, Response{Success: false, Error: "forbidden"})
+		return
+	}
+
+	user, complete, err := h.agencySvc.GetByID(agencyID)
+	if err != nil {
+		if errors.Is(err, services.ErrAgencyNotFound) {
+			notFound(c, "agency not found")
+			return
+		}
+		log.Printf("agency get: unexpected error agency_id=%s err=%v", agencyID, err)
+		internal(c)
+		return
+	}
+
+	name := ""
+	if user.Username != nil {
+		name = *user.Username
+	}
+	email := ""
+	if user.Email != nil {
+		email = *user.Email
+	}
+
+	ok(c, getAgencyResponse{
+		ID:                 user.ID,
+		Name:               name,
+		Email:              email,
+		OnboardingComplete: complete,
+	})
+}
+
+func (h *AgencyHandler) ResendSetup(c *gin.Context) {
+	agencyID, err := uuid.Parse(c.Param("id"))
+	if err != nil {
+		badRequest(c, "invalid agency id")
+		return
+	}
+
+	user, complete, err := h.agencySvc.GetByID(agencyID)
+	if err != nil {
+		if errors.Is(err, services.ErrAgencyNotFound) {
+			notFound(c, "agency not found")
+			return
+		}
+		log.Printf("agency resend-setup: get failed agency_id=%s err=%v", agencyID, err)
+		internal(c)
+		return
+	}
+
+	if complete {
+		c.JSON(http.StatusConflict, Response{Success: false, Error: "agency has already completed onboarding"})
+		return
+	}
+
+	if user.Email == nil {
+		log.Printf("agency resend-setup: agency has no email agency_id=%s", agencyID)
+		internal(c)
+		return
+	}
+	email := *user.Email
+
+	// ForgotPassword returns nil only for ErrRecordNotFound (anti-enumeration for
+	// public callers). Other DB errors are propagated, so a transient failure here
+	// is visible to the caller rather than silently succeeding.
+	if err := h.emailAuthSvc.ForgotPassword(email); err != nil {
+		if errors.Is(err, services.ErrPasswordResetEmailSend) {
+			log.Printf("agency resend-setup: email delivery failed agency_id=%s email=%s err=%v", agencyID, email, err)
+		} else {
+			log.Printf("agency resend-setup: token write failed agency_id=%s email=%s err=%v", agencyID, email, err)
+		}
+		c.JSON(http.StatusInternalServerError, Response{Success: false, Error: "failed to send setup email"})
+		return
+	}
+
+	log.Printf("agency resend-setup: sent agency_id=%s email=%s", agencyID, email)
+	ok(c, gin.H{"message": "setup email sent"})
 }
 
 type updateAgencySettingsRequest struct {

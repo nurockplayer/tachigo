@@ -20,5 +20,5 @@
   "action": {
     "default_title": "Open Tachimint"
   },
-  "host_permissions": ["http://localhost:8001/*"]
+  "host_permissions": ["http://localhost:8080/*"]
 }

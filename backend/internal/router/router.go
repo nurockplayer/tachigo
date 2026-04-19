@@ -40,7 +40,12 @@ func New(
 	r.Use(gin.Logger(), gin.Recovery())
 	r.Use(middleware.CORS(allowedOrigins))
 
-	authH := handlers.NewAuthHandler(authSvc).WithEmailAuth(emailAuthSvc)
+	var cfg *config.Config
+	if len(internalRouterConfig) > 0 {
+		cfg = internalRouterConfig[0].Config
+	}
+
+	authH := handlers.NewAuthHandler(authSvc, cfg).WithEmailAuth(emailAuthSvc)
 	userH := handlers.NewUserHandler(userSvc)
 	addrH := handlers.NewAddressHandler(addrSvc)
 	extH := handlers.NewExtensionHandler(extSvc)
@@ -124,6 +129,7 @@ func New(
 		// User profile
 		protected.GET("users/me", userH.Me)
 		protected.PUT("users/me", userH.UpdateMe)
+		protected.POST("users/me/wallet", userH.LinkWallet)
 		protected.GET("users/me/providers", userH.ListProviders)
 		protected.DELETE("auth/providers/:provider", authH.UnlinkProvider)
 
@@ -192,6 +198,11 @@ func New(
 	agencies.Use(middleware.JWTAuth(authSvc))
 	{
 		agencies.POST("", middleware.RequireRole(models.RoleAdmin), agencyHandler.Create)
+		// GET /agencies/:id — agency or admin
+		agencies.GET("/:id",
+			middleware.RequireRole(models.RoleAgency, models.RoleAdmin),
+			agencyHandler.Get,
+		)
 		// PUT /agencies/:id/settings — agency or admin
 		agencies.PUT("/:id/settings",
 			middleware.RequireRole(models.RoleAgency, models.RoleAdmin),
@@ -201,6 +212,11 @@ func New(
 		agencies.GET("/:id/streamers",
 			middleware.RequireRole(models.RoleAgency, models.RoleAdmin),
 			agencyHandler.ListStreamers,
+		)
+		// POST /agencies/:id/resend-setup — admin only
+		agencies.POST("/:id/resend-setup",
+			middleware.RequireRole(models.RoleAdmin),
+			agencyHandler.ResendSetup,
 		)
 	}
 

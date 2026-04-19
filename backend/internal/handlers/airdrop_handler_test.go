@@ -6,6 +6,7 @@ import (
 	"net/http/httptest"
 	"strings"
 	"testing"
+	"time"
 
 	"github.com/gin-gonic/gin"
 	"github.com/google/uuid"
@@ -72,8 +73,8 @@ func seedActiveViewerSession(t *testing.T, env *airdropEnv, channelID string, ac
 		`INSERT INTO watch_sessions (
 			id, user_id, channel_id, accumulated_seconds, rewarded_seconds,
 			last_heartbeat_at, click_cooldown_until, is_active, created_at, updated_at
-		) VALUES (?, ?, ?, ?, 0, CURRENT_TIMESTAMP, '1970-01-01 00:00:00', 1, CURRENT_TIMESTAMP, CURRENT_TIMESTAMP)`,
-		uuid.New(), userID, channelID, accumulatedSeconds,
+		) VALUES (?, ?, ?, ?, 0, ?, '1970-01-01 00:00:00', 1, CURRENT_TIMESTAMP, CURRENT_TIMESTAMP)`,
+		uuid.New(), userID, channelID, accumulatedSeconds, time.Now(),
 	).Error; err != nil {
 		t.Fatalf("seed watch session: %v", err)
 	}

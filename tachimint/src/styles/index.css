@@ -5,7 +5,7 @@
   font-family: var(--ui-font-family, 'Inter', system-ui, sans-serif);
 }
 .game-pixel {
-  font-family: var(--pixel-font-family, 'Press Start 2P', monospace);
+  font-family: var(--pixel-font-family, 'Press Start 2P', 'Zpix CJK', Zpix, monospace);
 }
 
 /* ─── Capybara wrapper animations ──────────────── */
@@ -75,13 +75,13 @@
 }
 
 /* ─── Balance bump ─────────────────────────────── */
-@keyframes balance-bump {
+@keyframes game-balance-bump {
   0%   { transform: scale(1); }
   40%  { transform: scale(1.18); color: #f5c842; }
   100% { transform: scale(1); }
 }
 .balance-bump {
-  animation: balance-bump 0.4s ease-out;
+  animation: game-balance-bump 0.4s ease-out;
 }
 
 /* ─── Glow pulse on HUD point capsule ──────────── */

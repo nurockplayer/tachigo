@@ -1,6 +1,7 @@
 import { useState, useEffect } from 'react'
 import { useTranslation } from 'react-i18next'
 import { useSound } from '../hooks/useSound'
+import { parseCpcAmount } from './claimAmount'
 
 const RATE = 0.1
 
@@ -18,17 +19,15 @@ function GearIcon() {
 interface TokenBlockProps {
   label: string
   tokenSymbol: string
-  balance: number
   balanceLabel: string
   value: string
   readOnly: boolean
-  maxValue?: number
   onValueChange?: (v: string) => void
   onMax?: () => void
   maxLabel: string
 }
 
-function TokenBlock({ label, tokenSymbol, balance: _balance, balanceLabel, value, readOnly, maxValue: _maxValue, onValueChange, onMax, maxLabel }: TokenBlockProps) {
+function TokenBlock({ label, tokenSymbol, balanceLabel, value, readOnly, onValueChange, onMax, maxLabel }: TokenBlockProps) {
   return (
     <div
       style={{
@@ -102,6 +101,7 @@ function TokenBlock({ label, tokenSymbol, balance: _balance, balanceLabel, value
         <input
           type="text"
           inputMode="numeric"
+          aria-label={label}
           value={value}
           readOnly={readOnly}
           onChange={readOnly ? undefined : (e) => onValueChange?.(e.target.value)}
@@ -162,11 +162,11 @@ export function ClaimPanel({ onBack, cpcBalance, tcgBalance, onClaim }: ClaimPan
   const [cpcInput, setCpcInput] = useState('')
   const [claimed, setClaimed] = useState(false)
 
-  const numericCpc = parseFloat(cpcInput)
-  const tcgOutput = cpcInput !== '' && !isNaN(numericCpc) && numericCpc > 0
+  const numericCpc = parseCpcAmount(cpcInput)
+  const tcgOutput = numericCpc !== null && numericCpc > 0
     ? (numericCpc * RATE).toFixed(2)
     : ''
-  const isDisabled = !cpcInput || isNaN(numericCpc) || numericCpc <= 0
+  const isDisabled = numericCpc === null || numericCpc <= 0
     || numericCpc > cpcBalance || claimed
 
   const handleClaim = () => {
@@ -251,11 +251,9 @@ export function ClaimPanel({ onBack, cpcBalance, tcgBalance, onClaim }: ClaimPan
         <TokenBlock
           label={t('claim.from')}
           tokenSymbol="CPC"
-          balance={cpcBalance}
           balanceLabel={t('claim.balance', { amount: cpcBalance.toLocaleString() })}
           value={cpcInput}
           readOnly={false}
-          maxValue={cpcBalance}
           onValueChange={setCpcInput}
           onMax={() => setCpcInput(String(cpcBalance))}
           maxLabel={t('claim.max')}
@@ -278,7 +276,6 @@ export function ClaimPanel({ onBack, cpcBalance, tcgBalance, onClaim }: ClaimPan
         <TokenBlock
           label={t('claim.to')}
           tokenSymbol="TCG"
-          balance={tcgBalance}
           balanceLabel={t('claim.balance', { amount: tcgBalance.toLocaleString() })}
           value={tcgOutput}
           readOnly
