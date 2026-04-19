@@ -133,6 +133,19 @@ jobs:
               core.notice('Skipping backend integration tests because this PR does not touch backend, contracts, docker compose, or CI workflow files.')
             }
 
+  workflow-regression:
+    name: Workflow regression tests
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+
+      - uses: actions/setup-node@v4
+        with:
+          node-version: 22.12.0
+
+      - name: Verify CI workflow assertions
+        run: node --test .github/workflows/ci.test.mjs
+
   backend:
     name: Backend tests
     needs: [scope-gate]
@@ -151,8 +164,8 @@ jobs:
 
   backend-integration:
     name: Backend integration tests
-    runs-on: ubuntu-latest
     needs: [scope-gate, backend]
+    runs-on: ubuntu-latest
     if: github.event_name == 'push' || (needs.scope-gate.outputs.run_ci == 'true' && needs.scope-gate.outputs.run_backend_integration == 'true')
     steps:
       - uses: actions/checkout@v4
@@ -240,7 +253,7 @@ jobs:
 
   notify-discord:
     name: Notify Discord on failure
-    needs: [backend, backend-integration, frontend, dashboard, contracts]
+    needs: [workflow-regression, backend, backend-integration, frontend, dashboard, contracts]
     if: failure()
     runs-on: ubuntu-latest
     steps:
