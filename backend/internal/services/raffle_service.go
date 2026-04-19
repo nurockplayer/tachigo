@@ -133,6 +133,7 @@ func (s *RaffleService) ImportCSV(raffleID, userID uuid.UUID, r io.Reader) (*Imp
 		if err := s.db.
 			Where("provider = ? AND provider_id = ?", models.ProviderTwitch, twitchLogin).
 			First(&provider).Error; err != nil {
+			if !errors.Is(err, gorm.ErrRecordNotFound) { return nil, err }
 			result.Skipped++
 			continue
 		}
