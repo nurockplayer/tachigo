@@ -309,9 +309,18 @@ jobs:
     runs-on: ubuntu-latest
     steps:
       - name: Check backend CI status
+        env:
+          BACKEND_BUILD_RESULT: ${{ needs.backend-build.result }}
+          BACKEND_RESULT: ${{ needs.backend.result }}
+          BACKEND_INTEGRATION_RESULT: ${{ needs.backend-integration.result }}
         run: |
-          for job in backend-build backend backend-integration; do
-            result=$(eval echo "\${{ needs.$job.result }}")
+          for item in \
+            "backend-build:$BACKEND_BUILD_RESULT" \
+            "backend:$BACKEND_RESULT" \
+            "backend-integration:$BACKEND_INTEGRATION_RESULT"
+          do
+            job="${item%%:*}"
+            result="${item#*:}"
             if [ "$result" != "success" ] && [ "$result" != "skipped" ]; then
               echo "❌ $job: $result"
               exit 1
