@@ -1,117 +1,6 @@
 basePath: /api/v1
 definitions:
-  handlers.AddressResponse:
-    properties:
-      address:
-        $ref: '#/definitions/models.ShippingAddress'
-    type: object
-  handlers.AddressesResponse:
-    properties:
-      addresses:
-        items:
-          $ref: '#/definitions/models.ShippingAddress'
-        type: array
-    type: object
-  handlers.AuthResponse:
-    properties:
-      tokens:
-        $ref: '#/definitions/services.TokenPair'
-      user:
-        $ref: '#/definitions/models.User'
-    type: object
-  handlers.MessageResponse:
-    properties:
-      message:
-        type: string
-    type: object
-  handlers.NonceResponse:
-    properties:
-      issued_at:
-        type: string
-      nonce:
-        type: string
-    type: object
-  handlers.PointsBalanceResponse:
-    properties:
-      cumulative_total:
-        type: integer
-      spendable_balance:
-        type: integer
-    type: object
-  handlers.PointsHistoryItem:
-    properties:
-      amount:
-        type: integer
-      created_at:
-        format: date-time
-        type: string
-      note:
-        type: string
-      sku:
-        type: string
-      type:
-        enum:
-        - earn
-        - spend
-        type: string
-    type: object
-  handlers.PointsHistoryResponse:
-    properties:
-      transactions:
-        items:
-          $ref: '#/definitions/handlers.PointsHistoryItem'
-        type: array
-    type: object
-  handlers.ProvidersResponse:
-    properties:
-      providers:
-        items:
-          $ref: '#/definitions/models.AuthProvider'
-        type: array
-    type: object
-  handlers.Response:
-    properties:
-      data: {}
-      error:
-        type: string
-      success:
-        type: boolean
-    type: object
-  handlers.TokensResponse:
-    properties:
-      tokens:
-        $ref: '#/definitions/services.TokenPair'
-    type: object
-  handlers.UserResponse:
-    properties:
-      user:
-        $ref: '#/definitions/models.User'
-    type: object
-  handlers.claimRequest:
-    properties:
-      amount:
-        description: 0 = claim all
-        type: integer
-    type: object
-  handlers.redeemRequest:
-    properties:
-      amount:
-        minimum: 1
-        type: integer
-    required:
-    - amount
-    type: object
-  handlers.redeemResponse:
-    properties:
-      balance:
-        type: integer
-    type: object
-  handlers.tachiBalanceResponse:
-    properties:
-      tachi_balance:
-        type: integer
-    type: object
-  models.AuthProvider:
+  github_com_tachigo_tachigo_internal_models.AuthProvider:
     properties:
       created_at:
         type: string
@@ -120,7 +9,7 @@ definitions:
       metadata:
         type: object
       provider:
-        $ref: '#/definitions/models.ProviderType'
+        $ref: '#/definitions/github_com_tachigo_tachigo_internal_models.ProviderType'
       provider_id:
         type: string
       updated_at:
@@ -128,7 +17,7 @@ definitions:
       user_id:
         type: string
     type: object
-  models.ProviderType:
+  github_com_tachigo_tachigo_internal_models.ProviderType:
     enum:
     - twitch
     - google
@@ -140,7 +29,7 @@ definitions:
     - ProviderGoogle
     - ProviderWeb3
     - ProviderEmail
-  models.ShippingAddress:
+  github_com_tachigo_tachigo_internal_models.ShippingAddress:
     properties:
       address_line1:
         type: string
@@ -169,15 +58,15 @@ definitions:
       user_id:
         type: string
     type: object
-  models.User:
+  github_com_tachigo_tachigo_internal_models.User:
     properties:
       addresses:
         items:
-          $ref: '#/definitions/models.ShippingAddress'
+          $ref: '#/definitions/github_com_tachigo_tachigo_internal_models.ShippingAddress'
         type: array
       auth_providers:
         items:
-          $ref: '#/definitions/models.AuthProvider'
+          $ref: '#/definitions/github_com_tachigo_tachigo_internal_models.AuthProvider'
         type: array
       avatar_url:
         type: string
@@ -192,13 +81,13 @@ definitions:
       is_active:
         type: boolean
       role:
-        $ref: '#/definitions/models.UserRole'
+        $ref: '#/definitions/github_com_tachigo_tachigo_internal_models.UserRole'
       updated_at:
         type: string
       username:
         type: string
     type: object
-  models.UserRole:
+  github_com_tachigo_tachigo_internal_models.UserRole:
     enum:
     - viewer
     - streamer
@@ -210,7 +99,7 @@ definitions:
     - RoleStreamer
     - RoleAgency
     - RoleAdmin
-  services.AddressInput:
+  github_com_tachigo_tachigo_internal_services.AddressInput:
     properties:
       address_line1:
         type: string
@@ -235,7 +124,7 @@ definitions:
     - city
     - recipient_name
     type: object
-  services.LoginInput:
+  github_com_tachigo_tachigo_internal_services.LoginInput:
     properties:
       email:
         type: string
@@ -245,7 +134,7 @@ definitions:
     - email
     - password
     type: object
-  services.RegisterInput:
+  github_com_tachigo_tachigo_internal_services.RegisterInput:
     properties:
       email:
         type: string
@@ -261,7 +150,7 @@ definitions:
     - password
     - username
     type: object
-  services.TokenPair:
+  github_com_tachigo_tachigo_internal_services.TokenPair:
     properties:
       access_token:
         type: string
@@ -271,14 +160,14 @@ definitions:
       refresh_token:
         type: string
     type: object
-  services.UpdateProfileInput:
+  github_com_tachigo_tachigo_internal_services.UpdateProfileInput:
     properties:
       avatar_url:
         type: string
       username:
         type: string
     type: object
-  services.Web3VerifyInput:
+  github_com_tachigo_tachigo_internal_services.Web3VerifyInput:
     properties:
       address:
         type: string
@@ -290,6 +179,117 @@ definitions:
     - address
     - nonce
     - signature
+    type: object
+  internal_handlers.AddressResponse:
+    properties:
+      address:
+        $ref: '#/definitions/github_com_tachigo_tachigo_internal_models.ShippingAddress'
+    type: object
+  internal_handlers.AddressesResponse:
+    properties:
+      addresses:
+        items:
+          $ref: '#/definitions/github_com_tachigo_tachigo_internal_models.ShippingAddress'
+        type: array
+    type: object
+  internal_handlers.AuthResponse:
+    properties:
+      tokens:
+        $ref: '#/definitions/github_com_tachigo_tachigo_internal_services.TokenPair'
+      user:
+        $ref: '#/definitions/github_com_tachigo_tachigo_internal_models.User'
+    type: object
+  internal_handlers.MessageResponse:
+    properties:
+      message:
+        type: string
+    type: object
+  internal_handlers.NonceResponse:
+    properties:
+      issued_at:
+        type: string
+      nonce:
+        type: string
+    type: object
+  internal_handlers.PointsBalanceResponse:
+    properties:
+      cumulative_total:
+        type: integer
+      spendable_balance:
+        type: integer
+    type: object
+  internal_handlers.PointsHistoryItem:
+    properties:
+      amount:
+        type: integer
+      created_at:
+        format: date-time
+        type: string
+      note:
+        type: string
+      sku:
+        type: string
+      type:
+        enum:
+        - earn
+        - spend
+        type: string
+    type: object
+  internal_handlers.PointsHistoryResponse:
+    properties:
+      transactions:
+        items:
+          $ref: '#/definitions/internal_handlers.PointsHistoryItem'
+        type: array
+    type: object
+  internal_handlers.ProvidersResponse:
+    properties:
+      providers:
+        items:
+          $ref: '#/definitions/github_com_tachigo_tachigo_internal_models.AuthProvider'
+        type: array
+    type: object
+  internal_handlers.Response:
+    properties:
+      data: {}
+      error:
+        type: string
+      success:
+        type: boolean
+    type: object
+  internal_handlers.TokensResponse:
+    properties:
+      tokens:
+        $ref: '#/definitions/github_com_tachigo_tachigo_internal_services.TokenPair'
+    type: object
+  internal_handlers.UserResponse:
+    properties:
+      user:
+        $ref: '#/definitions/github_com_tachigo_tachigo_internal_models.User'
+    type: object
+  internal_handlers.claimRequest:
+    properties:
+      amount:
+        description: 0 = claim all
+        type: integer
+    type: object
+  internal_handlers.redeemRequest:
+    properties:
+      amount:
+        minimum: 1
+        type: integer
+    required:
+    - amount
+    type: object
+  internal_handlers.redeemResponse:
+    properties:
+      balance:
+        type: integer
+    type: object
+  internal_handlers.tachiBalanceResponse:
+    properties:
+      tachi_balance:
+        type: integer
     type: object
 host: localhost:8080
 info:
@@ -320,15 +320,15 @@ paths:
           description: OK
           schema:
             allOf:
-            - $ref: '#/definitions/handlers.Response'
+            - $ref: '#/definitions/internal_handlers.Response'
             - properties:
                 data:
-                  $ref: '#/definitions/handlers.MessageResponse'
+                  $ref: '#/definitions/internal_handlers.MessageResponse'
               type: object
         "400":
           description: Bad Request
           schema:
-            $ref: '#/definitions/handlers.Response'
+            $ref: '#/definitions/internal_handlers.Response'
       summary: Request a password reset email
       tags:
       - auth
@@ -362,19 +362,19 @@ paths:
           description: OK
           schema:
             allOf:
-            - $ref: '#/definitions/handlers.Response'
+            - $ref: '#/definitions/internal_handlers.Response'
             - properties:
                 data:
-                  $ref: '#/definitions/handlers.AuthResponse'
+                  $ref: '#/definitions/internal_handlers.AuthResponse'
               type: object
         "400":
           description: Bad Request
           schema:
-            $ref: '#/definitions/handlers.Response'
+            $ref: '#/definitions/internal_handlers.Response'
         "401":
           description: Unauthorized
           schema:
-            $ref: '#/definitions/handlers.Response'
+            $ref: '#/definitions/internal_handlers.Response'
       summary: Google OAuth callback
       tags:
       - auth
@@ -388,7 +388,7 @@ paths:
         name: body
         required: true
         schema:
-          $ref: '#/definitions/services.LoginInput'
+          $ref: '#/definitions/github_com_tachigo_tachigo_internal_services.LoginInput'
       produces:
       - application/json
       responses:
@@ -396,19 +396,19 @@ paths:
           description: OK
           schema:
             allOf:
-            - $ref: '#/definitions/handlers.Response'
+            - $ref: '#/definitions/internal_handlers.Response'
             - properties:
                 data:
-                  $ref: '#/definitions/handlers.AuthResponse'
+                  $ref: '#/definitions/internal_handlers.AuthResponse'
               type: object
         "400":
           description: Bad Request
           schema:
-            $ref: '#/definitions/handlers.Response'
+            $ref: '#/definitions/internal_handlers.Response'
         "401":
           description: Unauthorized
           schema:
-            $ref: '#/definitions/handlers.Response'
+            $ref: '#/definitions/internal_handlers.Response'
       summary: Login with email and password
       tags:
       - auth
@@ -432,15 +432,15 @@ paths:
           description: OK
           schema:
             allOf:
-            - $ref: '#/definitions/handlers.Response'
+            - $ref: '#/definitions/internal_handlers.Response'
             - properties:
                 data:
-                  $ref: '#/definitions/handlers.MessageResponse'
+                  $ref: '#/definitions/internal_handlers.MessageResponse'
               type: object
         "400":
           description: Bad Request
           schema:
-            $ref: '#/definitions/handlers.Response'
+            $ref: '#/definitions/internal_handlers.Response'
       summary: Logout and invalidate refresh token
       tags:
       - auth
@@ -464,19 +464,19 @@ paths:
           description: OK
           schema:
             allOf:
-            - $ref: '#/definitions/handlers.Response'
+            - $ref: '#/definitions/internal_handlers.Response'
             - properties:
                 data:
-                  $ref: '#/definitions/handlers.MessageResponse'
+                  $ref: '#/definitions/internal_handlers.MessageResponse'
               type: object
         "400":
           description: Bad Request
           schema:
-            $ref: '#/definitions/handlers.Response'
+            $ref: '#/definitions/internal_handlers.Response'
         "500":
           description: Internal Server Error
           schema:
-            $ref: '#/definitions/handlers.Response'
+            $ref: '#/definitions/internal_handlers.Response'
       security:
       - BearerAuth: []
       summary: Unlink an OAuth provider from the current user
@@ -502,19 +502,19 @@ paths:
           description: OK
           schema:
             allOf:
-            - $ref: '#/definitions/handlers.Response'
+            - $ref: '#/definitions/internal_handlers.Response'
             - properties:
                 data:
-                  $ref: '#/definitions/handlers.TokensResponse'
+                  $ref: '#/definitions/internal_handlers.TokensResponse'
               type: object
         "400":
           description: Bad Request
           schema:
-            $ref: '#/definitions/handlers.Response'
+            $ref: '#/definitions/internal_handlers.Response'
         "401":
           description: Unauthorized
           schema:
-            $ref: '#/definitions/handlers.Response'
+            $ref: '#/definitions/internal_handlers.Response'
       summary: Refresh access token
       tags:
       - auth
@@ -528,7 +528,7 @@ paths:
         name: body
         required: true
         schema:
-          $ref: '#/definitions/services.RegisterInput'
+          $ref: '#/definitions/github_com_tachigo_tachigo_internal_services.RegisterInput'
       produces:
       - application/json
       responses:
@@ -536,19 +536,19 @@ paths:
           description: Created
           schema:
             allOf:
-            - $ref: '#/definitions/handlers.Response'
+            - $ref: '#/definitions/internal_handlers.Response'
             - properties:
                 data:
-                  $ref: '#/definitions/handlers.AuthResponse'
+                  $ref: '#/definitions/internal_handlers.AuthResponse'
               type: object
         "400":
           description: Bad Request
           schema:
-            $ref: '#/definitions/handlers.Response'
+            $ref: '#/definitions/internal_handlers.Response'
         "409":
           description: Conflict
           schema:
-            $ref: '#/definitions/handlers.Response'
+            $ref: '#/definitions/internal_handlers.Response'
       summary: Register a new user
       tags:
       - auth
@@ -575,15 +575,15 @@ paths:
           description: OK
           schema:
             allOf:
-            - $ref: '#/definitions/handlers.Response'
+            - $ref: '#/definitions/internal_handlers.Response'
             - properties:
                 data:
-                  $ref: '#/definitions/handlers.MessageResponse'
+                  $ref: '#/definitions/internal_handlers.MessageResponse'
               type: object
         "400":
           description: Bad Request
           schema:
-            $ref: '#/definitions/handlers.Response'
+            $ref: '#/definitions/internal_handlers.Response'
       summary: Reset password using token
       tags:
       - auth
@@ -617,19 +617,19 @@ paths:
           description: OK
           schema:
             allOf:
-            - $ref: '#/definitions/handlers.Response'
+            - $ref: '#/definitions/internal_handlers.Response'
             - properties:
                 data:
-                  $ref: '#/definitions/handlers.AuthResponse'
+                  $ref: '#/definitions/internal_handlers.AuthResponse'
               type: object
         "400":
           description: Bad Request
           schema:
-            $ref: '#/definitions/handlers.Response'
+            $ref: '#/definitions/internal_handlers.Response'
         "401":
           description: Unauthorized
           schema:
-            $ref: '#/definitions/handlers.Response'
+            $ref: '#/definitions/internal_handlers.Response'
       summary: Twitch OAuth callback
       tags:
       - auth
@@ -654,15 +654,15 @@ paths:
           description: OK
           schema:
             allOf:
-            - $ref: '#/definitions/handlers.Response'
+            - $ref: '#/definitions/internal_handlers.Response'
             - properties:
                 data:
-                  $ref: '#/definitions/handlers.MessageResponse'
+                  $ref: '#/definitions/internal_handlers.MessageResponse'
               type: object
         "400":
           description: Bad Request
           schema:
-            $ref: '#/definitions/handlers.Response'
+            $ref: '#/definitions/internal_handlers.Response'
       summary: Confirm email verification token
       tags:
       - auth
@@ -675,19 +675,19 @@ paths:
           description: OK
           schema:
             allOf:
-            - $ref: '#/definitions/handlers.Response'
+            - $ref: '#/definitions/internal_handlers.Response'
             - properties:
                 data:
-                  $ref: '#/definitions/handlers.MessageResponse'
+                  $ref: '#/definitions/internal_handlers.MessageResponse'
               type: object
         "400":
           description: Bad Request
           schema:
-            $ref: '#/definitions/handlers.Response'
+            $ref: '#/definitions/internal_handlers.Response'
         "404":
           description: Not Found
           schema:
-            $ref: '#/definitions/handlers.Response'
+            $ref: '#/definitions/internal_handlers.Response'
       security:
       - BearerAuth: []
       summary: Send or resend email verification
@@ -714,19 +714,19 @@ paths:
           description: OK
           schema:
             allOf:
-            - $ref: '#/definitions/handlers.Response'
+            - $ref: '#/definitions/internal_handlers.Response'
             - properties:
                 data:
-                  $ref: '#/definitions/handlers.NonceResponse'
+                  $ref: '#/definitions/internal_handlers.NonceResponse'
               type: object
         "400":
           description: Bad Request
           schema:
-            $ref: '#/definitions/handlers.Response'
+            $ref: '#/definitions/internal_handlers.Response'
         "500":
           description: Internal Server Error
           schema:
-            $ref: '#/definitions/handlers.Response'
+            $ref: '#/definitions/internal_handlers.Response'
       summary: Get a sign-in nonce for a wallet address
       tags:
       - auth
@@ -740,7 +740,7 @@ paths:
         name: body
         required: true
         schema:
-          $ref: '#/definitions/services.Web3VerifyInput'
+          $ref: '#/definitions/github_com_tachigo_tachigo_internal_services.Web3VerifyInput'
       produces:
       - application/json
       responses:
@@ -748,19 +748,19 @@ paths:
           description: OK
           schema:
             allOf:
-            - $ref: '#/definitions/handlers.Response'
+            - $ref: '#/definitions/internal_handlers.Response'
             - properties:
                 data:
-                  $ref: '#/definitions/handlers.AuthResponse'
+                  $ref: '#/definitions/internal_handlers.AuthResponse'
               type: object
         "400":
           description: Bad Request
           schema:
-            $ref: '#/definitions/handlers.Response'
+            $ref: '#/definitions/internal_handlers.Response'
         "401":
           description: Unauthorized
           schema:
-            $ref: '#/definitions/handlers.Response'
+            $ref: '#/definitions/internal_handlers.Response'
       summary: Verify wallet signature and authenticate
       tags:
       - auth
@@ -785,19 +785,19 @@ paths:
           description: OK
           schema:
             allOf:
-            - $ref: '#/definitions/handlers.Response'
+            - $ref: '#/definitions/internal_handlers.Response'
             - properties:
                 data:
-                  $ref: '#/definitions/handlers.AuthResponse'
+                  $ref: '#/definitions/internal_handlers.AuthResponse'
               type: object
         "400":
           description: Bad Request
           schema:
-            $ref: '#/definitions/handlers.Response'
+            $ref: '#/definitions/internal_handlers.Response'
         "401":
           description: Unauthorized
           schema:
-            $ref: '#/definitions/handlers.Response'
+            $ref: '#/definitions/internal_handlers.Response'
       summary: Authenticate via Twitch Extension JWT
       tags:
       - extension
@@ -826,19 +826,19 @@ paths:
           description: OK
           schema:
             allOf:
-            - $ref: '#/definitions/handlers.Response'
+            - $ref: '#/definitions/internal_handlers.Response'
             - properties:
                 data:
-                  $ref: '#/definitions/handlers.AuthResponse'
+                  $ref: '#/definitions/internal_handlers.AuthResponse'
               type: object
         "400":
           description: Bad Request
           schema:
-            $ref: '#/definitions/handlers.Response'
+            $ref: '#/definitions/internal_handlers.Response'
         "401":
           description: Unauthorized
           schema:
-            $ref: '#/definitions/handlers.Response'
+            $ref: '#/definitions/internal_handlers.Response'
       summary: Complete a Bits transaction
       tags:
       - extension
@@ -852,7 +852,7 @@ paths:
         name: body
         required: true
         schema:
-          $ref: '#/definitions/handlers.redeemRequest'
+          $ref: '#/definitions/internal_handlers.redeemRequest'
       produces:
       - application/json
       responses:
@@ -860,23 +860,23 @@ paths:
           description: OK
           schema:
             allOf:
-            - $ref: '#/definitions/handlers.Response'
+            - $ref: '#/definitions/internal_handlers.Response'
             - properties:
                 data:
-                  $ref: '#/definitions/handlers.redeemResponse'
+                  $ref: '#/definitions/internal_handlers.redeemResponse'
               type: object
         "400":
           description: Bad Request
           schema:
-            $ref: '#/definitions/handlers.Response'
+            $ref: '#/definitions/internal_handlers.Response'
         "401":
           description: Unauthorized
           schema:
-            $ref: '#/definitions/handlers.Response'
+            $ref: '#/definitions/internal_handlers.Response'
         "500":
           description: Internal Server Error
           schema:
-            $ref: '#/definitions/handlers.Response'
+            $ref: '#/definitions/internal_handlers.Response'
       security:
       - BearerAuth: []
       summary: Burn $TACHI to redeem a discount coupon
@@ -891,15 +891,15 @@ paths:
           description: OK
           schema:
             allOf:
-            - $ref: '#/definitions/handlers.Response'
+            - $ref: '#/definitions/internal_handlers.Response'
             - properties:
                 data:
-                  $ref: '#/definitions/handlers.UserResponse'
+                  $ref: '#/definitions/internal_handlers.UserResponse'
               type: object
         "404":
           description: Not Found
           schema:
-            $ref: '#/definitions/handlers.Response'
+            $ref: '#/definitions/internal_handlers.Response'
       security:
       - BearerAuth: []
       summary: Get current user profile
@@ -914,7 +914,7 @@ paths:
         name: body
         required: true
         schema:
-          $ref: '#/definitions/services.UpdateProfileInput'
+          $ref: '#/definitions/github_com_tachigo_tachigo_internal_services.UpdateProfileInput'
       produces:
       - application/json
       responses:
@@ -922,19 +922,19 @@ paths:
           description: OK
           schema:
             allOf:
-            - $ref: '#/definitions/handlers.Response'
+            - $ref: '#/definitions/internal_handlers.Response'
             - properties:
                 data:
-                  $ref: '#/definitions/handlers.UserResponse'
+                  $ref: '#/definitions/internal_handlers.UserResponse'
               type: object
         "400":
           description: Bad Request
           schema:
-            $ref: '#/definitions/handlers.Response'
+            $ref: '#/definitions/internal_handlers.Response'
         "409":
           description: Conflict
           schema:
-            $ref: '#/definitions/handlers.Response'
+            $ref: '#/definitions/internal_handlers.Response'
       security:
       - BearerAuth: []
       summary: Update current user profile
@@ -949,10 +949,10 @@ paths:
           description: OK
           schema:
             allOf:
-            - $ref: '#/definitions/handlers.Response'
+            - $ref: '#/definitions/internal_handlers.Response'
             - properties:
                 data:
-                  $ref: '#/definitions/handlers.AddressesResponse'
+                  $ref: '#/definitions/internal_handlers.AddressesResponse'
               type: object
       security:
       - BearerAuth: []
@@ -968,7 +968,7 @@ paths:
         name: body
         required: true
         schema:
-          $ref: '#/definitions/services.AddressInput'
+          $ref: '#/definitions/github_com_tachigo_tachigo_internal_services.AddressInput'
       produces:
       - application/json
       responses:
@@ -976,15 +976,15 @@ paths:
           description: Created
           schema:
             allOf:
-            - $ref: '#/definitions/handlers.Response'
+            - $ref: '#/definitions/internal_handlers.Response'
             - properties:
                 data:
-                  $ref: '#/definitions/handlers.AddressResponse'
+                  $ref: '#/definitions/internal_handlers.AddressResponse'
               type: object
         "400":
           description: Bad Request
           schema:
-            $ref: '#/definitions/handlers.Response'
+            $ref: '#/definitions/internal_handlers.Response'
       security:
       - BearerAuth: []
       summary: Create a shipping address
@@ -1005,19 +1005,19 @@ paths:
           description: OK
           schema:
             allOf:
-            - $ref: '#/definitions/handlers.Response'
+            - $ref: '#/definitions/internal_handlers.Response'
             - properties:
                 data:
-                  $ref: '#/definitions/handlers.MessageResponse'
+                  $ref: '#/definitions/internal_handlers.MessageResponse'
               type: object
         "400":
           description: Bad Request
           schema:
-            $ref: '#/definitions/handlers.Response'
+            $ref: '#/definitions/internal_handlers.Response'
         "404":
           description: Not Found
           schema:
-            $ref: '#/definitions/handlers.Response'
+            $ref: '#/definitions/internal_handlers.Response'
       security:
       - BearerAuth: []
       summary: Delete a shipping address
@@ -1037,7 +1037,7 @@ paths:
         name: body
         required: true
         schema:
-          $ref: '#/definitions/services.AddressInput'
+          $ref: '#/definitions/github_com_tachigo_tachigo_internal_services.AddressInput'
       produces:
       - application/json
       responses:
@@ -1045,19 +1045,19 @@ paths:
           description: OK
           schema:
             allOf:
-            - $ref: '#/definitions/handlers.Response'
+            - $ref: '#/definitions/internal_handlers.Response'
             - properties:
                 data:
-                  $ref: '#/definitions/handlers.AddressResponse'
+                  $ref: '#/definitions/internal_handlers.AddressResponse'
               type: object
         "400":
           description: Bad Request
           schema:
-            $ref: '#/definitions/handlers.Response'
+            $ref: '#/definitions/internal_handlers.Response'
         "404":
           description: Not Found
           schema:
-            $ref: '#/definitions/handlers.Response'
+            $ref: '#/definitions/internal_handlers.Response'
       security:
       - BearerAuth: []
       summary: Update a shipping address
@@ -1078,19 +1078,19 @@ paths:
           description: OK
           schema:
             allOf:
-            - $ref: '#/definitions/handlers.Response'
+            - $ref: '#/definitions/internal_handlers.Response'
             - properties:
                 data:
-                  $ref: '#/definitions/handlers.AddressResponse'
+                  $ref: '#/definitions/internal_handlers.AddressResponse'
               type: object
         "400":
           description: Bad Request
           schema:
-            $ref: '#/definitions/handlers.Response'
+            $ref: '#/definitions/internal_handlers.Response'
         "404":
           description: Not Found
           schema:
-            $ref: '#/definitions/handlers.Response'
+            $ref: '#/definitions/internal_handlers.Response'
       security:
       - BearerAuth: []
       summary: Set an address as default
@@ -1111,19 +1111,19 @@ paths:
           description: OK
           schema:
             allOf:
-            - $ref: '#/definitions/handlers.Response'
+            - $ref: '#/definitions/internal_handlers.Response'
             - properties:
                 data:
-                  $ref: '#/definitions/handlers.PointsBalanceResponse'
+                  $ref: '#/definitions/internal_handlers.PointsBalanceResponse'
               type: object
         "400":
           description: Bad Request
           schema:
-            $ref: '#/definitions/handlers.Response'
+            $ref: '#/definitions/internal_handlers.Response'
         "401":
           description: Unauthorized
           schema:
-            $ref: '#/definitions/handlers.Response'
+            $ref: '#/definitions/internal_handlers.Response'
       security:
       - BearerAuth: []
       summary: Get my points balance
@@ -1138,7 +1138,7 @@ paths:
         in: body
         name: body
         schema:
-          $ref: '#/definitions/handlers.claimRequest'
+          $ref: '#/definitions/internal_handlers.claimRequest'
       produces:
       - application/json
       responses:
@@ -1146,23 +1146,23 @@ paths:
           description: OK
           schema:
             allOf:
-            - $ref: '#/definitions/handlers.Response'
+            - $ref: '#/definitions/internal_handlers.Response'
             - properties:
                 data:
-                  $ref: '#/definitions/handlers.tachiBalanceResponse'
+                  $ref: '#/definitions/internal_handlers.tachiBalanceResponse'
               type: object
         "400":
           description: Bad Request
           schema:
-            $ref: '#/definitions/handlers.Response'
+            $ref: '#/definitions/internal_handlers.Response'
         "401":
           description: Unauthorized
           schema:
-            $ref: '#/definitions/handlers.Response'
+            $ref: '#/definitions/internal_handlers.Response'
         "422":
           description: Unprocessable Entity
           schema:
-            $ref: '#/definitions/handlers.Response'
+            $ref: '#/definitions/internal_handlers.Response'
       security:
       - BearerAuth: []
       summary: Claim T-Points as $TACHI
@@ -1183,19 +1183,19 @@ paths:
           description: OK
           schema:
             allOf:
-            - $ref: '#/definitions/handlers.Response'
+            - $ref: '#/definitions/internal_handlers.Response'
             - properties:
                 data:
-                  $ref: '#/definitions/handlers.PointsHistoryResponse'
+                  $ref: '#/definitions/internal_handlers.PointsHistoryResponse'
               type: object
         "400":
           description: Bad Request
           schema:
-            $ref: '#/definitions/handlers.Response'
+            $ref: '#/definitions/internal_handlers.Response'
         "401":
           description: Unauthorized
           schema:
-            $ref: '#/definitions/handlers.Response'
+            $ref: '#/definitions/internal_handlers.Response'
       security:
       - BearerAuth: []
       summary: List my recent points transactions
@@ -1210,10 +1210,10 @@ paths:
           description: OK
           schema:
             allOf:
-            - $ref: '#/definitions/handlers.Response'
+            - $ref: '#/definitions/internal_handlers.Response'
             - properties:
                 data:
-                  $ref: '#/definitions/handlers.ProvidersResponse'
+                  $ref: '#/definitions/internal_handlers.ProvidersResponse'
               type: object
       security:
       - BearerAuth: []
@@ -1229,22 +1229,20 @@ paths:
           description: OK
           schema:
             allOf:
-            - $ref: '#/definitions/handlers.Response'
+            - $ref: '#/definitions/internal_handlers.Response'
             - properties:
                 data:
-                  $ref: '#/definitions/handlers.tachiBalanceResponse'
+                  $ref: '#/definitions/internal_handlers.tachiBalanceResponse'
               type: object
         "401":
           description: Unauthorized
           schema:
-            $ref: '#/definitions/handlers.Response'
+            $ref: '#/definitions/internal_handlers.Response'
       security:
       - BearerAuth: []
       summary: Get my $TACHI balance
       tags:
       - tachi
-security:
-- BearerAuth: []
 securityDefinitions:
   BearerAuth:
     description: 'Enter: Bearer {access_token}'
