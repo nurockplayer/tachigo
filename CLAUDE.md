@@ -207,15 +207,289 @@ Type：`feat` / `fix` / `docs` / `chore` / `refactor` / `test`
 | 需要跑測試並根據失敗迭代修改的任務 | Codex（`/test-with-codex`） |
 | `git` / `gh` / 檔案操作 / 實作 / 決策 | Claude Code |
 
-## Review 流程
+## PR 審查流程
 
-有意義的程式碼變更完成後：
+### 審查主體與分工
 
-1. 自我檢查實作
-2. 跑最低限度的測試
-3. 執行 `/codex:review`
-4. auth / payment / security 邏輯額外執行 `/codex:adversarial-review`
-5. 只套用有理由的建議
+PR 審查由 AI 自動執行，人只在決策節點確認。預設流程：
+
+1. **Gemini 低成本初審**（節省 Claude token）：
+   - 掃描高風險區域（binary 檔、schema、scope 污染等）
+   - 若發現 high 優先級 blocker → Claude 驗證 + 決策
+   - 若無 blocker → Claude / Codex 只針對必要 diff 與風險點繼續審查
+
+2. **Claude 驗證 & 決策審查**：
+   - 驗證 Gemini 發現的 blocker
+   - 無 blocker 時避免重讀整包，只檢查 CLAUDE.md 合規、明顯 bug、git history 與必要上下文
+   - 生成最終審查結論與建議決策
+
+3. **人類決策確認**（關鍵節點）：
+   - 發現 blocker → 確認是否提交 Change Request
+   - 無 blocker、CI 通過 → 建議 merge 並確認是否執行
+   - 不確定 → 確認是否繼續調查
+
+詳見下方「Claude Code PR 審查規則」。
+
+## Claude Code PR 審查規則
+
+Claude Code 負責 PR 審查的驗證與決策階段。
+
+### 操作權限邊界
+
+- **Read-only 操作**可直接執行：查看 PR metadata、讀檔、掃描代碼、檢查 diff、產生本機分析
+- **變動操作**必須事先詢問用戶並取得明確同意：Edit / 寫檔、format 造成檔案變更、commit、push、branch switch / rebase / merge、GitHub comment、GitHub review、Change Request、Approve、Merge、issue / PR 建立或編輯
+
+### 審查流程
+
+#### 問題分級
+
+- `blocker`：必須擋 merge；包含正確性、安全、資料一致性、權限、breaking change、難 rollback migration、或高風險核心路徑缺測。
+- `major`：重要但不一定擋 merge；沒有 blocker 時可合併，但需明確提醒風險並視情況開 follow-up issue / PR。
+- `minor`：有用改善，不阻擋 merge。
+- `nit`：純風格或可讀性細節。
+
+#### 第一步：接收 Gemini 初審結果或獨立掃描
+
+- 若 Gemini 已初審，驗證其發現的 blocker（優先檢查 high 優先級問題）
+- 若無 Gemini 初審或 Gemini 無發現，自行掃描高風險區域
+
+#### 第二步：高風險區域優先掃描（節省 token）
+
+發現 high 優先級 blocker 立即停止、不繼續深入：
+
+- Binary 檔案：字體、圖片、screenshot、bundle、archive（應使用 git-lfs）
+- 重大變更：schema、migration、API contract、auth / payment 邏輯
+- Scope 污染：是否混入無關改動（核對與 issue、PR title、CLAUDE.md scope 規則）
+- CI 失敗、必要測試失敗
+
+#### 一旦發現並驗證 high 優先級 blocker
+
+- 停止進一步分析（節省 token）
+- 總結 blocker 給用戶
+- 詢問：「同意提交 Change Request 嗎？」
+- 等待用戶確認後執行 `gh pr review --request-changes`
+
+#### 第三步：無 high 優先級問題時進行必要審查
+
+- 檢查 CLAUDE.md 合規性（scope、細粒度、AI 協作守則）
+- 掃描明顯 bug、邏輯錯誤、edge case
+- 檢查 git history 一致性（commit 訊息、原子化等）
+- 驗證現有 CodeRabbit / Codex comment 中的建議
+
+#### 第四步：決策與確認
+
+審查完成後，必須明確詢問用戶並等待確認，不得預設執行：
+
+- 發現 blocker → 「同意提交 Change Request 嗎？」
+- 無 blocker、CI 通過 → 「目前沒有 blocker，是否同意 merge？」
+- 只有 major / minor / nit、沒有 blocker → 預設仍可 merge，但需摘要非阻塞風險與 follow-up 建議
+- 不確定狀態 → 列出不確定事項，詢問「繼續調查或先暫停？」
+
+### Gemini CLI 限制
+
+- 避免並發 Gemini 任務（會觸發 429 quota error）
+- 大型 PR（600+ 行）用一個完整 prompt 等待完成，不分批
+- 若需多個分析，改為序列執行
+- 若遇到 429、quota exceeded、rate limit、daily limit reached，立即停止 Gemini 路徑，不做連續重試，改用 Claude / Codex 以最小必要上下文完成審查
+
+### 審查執行模式選擇
+
+根據 PR 風險等級與規模，選用不同執行順序，以平衡速度、成本與品質：
+
+#### 模式一：標準模式（Normal PR）
+
+適合：中等規模（100-600 行）、中等風險的日常 PR（業務邏輯、API 變更、功能補充）。
+
+執行順序：
+
+1. Claude 掃描 PR metadata、檔案列表、diff 摘要，分類風險
+2. Gemini 串行執行 first-pass summary（快速掃 diff）
+3. Gemini 串行執行 pattern / test gap 掃描
+4. Codex 依必要 diff 與風險點進行主審，分級 blocker / major / minor / nit
+5. Claude 驗證 blocker，綜合決策
+6. 詢問用戶：Change Request 或 Merge
+
+**token 成本**：中等。適合日常工作流。
+
+#### 模式二：極省 token 模式（Small / Low-risk PR）
+
+適合：小型 PR（< 100 行）或明顯低風險改動（UI 文案、簡單 refactor、註解補充、測試補充）。
+
+執行順序：
+
+1. Claude 快速掃 diff 與檔案列表
+2. 直接交給 Codex 主審
+3. 只有出現邏輯可疑點才動態叫 Gemini 補掃
+4. Claude 驗證 blocker，做最終判定
+
+**token 成本**：低。Gemini 可能完全不用。
+
+#### 模式三：高風險模式（Auth / Payment / Migration / Security PR）
+
+適合：涉及用戶認證、支付邏輯、資料遷移、安全補丁、權限控制的 PR（無論大小）。
+
+執行順序：
+
+1. Claude 明確標記哪些變更是高危（auth、payment 相關改動）
+2. Gemini 做非常窄範圍掃描，只針對高危變更與相似實作搜尋
+3. Codex 細緻主審，特別關注 blocker 與 major
+4. Claude **深入驗證** blocker：檢查相關代碼、git history、相似實作的一致性
+5. 一旦確認 blocker，直接問用戶是否同意 Change Request
+
+**token 成本**：高（但必要且值得）。Gemini 範圍窄但深。
+
+#### 模式選擇表
+
+| PR 類型 | 規模 | 風險特徵 | 選用模式 |
+| --- | --- | --- | --- |
+| UI 文案 / 樣式 | 10-50 行 | 低 | 極省 token |
+| 簡單 refactor | 50-150 行 | 低 | 極省 token |
+| 測試補充 | 50-200 行 | 低 | 極省 token |
+| Feature | 150-400 行 | 中（業務邏輯、API） | 標準模式 |
+| 大型 feature | 400-800 行 | 中 | 標準模式 |
+| 使用者認證 | 任何 | 高 | 高風險模式 |
+| 支付 / 結帳 | 任何 | 高 | 高風險模式 |
+| 資料遷移 / schema | 任何 | 高 | 高風險模式 |
+| 權限 / 存取控制 | 任何 | 高 | 高風險模式 |
+| 安全補丁 | 任何 | 高 | 高風險模式 |
+| 基礎設施 / CI | 任何 | 中-高 | 標準或高風險模式 |
+
+### 結構化輸出格式
+
+所有 PR 審查結果應盡量按以下格式組織，便於統一、精簡、避免冗長敘述：
+
+```
+## Summary
+一句話總結這個 PR 在做什麼與風險等級（低 / 中 / 高）。
+
+## Blockers
+- [檔案:行號] 問題簡述 / 影響 / 建議
+- ...
+
+## Majors
+- [檔案:行號] 問題簡述 / 影響 / 建議
+- ...
+
+## Minors
+- [檔案:行號] 建議
+- ...
+
+## Nits
+- 純風格 / 可讀性細節
+
+## Questions
+- 需要作者確認的地方
+
+## Recommended action
+Change Request / Merge
+```
+
+**優點**：
+
+- 精簡輸出，減少敘述性冗餘
+- AI 易遵循，減少偏差
+- 用戶快速掃一遍就知道關鍵問題
+
+### 互動話術
+
+審查完成後，根據 blocker 狀態用以下話術詢問用戶：
+
+#### 情況 A：發現 blocker
+
+```
+我已完成審查，確認存在 blocker：
+
+## Blockers
+- [file:line] <問題>
+
+這些問題會直接影響 <正確性 / 安全性 / 資料一致性>，
+因此目前不建議合併。
+
+是否要我直接提交 Change Request？
+```
+
+#### 情況 B：無 blocker 但有 major / minor
+
+```
+我已完成審查，目前沒有 blocker。
+
+另外有以下非阻塞建議：
+- major: <...>
+- minor: <...>
+
+整體可合併，但建議後續開 follow-up issue 跟進。
+
+是否同意執行 Merge？
+```
+
+#### 情況 C：無 blocker，只有 nit
+
+```
+我已完成審查，沒有發現問題。
+
+是否同意直接 Merge？
+```
+
+#### 情況 D：不確定狀態
+
+```
+我遇到幾個不確定的地方：
+- <不確定項 1>
+- <不確定項 2>
+
+是要我繼續調查，還是先暫停？
+```
+
+### Codex 執行守則
+
+Codex 在擔任 PR 主審時應遵守以下規則，以節省 token 並提高效率：
+
+#### 以 Diff 為中心
+
+- 優先讀 diff，以 diff 中的變更為審查核心
+- 不任意擴大上下文，除非確有必要驗證某個具體疑慮
+
+#### 優先掃描高風險區域
+
+先檢查以下順序，找到問題再決定是否深入：
+
+1. 正確性：邏輯錯誤、邊界條件
+2. 安全性：auth、permission、injection
+3. 資料完整性：deletion、update、transaction、race condition
+4. API compatibility：breaking change、contract 變化
+5. 測試覆蓋：high-risk 改動是否有測試
+
+#### 問題分級要精準
+
+- **Blocker** 才標 blocker（真的會破壞功能 / 安全性 / 資料）
+- 沒把握的猜測不升級成 blocker，改標 major
+- 每個 blocker 都要能說出具體影響
+
+#### 需要更多上下文時先說明理由
+
+不要默默讀一堆檔案，而是：
+
+```
+為了驗證 <具體疑慮>，我需要看 <特定檔案>，理由是 <...>。
+```
+
+讓 Claude 決定是否展開，避免盲目擴張。
+
+#### 優先輸出精簡 findings
+
+用上述結構化格式：
+
+- 先輸出清單（blocker / major / minor / nit）
+- 只在需要驗證時補充詳細證據
+- 避免冗長敘述或重複解釋
+
+#### 應該停止的情況
+
+當發現以下情況時，立即停止深入，回報給 Claude：
+
+- 發現明確 blocker，不需要繼續掃
+- 上下文快速膨脹，token 開始失控
+- 遇到不清楚的架構決策，需要 Claude 判斷
 
 ---
 
