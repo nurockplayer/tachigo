@@ -46,8 +46,8 @@ func (r *Raffle) BeforeCreate(tx *gorm.DB) error {
 // UserID is set by the service layer for users with a tachigo account; the
 // pointer allows nil in direct-insert test fixtures without a linked account.
 type RaffleEntry struct {
-	ID          uuid.UUID  `gorm:"type:uuid;primaryKey;default:gen_random_uuid()"          json:"id"`
-	RaffleID    uuid.UUID  `gorm:"type:uuid;not null;uniqueIndex:idx_raffle_entry_twitch"  json:"raffle_id"`
+	ID          uuid.UUID  `gorm:"type:uuid;primaryKey;default:gen_random_uuid();uniqueIndex:idx_entry_id_raffle,priority:1"                          json:"id"`
+	RaffleID    uuid.UUID  `gorm:"type:uuid;not null;uniqueIndex:idx_raffle_entry_twitch;uniqueIndex:idx_entry_id_raffle,priority:2"                json:"raffle_id"`
 	UserID      *uuid.UUID `gorm:"type:uuid;index"                                         json:"user_id"`
 	TwitchLogin string     `gorm:"type:varchar(255);not null;uniqueIndex:idx_raffle_entry_twitch" json:"twitch_login"`
 	DisplayName string     `gorm:"type:varchar(255)"                                       json:"display_name"`
@@ -77,7 +77,7 @@ type RaffleDraw struct {
 	ClaimExpiresAt time.Time   `                                                             json:"claim_expires_at"`
 	DrawnAt        time.Time   `                                                             json:"drawn_at"`
 	Raffle         Raffle      `gorm:"foreignKey:RaffleID;constraint:OnUpdate:CASCADE,OnDelete:CASCADE" json:"-"`
-	Entry          RaffleEntry `gorm:"foreignKey:EntryID;constraint:OnUpdate:CASCADE,OnDelete:CASCADE"  json:"entry,omitempty"`
+	Entry          RaffleEntry `gorm:"foreignKey:EntryID,RaffleID;references:ID,RaffleID;constraint:OnUpdate:CASCADE,OnDelete:CASCADE" json:"entry,omitempty"`
 }
 
 func (d *RaffleDraw) BeforeCreate(tx *gorm.DB) error {
