@@ -52,6 +52,8 @@ type RaffleEntry struct {
 	TwitchLogin string     `gorm:"type:varchar(255);not null;uniqueIndex:idx_raffle_entry_twitch" json:"twitch_login"`
 	DisplayName string     `gorm:"type:varchar(255)"                                       json:"display_name"`
 	CreatedAt   time.Time  `                                                               json:"created_at"`
+	Raffle      Raffle     `gorm:"foreignKey:RaffleID;constraint:OnUpdate:CASCADE,OnDelete:CASCADE" json:"-"`
+	User        *User      `gorm:"foreignKey:UserID;constraint:OnUpdate:CASCADE,OnDelete:SET NULL"  json:"-"`
 }
 
 func (e *RaffleEntry) BeforeCreate(tx *gorm.DB) error {
@@ -74,7 +76,8 @@ type RaffleDraw struct {
 	ClaimToken     string      `gorm:"type:varchar(255);not null;uniqueIndex"                json:"claim_token"`
 	ClaimExpiresAt time.Time   `                                                             json:"claim_expires_at"`
 	DrawnAt        time.Time   `                                                             json:"drawn_at"`
-	Entry          RaffleEntry `gorm:"foreignKey:EntryID"                                    json:"entry,omitempty"`
+	Raffle         Raffle      `gorm:"foreignKey:RaffleID;constraint:OnUpdate:CASCADE,OnDelete:CASCADE" json:"-"`
+	Entry          RaffleEntry `gorm:"foreignKey:EntryID;constraint:OnUpdate:CASCADE,OnDelete:CASCADE"  json:"entry,omitempty"`
 }
 
 func (d *RaffleDraw) BeforeCreate(tx *gorm.DB) error {
@@ -90,16 +93,17 @@ func (d *RaffleDraw) BeforeCreate(tx *gorm.DB) error {
 
 // RaffleClaim holds the shipping info submitted by the winner.
 type RaffleClaim struct {
-	ID            uuid.UUID `gorm:"type:uuid;primaryKey;default:gen_random_uuid()" json:"id"`
-	DrawID        uuid.UUID `gorm:"type:uuid;not null;uniqueIndex"                 json:"draw_id"`
-	RecipientName string    `gorm:"type:varchar(255);not null"                     json:"recipient_name"`
-	Phone         string    `gorm:"type:varchar(50)"                               json:"phone"`
-	AddressLine1  string    `gorm:"type:varchar(255);not null"                     json:"address_line1"`
-	AddressLine2  string    `gorm:"type:varchar(255)"                              json:"address_line2"`
-	City          string    `gorm:"type:varchar(100);not null"                     json:"city"`
-	PostalCode    string    `gorm:"type:varchar(20)"                               json:"postal_code"`
-	Country       string    `gorm:"type:varchar(10);not null;default:'TW'"         json:"country"`
-	SubmittedAt   time.Time `                                                      json:"submitted_at"`
+	ID            uuid.UUID  `gorm:"type:uuid;primaryKey;default:gen_random_uuid()" json:"id"`
+	DrawID        uuid.UUID  `gorm:"type:uuid;not null;uniqueIndex"                 json:"draw_id"`
+	RecipientName string     `gorm:"type:varchar(255);not null"                     json:"recipient_name"`
+	Phone         string     `gorm:"type:varchar(50)"                               json:"phone"`
+	AddressLine1  string     `gorm:"type:varchar(255);not null"                     json:"address_line1"`
+	AddressLine2  string     `gorm:"type:varchar(255)"                              json:"address_line2"`
+	City          string     `gorm:"type:varchar(100);not null"                     json:"city"`
+	PostalCode    string     `gorm:"type:varchar(20)"                               json:"postal_code"`
+	Country       string     `gorm:"type:varchar(10);not null;default:'TW'"         json:"country"`
+	SubmittedAt   time.Time  `                                                      json:"submitted_at"`
+	Draw          RaffleDraw `gorm:"foreignKey:DrawID;constraint:OnUpdate:CASCADE,OnDelete:CASCADE" json:"-"`
 }
 
 func (c *RaffleClaim) BeforeCreate(tx *gorm.DB) error {
