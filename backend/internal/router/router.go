@@ -32,6 +32,7 @@ func New(
 	agencySvc *services.AgencyService,
 	claimSvc *services.ClaimService,
 	spendSvc *services.SpendService,
+	raffleSvc *services.RaffleService,
 	agencyHandler *handlers.AgencyHandler,
 	allowedOrigins []string,
 	internalRouterConfig ...InternalRouterConfig,
@@ -57,6 +58,7 @@ func New(
 	claimH := handlers.NewClaimHandler(claimSvc)
 	spendH := handlers.NewSpendHandler(spendSvc)
 	airdropH := handlers.NewAirdropHandler(airdropSvc, agencySvc, streamerSvc)
+	raffleH := handlers.NewRaffleHandler(raffleSvc)
 
 	r.GET("/health", func(c *gin.Context) {
 		c.JSON(200, gin.H{"status": "ok"})
@@ -93,11 +95,21 @@ func New(
 		auth.POST("/reset-password", emailH.ResetPassword)
 	}
 
+	// ── Public claim endpoints (no auth) ─────────────────────────────────
+	claim := v1.Group("/claim")
+	{
+		claim.GET("/:token", raffleH.GetClaim)
+		claim.POST("/:token", raffleH.SubmitClaim)
+	}
+
 	// ── Twitch Extension endpoints ────────────────────────────────────────
 	ext := v1.Group("/extension")
 	{
 		ext.POST("/auth/login", extH.Login)
 		ext.POST("/bits/complete", extH.BitsComplete)
+
+		// Raffle result — public read (no auth required)
+		ext.GET("/raffles/:id/result", raffleH.GetResult)
 
 		// Watch-time points (requires tachigo JWT — viewer must log in first)
 		watch := ext.Group("/watch")
@@ -170,6 +182,29 @@ func New(
 		dashboard.PUT("/channels/:channel_id/config",
 			middleware.RequireRole(models.RoleAdmin, models.RoleStreamer),
 			channelConfigH.UpdateChannelConfig)
+
+		// Raffle management (streamer only)
+		dashboard.POST("/raffles",
+			middleware.RequireRole(models.RoleStreamer),
+			raffleH.Create)
+		dashboard.GET("/raffles",
+			middleware.RequireRole(models.RoleStreamer),
+			raffleH.List)
+		dashboard.GET("/raffles/:id",
+			middleware.RequireRole(models.RoleStreamer),
+			raffleH.Get)
+		dashboard.POST("/raffles/:id/entries/import-csv",
+			middleware.RequireRole(models.RoleStreamer),
+			raffleH.ImportCSV)
+		dashboard.POST("/raffles/:id/draws",
+			middleware.RequireRole(models.RoleStreamer),
+			raffleH.DrawNext)
+		dashboard.GET("/raffles/:id/draws",
+			middleware.RequireRole(models.RoleStreamer),
+			raffleH.ListDraws)
+		dashboard.POST("/raffles/:id/complete",
+			middleware.RequireRole(models.RoleStreamer),
+			raffleH.Complete)
 	}
 
 	dashboardAirdrop := v1.Group("/dashboard/channels/:channel_id")

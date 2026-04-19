@@ -195,6 +195,47 @@ func migrateTestDB(db *gorm.DB) error {
 			UNIQUE (user_id),
 			CHECK (balance >= 0)
 		)`,
+		`CREATE TABLE IF NOT EXISTS raffles (
+			id TEXT PRIMARY KEY,
+			user_id TEXT NOT NULL REFERENCES users(id),
+			title TEXT NOT NULL,
+			status TEXT NOT NULL DEFAULT 'draft',
+			source TEXT NOT NULL DEFAULT 'csv',
+			scheduled_at DATETIME,
+			created_at DATETIME NOT NULL DEFAULT CURRENT_TIMESTAMP,
+			updated_at DATETIME NOT NULL DEFAULT CURRENT_TIMESTAMP
+		)`,
+		`CREATE INDEX IF NOT EXISTS idx_raffles_user_id ON raffles (user_id)`,
+		`CREATE TABLE IF NOT EXISTS raffle_entries (
+			id TEXT PRIMARY KEY,
+			raffle_id TEXT NOT NULL REFERENCES raffles(id),
+			user_id TEXT REFERENCES users(id),
+			twitch_login TEXT NOT NULL,
+			display_name TEXT NOT NULL DEFAULT '',
+			created_at DATETIME NOT NULL DEFAULT CURRENT_TIMESTAMP
+		)`,
+		`CREATE INDEX IF NOT EXISTS idx_raffle_entries_raffle_id ON raffle_entries (raffle_id)`,
+		`CREATE TABLE IF NOT EXISTS raffle_draws (
+			id TEXT PRIMARY KEY,
+			raffle_id TEXT NOT NULL REFERENCES raffles(id),
+			entry_id TEXT NOT NULL REFERENCES raffle_entries(id),
+			claim_token TEXT NOT NULL UNIQUE,
+			claim_expires_at DATETIME NOT NULL,
+			drawn_at DATETIME NOT NULL
+		)`,
+		`CREATE INDEX IF NOT EXISTS idx_raffle_draws_raffle_id ON raffle_draws (raffle_id)`,
+		`CREATE TABLE IF NOT EXISTS raffle_claims (
+			id TEXT PRIMARY KEY,
+			draw_id TEXT NOT NULL UNIQUE REFERENCES raffle_draws(id),
+			recipient_name TEXT NOT NULL,
+			phone TEXT NOT NULL DEFAULT '',
+			address_line1 TEXT NOT NULL,
+			address_line2 TEXT NOT NULL DEFAULT '',
+			city TEXT NOT NULL,
+			postal_code TEXT NOT NULL DEFAULT '',
+			country TEXT NOT NULL DEFAULT 'TW',
+			submitted_at DATETIME NOT NULL
+		)`,
 	}
 	for _, s := range stmts {
 		if err := db.Exec(s).Error; err != nil {

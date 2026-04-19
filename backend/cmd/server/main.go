@@ -72,6 +72,11 @@ func main() {
 		&models.TachiBalance{},
 		// Agency management — refs #99
 		&models.AgencyStreamer{},
+		// Raffle system — refs #227
+		&models.Raffle{},
+		&models.RaffleEntry{},
+		&models.RaffleDraw{},
+		&models.RaffleClaim{},
 	); err != nil {
 		log.Fatalf("migration failed: %v", err)
 	}
@@ -140,6 +145,7 @@ func main() {
 	}
 	claimSvc := services.NewClaimService(db, cfg.Contract, ethClient)
 	spendSvc := services.NewSpendService(db, cfg.Contract, ethClient)
+	raffleSvc := services.NewRaffleService(db)
 	agencyH := handlers.NewAgencyHandler(agencySvc, emailAuthSvc)
 
 	// CORS origins from env, default to localhost for dev
@@ -163,6 +169,7 @@ func main() {
 		agencySvc,
 		claimSvc,
 		spendSvc,
+		raffleSvc,
 		agencyH,
 		allowedOrigins,
 		router.InternalRouterConfig{DB: db, Config: cfg},
