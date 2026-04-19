@@ -1,7 +1,7 @@
 import { useState, useEffect, useRef, useCallback } from 'react';
 import { useTranslation } from 'react-i18next'
 
-import type { HudDemoState } from '../../extension/types'
+import { defaultHudDemoState, type HudDemoState } from '../../extension/types'
 import { useSound } from '../hooks/useSound'
 import { hudPanelBackground } from '../theme/backgrounds'
 
@@ -36,13 +36,20 @@ function ClickableCapybara({
   };
 
   return (
-    <div
+    <button
+      type="button"
+      aria-label="Mine points"
+      disabled={isIdle}
       onClick={onClick}
       onMouseDown={() => setIsPressed(true)}
       onMouseUp={() => setIsPressed(false)}
       onMouseLeave={() => setIsPressed(false)}
       className={getAnimClass()}
       style={{
+        appearance: 'none',
+        background: 'none',
+        border: 'none',
+        padding: 0,
         cursor: isIdle ? 'default' : 'pointer',
         transform: isPressed && !isIdle ? 'scale(0.95)' : 'scale(1)',
         transition: 'transform 0.1s ease',
@@ -208,7 +215,7 @@ function ClickableCapybara({
           />
         </g>
       </svg>
-    </div>
+    </button>
   );
 }
 
@@ -321,7 +328,7 @@ export function MarioHUD({ state, onStateChange, onNavigate }: MarioHUDProps) {
   const { t } = useTranslation()
   const { playMiningClick, playRewardComplete, playMaxClicks, playToggleWatch, startBgMusic, stopBgMusic, bridgeStatus } = useSound()
   const [points, setPoints]               = useState(state?.points ?? 0);
-  const [totalPoints, setTotalPoints]     = useState(state?.totalPoints ?? 12847);
+  const [totalPoints, setTotalPoints]     = useState(state?.totalPoints ?? defaultHudDemoState.totalPoints);
   const [countdown, setCountdown]         = useState(state?.countdown ?? 60);
   const [isWatching, setIsWatching]       = useState(state?.isWatching ?? true);
   const [floats, setFloats]               = useState<FloatItem[]>([]);

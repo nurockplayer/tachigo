@@ -1,6 +1,7 @@
 import { useState, useEffect } from 'react'
 import { useTranslation } from 'react-i18next'
 import { useSound } from '../hooks/useSound'
+import { parseCpcAmount } from './claimAmount'
 
 const RATE = 0.1
 
@@ -160,11 +161,11 @@ export function ClaimPanel({ onBack, cpcBalance, tcgBalance, onClaim }: ClaimPan
   const [cpcInput, setCpcInput] = useState('')
   const [claimed, setClaimed] = useState(false)
 
-  const numericCpc = parseFloat(cpcInput)
-  const tcgOutput = cpcInput !== '' && !isNaN(numericCpc) && numericCpc > 0
+  const numericCpc = parseCpcAmount(cpcInput)
+  const tcgOutput = numericCpc !== null && numericCpc > 0
     ? (numericCpc * RATE).toFixed(2)
     : ''
-  const isDisabled = !cpcInput || isNaN(numericCpc) || numericCpc <= 0
+  const isDisabled = numericCpc === null || numericCpc <= 0
     || numericCpc > cpcBalance || claimed
 
   const handleClaim = () => {

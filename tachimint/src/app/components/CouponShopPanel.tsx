@@ -1,36 +1,11 @@
 import { useMemo, useState } from 'react'
 import { useTranslation } from 'react-i18next'
 
+import { demoCouponMetas, type DemoCouponMeta } from '../../extension/couponCatalog'
 import type { CouponRedeemResult } from '../../extension/types'
 import { hudPanelBackground } from '../theme/backgrounds'
 
-interface CouponMeta {
-  id: string
-  itemKey: string
-  price: number
-  code: string
-}
-
-const COUPON_METAS: CouponMeta[] = [
-  {
-    id: 'tachiya-95',
-    itemKey: 'tachiya95',
-    price: 18,
-    code: 'TACHIYA95',
-  },
-  {
-    id: 'free-ship',
-    itemKey: 'freeShip',
-    price: 24,
-    code: 'SHIPFREE24',
-  },
-  {
-    id: 'bundle-120',
-    itemKey: 'bundle120',
-    price: 40,
-    code: 'DROP120',
-  },
-]
+const couponMetas: DemoCouponMeta[] = demoCouponMetas
 
 interface CouponShopPanelProps {
   onBack: () => void
@@ -47,12 +22,12 @@ export function CouponShopPanel({
 }: CouponShopPanelProps) {
   const { t } = useTranslation()
   const tDyn = t as (key: string, options?: Record<string, unknown>) => string
-  const [selectedId, setSelectedId] = useState(COUPON_METAS[0]?.id ?? '')
+  const [selectedId, setSelectedId] = useState(couponMetas[0]?.id ?? '')
   const [error, setError] = useState('')
   const [isRedeeming, setIsRedeeming] = useState(false)
 
   const selectedCoupon = useMemo(
-    () => COUPON_METAS.find((coupon) => coupon.id === selectedId) ?? COUPON_METAS[0],
+    () => couponMetas.find((coupon) => coupon.id === selectedId) ?? couponMetas[0],
     [selectedId],
   )
 
@@ -223,7 +198,7 @@ export function CouponShopPanel({
 
         <div style={{ display: 'flex', flexDirection: 'column', gap: 8 }}>
           <div style={{ fontSize: 7, color: '#9146FF', letterSpacing: '0.14em' }}>{t('coupon.listTitle')}</div>
-          {COUPON_METAS.map((coupon) => {
+          {couponMetas.map((coupon) => {
             const isSelected = coupon.id === selectedId
             const isRedeemed = redeemedCouponIds.includes(coupon.id)
 
