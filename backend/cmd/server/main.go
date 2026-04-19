@@ -32,7 +32,6 @@ import (
 
 const defaultSepoliaRPCURL = "https://ethereum-sepolia-rpc.publicnode.com"
 
-// @security BearerAuth
 func main() {
 	// Load .env (ignore error in production where env is set externally)
 	_ = godotenv.Load()

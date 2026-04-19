@@ -50,7 +50,6 @@ func (h *AuthHandler) WithEmailAuth(svc *services.EmailAuthService) *AuthHandler
 // @Success      201  {object}  Response{data=AuthResponse}
 // @Failure      400  {object}  Response
 // @Failure      409  {object}  Response
-// @Security
 // @Router       /auth/register [post]
 func (h *AuthHandler) Register(c *gin.Context) {
 	var input services.RegisterInput
@@ -90,7 +89,6 @@ func (h *AuthHandler) Register(c *gin.Context) {
 // @Success      200  {object}  Response{data=AuthResponse}
 // @Failure      400  {object}  Response
 // @Failure      401  {object}  Response
-// @Security
 // @Router       /auth/login [post]
 func (h *AuthHandler) Login(c *gin.Context) {
 	var input services.LoginInput
@@ -118,7 +116,6 @@ func (h *AuthHandler) Login(c *gin.Context) {
 // @Success      200  {object}  Response{data=TokensResponse}
 // @Failure      400  {object}  Response
 // @Failure      401  {object}  Response
-// @Security
 // @Router       /auth/refresh [post]
 func (h *AuthHandler) Refresh(c *gin.Context) {
 	refreshToken, err := h.refreshTokenFromRequest(c)
@@ -145,7 +142,6 @@ func (h *AuthHandler) Refresh(c *gin.Context) {
 // @Param        body body object{refresh_token=string} false "Refresh token fallback when cookie is unavailable"
 // @Success      200  {object}  Response{data=MessageResponse}
 // @Failure      400  {object}  Response
-// @Security
 // @Router       /auth/logout [post]
 func (h *AuthHandler) Logout(c *gin.Context) {
 	refreshToken, err := h.refreshTokenFromRequest(c)
@@ -164,7 +160,6 @@ func (h *AuthHandler) Logout(c *gin.Context) {
 // @Tags         auth
 // @Produce      json
 // @Success      302
-// @Security
 // @Router       /auth/twitch [get]
 func (h *AuthHandler) TwitchLogin(c *gin.Context) {
 	state := oauthState()
@@ -181,7 +176,6 @@ func (h *AuthHandler) TwitchLogin(c *gin.Context) {
 // @Success      200  {object}  Response{data=AuthResponse}
 // @Failure      400  {object}  Response
 // @Failure      401  {object}  Response
-// @Security
 // @Router       /auth/twitch/callback [get]
 func (h *AuthHandler) TwitchCallback(c *gin.Context) {
 	if err := validateOAuthState(c); err != nil {
@@ -205,7 +199,6 @@ func (h *AuthHandler) TwitchCallback(c *gin.Context) {
 // @Tags         auth
 // @Produce      json
 // @Success      302
-// @Security
 // @Router       /auth/google [get]
 func (h *AuthHandler) GoogleLogin(c *gin.Context) {
 	state := oauthState()
@@ -222,7 +215,6 @@ func (h *AuthHandler) GoogleLogin(c *gin.Context) {
 // @Success      200  {object}  Response{data=AuthResponse}
 // @Failure      400  {object}  Response
 // @Failure      401  {object}  Response
-// @Security
 // @Router       /auth/google/callback [get]
 func (h *AuthHandler) GoogleCallback(c *gin.Context) {
 	if err := validateOAuthState(c); err != nil {
@@ -250,7 +242,6 @@ func (h *AuthHandler) GoogleCallback(c *gin.Context) {
 // @Success      200  {object}  Response{data=NonceResponse}
 // @Failure      400  {object}  Response
 // @Failure      500  {object}  Response
-// @Security
 // @Router       /auth/web3/nonce [post]
 func (h *AuthHandler) Web3Nonce(c *gin.Context) {
 	var body struct {
@@ -282,7 +273,6 @@ func (h *AuthHandler) Web3Nonce(c *gin.Context) {
 // @Success      200  {object}  Response{data=AuthResponse}
 // @Failure      400  {object}  Response
 // @Failure      401  {object}  Response
-// @Security
 // @Router       /auth/web3/verify [post]
 func (h *AuthHandler) Web3Verify(c *gin.Context) {
 	var input services.Web3VerifyInput

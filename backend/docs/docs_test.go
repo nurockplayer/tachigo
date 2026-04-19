@@ -6,7 +6,7 @@ import (
 	"testing"
 )
 
-func TestSwaggerDoc_UsesGlobalBearerAuthAndPublicOverrides(t *testing.T) {
+func TestSwaggerDoc_NoGlobalSecurity_ProtectedOpsRequireBearerAuth(t *testing.T) {
 	raw := SwaggerInfo.ReadDoc()
 
 	var doc map[string]any
@@ -14,18 +14,16 @@ func TestSwaggerDoc_UsesGlobalBearerAuthAndPublicOverrides(t *testing.T) {
 		t.Fatalf("unmarshal doc: %v", err)
 	}
 
-	security, ok := doc["security"].([]any)
-	if !ok || len(security) != 1 {
-		t.Fatalf("root security: want one BearerAuth requirement, got %#v", doc["security"])
+	if _, hasRootSecurity := doc["security"]; hasRootSecurity {
+		t.Fatalf("root security must be absent; protected endpoints should declare BearerAuth explicitly, got %#v", doc["security"])
 	}
 
-	firstReq, ok := security[0].(map[string]any)
+	securityDefs, ok := doc["securityDefinitions"].(map[string]any)
 	if !ok {
-		t.Fatalf("root security requirement shape: got %#v", security[0])
+		t.Fatalf("securityDefinitions: got %#v", doc["securityDefinitions"])
 	}
-	bearerScopes, ok := firstReq["BearerAuth"].([]any)
-	if !ok || len(bearerScopes) != 0 {
-		t.Fatalf("root security: want BearerAuth: [], got %#v", firstReq["BearerAuth"])
+	if _, ok := securityDefs["BearerAuth"]; !ok {
+		t.Fatalf("securityDefinitions: missing BearerAuth, got %#v", securityDefs)
 	}
 
 	paths, ok := doc["paths"].(map[string]any)
@@ -63,13 +61,23 @@ func TestSwaggerDoc_UsesGlobalBearerAuthAndPublicOverrides(t *testing.T) {
 			if !ok {
 				t.Fatalf("%s %s: operation missing, got %#v", tc.method, tc.path, pathItem[tc.method])
 			}
-			override, ok := op["security"].([]any)
-			if !ok {
-				t.Fatalf("%s %s: security override missing, got %#v", tc.method, tc.path, op["security"])
+
+			operationSecurity, hasOperationSecurity := op["security"].([]any)
+			if hasOperationSecurity {
+				for _, req := range operationSecurity {
+					reqMap, ok := req.(map[string]any)
+					if !ok {
+						t.Fatalf("%s %s: security requirement shape invalid, got %#v", tc.method, tc.path, req)
+					}
+					if _, ok := reqMap[""]; ok {
+						t.Fatalf("%s %s: found invalid empty security scheme key: %#v", tc.method, tc.path, reqMap)
+					}
+					if _, ok := reqMap["BearerAuth"]; ok {
+						t.Fatalf("%s %s: public endpoint must not require BearerAuth, got %#v", tc.method, tc.path, reqMap)
+					}
+				}
 			}
-			if len(override) != 0 {
-				t.Fatalf("%s %s: want empty security override, got %#v", tc.method, tc.path, override)
-			}
+
 		})
 	}
 
@@ -77,8 +85,20 @@ func TestSwaggerDoc_UsesGlobalBearerAuthAndPublicOverrides(t *testing.T) {
 		path   string
 		method string
 	}{
+		{path: "/auth/providers/{provider}", method: "delete"},
+		{path: "/auth/verify-email/send", method: "post"},
+		{path: "/spend/redeem", method: "post"},
+		{path: "/users/me", method: "get"},
+		{path: "/users/me/addresses", method: "get"},
+		{path: "/users/me/addresses", method: "post"},
+		{path: "/users/me/addresses/{id}", method: "put"},
+		{path: "/users/me/addresses/{id}", method: "delete"},
+		{path: "/users/me/addresses/{id}/default", method: "put"},
 		{path: "/users/me/points", method: "get"},
+		{path: "/users/me/points/claim", method: "post"},
 		{path: "/users/me/points/history", method: "get"},
+		{path: "/users/me/providers", method: "get"},
+		{path: "/users/me/tachi/balance", method: "get"},
 	} {
 		tc := tc
 		t.Run(fmt.Sprintf("protected %s %s", tc.method, tc.path), func(t *testing.T) {
@@ -101,6 +121,9 @@ func TestSwaggerDoc_UsesGlobalBearerAuthAndPublicOverrides(t *testing.T) {
 			bearerScopes, ok := firstReq["BearerAuth"].([]any)
 			if !ok || len(bearerScopes) != 0 {
 				t.Fatalf("%s %s: want BearerAuth: [], got %#v", tc.method, tc.path, firstReq["BearerAuth"])
+			}
+			if _, ok := firstReq[""]; ok {
+				t.Fatalf("%s %s: protected endpoint must not use invalid empty security scheme key: %#v", tc.method, tc.path, firstReq)
 			}
 		})
 	}
