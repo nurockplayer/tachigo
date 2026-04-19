@@ -347,6 +347,16 @@ jobs:
               })
 
               if (pr.state === 'open') {
+                const closeReason = severeFailures.map(f => `- ${f}`).join('\n')
+                const closeComment = `🚨 **Closed by scope police**\n\nThis PR has been automatically closed due to scope violations:\n\n${closeReason}\n\nPlease see the scope police comment above and [CLAUDE.md](https://github.com/${owner}/${repo}/blob/develop/CLAUDE.md) for details. Feel free to reopen once issues are resolved.`
+
+                await github.rest.issues.createComment({
+                  owner,
+                  repo,
+                  issue_number: pr.number,
+                  body: closeComment,
+                })
+
                 await github.rest.pulls.update({
                   owner,
                   repo,
