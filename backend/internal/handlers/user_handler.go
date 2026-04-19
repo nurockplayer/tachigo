@@ -113,7 +113,7 @@ func (h *UserHandler) LinkWallet(c *gin.Context) {
 		return
 	}
 
-	ok(c, gin.H{"address": addr})
+	ok(c, WalletResponse{Address: addr})
 }
 
 // ListProviders godoc
