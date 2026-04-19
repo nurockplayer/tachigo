@@ -157,8 +157,8 @@ jobs:
       - name: Verify CI workflow assertions
         run: node --test .github/workflows/ci.test.mjs
 
-  backend:
-    name: Backend tests
+  backend-build:
+    name: Build backend image
     needs: [scope-gate]
     if: github.event_name == 'push' || needs.scope-gate.outputs.run_ci == 'true'
     runs-on: ubuntu-latest
@@ -178,28 +178,50 @@ jobs:
           cache-from: type=gha
           cache-to: type=gha,mode=max
 
+      - name: Export image artifact
+        run: docker save tachigo-app:latest | gzip > tachigo-app.tar.gz
+
+      - name: Upload image artifact
+        uses: actions/upload-artifact@v4
+        with:
+          name: backend-image
+          path: tachigo-app.tar.gz
+          retention-days: 1
+
+  backend:
+    name: Backend tests
+    needs: [scope-gate, backend-build]
+    if: github.event_name == 'push' || needs.scope-gate.outputs.run_ci == 'true'
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+
+      - name: Download image artifact
+        uses: actions/download-artifact@v4
+        with:
+          name: backend-image
+
+      - name: Load backend image
+        run: docker load < tachigo-app.tar.gz
+
       - name: Run tests
         run: docker compose run --pull never --no-deps --rm app go test ./...
 
   backend-integration:
     name: Backend integration tests
-    needs: [scope-gate, backend]
+    needs: [scope-gate, backend-build]
     runs-on: ubuntu-latest
     if: github.event_name == 'push' || (needs.scope-gate.outputs.run_ci == 'true' && needs.scope-gate.outputs.run_backend_integration == 'true')
     steps:
       - uses: actions/checkout@v4
 
-      - name: Set up Docker Buildx
-        uses: docker/setup-buildx-action@v3
-
-      - name: Build backend image
-        uses: docker/build-push-action@v6
+      - name: Download image artifact
+        uses: actions/download-artifact@v4
         with:
-          context: ./backend
-          target: dev
-          load: true
-          tags: tachigo-app:latest
-          cache-from: type=gha
+          name: backend-image
+
+      - name: Load backend image
+        run: docker load < tachigo-app.tar.gz
 
       - name: Start PostgreSQL
         run: docker compose up -d --wait postgres
@@ -279,7 +301,7 @@ jobs:
 
   notify-discord:
     name: Notify Discord on failure
-    needs: [workflow-regression, check-cache-wiring, backend, backend-integration, frontend, dashboard, contracts]
+    needs: [workflow-regression, check-cache-wiring, backend-build, backend, backend-integration, frontend, dashboard, contracts]
     if: failure()
     runs-on: ubuntu-latest
     steps:
