@@ -33,14 +33,18 @@ type Raffle struct {
 
 func (r *Raffle) BeforeCreate(tx *gorm.DB) error {
 	if r.ID == uuid.Nil {
-		id, _ := uuid.NewV7()
+		id, err := uuid.NewV7()
+		if err != nil {
+			return err
+		}
 		r.ID = id
 	}
 	return nil
 }
 
-// RaffleEntry is one participant row in a raffle. Only Twitch users with a
-// tachigo account are imported; entries always have a non-nil UserID.
+// RaffleEntry is one participant row in a raffle.
+// UserID is set by the service layer for users with a tachigo account; the
+// pointer allows nil in direct-insert test fixtures without a linked account.
 type RaffleEntry struct {
 	ID          uuid.UUID  `gorm:"type:uuid;primaryKey;default:gen_random_uuid()"          json:"id"`
 	RaffleID    uuid.UUID  `gorm:"type:uuid;not null;uniqueIndex:idx_raffle_entry_twitch"  json:"raffle_id"`
@@ -52,7 +56,10 @@ type RaffleEntry struct {
 
 func (e *RaffleEntry) BeforeCreate(tx *gorm.DB) error {
 	if e.ID == uuid.Nil {
-		id, _ := uuid.NewV7()
+		id, err := uuid.NewV7()
+		if err != nil {
+			return err
+		}
 		e.ID = id
 	}
 	return nil
@@ -72,7 +79,10 @@ type RaffleDraw struct {
 
 func (d *RaffleDraw) BeforeCreate(tx *gorm.DB) error {
 	if d.ID == uuid.Nil {
-		id, _ := uuid.NewV7()
+		id, err := uuid.NewV7()
+		if err != nil {
+			return err
+		}
 		d.ID = id
 	}
 	return nil
@@ -94,7 +104,10 @@ type RaffleClaim struct {
 
 func (c *RaffleClaim) BeforeCreate(tx *gorm.DB) error {
 	if c.ID == uuid.Nil {
-		id, _ := uuid.NewV7()
+		id, err := uuid.NewV7()
+		if err != nil {
+			return err
+		}
 		c.ID = id
 	}
 	return nil
