@@ -212,7 +212,8 @@ func migrateTestDB(db *gorm.DB) error {
 			user_id TEXT REFERENCES users(id),
 			twitch_login TEXT NOT NULL,
 			display_name TEXT NOT NULL DEFAULT '',
-			created_at DATETIME NOT NULL DEFAULT CURRENT_TIMESTAMP
+			created_at DATETIME NOT NULL DEFAULT CURRENT_TIMESTAMP,
+			UNIQUE (raffle_id, twitch_login)
 		)`,
 		`CREATE INDEX IF NOT EXISTS idx_raffle_entries_raffle_id ON raffle_entries (raffle_id)`,
 		`CREATE TABLE IF NOT EXISTS raffle_draws (
@@ -221,7 +222,8 @@ func migrateTestDB(db *gorm.DB) error {
 			entry_id TEXT NOT NULL REFERENCES raffle_entries(id),
 			claim_token TEXT NOT NULL UNIQUE,
 			claim_expires_at DATETIME NOT NULL,
-			drawn_at DATETIME NOT NULL
+			drawn_at DATETIME NOT NULL,
+			UNIQUE (raffle_id, entry_id)
 		)`,
 		`CREATE INDEX IF NOT EXISTS idx_raffle_draws_raffle_id ON raffle_draws (raffle_id)`,
 		`CREATE TABLE IF NOT EXISTS raffle_claims (

@@ -39,15 +39,15 @@ func (r *Raffle) BeforeCreate(tx *gorm.DB) error {
 	return nil
 }
 
-// RaffleEntry is one participant row in a raffle.
-// UserID may be nil when the Twitch user has no tachigo account.
+// RaffleEntry is one participant row in a raffle. Only Twitch users with a
+// tachigo account are imported; entries always have a non-nil UserID.
 type RaffleEntry struct {
-	ID          uuid.UUID  `gorm:"type:uuid;primaryKey;default:gen_random_uuid()" json:"id"`
-	RaffleID    uuid.UUID  `gorm:"type:uuid;not null;index"                       json:"raffle_id"`
-	UserID      *uuid.UUID `gorm:"type:uuid;index"                                json:"user_id"`
-	TwitchLogin string     `gorm:"type:varchar(255);not null"                     json:"twitch_login"`
-	DisplayName string     `gorm:"type:varchar(255)"                              json:"display_name"`
-	CreatedAt   time.Time  `                                                      json:"created_at"`
+	ID          uuid.UUID  `gorm:"type:uuid;primaryKey;default:gen_random_uuid()"          json:"id"`
+	RaffleID    uuid.UUID  `gorm:"type:uuid;not null;uniqueIndex:idx_raffle_entry_twitch"  json:"raffle_id"`
+	UserID      *uuid.UUID `gorm:"type:uuid;index"                                         json:"user_id"`
+	TwitchLogin string     `gorm:"type:varchar(255);not null;uniqueIndex:idx_raffle_entry_twitch" json:"twitch_login"`
+	DisplayName string     `gorm:"type:varchar(255)"                                       json:"display_name"`
+	CreatedAt   time.Time  `                                                               json:"created_at"`
 }
 
 func (e *RaffleEntry) BeforeCreate(tx *gorm.DB) error {
@@ -61,13 +61,13 @@ func (e *RaffleEntry) BeforeCreate(tx *gorm.DB) error {
 // RaffleDraw records one drawn winner.
 // ClaimToken is a one-time token sent to the winner for submitting shipping info.
 type RaffleDraw struct {
-	ID             uuid.UUID   `gorm:"type:uuid;primaryKey;default:gen_random_uuid()" json:"id"`
-	RaffleID       uuid.UUID   `gorm:"type:uuid;not null;index"                       json:"raffle_id"`
-	EntryID        uuid.UUID   `gorm:"type:uuid;not null"                             json:"entry_id"`
-	ClaimToken     string      `gorm:"type:varchar(255);not null;uniqueIndex"         json:"claim_token"`
-	ClaimExpiresAt time.Time   `                                                      json:"claim_expires_at"`
-	DrawnAt        time.Time   `                                                      json:"drawn_at"`
-	Entry          RaffleEntry `gorm:"foreignKey:EntryID"                             json:"entry,omitempty"`
+	ID             uuid.UUID   `gorm:"type:uuid;primaryKey;default:gen_random_uuid()"        json:"id"`
+	RaffleID       uuid.UUID   `gorm:"type:uuid;not null;uniqueIndex:idx_raffle_draw_entry"  json:"raffle_id"`
+	EntryID        uuid.UUID   `gorm:"type:uuid;not null;uniqueIndex:idx_raffle_draw_entry"  json:"entry_id"`
+	ClaimToken     string      `gorm:"type:varchar(255);not null;uniqueIndex"                json:"claim_token"`
+	ClaimExpiresAt time.Time   `                                                             json:"claim_expires_at"`
+	DrawnAt        time.Time   `                                                             json:"drawn_at"`
+	Entry          RaffleEntry `gorm:"foreignKey:EntryID"                                    json:"entry,omitempty"`
 }
 
 func (d *RaffleDraw) BeforeCreate(tx *gorm.DB) error {

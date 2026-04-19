@@ -1,6 +1,6 @@
 # 抽獎系統 — 核心資料模型與 API
 
-狀態：實作中
+狀態：已完成
 
 refs #227
 
@@ -26,8 +26,9 @@ endpoint 驗證：若 raffle.UserID ≠ JWT user，回 403。
 
 - CSV 第一欄為 twitch_login
 - 比對 auth_providers（provider='twitch', provider_id=twitch_login）
-- 有帳號 → 設 user_id；無帳號 → user_id = NULL，僅記 twitch_login
+- 有帳號 → 設 user_id 並匯入；無帳號 → 跳過（計入 skipped）
 - 跳過空行與 header
+- (raffle_id, twitch_login) 唯一約束防重複匯入
 
 ### DrawNext 邏輯
 
@@ -57,6 +58,24 @@ endpoint 驗證：若 raffle.UserID ≠ JWT user，回 403。
 | `backend/cmd/server/main.go` | AutoMigrate + wire |
 | `backend/internal/handlers/testutil_test.go` | 補 SQLite DDL |
 | `backend/internal/handlers/raffle_handler_test.go` | handler 測試 |
+
+## 實作 Checklist
+
+- [x] `backend/internal/models/raffle.go` — Raffle、RaffleEntry、RaffleDraw、RaffleClaim 四個模型，含 uniqueIndex 約束
+- [x] `backend/internal/services/raffle_service.go` — 全部 8 個 Service 方法，DrawNext 使用 transaction
+- [x] `backend/internal/handlers/raffle_handler.go` — 10 個 HTTP 端點（Dashboard 7 + 公開 2 + Extension 1）
+- [x] `backend/internal/router/router.go` — routes 掛載
+- [x] `backend/cmd/server/main.go` — AutoMigrate + service wire
+- [x] `backend/internal/handlers/testutil_test.go` — SQLite DDL（含 unique 約束）
+- [x] `backend/internal/handlers/raffle_handler_test.go` — 10 個 handler 單元測試
+
+## 驗證方式
+
+```bash
+docker compose run --no-deps --rm app go test ./...
+```
+
+所有測試應全數通過。
 
 ## API 路由
 

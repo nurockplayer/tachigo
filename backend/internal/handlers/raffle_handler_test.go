@@ -12,6 +12,7 @@ import (
 	"time"
 
 	"github.com/gin-gonic/gin"
+	"github.com/google/uuid"
 	"gorm.io/driver/sqlite"
 	"gorm.io/gorm"
 	"gorm.io/gorm/logger"
@@ -34,13 +35,22 @@ type raffleTestEnv struct {
 func newRaffleTestEnv(t *testing.T) *raffleTestEnv {
 	t.Helper()
 
-	db, err := gorm.Open(sqlite.Open(":memory:"), &gorm.Config{
+	dbName := strings.NewReplacer("/", "_", " ", "_").Replace(t.Name())
+	dsn := fmt.Sprintf("file:%s?mode=memory&cache=shared", dbName)
+	db, err := gorm.Open(sqlite.Open(dsn), &gorm.Config{
 		Logger:         logger.Default.LogMode(logger.Silent),
 		TranslateError: true,
 	})
 	if err != nil {
 		t.Fatalf("open db: %v", err)
 	}
+	sqlDB, err := db.DB()
+	if err != nil {
+		t.Fatalf("db handle: %v", err)
+	}
+	sqlDB.SetMaxOpenConns(1)
+	t.Cleanup(func() { _ = sqlDB.Close() })
+
 	if err := db.Exec("PRAGMA foreign_keys = ON").Error; err != nil {
 		t.Fatalf("enable fk: %v", err)
 	}
@@ -100,6 +110,28 @@ func (e *raffleTestEnv) registerStreamer(t *testing.T, username, email, password
 		t.Fatalf("login: %v", err)
 	}
 	return tokens.AccessToken
+}
+
+// createTwitchLinkedUser registers a tachigo user and links a Twitch login so
+// ImportCSV can match the entry.
+func (e *raffleTestEnv) createTwitchLinkedUser(t *testing.T, twitchLogin string) {
+	t.Helper()
+	username := "twitch_" + twitchLogin
+	user, _, err := e.authSvc.Register(services.RegisterInput{
+		Username: username,
+		Email:    username + "@test.com",
+		Password: "pass1234",
+	})
+	if err != nil {
+		t.Fatalf("register %s: %v", twitchLogin, err)
+	}
+	id, _ := uuid.NewV7()
+	if err := e.db.Exec(
+		`INSERT INTO auth_providers (id, user_id, provider, provider_id, created_at, updated_at) VALUES (?, ?, 'twitch', ?, CURRENT_TIMESTAMP, CURRENT_TIMESTAMP)`,
+		id.String(), user.ID.String(), twitchLogin,
+	).Error; err != nil {
+		t.Fatalf("link twitch auth_provider for %s: %v", twitchLogin, err)
+	}
 }
 
 func bearer(token string) string { return "Bearer " + token }
@@ -215,6 +247,11 @@ func TestRaffle_ImportCSV_And_DrawNext(t *testing.T) {
 	resp := parseBody(t, w.Body.Bytes())
 	raffleID := resp["data"].(map[string]interface{})["raffle"].(map[string]interface{})["id"].(string)
 
+	// Create tachigo users linked to Twitch logins before importing.
+	for _, login := range []string{"userA", "userB", "userC"} {
+		env.createTwitchLinkedUser(t, login)
+	}
+
 	// Upload CSV with 3 entries
 	var buf bytes.Buffer
 	mw := multipart.NewWriter(&buf)
@@ -316,6 +353,8 @@ func TestRaffle_ClaimFlow(t *testing.T) {
 	resp := parseBody(t, w.Body.Bytes())
 	raffleID := resp["data"].(map[string]interface{})["raffle"].(map[string]interface{})["id"].(string)
 
+	env.createTwitchLinkedUser(t, "winner1")
+
 	var buf bytes.Buffer
 	mw := multipart.NewWriter(&buf)
 	fw, _ := mw.CreateFormFile("file", "entries.csv")
@@ -414,6 +453,8 @@ func TestRaffle_GetResult_Extension(t *testing.T) {
 	resp := parseBody(t, w.Body.Bytes())
 	raffleID := resp["data"].(map[string]interface{})["raffle"].(map[string]interface{})["id"].(string)
 
+	env.createTwitchLinkedUser(t, "viewer1")
+
 	var buf bytes.Buffer
 	mw := multipart.NewWriter(&buf)
 	fw, _ := mw.CreateFormFile("file", "e.csv")
@@ -473,6 +514,11 @@ func TestRaffle_CSVDuplicateSkipped(t *testing.T) {
 		req.Header.Set("Authorization", bearer(token))
 		env.router.ServeHTTP(w, req)
 		return parseBody(t, w.Body.Bytes())["data"].(map[string]interface{})
+	}
+
+	// Create tachigo users for userX, userY, userZ before importing.
+	for _, login := range []string{"userX", "userY", "userZ"} {
+		env.createTwitchLinkedUser(t, login)
 	}
 
 	r1 := uploadCSV("userX\nuserY\n")

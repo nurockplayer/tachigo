@@ -359,7 +359,7 @@ func (h *RaffleHandler) SubmitClaim(c *gin.Context) {
 			conflict(c, "claim already submitted")
 			return
 		}
-		log.Printf("raffle submit-claim token=%s: %v", token, err)
+		log.Printf("raffle submit-claim: %v", err)
 		internal(c)
 		return
 	}
@@ -371,7 +371,6 @@ func (h *RaffleHandler) SubmitClaim(c *gin.Context) {
 // GetResult godoc
 // @Summary      Get drawn winners for a raffle (Extension)
 // @Tags         raffles
-// @Security     BearerAuth
 // @Produce      json
 // @Param        id   path string true "Raffle ID"
 // @Success      200  {object}  Response

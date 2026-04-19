@@ -128,19 +128,19 @@ func (s *RaffleService) ImportCSV(raffleID, userID uuid.UUID, r io.Reader) (*Imp
 			continue
 		}
 
-		// Try to match a tachigo user via auth_providers
-		var userIDPtr *uuid.UUID
+		// Only import users who have a tachigo account linked to this Twitch login.
 		var provider models.AuthProvider
 		if err := s.db.
 			Where("provider = ? AND provider_id = ?", models.ProviderTwitch, twitchLogin).
-			First(&provider).Error; err == nil {
-			uid := provider.UserID
-			userIDPtr = &uid
+			First(&provider).Error; err != nil {
+			result.Skipped++
+			continue
 		}
+		uid := provider.UserID
 
 		entry := &models.RaffleEntry{
 			RaffleID:    raffleID,
-			UserID:      userIDPtr,
+			UserID:      &uid,
 			TwitchLogin: twitchLogin,
 			DisplayName: displayName,
 		}
@@ -154,6 +154,9 @@ func (s *RaffleService) ImportCSV(raffleID, userID uuid.UUID, r io.Reader) (*Imp
 }
 
 // DrawNext picks a random un-drawn entry and records a RaffleDraw.
+// The SELECT+INSERT runs inside a transaction so concurrent draws cannot pick
+// the same entry; the unique constraint on (raffle_id, entry_id) provides an
+// additional DB-level guard.
 func (s *RaffleService) DrawNext(raffleID, userID uuid.UUID) (*models.RaffleDraw, error) {
 	raffle, err := s.GetByID(raffleID, userID)
 	if err != nil {
@@ -163,40 +166,47 @@ func (s *RaffleService) DrawNext(raffleID, userID uuid.UUID) (*models.RaffleDraw
 		return nil, ErrRaffleCompleted
 	}
 
-	// Pick a random entry that has NOT been drawn yet.
-	var entry models.RaffleEntry
-	if err := s.db.Raw(`
-		SELECT * FROM raffle_entries
-		WHERE raffle_id = ?
-		  AND id NOT IN (
-		        SELECT entry_id FROM raffle_draws WHERE raffle_id = ?
-		      )
-		ORDER BY RANDOM()
-		LIMIT 1
-	`, raffleID, raffleID).Scan(&entry).Error; err != nil {
-		return nil, err
-	}
-	if entry.ID == uuid.Nil {
-		return nil, ErrRaffleExhausted
-	}
+	var result *models.RaffleDraw
+	err = s.db.Transaction(func(tx *gorm.DB) error {
+		var entry models.RaffleEntry
+		if err := tx.Raw(`
+			SELECT * FROM raffle_entries
+			WHERE raffle_id = ?
+			  AND id NOT IN (
+			        SELECT entry_id FROM raffle_draws WHERE raffle_id = ?
+			      )
+			ORDER BY RANDOM()
+			LIMIT 1
+		`, raffleID, raffleID).Scan(&entry).Error; err != nil {
+			return err
+		}
+		if entry.ID == uuid.Nil {
+			return ErrRaffleExhausted
+		}
 
-	token, err := uuid.NewV7()
-	if err != nil {
-		return nil, err
-	}
+		token, err := uuid.NewV7()
+		if err != nil {
+			return err
+		}
 
-	draw := &models.RaffleDraw{
-		RaffleID:       raffleID,
-		EntryID:        entry.ID,
-		ClaimToken:     token.String(),
-		ClaimExpiresAt: time.Now().Add(claimTokenTTL),
-		DrawnAt:        time.Now(),
-	}
-	if err := s.db.Create(draw).Error; err != nil {
-		return nil, err
-	}
-	draw.Entry = entry
-	return draw, nil
+		draw := &models.RaffleDraw{
+			RaffleID:       raffleID,
+			EntryID:        entry.ID,
+			ClaimToken:     token.String(),
+			ClaimExpiresAt: time.Now().Add(claimTokenTTL),
+			DrawnAt:        time.Now(),
+		}
+		if err := tx.Create(draw).Error; err != nil {
+			if errors.Is(err, gorm.ErrDuplicatedKey) {
+				return ErrRaffleExhausted
+			}
+			return err
+		}
+		draw.Entry = entry
+		result = draw
+		return nil
+	})
+	return result, err
 }
 
 // ListDraws returns all draws for a raffle (with entry preloaded).
@@ -264,21 +274,11 @@ type ClaimInput struct {
 }
 
 // SubmitClaim records the winner's shipping information.
+// Duplicate submissions are caught by the unique constraint on draw_id.
 func (s *RaffleService) SubmitClaim(token string, input ClaimInput) (*models.RaffleClaim, error) {
 	draw, err := s.GetDrawByToken(token)
 	if err != nil {
 		return nil, err
-	}
-
-	// Check if already submitted
-	var count int64
-	if err := s.db.Model(&models.RaffleClaim{}).
-		Where("draw_id = ?", draw.ID).
-		Count(&count).Error; err != nil {
-		return nil, err
-	}
-	if count > 0 {
-		return nil, ErrClaimAlreadyDone
 	}
 
 	country := input.Country
@@ -298,6 +298,9 @@ func (s *RaffleService) SubmitClaim(token string, input ClaimInput) (*models.Raf
 		SubmittedAt:   time.Now(),
 	}
 	if err := s.db.Create(claim).Error; err != nil {
+		if errors.Is(err, gorm.ErrDuplicatedKey) {
+			return nil, ErrClaimAlreadyDone
+		}
 		return nil, err
 	}
 	return claim, nil
