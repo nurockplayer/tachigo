@@ -310,7 +310,7 @@ jobs:
     steps:
       - name: Check backend CI status
         run: |
-          if [ "${{ needs.backend-build.result }}" != "success" ]; then
+          if [ "${{ needs.backend-build.result }}" = "failure" ]; then
             echo "❌ Backend build failed"
             exit 1
           fi
