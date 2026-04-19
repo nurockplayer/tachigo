@@ -11,11 +11,6 @@
     "paths": {
         "/auth/forgot-password": {
             "post": {
-                "security": [
-                    {
-                        "": []
-                    }
-                ],
                 "description": "Always returns 200 to prevent user enumeration",
                 "consumes": [
                     "application/json"
@@ -73,11 +68,6 @@
         },
         "/auth/google": {
             "get": {
-                "security": [
-                    {
-                        "": []
-                    }
-                ],
                 "produces": [
                     "application/json"
                 ],
@@ -94,11 +84,6 @@
         },
         "/auth/google/callback": {
             "get": {
-                "security": [
-                    {
-                        "": []
-                    }
-                ],
                 "produces": [
                     "application/json"
                 ],
@@ -158,11 +143,6 @@
         },
         "/auth/login": {
             "post": {
-                "security": [
-                    {
-                        "": []
-                    }
-                ],
                 "consumes": [
                     "application/json"
                 ],
@@ -220,11 +200,6 @@
         },
         "/auth/logout": {
             "post": {
-                "security": [
-                    {
-                        "": []
-                    }
-                ],
                 "consumes": [
                     "application/json"
                 ],
@@ -343,11 +318,6 @@
         },
         "/auth/refresh": {
             "post": {
-                "security": [
-                    {
-                        "": []
-                    }
-                ],
                 "consumes": [
                     "application/json"
                 ],
@@ -409,11 +379,6 @@
         },
         "/auth/register": {
             "post": {
-                "security": [
-                    {
-                        "": []
-                    }
-                ],
                 "consumes": [
                     "application/json"
                 ],
@@ -471,11 +436,6 @@
         },
         "/auth/reset-password": {
             "post": {
-                "security": [
-                    {
-                        "": []
-                    }
-                ],
                 "consumes": [
                     "application/json"
                 ],
@@ -535,11 +495,6 @@
         },
         "/auth/twitch": {
             "get": {
-                "security": [
-                    {
-                        "": []
-                    }
-                ],
                 "produces": [
                     "application/json"
                 ],
@@ -556,11 +511,6 @@
         },
         "/auth/twitch/callback": {
             "get": {
-                "security": [
-                    {
-                        "": []
-                    }
-                ],
                 "produces": [
                     "application/json"
                 ],
@@ -620,11 +570,6 @@
         },
         "/auth/verify-email/confirm": {
             "post": {
-                "security": [
-                    {
-                        "": []
-                    }
-                ],
                 "consumes": [
                     "application/json"
                 ],
@@ -729,11 +674,6 @@
         },
         "/auth/web3/nonce": {
             "post": {
-                "security": [
-                    {
-                        "": []
-                    }
-                ],
                 "consumes": [
                     "application/json"
                 ],
@@ -796,11 +736,6 @@
         },
         "/auth/web3/verify": {
             "post": {
-                "security": [
-                    {
-                        "": []
-                    }
-                ],
                 "consumes": [
                     "application/json"
                 ],
@@ -858,11 +793,6 @@
         },
         "/extension/auth/login": {
             "post": {
-                "security": [
-                    {
-                        "": []
-                    }
-                ],
                 "consumes": [
                     "application/json"
                 ],
@@ -925,11 +855,6 @@
         },
         "/extension/bits/complete": {
             "post": {
-                "security": [
-                    {
-                        "": []
-                    }
-                ],
                 "consumes": [
                     "application/json"
                 ],
