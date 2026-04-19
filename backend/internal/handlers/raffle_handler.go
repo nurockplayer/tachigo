@@ -368,9 +368,6 @@ func (h *RaffleHandler) SubmitClaim(c *gin.Context) {
 
 // ── Extension endpoint ────────────────────────────────────────────────────────
 
-// publicDrawView is a safe projection of RaffleDraw for the public Extension
-// endpoint. It intentionally omits ClaimToken and ClaimExpiresAt to prevent
-// unauthenticated claim-token harvesting.
 type publicDrawView struct {
 	ID       string `json:"id"`
 	RaffleID string `json:"raffle_id"`

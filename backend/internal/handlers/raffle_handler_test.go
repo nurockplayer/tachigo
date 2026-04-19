@@ -546,8 +546,3 @@ func testConfig() *config.Config {
 		},
 	}
 }
-
-// helper to avoid import issues
-func init() {
-	_ = strings.Contains("", "")
-}
