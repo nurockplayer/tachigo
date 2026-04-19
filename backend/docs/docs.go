@@ -50,13 +50,13 @@ const docTemplate = `{
                         "schema": {
                             "allOf": [
                                 {
-                                    "$ref": "#/definitions/internal_handlers.Response"
+                                    "$ref": "#/definitions/handlers.Response"
                                 },
                                 {
                                     "type": "object",
                                     "properties": {
                                         "data": {
-                                            "$ref": "#/definitions/internal_handlers.MessageResponse"
+                                            "$ref": "#/definitions/handlers.MessageResponse"
                                         }
                                     }
                                 }
@@ -66,7 +66,7 @@ const docTemplate = `{
                     "400": {
                         "description": "Bad Request",
                         "schema": {
-                            "$ref": "#/definitions/internal_handlers.Response"
+                            "$ref": "#/definitions/handlers.Response"
                         }
                     }
                 }
@@ -119,13 +119,13 @@ const docTemplate = `{
                         "schema": {
                             "allOf": [
                                 {
-                                    "$ref": "#/definitions/internal_handlers.Response"
+                                    "$ref": "#/definitions/handlers.Response"
                                 },
                                 {
                                     "type": "object",
                                     "properties": {
                                         "data": {
-                                            "$ref": "#/definitions/internal_handlers.AuthResponse"
+                                            "$ref": "#/definitions/handlers.AuthResponse"
                                         }
                                     }
                                 }
@@ -135,13 +135,13 @@ const docTemplate = `{
                     "400": {
                         "description": "Bad Request",
                         "schema": {
-                            "$ref": "#/definitions/internal_handlers.Response"
+                            "$ref": "#/definitions/handlers.Response"
                         }
                     },
                     "401": {
                         "description": "Unauthorized",
                         "schema": {
-                            "$ref": "#/definitions/internal_handlers.Response"
+                            "$ref": "#/definitions/handlers.Response"
                         }
                     }
                 }
@@ -166,7 +166,7 @@ const docTemplate = `{
                         "in": "body",
                         "required": true,
                         "schema": {
-                            "$ref": "#/definitions/github_com_tachigo_tachigo_internal_services.LoginInput"
+                            "$ref": "#/definitions/services.LoginInput"
                         }
                     }
                 ],
@@ -176,13 +176,13 @@ const docTemplate = `{
                         "schema": {
                             "allOf": [
                                 {
-                                    "$ref": "#/definitions/internal_handlers.Response"
+                                    "$ref": "#/definitions/handlers.Response"
                                 },
                                 {
                                     "type": "object",
                                     "properties": {
                                         "data": {
-                                            "$ref": "#/definitions/internal_handlers.AuthResponse"
+                                            "$ref": "#/definitions/handlers.AuthResponse"
                                         }
                                     }
                                 }
@@ -192,13 +192,13 @@ const docTemplate = `{
                     "400": {
                         "description": "Bad Request",
                         "schema": {
-                            "$ref": "#/definitions/internal_handlers.Response"
+                            "$ref": "#/definitions/handlers.Response"
                         }
                     },
                     "401": {
                         "description": "Unauthorized",
                         "schema": {
-                            "$ref": "#/definitions/internal_handlers.Response"
+                            "$ref": "#/definitions/handlers.Response"
                         }
                     }
                 }
@@ -237,13 +237,13 @@ const docTemplate = `{
                         "schema": {
                             "allOf": [
                                 {
-                                    "$ref": "#/definitions/internal_handlers.Response"
+                                    "$ref": "#/definitions/handlers.Response"
                                 },
                                 {
                                     "type": "object",
                                     "properties": {
                                         "data": {
-                                            "$ref": "#/definitions/internal_handlers.MessageResponse"
+                                            "$ref": "#/definitions/handlers.MessageResponse"
                                         }
                                     }
                                 }
@@ -253,7 +253,7 @@ const docTemplate = `{
                     "400": {
                         "description": "Bad Request",
                         "schema": {
-                            "$ref": "#/definitions/internal_handlers.Response"
+                            "$ref": "#/definitions/handlers.Response"
                         }
                     }
                 }
@@ -294,13 +294,13 @@ const docTemplate = `{
                         "schema": {
                             "allOf": [
                                 {
-                                    "$ref": "#/definitions/internal_handlers.Response"
+                                    "$ref": "#/definitions/handlers.Response"
                                 },
                                 {
                                     "type": "object",
                                     "properties": {
                                         "data": {
-                                            "$ref": "#/definitions/internal_handlers.MessageResponse"
+                                            "$ref": "#/definitions/handlers.MessageResponse"
                                         }
                                     }
                                 }
@@ -310,13 +310,13 @@ const docTemplate = `{
                     "400": {
                         "description": "Bad Request",
                         "schema": {
-                            "$ref": "#/definitions/internal_handlers.Response"
+                            "$ref": "#/definitions/handlers.Response"
                         }
                     },
                     "500": {
                         "description": "Internal Server Error",
                         "schema": {
-                            "$ref": "#/definitions/internal_handlers.Response"
+                            "$ref": "#/definitions/handlers.Response"
                         }
                     }
                 }
@@ -355,13 +355,13 @@ const docTemplate = `{
                         "schema": {
                             "allOf": [
                                 {
-                                    "$ref": "#/definitions/internal_handlers.Response"
+                                    "$ref": "#/definitions/handlers.Response"
                                 },
                                 {
                                     "type": "object",
                                     "properties": {
                                         "data": {
-                                            "$ref": "#/definitions/internal_handlers.TokensResponse"
+                                            "$ref": "#/definitions/handlers.TokensResponse"
                                         }
                                     }
                                 }
@@ -371,13 +371,13 @@ const docTemplate = `{
                     "400": {
                         "description": "Bad Request",
                         "schema": {
-                            "$ref": "#/definitions/internal_handlers.Response"
+                            "$ref": "#/definitions/handlers.Response"
                         }
                     },
                     "401": {
                         "description": "Unauthorized",
                         "schema": {
-                            "$ref": "#/definitions/internal_handlers.Response"
+                            "$ref": "#/definitions/handlers.Response"
                         }
                     }
                 }
@@ -402,7 +402,7 @@ const docTemplate = `{
                         "in": "body",
                         "required": true,
                         "schema": {
-                            "$ref": "#/definitions/github_com_tachigo_tachigo_internal_services.RegisterInput"
+                            "$ref": "#/definitions/services.RegisterInput"
                         }
                     }
                 ],
@@ -412,13 +412,13 @@ const docTemplate = `{
                         "schema": {
                             "allOf": [
                                 {
-                                    "$ref": "#/definitions/internal_handlers.Response"
+                                    "$ref": "#/definitions/handlers.Response"
                                 },
                                 {
                                     "type": "object",
                                     "properties": {
                                         "data": {
-                                            "$ref": "#/definitions/internal_handlers.AuthResponse"
+                                            "$ref": "#/definitions/handlers.AuthResponse"
                                         }
                                     }
                                 }
@@ -428,13 +428,13 @@ const docTemplate = `{
                     "400": {
                         "description": "Bad Request",
                         "schema": {
-                            "$ref": "#/definitions/internal_handlers.Response"
+                            "$ref": "#/definitions/handlers.Response"
                         }
                     },
                     "409": {
                         "description": "Conflict",
                         "schema": {
-                            "$ref": "#/definitions/internal_handlers.Response"
+                            "$ref": "#/definitions/handlers.Response"
                         }
                     }
                 }
@@ -477,13 +477,13 @@ const docTemplate = `{
                         "schema": {
                             "allOf": [
                                 {
-                                    "$ref": "#/definitions/internal_handlers.Response"
+                                    "$ref": "#/definitions/handlers.Response"
                                 },
                                 {
                                     "type": "object",
                                     "properties": {
                                         "data": {
-                                            "$ref": "#/definitions/internal_handlers.MessageResponse"
+                                            "$ref": "#/definitions/handlers.MessageResponse"
                                         }
                                     }
                                 }
@@ -493,7 +493,7 @@ const docTemplate = `{
                     "400": {
                         "description": "Bad Request",
                         "schema": {
-                            "$ref": "#/definitions/internal_handlers.Response"
+                            "$ref": "#/definitions/handlers.Response"
                         }
                     }
                 }
@@ -546,13 +546,13 @@ const docTemplate = `{
                         "schema": {
                             "allOf": [
                                 {
-                                    "$ref": "#/definitions/internal_handlers.Response"
+                                    "$ref": "#/definitions/handlers.Response"
                                 },
                                 {
                                     "type": "object",
                                     "properties": {
                                         "data": {
-                                            "$ref": "#/definitions/internal_handlers.AuthResponse"
+                                            "$ref": "#/definitions/handlers.AuthResponse"
                                         }
                                     }
                                 }
@@ -562,13 +562,13 @@ const docTemplate = `{
                     "400": {
                         "description": "Bad Request",
                         "schema": {
-                            "$ref": "#/definitions/internal_handlers.Response"
+                            "$ref": "#/definitions/handlers.Response"
                         }
                     },
                     "401": {
                         "description": "Unauthorized",
                         "schema": {
-                            "$ref": "#/definitions/internal_handlers.Response"
+                            "$ref": "#/definitions/handlers.Response"
                         }
                     }
                 }
@@ -608,13 +608,13 @@ const docTemplate = `{
                         "schema": {
                             "allOf": [
                                 {
-                                    "$ref": "#/definitions/internal_handlers.Response"
+                                    "$ref": "#/definitions/handlers.Response"
                                 },
                                 {
                                     "type": "object",
                                     "properties": {
                                         "data": {
-                                            "$ref": "#/definitions/internal_handlers.MessageResponse"
+                                            "$ref": "#/definitions/handlers.MessageResponse"
                                         }
                                     }
                                 }
@@ -624,7 +624,7 @@ const docTemplate = `{
                     "400": {
                         "description": "Bad Request",
                         "schema": {
-                            "$ref": "#/definitions/internal_handlers.Response"
+                            "$ref": "#/definitions/handlers.Response"
                         }
                     }
                 }
@@ -650,13 +650,13 @@ const docTemplate = `{
                         "schema": {
                             "allOf": [
                                 {
-                                    "$ref": "#/definitions/internal_handlers.Response"
+                                    "$ref": "#/definitions/handlers.Response"
                                 },
                                 {
                                     "type": "object",
                                     "properties": {
                                         "data": {
-                                            "$ref": "#/definitions/internal_handlers.MessageResponse"
+                                            "$ref": "#/definitions/handlers.MessageResponse"
                                         }
                                     }
                                 }
@@ -666,13 +666,13 @@ const docTemplate = `{
                     "400": {
                         "description": "Bad Request",
                         "schema": {
-                            "$ref": "#/definitions/internal_handlers.Response"
+                            "$ref": "#/definitions/handlers.Response"
                         }
                     },
                     "404": {
                         "description": "Not Found",
                         "schema": {
-                            "$ref": "#/definitions/internal_handlers.Response"
+                            "$ref": "#/definitions/handlers.Response"
                         }
                     }
                 }
@@ -712,13 +712,13 @@ const docTemplate = `{
                         "schema": {
                             "allOf": [
                                 {
-                                    "$ref": "#/definitions/internal_handlers.Response"
+                                    "$ref": "#/definitions/handlers.Response"
                                 },
                                 {
                                     "type": "object",
                                     "properties": {
                                         "data": {
-                                            "$ref": "#/definitions/internal_handlers.NonceResponse"
+                                            "$ref": "#/definitions/handlers.NonceResponse"
                                         }
                                     }
                                 }
@@ -728,13 +728,13 @@ const docTemplate = `{
                     "400": {
                         "description": "Bad Request",
                         "schema": {
-                            "$ref": "#/definitions/internal_handlers.Response"
+                            "$ref": "#/definitions/handlers.Response"
                         }
                     },
                     "500": {
                         "description": "Internal Server Error",
                         "schema": {
-                            "$ref": "#/definitions/internal_handlers.Response"
+                            "$ref": "#/definitions/handlers.Response"
                         }
                     }
                 }
@@ -759,7 +759,7 @@ const docTemplate = `{
                         "in": "body",
                         "required": true,
                         "schema": {
-                            "$ref": "#/definitions/github_com_tachigo_tachigo_internal_services.Web3VerifyInput"
+                            "$ref": "#/definitions/services.Web3VerifyInput"
                         }
                     }
                 ],
@@ -769,13 +769,13 @@ const docTemplate = `{
                         "schema": {
                             "allOf": [
                                 {
-                                    "$ref": "#/definitions/internal_handlers.Response"
+                                    "$ref": "#/definitions/handlers.Response"
                                 },
                                 {
                                     "type": "object",
                                     "properties": {
                                         "data": {
-                                            "$ref": "#/definitions/internal_handlers.AuthResponse"
+                                            "$ref": "#/definitions/handlers.AuthResponse"
                                         }
                                     }
                                 }
@@ -785,13 +785,13 @@ const docTemplate = `{
                     "400": {
                         "description": "Bad Request",
                         "schema": {
-                            "$ref": "#/definitions/internal_handlers.Response"
+                            "$ref": "#/definitions/handlers.Response"
                         }
                     },
                     "401": {
                         "description": "Unauthorized",
                         "schema": {
-                            "$ref": "#/definitions/internal_handlers.Response"
+                            "$ref": "#/definitions/handlers.Response"
                         }
                     }
                 }
@@ -831,13 +831,13 @@ const docTemplate = `{
                         "schema": {
                             "allOf": [
                                 {
-                                    "$ref": "#/definitions/internal_handlers.Response"
+                                    "$ref": "#/definitions/handlers.Response"
                                 },
                                 {
                                     "type": "object",
                                     "properties": {
                                         "data": {
-                                            "$ref": "#/definitions/internal_handlers.AuthResponse"
+                                            "$ref": "#/definitions/handlers.AuthResponse"
                                         }
                                     }
                                 }
@@ -847,13 +847,13 @@ const docTemplate = `{
                     "400": {
                         "description": "Bad Request",
                         "schema": {
-                            "$ref": "#/definitions/internal_handlers.Response"
+                            "$ref": "#/definitions/handlers.Response"
                         }
                     },
                     "401": {
                         "description": "Unauthorized",
                         "schema": {
-                            "$ref": "#/definitions/internal_handlers.Response"
+                            "$ref": "#/definitions/handlers.Response"
                         }
                     }
                 }
@@ -899,13 +899,13 @@ const docTemplate = `{
                         "schema": {
                             "allOf": [
                                 {
-                                    "$ref": "#/definitions/internal_handlers.Response"
+                                    "$ref": "#/definitions/handlers.Response"
                                 },
                                 {
                                     "type": "object",
                                     "properties": {
                                         "data": {
-                                            "$ref": "#/definitions/internal_handlers.AuthResponse"
+                                            "$ref": "#/definitions/handlers.AuthResponse"
                                         }
                                     }
                                 }
@@ -915,13 +915,13 @@ const docTemplate = `{
                     "400": {
                         "description": "Bad Request",
                         "schema": {
-                            "$ref": "#/definitions/internal_handlers.Response"
+                            "$ref": "#/definitions/handlers.Response"
                         }
                     },
                     "401": {
                         "description": "Unauthorized",
                         "schema": {
-                            "$ref": "#/definitions/internal_handlers.Response"
+                            "$ref": "#/definitions/handlers.Response"
                         }
                     }
                 }
@@ -951,7 +951,7 @@ const docTemplate = `{
                         "in": "body",
                         "required": true,
                         "schema": {
-                            "$ref": "#/definitions/internal_handlers.redeemRequest"
+                            "$ref": "#/definitions/handlers.redeemRequest"
                         }
                     }
                 ],
@@ -961,13 +961,13 @@ const docTemplate = `{
                         "schema": {
                             "allOf": [
                                 {
-                                    "$ref": "#/definitions/internal_handlers.Response"
+                                    "$ref": "#/definitions/handlers.Response"
                                 },
                                 {
                                     "type": "object",
                                     "properties": {
                                         "data": {
-                                            "$ref": "#/definitions/internal_handlers.redeemResponse"
+                                            "$ref": "#/definitions/handlers.redeemResponse"
                                         }
                                     }
                                 }
@@ -977,19 +977,19 @@ const docTemplate = `{
                     "400": {
                         "description": "Bad Request",
                         "schema": {
-                            "$ref": "#/definitions/internal_handlers.Response"
+                            "$ref": "#/definitions/handlers.Response"
                         }
                     },
                     "401": {
                         "description": "Unauthorized",
                         "schema": {
-                            "$ref": "#/definitions/internal_handlers.Response"
+                            "$ref": "#/definitions/handlers.Response"
                         }
                     },
                     "500": {
                         "description": "Internal Server Error",
                         "schema": {
-                            "$ref": "#/definitions/internal_handlers.Response"
+                            "$ref": "#/definitions/handlers.Response"
                         }
                     }
                 }
@@ -1015,13 +1015,13 @@ const docTemplate = `{
                         "schema": {
                             "allOf": [
                                 {
-                                    "$ref": "#/definitions/internal_handlers.Response"
+                                    "$ref": "#/definitions/handlers.Response"
                                 },
                                 {
                                     "type": "object",
                                     "properties": {
                                         "data": {
-                                            "$ref": "#/definitions/internal_handlers.UserResponse"
+                                            "$ref": "#/definitions/handlers.UserResponse"
                                         }
                                     }
                                 }
@@ -1031,7 +1031,7 @@ const docTemplate = `{
                     "404": {
                         "description": "Not Found",
                         "schema": {
-                            "$ref": "#/definitions/internal_handlers.Response"
+                            "$ref": "#/definitions/handlers.Response"
                         }
                     }
                 }
@@ -1059,7 +1059,7 @@ const docTemplate = `{
                         "in": "body",
                         "required": true,
                         "schema": {
-                            "$ref": "#/definitions/github_com_tachigo_tachigo_internal_services.UpdateProfileInput"
+                            "$ref": "#/definitions/services.UpdateProfileInput"
                         }
                     }
                 ],
@@ -1069,13 +1069,13 @@ const docTemplate = `{
                         "schema": {
                             "allOf": [
                                 {
-                                    "$ref": "#/definitions/internal_handlers.Response"
+                                    "$ref": "#/definitions/handlers.Response"
                                 },
                                 {
                                     "type": "object",
                                     "properties": {
                                         "data": {
-                                            "$ref": "#/definitions/internal_handlers.UserResponse"
+                                            "$ref": "#/definitions/handlers.UserResponse"
                                         }
                                     }
                                 }
@@ -1085,13 +1085,13 @@ const docTemplate = `{
                     "400": {
                         "description": "Bad Request",
                         "schema": {
-                            "$ref": "#/definitions/internal_handlers.Response"
+                            "$ref": "#/definitions/handlers.Response"
                         }
                     },
                     "409": {
                         "description": "Conflict",
                         "schema": {
-                            "$ref": "#/definitions/internal_handlers.Response"
+                            "$ref": "#/definitions/handlers.Response"
                         }
                     }
                 }
@@ -1117,13 +1117,13 @@ const docTemplate = `{
                         "schema": {
                             "allOf": [
                                 {
-                                    "$ref": "#/definitions/internal_handlers.Response"
+                                    "$ref": "#/definitions/handlers.Response"
                                 },
                                 {
                                     "type": "object",
                                     "properties": {
                                         "data": {
-                                            "$ref": "#/definitions/internal_handlers.AddressesResponse"
+                                            "$ref": "#/definitions/handlers.AddressesResponse"
                                         }
                                     }
                                 }
@@ -1155,7 +1155,7 @@ const docTemplate = `{
                         "in": "body",
                         "required": true,
                         "schema": {
-                            "$ref": "#/definitions/github_com_tachigo_tachigo_internal_services.AddressInput"
+                            "$ref": "#/definitions/services.AddressInput"
                         }
                     }
                 ],
@@ -1165,13 +1165,13 @@ const docTemplate = `{
                         "schema": {
                             "allOf": [
                                 {
-                                    "$ref": "#/definitions/internal_handlers.Response"
+                                    "$ref": "#/definitions/handlers.Response"
                                 },
                                 {
                                     "type": "object",
                                     "properties": {
                                         "data": {
-                                            "$ref": "#/definitions/internal_handlers.AddressResponse"
+                                            "$ref": "#/definitions/handlers.AddressResponse"
                                         }
                                     }
                                 }
@@ -1181,7 +1181,7 @@ const docTemplate = `{
                     "400": {
                         "description": "Bad Request",
                         "schema": {
-                            "$ref": "#/definitions/internal_handlers.Response"
+                            "$ref": "#/definitions/handlers.Response"
                         }
                     }
                 }
@@ -1218,7 +1218,7 @@ const docTemplate = `{
                         "in": "body",
                         "required": true,
                         "schema": {
-                            "$ref": "#/definitions/github_com_tachigo_tachigo_internal_services.AddressInput"
+                            "$ref": "#/definitions/services.AddressInput"
                         }
                     }
                 ],
@@ -1228,13 +1228,13 @@ const docTemplate = `{
                         "schema": {
                             "allOf": [
                                 {
-                                    "$ref": "#/definitions/internal_handlers.Response"
+                                    "$ref": "#/definitions/handlers.Response"
                                 },
                                 {
                                     "type": "object",
                                     "properties": {
                                         "data": {
-                                            "$ref": "#/definitions/internal_handlers.AddressResponse"
+                                            "$ref": "#/definitions/handlers.AddressResponse"
                                         }
                                     }
                                 }
@@ -1244,13 +1244,13 @@ const docTemplate = `{
                     "400": {
                         "description": "Bad Request",
                         "schema": {
-                            "$ref": "#/definitions/internal_handlers.Response"
+                            "$ref": "#/definitions/handlers.Response"
                         }
                     },
                     "404": {
                         "description": "Not Found",
                         "schema": {
-                            "$ref": "#/definitions/internal_handlers.Response"
+                            "$ref": "#/definitions/handlers.Response"
                         }
                     }
                 }
@@ -1283,13 +1283,13 @@ const docTemplate = `{
                         "schema": {
                             "allOf": [
                                 {
-                                    "$ref": "#/definitions/internal_handlers.Response"
+                                    "$ref": "#/definitions/handlers.Response"
                                 },
                                 {
                                     "type": "object",
                                     "properties": {
                                         "data": {
-                                            "$ref": "#/definitions/internal_handlers.MessageResponse"
+                                            "$ref": "#/definitions/handlers.MessageResponse"
                                         }
                                     }
                                 }
@@ -1299,13 +1299,13 @@ const docTemplate = `{
                     "400": {
                         "description": "Bad Request",
                         "schema": {
-                            "$ref": "#/definitions/internal_handlers.Response"
+                            "$ref": "#/definitions/handlers.Response"
                         }
                     },
                     "404": {
                         "description": "Not Found",
                         "schema": {
-                            "$ref": "#/definitions/internal_handlers.Response"
+                            "$ref": "#/definitions/handlers.Response"
                         }
                     }
                 }
@@ -1340,13 +1340,13 @@ const docTemplate = `{
                         "schema": {
                             "allOf": [
                                 {
-                                    "$ref": "#/definitions/internal_handlers.Response"
+                                    "$ref": "#/definitions/handlers.Response"
                                 },
                                 {
                                     "type": "object",
                                     "properties": {
                                         "data": {
-                                            "$ref": "#/definitions/internal_handlers.AddressResponse"
+                                            "$ref": "#/definitions/handlers.AddressResponse"
                                         }
                                     }
                                 }
@@ -1356,13 +1356,13 @@ const docTemplate = `{
                     "400": {
                         "description": "Bad Request",
                         "schema": {
-                            "$ref": "#/definitions/internal_handlers.Response"
+                            "$ref": "#/definitions/handlers.Response"
                         }
                     },
                     "404": {
                         "description": "Not Found",
                         "schema": {
-                            "$ref": "#/definitions/internal_handlers.Response"
+                            "$ref": "#/definitions/handlers.Response"
                         }
                     }
                 }
@@ -1397,13 +1397,13 @@ const docTemplate = `{
                         "schema": {
                             "allOf": [
                                 {
-                                    "$ref": "#/definitions/internal_handlers.Response"
+                                    "$ref": "#/definitions/handlers.Response"
                                 },
                                 {
                                     "type": "object",
                                     "properties": {
                                         "data": {
-                                            "$ref": "#/definitions/internal_handlers.PointsBalanceResponse"
+                                            "$ref": "#/definitions/handlers.PointsBalanceResponse"
                                         }
                                     }
                                 }
@@ -1413,13 +1413,13 @@ const docTemplate = `{
                     "400": {
                         "description": "Bad Request",
                         "schema": {
-                            "$ref": "#/definitions/internal_handlers.Response"
+                            "$ref": "#/definitions/handlers.Response"
                         }
                     },
                     "401": {
                         "description": "Unauthorized",
                         "schema": {
-                            "$ref": "#/definitions/internal_handlers.Response"
+                            "$ref": "#/definitions/handlers.Response"
                         }
                     }
                 }
@@ -1448,7 +1448,7 @@ const docTemplate = `{
                         "name": "body",
                         "in": "body",
                         "schema": {
-                            "$ref": "#/definitions/internal_handlers.claimRequest"
+                            "$ref": "#/definitions/handlers.claimRequest"
                         }
                     }
                 ],
@@ -1458,13 +1458,13 @@ const docTemplate = `{
                         "schema": {
                             "allOf": [
                                 {
-                                    "$ref": "#/definitions/internal_handlers.Response"
+                                    "$ref": "#/definitions/handlers.Response"
                                 },
                                 {
                                     "type": "object",
                                     "properties": {
                                         "data": {
-                                            "$ref": "#/definitions/internal_handlers.tachiBalanceResponse"
+                                            "$ref": "#/definitions/handlers.tachiBalanceResponse"
                                         }
                                     }
                                 }
@@ -1474,19 +1474,19 @@ const docTemplate = `{
                     "400": {
                         "description": "Bad Request",
                         "schema": {
-                            "$ref": "#/definitions/internal_handlers.Response"
+                            "$ref": "#/definitions/handlers.Response"
                         }
                     },
                     "401": {
                         "description": "Unauthorized",
                         "schema": {
-                            "$ref": "#/definitions/internal_handlers.Response"
+                            "$ref": "#/definitions/handlers.Response"
                         }
                     },
                     "422": {
                         "description": "Unprocessable Entity",
                         "schema": {
-                            "$ref": "#/definitions/internal_handlers.Response"
+                            "$ref": "#/definitions/handlers.Response"
                         }
                     }
                 }
@@ -1521,13 +1521,13 @@ const docTemplate = `{
                         "schema": {
                             "allOf": [
                                 {
-                                    "$ref": "#/definitions/internal_handlers.Response"
+                                    "$ref": "#/definitions/handlers.Response"
                                 },
                                 {
                                     "type": "object",
                                     "properties": {
                                         "data": {
-                                            "$ref": "#/definitions/internal_handlers.PointsHistoryResponse"
+                                            "$ref": "#/definitions/handlers.PointsHistoryResponse"
                                         }
                                     }
                                 }
@@ -1537,13 +1537,13 @@ const docTemplate = `{
                     "400": {
                         "description": "Bad Request",
                         "schema": {
-                            "$ref": "#/definitions/internal_handlers.Response"
+                            "$ref": "#/definitions/handlers.Response"
                         }
                     },
                     "401": {
                         "description": "Unauthorized",
                         "schema": {
-                            "$ref": "#/definitions/internal_handlers.Response"
+                            "$ref": "#/definitions/handlers.Response"
                         }
                     }
                 }
@@ -1569,13 +1569,13 @@ const docTemplate = `{
                         "schema": {
                             "allOf": [
                                 {
-                                    "$ref": "#/definitions/internal_handlers.Response"
+                                    "$ref": "#/definitions/handlers.Response"
                                 },
                                 {
                                     "type": "object",
                                     "properties": {
                                         "data": {
-                                            "$ref": "#/definitions/internal_handlers.ProvidersResponse"
+                                            "$ref": "#/definitions/handlers.ProvidersResponse"
                                         }
                                     }
                                 }
@@ -1605,13 +1605,13 @@ const docTemplate = `{
                         "schema": {
                             "allOf": [
                                 {
-                                    "$ref": "#/definitions/internal_handlers.Response"
+                                    "$ref": "#/definitions/handlers.Response"
                                 },
                                 {
                                     "type": "object",
                                     "properties": {
                                         "data": {
-                                            "$ref": "#/definitions/internal_handlers.tachiBalanceResponse"
+                                            "$ref": "#/definitions/handlers.tachiBalanceResponse"
                                         }
                                     }
                                 }
@@ -1621,7 +1621,82 @@ const docTemplate = `{
                     "401": {
                         "description": "Unauthorized",
                         "schema": {
-                            "$ref": "#/definitions/internal_handlers.Response"
+                            "$ref": "#/definitions/handlers.Response"
+                        }
+                    }
+                }
+            }
+        },
+        "/users/me/wallet": {
+            "post": {
+                "security": [
+                    {
+                        "BearerAuth": []
+                    }
+                ],
+                "description": "Verifies a SIWE signature and links the wallet address to the authenticated user.",
+                "consumes": [
+                    "application/json"
+                ],
+                "produces": [
+                    "application/json"
+                ],
+                "tags": [
+                    "users"
+                ],
+                "summary": "Bind a MetaMask wallet to the current user",
+                "parameters": [
+                    {
+                        "description": "address, nonce, signature",
+                        "name": "body",
+                        "in": "body",
+                        "required": true,
+                        "schema": {
+                            "$ref": "#/definitions/services.LinkWalletInput"
+                        }
+                    }
+                ],
+                "responses": {
+                    "200": {
+                        "description": "OK",
+                        "schema": {
+                            "allOf": [
+                                {
+                                    "$ref": "#/definitions/handlers.Response"
+                                },
+                                {
+                                    "type": "object",
+                                    "properties": {
+                                        "data": {
+                                            "$ref": "#/definitions/handlers.WalletResponse"
+                                        }
+                                    }
+                                }
+                            ]
+                        }
+                    },
+                    "400": {
+                        "description": "Bad Request",
+                        "schema": {
+                            "$ref": "#/definitions/handlers.Response"
+                        }
+                    },
+                    "401": {
+                        "description": "Unauthorized",
+                        "schema": {
+                            "$ref": "#/definitions/handlers.Response"
+                        }
+                    },
+                    "409": {
+                        "description": "Conflict",
+                        "schema": {
+                            "$ref": "#/definitions/handlers.Response"
+                        }
+                    },
+                    "500": {
+                        "description": "Internal Server Error",
+                        "schema": {
+                            "$ref": "#/definitions/handlers.Response"
                         }
                     }
                 }
@@ -1629,7 +1704,187 @@ const docTemplate = `{
         }
     },
     "definitions": {
-        "github_com_tachigo_tachigo_internal_models.AuthProvider": {
+        "handlers.AddressResponse": {
+            "type": "object",
+            "properties": {
+                "address": {
+                    "$ref": "#/definitions/models.ShippingAddress"
+                }
+            }
+        },
+        "handlers.AddressesResponse": {
+            "type": "object",
+            "properties": {
+                "addresses": {
+                    "type": "array",
+                    "items": {
+                        "$ref": "#/definitions/models.ShippingAddress"
+                    }
+                }
+            }
+        },
+        "handlers.AuthResponse": {
+            "type": "object",
+            "properties": {
+                "tokens": {
+                    "$ref": "#/definitions/services.TokenPair"
+                },
+                "user": {
+                    "$ref": "#/definitions/models.User"
+                }
+            }
+        },
+        "handlers.MessageResponse": {
+            "type": "object",
+            "properties": {
+                "message": {
+                    "type": "string"
+                }
+            }
+        },
+        "handlers.NonceResponse": {
+            "type": "object",
+            "properties": {
+                "issued_at": {
+                    "type": "string"
+                },
+                "nonce": {
+                    "type": "string"
+                }
+            }
+        },
+        "handlers.PointsBalanceResponse": {
+            "type": "object",
+            "properties": {
+                "cumulative_total": {
+                    "type": "integer"
+                },
+                "spendable_balance": {
+                    "type": "integer"
+                }
+            }
+        },
+        "handlers.PointsHistoryItem": {
+            "type": "object",
+            "properties": {
+                "amount": {
+                    "type": "integer"
+                },
+                "created_at": {
+                    "type": "string",
+                    "format": "date-time"
+                },
+                "note": {
+                    "type": "string"
+                },
+                "sku": {
+                    "type": "string"
+                },
+                "type": {
+                    "type": "string",
+                    "enum": [
+                        "earn",
+                        "spend"
+                    ]
+                }
+            }
+        },
+        "handlers.PointsHistoryResponse": {
+            "type": "object",
+            "properties": {
+                "transactions": {
+                    "type": "array",
+                    "items": {
+                        "$ref": "#/definitions/handlers.PointsHistoryItem"
+                    }
+                }
+            }
+        },
+        "handlers.ProvidersResponse": {
+            "type": "object",
+            "properties": {
+                "providers": {
+                    "type": "array",
+                    "items": {
+                        "$ref": "#/definitions/models.AuthProvider"
+                    }
+                }
+            }
+        },
+        "handlers.Response": {
+            "type": "object",
+            "properties": {
+                "data": {},
+                "error": {
+                    "type": "string"
+                },
+                "success": {
+                    "type": "boolean"
+                }
+            }
+        },
+        "handlers.TokensResponse": {
+            "type": "object",
+            "properties": {
+                "tokens": {
+                    "$ref": "#/definitions/services.TokenPair"
+                }
+            }
+        },
+        "handlers.UserResponse": {
+            "type": "object",
+            "properties": {
+                "user": {
+                    "$ref": "#/definitions/models.User"
+                }
+            }
+        },
+        "handlers.WalletResponse": {
+            "type": "object",
+            "properties": {
+                "address": {
+                    "type": "string"
+                }
+            }
+        },
+        "handlers.claimRequest": {
+            "type": "object",
+            "properties": {
+                "amount": {
+                    "description": "0 = claim all",
+                    "type": "integer"
+                }
+            }
+        },
+        "handlers.redeemRequest": {
+            "type": "object",
+            "required": [
+                "amount"
+            ],
+            "properties": {
+                "amount": {
+                    "type": "integer",
+                    "minimum": 1
+                }
+            }
+        },
+        "handlers.redeemResponse": {
+            "type": "object",
+            "properties": {
+                "balance": {
+                    "type": "integer"
+                }
+            }
+        },
+        "handlers.tachiBalanceResponse": {
+            "type": "object",
+            "properties": {
+                "tachi_balance": {
+                    "type": "integer"
+                }
+            }
+        },
+        "models.AuthProvider": {
             "type": "object",
             "properties": {
                 "created_at": {
@@ -1642,7 +1897,7 @@ const docTemplate = `{
                     "type": "object"
                 },
                 "provider": {
-                    "$ref": "#/definitions/github_com_tachigo_tachigo_internal_models.ProviderType"
+                    "$ref": "#/definitions/models.ProviderType"
                 },
                 "provider_id": {
                     "type": "string"
@@ -1655,7 +1910,7 @@ const docTemplate = `{
                 }
             }
         },
-        "github_com_tachigo_tachigo_internal_models.ProviderType": {
+        "models.ProviderType": {
             "type": "string",
             "enum": [
                 "twitch",
@@ -1670,7 +1925,7 @@ const docTemplate = `{
                 "ProviderEmail"
             ]
         },
-        "github_com_tachigo_tachigo_internal_models.ShippingAddress": {
+        "models.ShippingAddress": {
             "type": "object",
             "properties": {
                 "address_line1": {
@@ -1714,19 +1969,19 @@ const docTemplate = `{
                 }
             }
         },
-        "github_com_tachigo_tachigo_internal_models.User": {
+        "models.User": {
             "type": "object",
             "properties": {
                 "addresses": {
                     "type": "array",
                     "items": {
-                        "$ref": "#/definitions/github_com_tachigo_tachigo_internal_models.ShippingAddress"
+                        "$ref": "#/definitions/models.ShippingAddress"
                     }
                 },
                 "auth_providers": {
                     "type": "array",
                     "items": {
-                        "$ref": "#/definitions/github_com_tachigo_tachigo_internal_models.AuthProvider"
+                        "$ref": "#/definitions/models.AuthProvider"
                     }
                 },
                 "avatar_url": {
@@ -1748,7 +2003,7 @@ const docTemplate = `{
                     "type": "boolean"
                 },
                 "role": {
-                    "$ref": "#/definitions/github_com_tachigo_tachigo_internal_models.UserRole"
+                    "$ref": "#/definitions/models.UserRole"
                 },
                 "updated_at": {
                     "type": "string"
@@ -1758,7 +2013,7 @@ const docTemplate = `{
                 }
             }
         },
-        "github_com_tachigo_tachigo_internal_models.UserRole": {
+        "models.UserRole": {
             "type": "string",
             "enum": [
                 "viewer",
@@ -1773,7 +2028,7 @@ const docTemplate = `{
                 "RoleAdmin"
             ]
         },
-        "github_com_tachigo_tachigo_internal_services.AddressInput": {
+        "services.AddressInput": {
             "type": "object",
             "required": [
                 "address_line1",
@@ -1810,7 +2065,26 @@ const docTemplate = `{
                 }
             }
         },
-        "github_com_tachigo_tachigo_internal_services.LoginInput": {
+        "services.LinkWalletInput": {
+            "type": "object",
+            "required": [
+                "address",
+                "nonce",
+                "signature"
+            ],
+            "properties": {
+                "address": {
+                    "type": "string"
+                },
+                "nonce": {
+                    "type": "string"
+                },
+                "signature": {
+                    "type": "string"
+                }
+            }
+        },
+        "services.LoginInput": {
             "type": "object",
             "required": [
                 "email",
@@ -1825,7 +2099,7 @@ const docTemplate = `{
                 }
             }
         },
-        "github_com_tachigo_tachigo_internal_services.RegisterInput": {
+        "services.RegisterInput": {
             "type": "object",
             "required": [
                 "email",
@@ -1847,7 +2121,7 @@ const docTemplate = `{
                 }
             }
         },
-        "github_com_tachigo_tachigo_internal_services.TokenPair": {
+        "services.TokenPair": {
             "type": "object",
             "properties": {
                 "access_token": {
@@ -1862,7 +2136,7 @@ const docTemplate = `{
                 }
             }
         },
-        "github_com_tachigo_tachigo_internal_services.UpdateProfileInput": {
+        "services.UpdateProfileInput": {
             "type": "object",
             "properties": {
                 "avatar_url": {
@@ -1873,7 +2147,7 @@ const docTemplate = `{
                 }
             }
         },
-        "github_com_tachigo_tachigo_internal_services.Web3VerifyInput": {
+        "services.Web3VerifyInput": {
             "type": "object",
             "required": [
                 "address",
@@ -1889,178 +2163,6 @@ const docTemplate = `{
                 },
                 "signature": {
                     "type": "string"
-                }
-            }
-        },
-        "internal_handlers.AddressResponse": {
-            "type": "object",
-            "properties": {
-                "address": {
-                    "$ref": "#/definitions/github_com_tachigo_tachigo_internal_models.ShippingAddress"
-                }
-            }
-        },
-        "internal_handlers.AddressesResponse": {
-            "type": "object",
-            "properties": {
-                "addresses": {
-                    "type": "array",
-                    "items": {
-                        "$ref": "#/definitions/github_com_tachigo_tachigo_internal_models.ShippingAddress"
-                    }
-                }
-            }
-        },
-        "internal_handlers.AuthResponse": {
-            "type": "object",
-            "properties": {
-                "tokens": {
-                    "$ref": "#/definitions/github_com_tachigo_tachigo_internal_services.TokenPair"
-                },
-                "user": {
-                    "$ref": "#/definitions/github_com_tachigo_tachigo_internal_models.User"
-                }
-            }
-        },
-        "internal_handlers.MessageResponse": {
-            "type": "object",
-            "properties": {
-                "message": {
-                    "type": "string"
-                }
-            }
-        },
-        "internal_handlers.NonceResponse": {
-            "type": "object",
-            "properties": {
-                "issued_at": {
-                    "type": "string"
-                },
-                "nonce": {
-                    "type": "string"
-                }
-            }
-        },
-        "internal_handlers.PointsBalanceResponse": {
-            "type": "object",
-            "properties": {
-                "cumulative_total": {
-                    "type": "integer"
-                },
-                "spendable_balance": {
-                    "type": "integer"
-                }
-            }
-        },
-        "internal_handlers.PointsHistoryItem": {
-            "type": "object",
-            "properties": {
-                "amount": {
-                    "type": "integer"
-                },
-                "created_at": {
-                    "type": "string",
-                    "format": "date-time"
-                },
-                "note": {
-                    "type": "string"
-                },
-                "sku": {
-                    "type": "string"
-                },
-                "type": {
-                    "type": "string",
-                    "enum": [
-                        "earn",
-                        "spend"
-                    ]
-                }
-            }
-        },
-        "internal_handlers.PointsHistoryResponse": {
-            "type": "object",
-            "properties": {
-                "transactions": {
-                    "type": "array",
-                    "items": {
-                        "$ref": "#/definitions/internal_handlers.PointsHistoryItem"
-                    }
-                }
-            }
-        },
-        "internal_handlers.ProvidersResponse": {
-            "type": "object",
-            "properties": {
-                "providers": {
-                    "type": "array",
-                    "items": {
-                        "$ref": "#/definitions/github_com_tachigo_tachigo_internal_models.AuthProvider"
-                    }
-                }
-            }
-        },
-        "internal_handlers.Response": {
-            "type": "object",
-            "properties": {
-                "data": {},
-                "error": {
-                    "type": "string"
-                },
-                "success": {
-                    "type": "boolean"
-                }
-            }
-        },
-        "internal_handlers.TokensResponse": {
-            "type": "object",
-            "properties": {
-                "tokens": {
-                    "$ref": "#/definitions/github_com_tachigo_tachigo_internal_services.TokenPair"
-                }
-            }
-        },
-        "internal_handlers.UserResponse": {
-            "type": "object",
-            "properties": {
-                "user": {
-                    "$ref": "#/definitions/github_com_tachigo_tachigo_internal_models.User"
-                }
-            }
-        },
-        "internal_handlers.claimRequest": {
-            "type": "object",
-            "properties": {
-                "amount": {
-                    "description": "0 = claim all",
-                    "type": "integer"
-                }
-            }
-        },
-        "internal_handlers.redeemRequest": {
-            "type": "object",
-            "required": [
-                "amount"
-            ],
-            "properties": {
-                "amount": {
-                    "type": "integer",
-                    "minimum": 1
-                }
-            }
-        },
-        "internal_handlers.redeemResponse": {
-            "type": "object",
-            "properties": {
-                "balance": {
-                    "type": "integer"
-                }
-            }
-        },
-        "internal_handlers.tachiBalanceResponse": {
-            "type": "object",
-            "properties": {
-                "tachi_balance": {
-                    "type": "integer"
                 }
             }
         }
