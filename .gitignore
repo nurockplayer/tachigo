@@ -9,6 +9,7 @@ backend/bin/
 .claude/settings.local.json
 .claude/scheduled_tasks.lock
 .superpowers/
+.continue/
 
 # Frontend
 tachimint/node_modules/
