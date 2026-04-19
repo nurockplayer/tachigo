@@ -179,7 +179,10 @@ jobs:
           cache-to: type=gha,mode=max
 
       - name: Export image artifact
-        run: docker save tachigo-app:latest | gzip > tachigo-app.tar.gz
+        run: |
+          set -euo pipefail
+          docker save tachigo-app:latest | gzip -c > tachigo-app.tar.gz
+          test -s tachigo-app.tar.gz
 
       - name: Upload image artifact
         uses: actions/upload-artifact@v4
