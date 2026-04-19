@@ -101,6 +101,7 @@ function TokenBlock({ label, tokenSymbol, balanceLabel, value, readOnly, onValue
         <input
           type="text"
           inputMode="numeric"
+          aria-label={label}
           value={value}
           readOnly={readOnly}
           onChange={readOnly ? undefined : (e) => onValueChange?.(e.target.value)}

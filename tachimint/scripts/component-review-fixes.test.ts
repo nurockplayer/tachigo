@@ -18,14 +18,22 @@ test('parseCpcAmount accepts decimal CPC amounts', () => {
 
 test('ClickableCapybara uses a keyboard-accessible button', () => {
   const source = readComponentSource('MarioHUD.tsx')
-  const clickableCapybara = source.slice(
-    source.indexOf('function ClickableCapybara'),
-    source.indexOf('// ─── Spinning Coin'),
-  )
+  const start = source.indexOf('function ClickableCapybara')
+  const end = source.indexOf('// ─── Spinning Coin')
+  assert.notEqual(start, -1, 'ClickableCapybara markers: start marker missing')
+  assert.notEqual(end, -1, 'ClickableCapybara markers: end marker missing')
+
+  const clickableCapybara = source.slice(start, end)
 
   assert.match(clickableCapybara, /<button\s+type="button"/)
   assert.match(clickableCapybara, /aria-label=/)
   assert.doesNotMatch(clickableCapybara, /<div\s+onClick=/)
+})
+
+test('ClaimPanel amount inputs expose accessible names', () => {
+  const source = readComponentSource('ClaimPanel.tsx')
+
+  assert.match(source, /aria-label=\{label\}/)
 })
 
 test('MarioHUD uses defaultHudDemoState for total points fallback', () => {
