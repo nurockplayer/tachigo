@@ -43,7 +43,8 @@ jobs:
             }
 
             const hardMaxChangedFiles = 35
-            const hardMaxDiffLines = 2500
+            const hardMaxDiffLines = 1500
+            const warningDiffLines = 800
             const autoCloseLabel = 'scope-violation'
             const dependencyLabel = 'blocked-by-dependency'
             const owner = context.repo.owner
@@ -175,9 +176,15 @@ jobs:
                 severeFailures.push(message)
               }
 
+              if (!isReleasePromotionPr && diffLines > warningDiffLines && diffLines <= hardMaxDiffLines) {
+                const message =
+                  `PR diff size is ${diffLines} lines (+/-), which exceeds the soft limit of ${warningDiffLines}. Consider splitting this PR for easier review.`
+                warnings.push(message)
+              }
+
               if (!isReleasePromotionPr && diffLines > hardMaxDiffLines) {
                 const message =
-                  `PR diff size is ${diffLines} lines (+/-), which exceeds the hard limit of ${hardMaxDiffLines}. Split the PR before review.`
+                  `PR diff size is ${diffLines} lines (+/-), which exceeds the hard limit of ${hardMaxDiffLines}. Split the PR before review. (Use \`scope-exception\` label only for migration/generated/dependency changes that truly cannot be split.)`
                 failures.push(message)
                 severeFailures.push(message)
               }
