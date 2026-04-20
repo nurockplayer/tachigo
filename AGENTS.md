@@ -247,6 +247,10 @@ Terminology:
 預設使用省 token 路線：metadata-first + reduced review bundle + Gemini CLI first pass + Codex validation。
 除非使用者明確要求「不要用 Gemini」或 PR 很小，否則不要讓 Codex 一開始就完整讀整張 diff。
 
+### Token 節流預設
+
+PR review 與大型工作預設採用分回合流程：先做 metadata / 摘要 / 風險區域 / 建議下一步，等使用者確認後才讀完整 diff、CI log、review thread 或大量 repo context。詳細流程見 [docs/agents/token-budget.md](docs/agents/token-budget.md)。
+
 1. Load PR metadata first:
    - linked issue
    - PR title / body
