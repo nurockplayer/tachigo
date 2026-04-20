@@ -212,32 +212,20 @@ jobs:
 
   backend-integration:
     name: Backend integration tests
-    needs: [scope-gate, backend-build]
+    needs: [scope-gate]
     runs-on: ubuntu-latest
     if: github.event_name == 'push' || (needs.scope-gate.outputs.run_ci == 'true' && needs.scope-gate.outputs.run_backend_integration == 'true')
     steps:
-      - uses: actions/checkout@v4
+      - uses: actions/checkout@v6
 
-      - name: Download image artifact
-        uses: actions/download-artifact@v4
+      - name: Set up Go
+        uses: actions/setup-go@v6
         with:
-          name: backend-image
-
-      - name: Load backend image
-        run: docker load < tachigo-app.tar.gz
-
-      - name: Start PostgreSQL
-        run: docker compose up -d --wait postgres
-
-      - name: Run integration build
-        run: docker compose run --pull never --rm app go build -tags integration ./...
+          go-version-file: backend/go.mod
 
       - name: Run integration tests
-        run: docker compose run --pull never --rm app go test -tags integration ./... -count=1
-
-      - name: Stop services
-        if: always()
-        run: docker compose down -v
+        working-directory: backend
+        run: go test -tags integration -v ./... -count=1
 
   frontend:
     name: Frontend build
