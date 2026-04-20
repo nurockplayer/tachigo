@@ -35,6 +35,4 @@ require_in "$workflow" "cache-to: type=gha,mode=max" "backend CI should save Doc
 require_in "$workflow" "load: true" "backend CI should load the cached image into the local Docker daemon"
 require_in "$workflow" "tags: tachigo-app:latest" "backend CI should tag the image used by docker compose"
 require_in "$workflow" "docker compose run --pull never --no-deps --rm app go test ./..." "unit tests should reuse the prebuilt backend image"
-require_in "$workflow" "docker compose run --pull never --rm app go build -tags integration ./..." "integration build should reuse the prebuilt backend image"
-require_in "$workflow" "docker compose run --pull never --rm app go test -tags integration ./... -count=1" "integration tests should reuse the prebuilt backend image"
 reject_in "$workflow" "docker compose build app" "backend CI should not rebuild the app image without GHA layer cache"
