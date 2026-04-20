@@ -17,7 +17,6 @@ const docTemplate = `{
     "paths": {
         "/auth/forgot-password": {
             "post": {
-                "security": [],
                 "description": "Always returns 200 to prevent user enumeration",
                 "consumes": [
                     "application/json"
@@ -75,7 +74,6 @@ const docTemplate = `{
         },
         "/auth/google": {
             "get": {
-                "security": [],
                 "produces": [
                     "application/json"
                 ],
@@ -92,7 +90,6 @@ const docTemplate = `{
         },
         "/auth/google/callback": {
             "get": {
-                "security": [],
                 "produces": [
                     "application/json"
                 ],
@@ -152,7 +149,6 @@ const docTemplate = `{
         },
         "/auth/login": {
             "post": {
-                "security": [],
                 "consumes": [
                     "application/json"
                 ],
@@ -210,7 +206,6 @@ const docTemplate = `{
         },
         "/auth/logout": {
             "post": {
-                "security": [],
                 "consumes": [
                     "application/json"
                 ],
@@ -226,7 +221,6 @@ const docTemplate = `{
                         "description": "Refresh token fallback when cookie is unavailable",
                         "name": "body",
                         "in": "body",
-                        "required": false,
                         "schema": {
                             "type": "object",
                             "properties": {
@@ -330,7 +324,6 @@ const docTemplate = `{
         },
         "/auth/refresh": {
             "post": {
-                "security": [],
                 "consumes": [
                     "application/json"
                 ],
@@ -346,7 +339,6 @@ const docTemplate = `{
                         "description": "Refresh token fallback when cookie is unavailable",
                         "name": "body",
                         "in": "body",
-                        "required": false,
                         "schema": {
                             "type": "object",
                             "properties": {
@@ -393,7 +385,6 @@ const docTemplate = `{
         },
         "/auth/register": {
             "post": {
-                "security": [],
                 "consumes": [
                     "application/json"
                 ],
@@ -451,7 +442,6 @@ const docTemplate = `{
         },
         "/auth/reset-password": {
             "post": {
-                "security": [],
                 "consumes": [
                     "application/json"
                 ],
@@ -511,7 +501,6 @@ const docTemplate = `{
         },
         "/auth/twitch": {
             "get": {
-                "security": [],
                 "produces": [
                     "application/json"
                 ],
@@ -528,7 +517,6 @@ const docTemplate = `{
         },
         "/auth/twitch/callback": {
             "get": {
-                "security": [],
                 "produces": [
                     "application/json"
                 ],
@@ -588,7 +576,6 @@ const docTemplate = `{
         },
         "/auth/verify-email/confirm": {
             "post": {
-                "security": [],
                 "consumes": [
                     "application/json"
                 ],
@@ -693,7 +680,6 @@ const docTemplate = `{
         },
         "/auth/web3/nonce": {
             "post": {
-                "security": [],
                 "consumes": [
                     "application/json"
                 ],
@@ -756,7 +742,6 @@ const docTemplate = `{
         },
         "/auth/web3/verify": {
             "post": {
-                "security": [],
                 "consumes": [
                     "application/json"
                 ],
@@ -814,7 +799,6 @@ const docTemplate = `{
         },
         "/extension/auth/login": {
             "post": {
-                "security": [],
                 "consumes": [
                     "application/json"
                 ],
@@ -877,7 +861,6 @@ const docTemplate = `{
         },
         "/extension/bits/complete": {
             "post": {
-                "security": [],
                 "consumes": [
                     "application/json"
                 ],
@@ -937,6 +920,74 @@ const docTemplate = `{
                     },
                     "401": {
                         "description": "Unauthorized",
+                        "schema": {
+                            "$ref": "#/definitions/handlers.Response"
+                        }
+                    }
+                }
+            }
+        },
+        "/spend/redeem": {
+            "post": {
+                "security": [
+                    {
+                        "BearerAuth": []
+                    }
+                ],
+                "consumes": [
+                    "application/json"
+                ],
+                "produces": [
+                    "application/json"
+                ],
+                "tags": [
+                    "spend"
+                ],
+                "summary": "Burn $TACHI to redeem a discount coupon",
+                "parameters": [
+                    {
+                        "description": "Amount to burn (must be \u003e 0)",
+                        "name": "body",
+                        "in": "body",
+                        "required": true,
+                        "schema": {
+                            "$ref": "#/definitions/handlers.redeemRequest"
+                        }
+                    }
+                ],
+                "responses": {
+                    "200": {
+                        "description": "OK",
+                        "schema": {
+                            "allOf": [
+                                {
+                                    "$ref": "#/definitions/handlers.Response"
+                                },
+                                {
+                                    "type": "object",
+                                    "properties": {
+                                        "data": {
+                                            "$ref": "#/definitions/handlers.redeemResponse"
+                                        }
+                                    }
+                                }
+                            ]
+                        }
+                    },
+                    "400": {
+                        "description": "Bad Request",
+                        "schema": {
+                            "$ref": "#/definitions/handlers.Response"
+                        }
+                    },
+                    "401": {
+                        "description": "Unauthorized",
+                        "schema": {
+                            "$ref": "#/definitions/handlers.Response"
+                        }
+                    },
+                    "500": {
+                        "description": "Internal Server Error",
                         "schema": {
                             "$ref": "#/definitions/handlers.Response"
                         }
@@ -1374,6 +1425,73 @@ const docTemplate = `{
                 }
             }
         },
+        "/users/me/points/claim": {
+            "post": {
+                "security": [
+                    {
+                        "BearerAuth": []
+                    }
+                ],
+                "consumes": [
+                    "application/json"
+                ],
+                "produces": [
+                    "application/json"
+                ],
+                "tags": [
+                    "tachi"
+                ],
+                "summary": "Claim T-Points as $TACHI",
+                "parameters": [
+                    {
+                        "description": "Amount to claim (0 = all)",
+                        "name": "body",
+                        "in": "body",
+                        "schema": {
+                            "$ref": "#/definitions/handlers.claimRequest"
+                        }
+                    }
+                ],
+                "responses": {
+                    "200": {
+                        "description": "OK",
+                        "schema": {
+                            "allOf": [
+                                {
+                                    "$ref": "#/definitions/handlers.Response"
+                                },
+                                {
+                                    "type": "object",
+                                    "properties": {
+                                        "data": {
+                                            "$ref": "#/definitions/handlers.tachiBalanceResponse"
+                                        }
+                                    }
+                                }
+                            ]
+                        }
+                    },
+                    "400": {
+                        "description": "Bad Request",
+                        "schema": {
+                            "$ref": "#/definitions/handlers.Response"
+                        }
+                    },
+                    "401": {
+                        "description": "Unauthorized",
+                        "schema": {
+                            "$ref": "#/definitions/handlers.Response"
+                        }
+                    },
+                    "422": {
+                        "description": "Unprocessable Entity",
+                        "schema": {
+                            "$ref": "#/definitions/handlers.Response"
+                        }
+                    }
+                }
+            }
+        },
         "/users/me/points/history": {
             "get": {
                 "security": [
@@ -1466,6 +1584,123 @@ const docTemplate = `{
                     }
                 }
             }
+        },
+        "/users/me/tachi/balance": {
+            "get": {
+                "security": [
+                    {
+                        "BearerAuth": []
+                    }
+                ],
+                "produces": [
+                    "application/json"
+                ],
+                "tags": [
+                    "tachi"
+                ],
+                "summary": "Get my $TACHI balance",
+                "responses": {
+                    "200": {
+                        "description": "OK",
+                        "schema": {
+                            "allOf": [
+                                {
+                                    "$ref": "#/definitions/handlers.Response"
+                                },
+                                {
+                                    "type": "object",
+                                    "properties": {
+                                        "data": {
+                                            "$ref": "#/definitions/handlers.tachiBalanceResponse"
+                                        }
+                                    }
+                                }
+                            ]
+                        }
+                    },
+                    "401": {
+                        "description": "Unauthorized",
+                        "schema": {
+                            "$ref": "#/definitions/handlers.Response"
+                        }
+                    }
+                }
+            }
+        },
+        "/users/me/wallet": {
+            "post": {
+                "security": [
+                    {
+                        "BearerAuth": []
+                    }
+                ],
+                "description": "Verifies a SIWE signature and links the wallet address to the authenticated user.",
+                "consumes": [
+                    "application/json"
+                ],
+                "produces": [
+                    "application/json"
+                ],
+                "tags": [
+                    "users"
+                ],
+                "summary": "Bind a MetaMask wallet to the current user",
+                "parameters": [
+                    {
+                        "description": "address, nonce, signature",
+                        "name": "body",
+                        "in": "body",
+                        "required": true,
+                        "schema": {
+                            "$ref": "#/definitions/services.LinkWalletInput"
+                        }
+                    }
+                ],
+                "responses": {
+                    "200": {
+                        "description": "OK",
+                        "schema": {
+                            "allOf": [
+                                {
+                                    "$ref": "#/definitions/handlers.Response"
+                                },
+                                {
+                                    "type": "object",
+                                    "properties": {
+                                        "data": {
+                                            "$ref": "#/definitions/handlers.WalletResponse"
+                                        }
+                                    }
+                                }
+                            ]
+                        }
+                    },
+                    "400": {
+                        "description": "Bad Request",
+                        "schema": {
+                            "$ref": "#/definitions/handlers.Response"
+                        }
+                    },
+                    "401": {
+                        "description": "Unauthorized",
+                        "schema": {
+                            "$ref": "#/definitions/handlers.Response"
+                        }
+                    },
+                    "409": {
+                        "description": "Conflict",
+                        "schema": {
+                            "$ref": "#/definitions/handlers.Response"
+                        }
+                    },
+                    "500": {
+                        "description": "Internal Server Error",
+                        "schema": {
+                            "$ref": "#/definitions/handlers.Response"
+                        }
+                    }
+                }
+            }
         }
     },
     "definitions": {
@@ -1510,6 +1745,9 @@ const docTemplate = `{
         "handlers.NonceResponse": {
             "type": "object",
             "properties": {
+                "issued_at": {
+                    "type": "string"
+                },
                 "nonce": {
                     "type": "string"
                 }
@@ -1598,6 +1836,51 @@ const docTemplate = `{
             "properties": {
                 "user": {
                     "$ref": "#/definitions/models.User"
+                }
+            }
+        },
+        "handlers.WalletResponse": {
+            "type": "object",
+            "properties": {
+                "address": {
+                    "type": "string"
+                }
+            }
+        },
+        "handlers.claimRequest": {
+            "type": "object",
+            "properties": {
+                "amount": {
+                    "description": "0 = claim all",
+                    "type": "integer"
+                }
+            }
+        },
+        "handlers.redeemRequest": {
+            "type": "object",
+            "required": [
+                "amount"
+            ],
+            "properties": {
+                "amount": {
+                    "type": "integer",
+                    "minimum": 1
+                }
+            }
+        },
+        "handlers.redeemResponse": {
+            "type": "object",
+            "properties": {
+                "balance": {
+                    "type": "integer"
+                }
+            }
+        },
+        "handlers.tachiBalanceResponse": {
+            "type": "object",
+            "properties": {
+                "tachi_balance": {
+                    "type": "integer"
                 }
             }
         },
@@ -1782,6 +2065,25 @@ const docTemplate = `{
                 }
             }
         },
+        "services.LinkWalletInput": {
+            "type": "object",
+            "required": [
+                "address",
+                "nonce",
+                "signature"
+            ],
+            "properties": {
+                "address": {
+                    "type": "string"
+                },
+                "nonce": {
+                    "type": "string"
+                },
+                "signature": {
+                    "type": "string"
+                }
+            }
+        },
         "services.LoginInput": {
             "type": "object",
             "required": [
@@ -1872,12 +2174,7 @@ const docTemplate = `{
             "name": "Authorization",
             "in": "header"
         }
-    },
-    "security": [
-        {
-            "BearerAuth": []
-        }
-    ]
+    }
 }`
 
 // SwaggerInfo holds exported Swagger Info so clients can modify it

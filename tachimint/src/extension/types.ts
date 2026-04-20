@@ -31,7 +31,7 @@ export const defaultHudDemoState: HudDemoState = {
 export const defaultDemoState: DemoState = {
   screen: 'login',
   language: 'en',
-  hud: defaultHudDemoState,
+  hud: { ...defaultHudDemoState },
   tcgBalance: 0,
   redeemedCouponIds: [],
 }
@@ -52,6 +52,10 @@ function toFiniteNumber(value: unknown, fallback: number) {
   return typeof value === 'number' && Number.isFinite(value) ? value : fallback
 }
 
+function toNonNegativeFiniteNumber(value: unknown, fallback: number) {
+  return Math.max(0, toFiniteNumber(value, fallback))
+}
+
 export function normalizeAppLanguage(language: string | null | undefined): AppLanguage {
   if (language === 'en' || language === 'zh-TW' || language === 'zh-CN') {
     return language
@@ -68,11 +72,11 @@ export function sanitizeHudDemoState(value: unknown): HudDemoState {
   const candidate = value as Partial<HudDemoState>
 
   return {
-    points: toFiniteNumber(candidate.points, defaultHudDemoState.points),
-    totalPoints: toFiniteNumber(candidate.totalPoints, defaultHudDemoState.totalPoints),
-    countdown: toFiniteNumber(candidate.countdown, defaultHudDemoState.countdown),
+    points: toNonNegativeFiniteNumber(candidate.points, defaultHudDemoState.points),
+    totalPoints: toNonNegativeFiniteNumber(candidate.totalPoints, defaultHudDemoState.totalPoints),
+    countdown: toNonNegativeFiniteNumber(candidate.countdown, defaultHudDemoState.countdown),
     isWatching: typeof candidate.isWatching === 'boolean' ? candidate.isWatching : defaultHudDemoState.isWatching,
-    clickCount: toFiniteNumber(candidate.clickCount, defaultHudDemoState.clickCount),
+    clickCount: toNonNegativeFiniteNumber(candidate.clickCount, defaultHudDemoState.clickCount),
   }
 }
 

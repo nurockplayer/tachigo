@@ -1,0 +1,12 @@
+# Tachimint binary assets
+tachimint/src/assets/**/*.png filter=lfs diff=lfs merge=lfs -text
+tachimint/src/assets/**/*.jpg filter=lfs diff=lfs merge=lfs -text
+tachimint/src/assets/**/*.jpeg filter=lfs diff=lfs merge=lfs -text
+tachimint/src/assets/**/*.webp filter=lfs diff=lfs merge=lfs -text
+tachimint/src/assets/**/*.gif filter=lfs diff=lfs merge=lfs -text
+
+# Tachimint fonts
+tachimint/src/assets/**/*.ttf filter=lfs diff=lfs merge=lfs -text
+tachimint/src/assets/**/*.otf filter=lfs diff=lfs merge=lfs -text
+tachimint/src/assets/**/*.woff filter=lfs diff=lfs merge=lfs -text
+tachimint/src/assets/**/*.woff2 filter=lfs diff=lfs merge=lfs -text

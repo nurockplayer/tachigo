@@ -344,6 +344,7 @@ func newTestEnvWithConfig(t *testing.T, serverEnv, frontendURL string) *testEnv 
 	protected.GET("users/me", userH.Me)
 	protected.PUT("users/me", userH.UpdateMe)
 	protected.GET("users/me/providers", userH.ListProviders)
+	protected.POST("users/me/wallet", userH.LinkWallet)
 	protected.DELETE("auth/providers/:provider", authH.UnlinkProvider)
 	protected.POST("auth/verify-email/send", emailH.SendVerification)
 

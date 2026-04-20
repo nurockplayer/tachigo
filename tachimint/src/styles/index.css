@@ -1,0 +1,314 @@
+@import './fonts.css';
+
+/* ─── Game: base font ─────────────────────────── */
+.game-sans {
+  font-family: var(--ui-font-family, 'Inter', system-ui, sans-serif);
+}
+.game-pixel {
+  font-family: var(--pixel-font-family, 'Press Start 2P', 'Zpix CJK', Zpix, monospace);
+}
+
+/* ─── Capybara wrapper animations ──────────────── */
+.capy-wrapper {
+  display: inline-block;
+  will-change: transform;
+}
+.capy-wrapper.capy-idle {
+  animation: capy-breathe 2.8s ease-in-out infinite;
+}
+.capy-wrapper.capy-mining {
+  animation: capy-mine-bob 0.28s ease-in-out infinite;
+}
+.capy-wrapper.capy-success {
+  animation: capy-bounce 0.75s ease-out forwards;
+}
+.capy-wrapper.capy-error {
+  animation: capy-confused 0.38s ease-in-out 4;
+}
+.capy-wrapper.capy-loading {
+  animation: capy-sway 2s ease-in-out infinite;
+}
+
+@keyframes capy-breathe {
+  0%, 100% { transform: translateY(0px) scaleY(1); }
+  50% { transform: translateY(-4px) scaleY(1.02); }
+}
+@keyframes capy-mine-bob {
+  0%, 100% { transform: translateY(0px) rotate(-1deg); }
+  50% { transform: translateY(4px) rotate(1deg); }
+}
+@keyframes capy-bounce {
+  0%   { transform: translateY(0px); }
+  25%  { transform: translateY(-20px) scale(1.05); }
+  50%  { transform: translateY(-8px); }
+  70%  { transform: translateY(-14px); }
+  100% { transform: translateY(0px); }
+}
+@keyframes capy-confused {
+  0%, 100% { transform: rotate(0deg); }
+  25% { transform: rotate(-14deg); }
+  75% { transform: rotate(12deg); }
+}
+@keyframes capy-sway {
+  0%, 100% { transform: rotate(-4deg) translateY(0px); }
+  50% { transform: rotate(4deg) translateY(-3px); }
+}
+
+/* ─── Floating reward ───────────────────────────── */
+@keyframes float-up {
+  0%   { transform: translateY(0px) scale(1);   opacity: 1; }
+  70%  { opacity: 1; }
+  100% { transform: translateY(-72px) scale(0.8); opacity: 0; }
+}
+.float-reward {
+  animation: float-up 1.5s ease-out forwards;
+}
+
+/* ─── Cave sparkle ──────────────────────────────── */
+@keyframes sparkle-blink {
+  0%, 100% { opacity: 0;   transform: scale(0.3); }
+  50%       { opacity: 0.9; transform: scale(1); }
+}
+.sparkle {
+  animation: sparkle-blink var(--dur, 2s) ease-in-out infinite;
+  animation-delay: var(--delay, 0s);
+}
+
+/* ─── Balance bump ─────────────────────────────── */
+@keyframes game-balance-bump {
+  0%   { transform: scale(1); }
+  40%  { transform: scale(1.18); color: #f5c842; }
+  100% { transform: scale(1); }
+}
+.balance-bump {
+  animation: game-balance-bump 0.4s ease-out;
+}
+
+/* ─── Glow pulse on HUD point capsule ──────────── */
+@keyframes capsule-glow {
+  0%, 100% { box-shadow: 0 0 6px rgba(200,168,73,0.25); }
+  50%       { box-shadow: 0 0 14px rgba(200,168,73,0.55); }
+}
+.capsule-glow {
+  animation: capsule-glow 3s ease-in-out infinite;
+}
+.capsule-glow-active {
+  animation: capsule-glow 0.4s ease-out;
+}
+
+/* ─── Error banner slide ───────────────────────── */
+@keyframes slide-down {
+  from { transform: translateY(-8px); opacity: 0; }
+  to   { transform: translateY(0);    opacity: 1; }
+}
+.slide-down {
+  animation: slide-down 0.25s ease-out;
+}
+
+/* ─── Passive dot heartbeat ────────────────────── */
+@keyframes passive-pulse {
+  0%, 100% { transform: scale(0.8); opacity: 0.5; }
+  50%       { transform: scale(1.3); opacity: 1; }
+}
+.passive-dot {
+  animation: passive-pulse 2s ease-in-out infinite;
+}
+.passive-dot-error {
+  animation: passive-pulse 0.6s ease-in-out infinite;
+  background-color: #ef4444 !important;
+}
+
+/* ─── Screen fade-in ───────────────────────────── */
+@keyframes fade-in {
+  from { opacity: 0; transform: translateY(6px); }
+  to   { opacity: 1; transform: translateY(0); }
+}
+.screen-enter {
+  animation: fade-in 0.35s ease-out;
+}
+
+/* ─── Loading dot bounce ───────────────────────── */
+@keyframes loading-dot {
+  0%, 80%, 100% { transform: translateY(0); opacity: 0.4; }
+  40% { transform: translateY(-6px); opacity: 1; }
+}
+.loading-dot:nth-child(1) { animation: loading-dot 1.2s ease-in-out infinite 0s; }
+.loading-dot:nth-child(2) { animation: loading-dot 1.2s ease-in-out infinite 0.2s; }
+.loading-dot:nth-child(3) { animation: loading-dot 1.2s ease-in-out infinite 0.4s; }
+
+/* ─── Mine button states ───────────────────────── */
+@keyframes btn-ready-glow {
+  0%, 100% { box-shadow: 0 0 10px rgba(200,168,73,0.3), inset 0 1px 0 rgba(255,255,255,0.08); }
+  50%       { box-shadow: 0 0 22px rgba(200,168,73,0.55), inset 0 1px 0 rgba(255,255,255,0.12); }
+}
+.btn-mine-ready {
+  animation: btn-ready-glow 2.5s ease-in-out infinite;
+}
+
+/* ─── Rock texture shimmer ─────────────────────── */
+@keyframes rock-shimmer {
+  0%, 100% { opacity: 0.6; }
+  50% { opacity: 0.9; }
+}
+
+/* ─── Mario HUD: floating reward ───────────────── */
+@keyframes mario-float {
+  0%   { transform: translateX(-50%) translateY(0px) scale(1.1); opacity: 1; }
+  15%  { transform: translateX(-50%) translateY(-10px) scale(1.25); opacity: 1; }
+  100% { transform: translateX(-50%) translateY(-58px) scale(0.8); opacity: 0; }
+}
+
+/* ─── Mario HUD: balance pop ───────────────────── */
+@keyframes mario-pts-pop {
+  0%   { transform: scale(1); }
+  25%  { transform: scale(1.18) rotate(-1deg); }
+  55%  { transform: scale(1.06) rotate(0.5deg); }
+  100% { transform: scale(1) rotate(0deg); }
+}
+
+/* ─── Mario HUD: urgency blink ─────────────────── */
+@keyframes urgency-blink {
+  0%, 100% { opacity: 1; }
+  50%       { opacity: 0.25; }
+}
+
+/* ─── Mario HUD: ring flash on collect ─────────── */
+@keyframes ring-flash-out {
+  0%   { opacity: 0.9; }
+  100% { opacity: 0; }
+}
+
+/* ─── Mario HUD: claim button pulse ────────────── */
+@keyframes claim-pulse {
+  0%, 100% {
+    box-shadow: 0 0 14px rgba(255,215,0,0.25), 0 2px 8px rgba(0,0,0,0.4);
+  }
+  50% {
+    box-shadow: 0 0 28px rgba(255,215,0,0.55), 0 4px 16px rgba(0,0,0,0.5);
+  }
+}
+
+/* ─── Mario HUD: watching dot glow ─────────────── */
+@keyframes watch-glow {
+  0%, 100% { box-shadow: 0 0 5px #22c55e; }
+  50%       { box-shadow: 0 0 12px #22c55e, 0 0 24px rgba(34,197,94,0.3); }
+}
+
+/* ─── Mario HUD: ring urgency bg pulse ─────────── */
+@keyframes urgency-ring-bg {
+  0%, 100% { opacity: 0; }
+  50%       { opacity: 1; }
+}
+
+/* ─── Mario HUD: idle status shimmer ───────────── */
+@keyframes idle-shimmer {
+  0%, 100% { opacity: 0.4; }
+  50%       { opacity: 0.7; }
+}
+
+/* ─── Capybara: gentle bob while mining ────────── */
+@keyframes capy-bob {
+  0%, 100% { transform: translateY(0px);  }
+  30%       { transform: translateY(-4px); }
+  60%       { transform: translateY(-2px); }
+}
+
+/* ─── Capybara: cheer jump on reward ───────────── */
+@keyframes capy-cheer {
+  0%   { transform: translateY(0px)  scale(1);    }
+  25%  { transform: translateY(-10px) scale(1.06); }
+  55%  { transform: translateY(-4px)  scale(1.02); }
+  100% { transform: translateY(0px)  scale(1);    }
+}
+
+/* ─── HUD Capybara: idle float ─────────────────── */
+@keyframes capy-hud-idle {
+  0%, 100% { transform: translateY(0px); }
+  50%      { transform: translateY(-4px); }
+}
+
+/* ─── HUD Capybara: mining pickaxe swing ───────── */
+@keyframes capy-hud-mining-pickaxe {
+  0%   { transform: rotate(0deg); }
+  50%  { transform: rotate(-35deg); }
+  100% { transform: rotate(0deg); }
+}
+
+/* ─── HUD Capybara: big mining pickaxe swing ───── */
+@keyframes capy-hud-big-mining-pickaxe {
+  0%   { transform: rotate(0deg); }
+  30%  { transform: rotate(-55deg); }
+  60%  { transform: rotate(10deg); }
+  100% { transform: rotate(0deg); }
+}
+
+/* ─── HUD Capybara: big mining shake ───────────── */
+@keyframes capy-hud-big-mining-shake {
+  0%, 100% { transform: translateX(0px); }
+  25%      { transform: translateX(-5px); }
+  50%      { transform: translateX(5px); }
+  75%      { transform: translateX(-3px); }
+}
+
+/* ─── Login Capybara: eye blink ────────────────── */
+@keyframes capy-eye-blink {
+  0%, 90%, 100% { transform: scaleY(1); }
+  95%           { transform: scaleY(0.05); }
+}
+
+.capy-eye-blink {
+  animation: capy-eye-blink 3s ease-in-out infinite;
+  transform-origin: center;
+}
+
+/* ─── HUD Capybara: animation state classes ────── */
+.capy-idle {
+  animation: capy-hud-idle 2s ease-in-out infinite;
+}
+
+.capy-mining {
+  animation: none;
+}
+
+.capy-big-mining {
+  animation: capy-hud-big-mining-shake 500ms ease-in-out;
+}
+
+.pickaxe-idle {
+  animation: none;
+}
+
+.pickaxe-mining {
+  animation: capy-hud-mining-pickaxe 250ms ease-in;
+}
+
+.pickaxe-big-mining {
+  animation: capy-hud-big-mining-pickaxe 500ms ease-in-out;
+}
+
+@media (prefers-reduced-motion: reduce) {
+  .capy-wrapper,
+  .capy-idle,
+  .capy-mining,
+  .capy-big-mining,
+  .capy-success,
+  .capy-error,
+  .capy-loading,
+  .pickaxe-mining,
+  .pickaxe-big-mining,
+  .capy-eye-blink,
+  .float-reward,
+  .sparkle,
+  .balance-bump,
+  .capsule-glow,
+  .capsule-glow-active,
+  .slide-down,
+  .passive-dot,
+  .passive-dot-error,
+  .screen-enter,
+  .loading-dot,
+  .btn-mine-ready {
+    animation: none !important;
+    transition: none !important;
+  }
+}
