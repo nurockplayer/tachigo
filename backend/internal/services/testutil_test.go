@@ -188,8 +188,8 @@ func migrateTestDB(db *gorm.DB) error {
 			broadcast_at DATETIME,
 			confirmed_at DATETIME,
 			failed_at DATETIME,
-			created_at DATETIME,
-			updated_at DATETIME
+			created_at DATETIME NOT NULL DEFAULT CURRENT_TIMESTAMP,
+			updated_at DATETIME NOT NULL DEFAULT CURRENT_TIMESTAMP
 		)`,
 		`CREATE INDEX IF NOT EXISTS idx_claims_user_created_at
 			ON claims (user_id, created_at DESC)`,
@@ -204,7 +204,7 @@ func migrateTestDB(db *gorm.DB) error {
 			ledger_id TEXT NOT NULL REFERENCES points_ledgers(id),
 			points_transaction_id TEXT NOT NULL REFERENCES points_transactions(id),
 			amount INTEGER NOT NULL CHECK (amount > 0),
-			created_at DATETIME,
+			created_at DATETIME NOT NULL DEFAULT CURRENT_TIMESTAMP,
 			UNIQUE (points_transaction_id)
 		)`,
 		`CREATE INDEX IF NOT EXISTS idx_claim_items_claim_id

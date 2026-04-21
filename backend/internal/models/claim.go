@@ -7,6 +7,8 @@ import (
 	"gorm.io/gorm"
 )
 
+var uuidV7Func = uuid.NewV7
+
 type ClaimStatus string
 
 const (
@@ -37,7 +39,10 @@ type Claim struct {
 
 func (c *Claim) BeforeCreate(tx *gorm.DB) error {
 	if c.ID == uuid.Nil {
-		id, _ := uuid.NewV7()
+		id, err := uuidV7Func()
+		if err != nil {
+			id = uuid.New()
+		}
 		c.ID = id
 	}
 	return nil
@@ -59,7 +64,10 @@ type ClaimItem struct {
 
 func (c *ClaimItem) BeforeCreate(tx *gorm.DB) error {
 	if c.ID == uuid.Nil {
-		id, _ := uuid.NewV7()
+		id, err := uuidV7Func()
+		if err != nil {
+			id = uuid.New()
+		}
 		c.ID = id
 	}
 	return nil
