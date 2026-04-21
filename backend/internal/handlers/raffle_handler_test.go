@@ -649,3 +649,199 @@ func TestRaffle_Snapshot_TwitchScopeError(t *testing.T) {
 		t.Errorf("expected scope error message, got: %v", msg)
 	}
 }
+
+// setupTwitchRaffle inserts a twitch_api raffle and a Twitch auth_provider for
+// the streamer identified by email, returning the raffle UUID string.
+func (e *raffleTestEnv) setupTwitchRaffle(t *testing.T, email, accessToken string) string {
+	t.Helper()
+	var ownerID string
+	if err := e.db.Raw("SELECT id FROM users WHERE email = ?", email).Scan(&ownerID).Error; err != nil || ownerID == "" {
+		t.Fatalf("setupTwitchRaffle: get owner: %v", err)
+	}
+	raffleID, _ := uuid.NewV7()
+	if err := e.db.Exec(
+		`INSERT INTO raffles (id, user_id, title, status, source, created_at, updated_at) VALUES (?, ?, 'twitch raffle', 'draft', 'twitch_api', CURRENT_TIMESTAMP, CURRENT_TIMESTAMP)`,
+		raffleID.String(), ownerID,
+	).Error; err != nil {
+		t.Fatalf("setupTwitchRaffle: insert raffle: %v", err)
+	}
+	provID, _ := uuid.NewV7()
+	if err := e.db.Exec(
+		`INSERT INTO auth_providers (id, user_id, provider, provider_id, access_token, created_at, updated_at) VALUES (?, ?, 'twitch', 'broadcaster_id_1', ?, CURRENT_TIMESTAMP, CURRENT_TIMESTAMP)`,
+		provID.String(), ownerID, accessToken,
+	).Error; err != nil {
+		t.Fatalf("setupTwitchRaffle: insert auth_provider: %v", err)
+	}
+	return raffleID.String()
+}
+
+// twitchSubsJSON returns a Twitch helix/subscriptions JSON response.
+func twitchSubsJSON(subs []map[string]string, cursor string) string {
+	items := ""
+	for i, s := range subs {
+		if i > 0 {
+			items += ","
+		}
+		items += fmt.Sprintf(`{"user_id":%q,"user_login":%q,"user_name":%q}`, s["user_id"], s["user_login"], s["user_name"])
+	}
+	pag := `"pagination":{}`
+	if cursor != "" {
+		pag = fmt.Sprintf(`"pagination":{"cursor":%q}`, cursor)
+	}
+	return fmt.Sprintf(`{"data":[%s],%s}`, items, pag)
+}
+
+func TestRaffle_Snapshot_Success(t *testing.T) {
+	env := newRaffleTestEnv(t)
+	token := env.registerStreamer(t, "s1", "s1@test.com", "pass1234")
+
+	// Create a tachigo user linked to the Twitch subscriber.
+	env.createTwitchLinkedUser(t, "viewer1")
+	// Override provider_id to match what the mock returns.
+	_ = env.db.Exec(`UPDATE auth_providers SET provider_id = 'viewer_twitch_id_1' WHERE provider_id = 'twitch_id_viewer1'`)
+
+	sub := map[string]string{"user_id": "viewer_twitch_id_1", "user_login": "viewer1", "user_name": "Viewer1"}
+	mockTwitch := httptest.NewServer(http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
+		w.Header().Set("Content-Type", "application/json")
+		fmt.Fprint(w, twitchSubsJSON([]map[string]string{sub}, ""))
+	}))
+	defer mockTwitch.Close()
+	env.raffleSvc.SetTwitchBaseURL(mockTwitch.URL)
+
+	raffleID := env.setupTwitchRaffle(t, "s1@test.com", "fake-token")
+
+	body, _ := json.Marshal(map[string]string{"source": "twitch_api"})
+	w := httptest.NewRecorder()
+	req, _ := http.NewRequest(http.MethodPost, "/api/v1/dashboard/raffles/"+raffleID+"/snapshot", bytes.NewReader(body))
+	req.Header.Set("Content-Type", "application/json")
+	req.Header.Set("Authorization", bearer(token))
+	env.router.ServeHTTP(w, req)
+
+	if w.Code != http.StatusOK {
+		t.Fatalf("want 200, got %d: %s", w.Code, w.Body.String())
+	}
+	data := parseBody(t, w.Body.Bytes())["data"].(map[string]interface{})
+	result := data["result"].(map[string]interface{})
+	if result["imported"].(float64) != 1 {
+		t.Errorf("want imported=1, got %v", result["imported"])
+	}
+	if result["skipped"].(float64) != 0 {
+		t.Errorf("want skipped=0, got %v", result["skipped"])
+	}
+}
+
+func TestRaffle_Snapshot_Pagination(t *testing.T) {
+	env := newRaffleTestEnv(t)
+	token := env.registerStreamer(t, "s1", "s1@test.com", "pass1234")
+
+	env.createTwitchLinkedUser(t, "viewer1")
+	env.createTwitchLinkedUser(t, "viewer2")
+	_ = env.db.Exec(`UPDATE auth_providers SET provider_id = 'vid1' WHERE provider_id = 'twitch_id_viewer1'`)
+	_ = env.db.Exec(`UPDATE auth_providers SET provider_id = 'vid2' WHERE provider_id = 'twitch_id_viewer2'`)
+
+	page1 := []map[string]string{{"user_id": "vid1", "user_login": "viewer1", "user_name": "Viewer1"}}
+	page2 := []map[string]string{{"user_id": "vid2", "user_login": "viewer2", "user_name": "Viewer2"}}
+	calls := 0
+	mockTwitch := httptest.NewServer(http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
+		w.Header().Set("Content-Type", "application/json")
+		calls++
+		if r.URL.Query().Get("after") == "" {
+			fmt.Fprint(w, twitchSubsJSON(page1, "cursor-page2"))
+		} else {
+			fmt.Fprint(w, twitchSubsJSON(page2, ""))
+		}
+	}))
+	defer mockTwitch.Close()
+	env.raffleSvc.SetTwitchBaseURL(mockTwitch.URL)
+
+	raffleID := env.setupTwitchRaffle(t, "s1@test.com", "fake-token")
+
+	body, _ := json.Marshal(map[string]string{"source": "twitch_api"})
+	w := httptest.NewRecorder()
+	req, _ := http.NewRequest(http.MethodPost, "/api/v1/dashboard/raffles/"+raffleID+"/snapshot", bytes.NewReader(body))
+	req.Header.Set("Content-Type", "application/json")
+	req.Header.Set("Authorization", bearer(token))
+	env.router.ServeHTTP(w, req)
+
+	if w.Code != http.StatusOK {
+		t.Fatalf("want 200, got %d: %s", w.Code, w.Body.String())
+	}
+	if calls != 2 {
+		t.Errorf("want 2 Twitch API calls (pagination), got %d", calls)
+	}
+	result := parseBody(t, w.Body.Bytes())["data"].(map[string]interface{})["result"].(map[string]interface{})
+	if result["imported"].(float64) != 2 {
+		t.Errorf("want imported=2, got %v", result["imported"])
+	}
+}
+
+func TestRaffle_Snapshot_DuplicateSkip(t *testing.T) {
+	env := newRaffleTestEnv(t)
+	token := env.registerStreamer(t, "s1", "s1@test.com", "pass1234")
+
+	env.createTwitchLinkedUser(t, "viewer1")
+	_ = env.db.Exec(`UPDATE auth_providers SET provider_id = 'vid1' WHERE provider_id = 'twitch_id_viewer1'`)
+
+	sub := map[string]string{"user_id": "vid1", "user_login": "viewer1", "user_name": "Viewer1"}
+	mockTwitch := httptest.NewServer(http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
+		w.Header().Set("Content-Type", "application/json")
+		fmt.Fprint(w, twitchSubsJSON([]map[string]string{sub}, ""))
+	}))
+	defer mockTwitch.Close()
+	env.raffleSvc.SetTwitchBaseURL(mockTwitch.URL)
+
+	raffleID := env.setupTwitchRaffle(t, "s1@test.com", "fake-token")
+
+	doSnapshot := func() map[string]interface{} {
+		body, _ := json.Marshal(map[string]string{"source": "twitch_api"})
+		w := httptest.NewRecorder()
+		req, _ := http.NewRequest(http.MethodPost, "/api/v1/dashboard/raffles/"+raffleID+"/snapshot", bytes.NewReader(body))
+		req.Header.Set("Content-Type", "application/json")
+		req.Header.Set("Authorization", bearer(token))
+		env.router.ServeHTTP(w, req)
+		if w.Code != http.StatusOK {
+			t.Fatalf("want 200, got %d: %s", w.Code, w.Body.String())
+		}
+		return parseBody(t, w.Body.Bytes())["data"].(map[string]interface{})["result"].(map[string]interface{})
+	}
+
+	first := doSnapshot()
+	if first["imported"].(float64) != 1 {
+		t.Errorf("first sync: want imported=1, got %v", first["imported"])
+	}
+	second := doSnapshot()
+	if second["imported"].(float64) != 0 || second["skipped"].(float64) != 1 {
+		t.Errorf("second sync: want imported=0 skipped=1, got %v", second)
+	}
+}
+
+func TestRaffle_Snapshot_UnlinkedSkip(t *testing.T) {
+	env := newRaffleTestEnv(t)
+	token := env.registerStreamer(t, "s1", "s1@test.com", "pass1234")
+
+	// Subscriber has no tachigo account.
+	sub := map[string]string{"user_id": "unknown_id", "user_login": "stranger", "user_name": "Stranger"}
+	mockTwitch := httptest.NewServer(http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
+		w.Header().Set("Content-Type", "application/json")
+		fmt.Fprint(w, twitchSubsJSON([]map[string]string{sub}, ""))
+	}))
+	defer mockTwitch.Close()
+	env.raffleSvc.SetTwitchBaseURL(mockTwitch.URL)
+
+	raffleID := env.setupTwitchRaffle(t, "s1@test.com", "fake-token")
+
+	body, _ := json.Marshal(map[string]string{"source": "twitch_api"})
+	w := httptest.NewRecorder()
+	req, _ := http.NewRequest(http.MethodPost, "/api/v1/dashboard/raffles/"+raffleID+"/snapshot", bytes.NewReader(body))
+	req.Header.Set("Content-Type", "application/json")
+	req.Header.Set("Authorization", bearer(token))
+	env.router.ServeHTTP(w, req)
+
+	if w.Code != http.StatusOK {
+		t.Fatalf("want 200, got %d: %s", w.Code, w.Body.String())
+	}
+	result := parseBody(t, w.Body.Bytes())["data"].(map[string]interface{})["result"].(map[string]interface{})
+	if result["skipped"].(float64) != 1 || result["imported"].(float64) != 0 {
+		t.Errorf("want skipped=1 imported=0, got %v", result)
+	}
+}
