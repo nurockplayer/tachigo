@@ -613,41 +613,31 @@ func TestRaffle_Snapshot_TwitchScopeError(t *testing.T) {
 	env.raffleSvc.SetTwitchBaseURL(mockTwitch.URL)
 	token := env.registerStreamer(t, "s1", "s1@test.com", "pass1234")
 
-	createBody, _ := json.Marshal(map[string]string{"title": "test raffle"})
-	wc := httptest.NewRecorder()
-	rc, _ := http.NewRequest(http.MethodPost, "/api/v1/dashboard/raffles", bytes.NewReader(createBody))
-	rc.Header.Set("Content-Type", "application/json")
-	rc.Header.Set("Authorization", bearer(token))
-	env.router.ServeHTTP(wc, rc)
-	if wc.Code != http.StatusCreated {
-		t.Fatalf("create raffle: %d", wc.Code)
-	}
-	raffleID := parseBody(t, wc.Body.Bytes())["data"].(map[string]interface{})["raffle"].(map[string]interface{})["id"].(string)
-
-	// give streamer a Twitch provider with access token
-	streamerUser, _, _ := env.authSvc.Register(services.RegisterInput{Username: "tw_s1", Email: "tw@test.com", Password: "pass1234"})
-	at := "fake-token"
-	provID, _ := uuid.NewV7()
-	_ = env.db.Exec(
-		`INSERT INTO auth_providers (id, user_id, provider, provider_id, access_token, created_at, updated_at) VALUES (?, ?, 'twitch', 'twitch_broadcaster_1', ?, CURRENT_TIMESTAMP, CURRENT_TIMESTAMP)`,
-		provID.String(), streamerUser.ID.String(), at,
-	)
-	// attach the twitch provider to the streamer (reuse streamer's user_id)
-	streamerUserID := parseBody(t, wc.Body.Bytes()) // just get the raffle owner
-	_ = streamerUserID
-	// simpler: insert auth_provider for the streamer who owns the raffle
-	// look up the owner from raffle table
+	// Look up the streamer's user ID and insert a twitch_api raffle directly.
 	var ownerID string
-	_ = env.db.Raw("SELECT user_id FROM raffles WHERE id = ?", raffleID).Scan(&ownerID)
-	provID2, _ := uuid.NewV7()
-	_ = env.db.Exec(
-		`INSERT INTO auth_providers (id, user_id, provider, provider_id, access_token, created_at, updated_at) VALUES (?, ?, 'twitch', 'twitch_broadcaster_owner', ?, CURRENT_TIMESTAMP, CURRENT_TIMESTAMP)`,
-		provID2.String(), ownerID, at,
-	)
+	if err := env.db.Raw("SELECT id FROM users WHERE email = ?", "s1@test.com").Scan(&ownerID).Error; err != nil || ownerID == "" {
+		t.Fatalf("get owner id: %v", err)
+	}
+	raffleID, _ := uuid.NewV7()
+	if err := env.db.Exec(
+		`INSERT INTO raffles (id, user_id, title, status, source, created_at, updated_at) VALUES (?, ?, 'test raffle', 'draft', 'twitch_api', CURRENT_TIMESTAMP, CURRENT_TIMESTAMP)`,
+		raffleID.String(), ownerID,
+	).Error; err != nil {
+		t.Fatalf("insert raffle: %v", err)
+	}
+
+	// Give the streamer a Twitch auth_provider with an access token.
+	provID, _ := uuid.NewV7()
+	if err := env.db.Exec(
+		`INSERT INTO auth_providers (id, user_id, provider, provider_id, access_token, created_at, updated_at) VALUES (?, ?, 'twitch', 'twitch_broadcaster_owner', 'fake-token', CURRENT_TIMESTAMP, CURRENT_TIMESTAMP)`,
+		provID.String(), ownerID,
+	).Error; err != nil {
+		t.Fatalf("insert auth_provider: %v", err)
+	}
 
 	body, _ := json.Marshal(map[string]string{"source": "twitch_api"})
 	w := httptest.NewRecorder()
-	req, _ := http.NewRequest(http.MethodPost, "/api/v1/dashboard/raffles/"+raffleID+"/snapshot", bytes.NewReader(body))
+	req, _ := http.NewRequest(http.MethodPost, "/api/v1/dashboard/raffles/"+raffleID.String()+"/snapshot", bytes.NewReader(body))
 	req.Header.Set("Content-Type", "application/json")
 	req.Header.Set("Authorization", bearer(token))
 	env.router.ServeHTTP(w, req)
