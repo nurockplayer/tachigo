@@ -20,3 +20,9 @@ test('frontend CI job runs the frontend test command', async () => {
     /workflow-regression:\n[\s\S]*?- name: Verify CI workflow assertions\n\s+run: node --test \.github\/workflows\/ci\.test\.mjs/,
   )
 })
+
+test('scope gate diff line hard limit matches CLAUDE.md', async () => {
+  const workflow = await readFile(workflowPath, 'utf8')
+
+  assert.match(workflow, /const hardMaxDiffLines = 1000/)
+})
