@@ -8,11 +8,13 @@ import (
 	"fmt"
 	"io"
 	"net/http"
+	"net/url"
 	"strings"
 	"time"
 
 	"github.com/google/uuid"
 	"gorm.io/gorm"
+	"gorm.io/gorm/clause"
 
 	"github.com/tachigo/tachigo/internal/models"
 )
@@ -25,8 +27,9 @@ var (
 	ErrClaimTokenExpired       = errors.New("claim token has expired")
 	ErrClaimNotFound           = errors.New("claim token not found")
 	ErrClaimAlreadyDone        = errors.New("claim already submitted")
-	ErrTwitchTokenMissing      = errors.New("no twitch access token: streamer must log in via twitch")
-	ErrTwitchInsufficientScope = errors.New("twitch token lacks channel:read:subscriptions scope")
+	ErrTwitchTokenMissing       = errors.New("no twitch access token: streamer must log in via twitch")
+	ErrTwitchInsufficientScope  = errors.New("twitch token lacks channel:read:subscriptions scope")
+	ErrUnsupportedRaffleSource  = errors.New("raffle source does not support twitch sync")
 )
 
 const claimTokenTTL = 7 * 24 * time.Hour
@@ -35,13 +38,19 @@ type RaffleService struct {
 	db             *gorm.DB
 	twitchClientID string
 	twitchBaseURL  string
+	httpClient     *http.Client
 }
 
 func NewRaffleService(db *gorm.DB, twitchClientID string) *RaffleService {
-	return &RaffleService{db: db, twitchClientID: twitchClientID, twitchBaseURL: "https://api.twitch.tv"}
+	return &RaffleService{
+		db:             db,
+		twitchClientID: twitchClientID,
+		twitchBaseURL:  "https://api.twitch.tv",
+		httpClient:     &http.Client{Timeout: 10 * time.Second},
+	}
 }
 
-func (s *RaffleService) SetTwitchBaseURL(url string) { s.twitchBaseURL = url }
+func (s *RaffleService) SetTwitchBaseURL(u string) { s.twitchBaseURL = u }
 
 // Create creates a new raffle owned by the given user.
 func (s *RaffleService) Create(userID uuid.UUID, title string) (*models.Raffle, error) {
@@ -355,18 +364,26 @@ type twitchSubsPage struct {
 }
 
 func (s *RaffleService) fetchTwitchSubsPage(ctx context.Context, accessToken, broadcasterID, cursor string) ([]twitchSubscription, string, error) {
-	url := fmt.Sprintf("%s/helix/subscriptions?broadcaster_id=%s&first=100", s.twitchBaseURL, broadcasterID)
-	if cursor != "" {
-		url += "&after=" + cursor
+	endpoint, err := url.Parse(strings.TrimRight(s.twitchBaseURL, "/") + "/helix/subscriptions")
+	if err != nil {
+		return nil, "", err
 	}
-	req, err := http.NewRequestWithContext(ctx, http.MethodGet, url, nil)
+	q := endpoint.Query()
+	q.Set("broadcaster_id", broadcasterID)
+	q.Set("first", "100")
+	if cursor != "" {
+		q.Set("after", cursor)
+	}
+	endpoint.RawQuery = q.Encode()
+
+	req, err := http.NewRequestWithContext(ctx, http.MethodGet, endpoint.String(), nil)
 	if err != nil {
 		return nil, "", err
 	}
 	req.Header.Set("Authorization", "Bearer "+accessToken)
 	req.Header.Set("Client-Id", s.twitchClientID)
 
-	resp, err := http.DefaultClient.Do(req)
+	resp, err := s.httpClient.Do(req)
 	if err != nil {
 		return nil, "", err
 	}
@@ -390,8 +407,12 @@ func (s *RaffleService) fetchTwitchSubsPage(ctx context.Context, accessToken, br
 // and inserts them as RaffleEntry rows (idempotent; duplicates are skipped).
 // Only subscribers who already have a tachigo account are imported.
 func (s *RaffleService) SyncFromTwitchAPI(ctx context.Context, raffleID, userID uuid.UUID) (*SyncFromTwitchResult, error) {
-	if _, err := s.GetByID(raffleID, userID); err != nil {
+	raffle, err := s.GetByID(raffleID, userID)
+	if err != nil {
 		return nil, err
+	}
+	if raffle.Source != models.RaffleSourceTwitchAPI {
+		return nil, ErrUnsupportedRaffleSource
 	}
 
 	var ap models.AuthProvider
@@ -414,17 +435,6 @@ func (s *RaffleService) SyncFromTwitchAPI(ctx context.Context, raffleID, userID 
 		}
 
 		for _, sub := range subs {
-			var count int64
-			if err := s.db.Model(&models.RaffleEntry{}).
-				Where("raffle_id = ? AND twitch_login = ?", raffleID, sub.UserLogin).
-				Count(&count).Error; err != nil {
-				return nil, err
-			}
-			if count > 0 {
-				result.Skipped++
-				continue
-			}
-
 			var provider models.AuthProvider
 			if err := s.db.
 				Joins("JOIN users ON users.id = auth_providers.user_id AND users.deleted_at IS NULL").
@@ -444,8 +454,16 @@ func (s *RaffleService) SyncFromTwitchAPI(ctx context.Context, raffleID, userID 
 				TwitchLogin: sub.UserLogin,
 				DisplayName: sub.UserName,
 			}
-			if err := s.db.Create(entry).Error; err != nil {
-				return nil, err
+			res := s.db.Clauses(clause.OnConflict{
+				Columns:   []clause.Column{{Name: "raffle_id"}, {Name: "twitch_login"}},
+				DoNothing: true,
+			}).Create(entry)
+			if res.Error != nil {
+				return nil, res.Error
+			}
+			if res.RowsAffected == 0 {
+				result.Skipped++
+				continue
 			}
 			result.Imported++
 		}

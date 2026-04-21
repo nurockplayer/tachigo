@@ -428,6 +428,8 @@ func (h *RaffleHandler) Snapshot(c *gin.Context) {
 			badRequest(c, "no twitch access token: streamer must log in via twitch")
 		case errors.Is(err, services.ErrTwitchInsufficientScope):
 			badRequest(c, "insufficient twitch scope: requires channel:read:subscriptions")
+		case errors.Is(err, services.ErrUnsupportedRaffleSource):
+			badRequest(c, "raffle source must be twitch_api to use snapshot sync")
 		default:
 			log.Printf("raffle snapshot: %v", err)
 			internal(c)
