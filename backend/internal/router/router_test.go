@@ -253,6 +253,40 @@ func migrateTestDB(db *gorm.DB) error {
 			note TEXT,
 			created_at DATETIME NOT NULL DEFAULT CURRENT_TIMESTAMP
 		)`,
+		`CREATE TABLE IF NOT EXISTS claims (
+			id TEXT PRIMARY KEY,
+			user_id TEXT NOT NULL REFERENCES users(id) ON DELETE CASCADE,
+			wallet_addr TEXT NOT NULL,
+			amount INTEGER NOT NULL CHECK (amount > 0),
+			status TEXT NOT NULL CHECK (status IN ('pending', 'broadcast', 'confirmed', 'failed')),
+			tx_hash TEXT,
+			error_message TEXT,
+			broadcast_at DATETIME,
+			confirmed_at DATETIME,
+			failed_at DATETIME,
+			created_at DATETIME NOT NULL DEFAULT CURRENT_TIMESTAMP,
+			updated_at DATETIME NOT NULL DEFAULT CURRENT_TIMESTAMP
+		)`,
+		`CREATE INDEX IF NOT EXISTS idx_claims_user_created_at
+			ON claims (user_id, created_at DESC)`,
+		`CREATE INDEX IF NOT EXISTS idx_claims_status_created_at
+			ON claims (status, created_at DESC)`,
+		`CREATE UNIQUE INDEX IF NOT EXISTS idx_claims_tx_hash_not_null
+			ON claims (tx_hash)
+			WHERE tx_hash IS NOT NULL`,
+		`CREATE TABLE IF NOT EXISTS claim_items (
+			id TEXT PRIMARY KEY,
+			claim_id TEXT NOT NULL REFERENCES claims(id) ON DELETE CASCADE,
+			ledger_id TEXT NOT NULL REFERENCES points_ledgers(id),
+			points_transaction_id TEXT NOT NULL REFERENCES points_transactions(id),
+			amount INTEGER NOT NULL CHECK (amount > 0),
+			created_at DATETIME NOT NULL DEFAULT CURRENT_TIMESTAMP,
+			UNIQUE (points_transaction_id)
+		)`,
+		`CREATE INDEX IF NOT EXISTS idx_claim_items_claim_id
+			ON claim_items (claim_id)`,
+		`CREATE INDEX IF NOT EXISTS idx_claim_items_ledger_id
+			ON claim_items (ledger_id)`,
 		`CREATE TABLE IF NOT EXISTS watch_time_stats (
 			id TEXT PRIMARY KEY,
 			user_id TEXT NOT NULL REFERENCES users(id),

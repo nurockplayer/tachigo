@@ -69,6 +69,9 @@ func main() {
 		&models.BroadcastTimeLog{},
 		// Tachi token balance — refs #103
 		&models.TachiBalance{},
+		// Claim lifecycle
+		&models.Claim{},
+		&models.ClaimItem{},
 		// Agency management — refs #99
 		&models.AgencyStreamer{},
 		// Raffle system — refs #227
