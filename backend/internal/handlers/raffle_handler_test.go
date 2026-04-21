@@ -60,7 +60,7 @@ func newRaffleTestEnv(t *testing.T) *raffleTestEnv {
 
 	cfg := testConfig()
 	authSvc := services.NewAuthService(db, cfg)
-	raffleSvc := services.NewRaffleService(db)
+	raffleSvc := services.NewRaffleService(db, "")
 	raffleH := handlers.NewRaffleHandler(raffleSvc)
 
 	r := gin.New()
@@ -87,6 +87,7 @@ func newRaffleTestEnv(t *testing.T) *raffleTestEnv {
 	dash.POST("/raffles/:id/draws", raffleH.DrawNext)
 	dash.GET("/raffles/:id/draws", raffleH.ListDraws)
 	dash.POST("/raffles/:id/complete", raffleH.Complete)
+	dash.POST("/raffles/:id/snapshot", raffleH.Snapshot)
 
 	return &raffleTestEnv{db: db, authSvc: authSvc, raffleSvc: raffleSvc, router: r}
 }
@@ -544,5 +545,117 @@ func testConfig() *config.Config {
 			AccessTTL:     15 * time.Minute,
 			RefreshTTL:    30 * 24 * time.Hour,
 		},
+	}
+}
+
+// ── Snapshot tests ────────────────────────────────────────────────────────────
+
+func TestRaffle_Snapshot_Unauthorized(t *testing.T) {
+	env := newRaffleTestEnv(t)
+	w := httptest.NewRecorder()
+	body, _ := json.Marshal(map[string]string{"source": "twitch_api"})
+	req, _ := http.NewRequest(http.MethodPost, "/api/v1/dashboard/raffles/"+uuid.New().String()+"/snapshot", bytes.NewReader(body))
+	req.Header.Set("Content-Type", "application/json")
+	env.router.ServeHTTP(w, req)
+	if w.Code != http.StatusUnauthorized {
+		t.Fatalf("want 401, got %d: %s", w.Code, w.Body.String())
+	}
+}
+
+func TestRaffle_Snapshot_RaffleNotFound(t *testing.T) {
+	env := newRaffleTestEnv(t)
+	token := env.registerStreamer(t, "s1", "s1@test.com", "pass1234")
+
+	body, _ := json.Marshal(map[string]string{"source": "twitch_api"})
+	w := httptest.NewRecorder()
+	req, _ := http.NewRequest(http.MethodPost, "/api/v1/dashboard/raffles/"+uuid.New().String()+"/snapshot", bytes.NewReader(body))
+	req.Header.Set("Content-Type", "application/json")
+	req.Header.Set("Authorization", bearer(token))
+	env.router.ServeHTTP(w, req)
+	if w.Code != http.StatusNotFound {
+		t.Fatalf("want 404, got %d: %s", w.Code, w.Body.String())
+	}
+}
+
+func TestRaffle_Snapshot_NoTwitchToken(t *testing.T) {
+	env := newRaffleTestEnv(t)
+	token := env.registerStreamer(t, "s1", "s1@test.com", "pass1234")
+
+	createBody, _ := json.Marshal(map[string]string{"title": "test raffle"})
+	wc := httptest.NewRecorder()
+	rc, _ := http.NewRequest(http.MethodPost, "/api/v1/dashboard/raffles", bytes.NewReader(createBody))
+	rc.Header.Set("Content-Type", "application/json")
+	rc.Header.Set("Authorization", bearer(token))
+	env.router.ServeHTTP(wc, rc)
+	if wc.Code != http.StatusCreated {
+		t.Fatalf("create raffle: %d", wc.Code)
+	}
+	raffleID := parseBody(t, wc.Body.Bytes())["data"].(map[string]interface{})["raffle"].(map[string]interface{})["id"].(string)
+
+	body, _ := json.Marshal(map[string]string{"source": "twitch_api"})
+	w := httptest.NewRecorder()
+	req, _ := http.NewRequest(http.MethodPost, "/api/v1/dashboard/raffles/"+raffleID+"/snapshot", bytes.NewReader(body))
+	req.Header.Set("Content-Type", "application/json")
+	req.Header.Set("Authorization", bearer(token))
+	env.router.ServeHTTP(w, req)
+	if w.Code != http.StatusBadRequest {
+		t.Fatalf("want 400 (no twitch token), got %d: %s", w.Code, w.Body.String())
+	}
+}
+
+func TestRaffle_Snapshot_TwitchScopeError(t *testing.T) {
+	mockTwitch := httptest.NewServer(http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
+		w.WriteHeader(http.StatusForbidden)
+	}))
+	defer mockTwitch.Close()
+
+	env := newRaffleTestEnv(t)
+	env.raffleSvc.SetTwitchBaseURL(mockTwitch.URL)
+	token := env.registerStreamer(t, "s1", "s1@test.com", "pass1234")
+
+	createBody, _ := json.Marshal(map[string]string{"title": "test raffle"})
+	wc := httptest.NewRecorder()
+	rc, _ := http.NewRequest(http.MethodPost, "/api/v1/dashboard/raffles", bytes.NewReader(createBody))
+	rc.Header.Set("Content-Type", "application/json")
+	rc.Header.Set("Authorization", bearer(token))
+	env.router.ServeHTTP(wc, rc)
+	if wc.Code != http.StatusCreated {
+		t.Fatalf("create raffle: %d", wc.Code)
+	}
+	raffleID := parseBody(t, wc.Body.Bytes())["data"].(map[string]interface{})["raffle"].(map[string]interface{})["id"].(string)
+
+	// give streamer a Twitch provider with access token
+	streamerUser, _, _ := env.authSvc.Register(services.RegisterInput{Username: "tw_s1", Email: "tw@test.com", Password: "pass1234"})
+	at := "fake-token"
+	provID, _ := uuid.NewV7()
+	_ = env.db.Exec(
+		`INSERT INTO auth_providers (id, user_id, provider, provider_id, access_token, created_at, updated_at) VALUES (?, ?, 'twitch', 'twitch_broadcaster_1', ?, CURRENT_TIMESTAMP, CURRENT_TIMESTAMP)`,
+		provID.String(), streamerUser.ID.String(), at,
+	)
+	// attach the twitch provider to the streamer (reuse streamer's user_id)
+	streamerUserID := parseBody(t, wc.Body.Bytes()) // just get the raffle owner
+	_ = streamerUserID
+	// simpler: insert auth_provider for the streamer who owns the raffle
+	// look up the owner from raffle table
+	var ownerID string
+	_ = env.db.Raw("SELECT user_id FROM raffles WHERE id = ?", raffleID).Scan(&ownerID)
+	provID2, _ := uuid.NewV7()
+	_ = env.db.Exec(
+		`INSERT INTO auth_providers (id, user_id, provider, provider_id, access_token, created_at, updated_at) VALUES (?, ?, 'twitch', 'twitch_broadcaster_owner', ?, CURRENT_TIMESTAMP, CURRENT_TIMESTAMP)`,
+		provID2.String(), ownerID, at,
+	)
+
+	body, _ := json.Marshal(map[string]string{"source": "twitch_api"})
+	w := httptest.NewRecorder()
+	req, _ := http.NewRequest(http.MethodPost, "/api/v1/dashboard/raffles/"+raffleID+"/snapshot", bytes.NewReader(body))
+	req.Header.Set("Content-Type", "application/json")
+	req.Header.Set("Authorization", bearer(token))
+	env.router.ServeHTTP(w, req)
+	if w.Code != http.StatusBadRequest {
+		t.Fatalf("want 400 (scope error), got %d: %s", w.Code, w.Body.String())
+	}
+	resp := parseBody(t, w.Body.Bytes())
+	if msg, _ := resp["error"].(string); !strings.Contains(msg, "scope") {
+		t.Errorf("expected scope error message, got: %v", msg)
 	}
 }

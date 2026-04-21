@@ -1,9 +1,13 @@
 package services
 
 import (
+	"context"
 	"encoding/csv"
+	"encoding/json"
 	"errors"
+	"fmt"
 	"io"
+	"net/http"
 	"strings"
 	"time"
 
@@ -14,24 +18,30 @@ import (
 )
 
 var (
-	ErrRaffleNotFound    = errors.New("raffle not found")
-	ErrRaffleForbidden   = errors.New("raffle does not belong to this user")
-	ErrRaffleExhausted   = errors.New("all entries have been drawn")
-	ErrRaffleCompleted   = errors.New("raffle is already completed")
-	ErrClaimTokenExpired = errors.New("claim token has expired")
-	ErrClaimNotFound     = errors.New("claim token not found")
-	ErrClaimAlreadyDone  = errors.New("claim already submitted")
+	ErrRaffleNotFound          = errors.New("raffle not found")
+	ErrRaffleForbidden         = errors.New("raffle does not belong to this user")
+	ErrRaffleExhausted         = errors.New("all entries have been drawn")
+	ErrRaffleCompleted         = errors.New("raffle is already completed")
+	ErrClaimTokenExpired       = errors.New("claim token has expired")
+	ErrClaimNotFound           = errors.New("claim token not found")
+	ErrClaimAlreadyDone        = errors.New("claim already submitted")
+	ErrTwitchTokenMissing      = errors.New("no twitch access token: streamer must log in via twitch")
+	ErrTwitchInsufficientScope = errors.New("twitch token lacks channel:read:subscriptions scope")
 )
 
 const claimTokenTTL = 7 * 24 * time.Hour
 
 type RaffleService struct {
-	db *gorm.DB
+	db             *gorm.DB
+	twitchClientID string
+	twitchBaseURL  string
 }
 
-func NewRaffleService(db *gorm.DB) *RaffleService {
-	return &RaffleService{db: db}
+func NewRaffleService(db *gorm.DB, twitchClientID string) *RaffleService {
+	return &RaffleService{db: db, twitchClientID: twitchClientID, twitchBaseURL: "https://api.twitch.tv"}
 }
+
+func (s *RaffleService) SetTwitchBaseURL(url string) { s.twitchBaseURL = url }
 
 // Create creates a new raffle owned by the given user.
 func (s *RaffleService) Create(userID uuid.UUID, title string) (*models.Raffle, error) {
@@ -322,4 +332,129 @@ func (s *RaffleService) GetDrawsByRafflePublic(raffleID uuid.UUID) ([]models.Raf
 		return []models.RaffleDraw{}, nil
 	}
 	return draws, nil
+}
+
+// ── Twitch API sync ───────────────────────────────────────────────────────────
+
+type SyncFromTwitchResult struct {
+	Imported int `json:"imported"`
+	Skipped  int `json:"skipped"`
+}
+
+type twitchSubscription struct {
+	UserID    string `json:"user_id"`
+	UserLogin string `json:"user_login"`
+	UserName  string `json:"user_name"`
+}
+
+type twitchSubsPage struct {
+	Data       []twitchSubscription `json:"data"`
+	Pagination struct {
+		Cursor string `json:"cursor"`
+	} `json:"pagination"`
+}
+
+func (s *RaffleService) fetchTwitchSubsPage(ctx context.Context, accessToken, broadcasterID, cursor string) ([]twitchSubscription, string, error) {
+	url := fmt.Sprintf("%s/helix/subscriptions?broadcaster_id=%s&first=100", s.twitchBaseURL, broadcasterID)
+	if cursor != "" {
+		url += "&after=" + cursor
+	}
+	req, err := http.NewRequestWithContext(ctx, http.MethodGet, url, nil)
+	if err != nil {
+		return nil, "", err
+	}
+	req.Header.Set("Authorization", "Bearer "+accessToken)
+	req.Header.Set("Client-Id", s.twitchClientID)
+
+	resp, err := http.DefaultClient.Do(req)
+	if err != nil {
+		return nil, "", err
+	}
+	defer resp.Body.Close()
+
+	if resp.StatusCode == http.StatusUnauthorized || resp.StatusCode == http.StatusForbidden {
+		return nil, "", ErrTwitchInsufficientScope
+	}
+	if resp.StatusCode != http.StatusOK {
+		return nil, "", fmt.Errorf("twitch api: unexpected status %d", resp.StatusCode)
+	}
+
+	var page twitchSubsPage
+	if err := json.NewDecoder(resp.Body).Decode(&page); err != nil {
+		return nil, "", err
+	}
+	return page.Data, page.Pagination.Cursor, nil
+}
+
+// SyncFromTwitchAPI pulls the broadcaster's subscriber list from Twitch Helix
+// and inserts them as RaffleEntry rows (idempotent; duplicates are skipped).
+// Only subscribers who already have a tachigo account are imported.
+func (s *RaffleService) SyncFromTwitchAPI(ctx context.Context, raffleID, userID uuid.UUID) (*SyncFromTwitchResult, error) {
+	if _, err := s.GetByID(raffleID, userID); err != nil {
+		return nil, err
+	}
+
+	var ap models.AuthProvider
+	if err := s.db.Where("user_id = ? AND provider = ?", userID, models.ProviderTwitch).First(&ap).Error; err != nil {
+		if errors.Is(err, gorm.ErrRecordNotFound) {
+			return nil, ErrTwitchTokenMissing
+		}
+		return nil, err
+	}
+	if ap.AccessToken == nil {
+		return nil, ErrTwitchTokenMissing
+	}
+
+	result := &SyncFromTwitchResult{}
+	cursor := ""
+	for {
+		subs, nextCursor, err := s.fetchTwitchSubsPage(ctx, *ap.AccessToken, ap.ProviderID, cursor)
+		if err != nil {
+			return nil, err
+		}
+
+		for _, sub := range subs {
+			var count int64
+			if err := s.db.Model(&models.RaffleEntry{}).
+				Where("raffle_id = ? AND twitch_login = ?", raffleID, sub.UserLogin).
+				Count(&count).Error; err != nil {
+				return nil, err
+			}
+			if count > 0 {
+				result.Skipped++
+				continue
+			}
+
+			var provider models.AuthProvider
+			if err := s.db.
+				Joins("JOIN users ON users.id = auth_providers.user_id AND users.deleted_at IS NULL").
+				Where("auth_providers.provider = ? AND auth_providers.provider_id = ?", models.ProviderTwitch, sub.UserID).
+				First(&provider).Error; err != nil {
+				if !errors.Is(err, gorm.ErrRecordNotFound) {
+					return nil, err
+				}
+				result.Skipped++
+				continue
+			}
+
+			uid := provider.UserID
+			entry := &models.RaffleEntry{
+				RaffleID:    raffleID,
+				UserID:      &uid,
+				TwitchLogin: sub.UserLogin,
+				DisplayName: sub.UserName,
+			}
+			if err := s.db.Create(entry).Error; err != nil {
+				return nil, err
+			}
+			result.Imported++
+		}
+
+		if nextCursor == "" {
+			break
+		}
+		cursor = nextCursor
+	}
+
+	return result, nil
 }

@@ -144,7 +144,7 @@ func main() {
 	}
 	claimSvc := services.NewClaimService(db, cfg.Contract, ethClient)
 	spendSvc := services.NewSpendService(db, cfg.Contract, ethClient)
-	raffleSvc := services.NewRaffleService(db)
+	raffleSvc := services.NewRaffleService(db, cfg.OAuth.Twitch.ClientID)
 	agencyH := handlers.NewAgencyHandler(agencySvc, emailAuthSvc)
 
 	// CORS origins from env, default to localhost for dev

@@ -9,6 +9,7 @@ import (
 	"github.com/google/uuid"
 
 	"github.com/tachigo/tachigo/internal/middleware"
+	"github.com/tachigo/tachigo/internal/models"
 	"github.com/tachigo/tachigo/internal/services"
 )
 
@@ -377,6 +378,63 @@ type publicDrawView struct {
 		TwitchLogin string `json:"twitch_login"`
 		DisplayName string `json:"display_name"`
 	} `json:"entry"`
+}
+
+// Snapshot godoc
+// @Summary      Sync raffle entries from Twitch subscriber list
+// @Tags         raffles
+// @Security     BearerAuth
+// @Accept       json
+// @Produce      json
+// @Param        id   path string true "Raffle ID"
+// @Param        body body object{source=string} true "source must be twitch_api"
+// @Success      200  {object}  Response
+// @Failure      400  {object}  Response
+// @Router       /dashboard/raffles/{id}/snapshot [post]
+func (h *RaffleHandler) Snapshot(c *gin.Context) {
+	claims := middleware.MustClaims(c)
+	userID, err := uuid.Parse(claims.UserID)
+	if err != nil {
+		badRequest(c, "invalid user id")
+		return
+	}
+
+	raffleID, err := uuid.Parse(c.Param("id"))
+	if err != nil {
+		badRequest(c, "invalid raffle id")
+		return
+	}
+
+	var body struct {
+		Source string `json:"source" binding:"required"`
+	}
+	if err := c.ShouldBindJSON(&body); err != nil {
+		badRequest(c, err.Error())
+		return
+	}
+	if body.Source != string(models.RaffleSourceTwitchAPI) {
+		badRequest(c, "unsupported source: must be twitch_api")
+		return
+	}
+
+	result, err := h.raffleSvc.SyncFromTwitchAPI(c.Request.Context(), raffleID, userID)
+	if err != nil {
+		switch {
+		case errors.Is(err, services.ErrRaffleNotFound):
+			notFound(c, "raffle not found")
+		case errors.Is(err, services.ErrRaffleForbidden):
+			c.JSON(http.StatusForbidden, Response{Success: false, Error: "forbidden"})
+		case errors.Is(err, services.ErrTwitchTokenMissing):
+			badRequest(c, "no twitch access token: streamer must log in via twitch")
+		case errors.Is(err, services.ErrTwitchInsufficientScope):
+			badRequest(c, "insufficient twitch scope: requires channel:read:subscriptions")
+		default:
+			log.Printf("raffle snapshot: %v", err)
+			internal(c)
+		}
+		return
+	}
+	ok(c, gin.H{"result": result})
 }
 
 // GetResult godoc
