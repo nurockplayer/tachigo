@@ -100,6 +100,7 @@ jobs:
 
             const allowedPrefixes = ['[backend]', '[frontend]', '[contract]', '[discussion]', '[release]', '[infra]', '[chore]']
             const titlePrefix = allowedPrefixes.find((prefix) => title.startsWith(prefix))
+            const isInfraOrChore = titlePrefix === '[infra]' || titlePrefix === '[chore]'
             const hasSourceOfTruth = /(?:^|\n)\s*-?\s*Source of truth\s*[：:]/i.test(body)
             const hasExplicitNonGoals = body.includes('本 PR 明確不做')
             const dependsOnMatch = body.match(/(?:^|\n)\s*-?\s*Depends on PR\s*[：:]\s*(.+)/i)
@@ -126,27 +127,25 @@ jobs:
                 policyFailures.push('`[release]` PR is reserved for formal `develop -> main` promotion PRs only.')
               }
 
-              if (!isReleasePromotionPr && !/#\d+/.test(body)) {
+              if (!isReleasePromotionPr && !isInfraOrChore && !/#\d+/.test(body)) {
                 policyFailures.push('PR body must reference at least one issue or PR number such as `#123`.')
               }
 
-              if (!hasSourceOfTruth) {
+              if (!isInfraOrChore && !hasSourceOfTruth) {
                 policyFailures.push('PR body must include a `Source of truth` line in the Scope 對齊 section.')
               }
 
-              if (!hasExplicitNonGoals) {
+              if (!isInfraOrChore && !hasExplicitNonGoals) {
                 policyFailures.push('PR body must include a `本 PR 明確不做` section.')
               }
 
-              if (!dependsOnRaw) {
+              if (!isInfraOrChore && !dependsOnRaw) {
                 policyFailures.push('PR body must include a `Depends on PR` line with `none` or `#123`.')
               }
 
-              if (dependsOnRaw && !dependsOnNone && !dependsOnPrMatch) {
+              if (!isInfraOrChore && dependsOnRaw && !dependsOnNone && !dependsOnPrMatch) {
                 policyFailures.push('`Depends on PR` must be `none` or a single PR number such as `#123`.')
               }
-
-              const isInfraOrChore = titlePrefix === '[infra]' || titlePrefix === '[chore]'
 
               if (!isInfraOrChore && !isDocsTemplateOrMetadataOnly) {
                 if (!backendContractYes && !backendContractNo) {
