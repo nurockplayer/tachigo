@@ -147,7 +147,10 @@ func main() {
 	}
 	claimSvc := services.NewClaimService(db, cfg.Contract, ethClient)
 	spendSvc := services.NewSpendService(db, cfg.Contract, ethClient)
-	raffleSvc := services.NewRaffleService(db)
+	if cfg.Server.Env == "production" && cfg.OAuth.Twitch.ClientID == "" {
+		log.Fatal("TWITCH_CLIENT_ID is required in production for raffle snapshot sync")
+	}
+	raffleSvc := services.NewRaffleService(db, cfg.OAuth.Twitch.ClientID)
 	agencyH := handlers.NewAgencyHandler(agencySvc, emailAuthSvc)
 
 	// CORS origins from env, default to localhost for dev

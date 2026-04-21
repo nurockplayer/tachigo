@@ -206,6 +206,9 @@ func New(
 		dashboard.POST("/raffles/:id/complete",
 			middleware.RequireRole(models.RoleStreamer),
 			raffleH.Complete)
+		dashboard.POST("/raffles/:id/snapshot",
+			middleware.RequireRole(models.RoleStreamer),
+			raffleH.Snapshot)
 	}
 
 	dashboardAirdrop := v1.Group("/dashboard/channels/:channel_id")

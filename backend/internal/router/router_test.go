@@ -86,7 +86,7 @@ func newRouterTestEnv(t *testing.T) *routerTestEnv {
 	agencySvc := services.NewAgencyService(db)
 	claimSvc := services.NewClaimService(db, config.ContractConfig{}, nil)
 	spendSvc := services.NewSpendService(db, config.ContractConfig{}, nil)
-	raffleSvc := services.NewRaffleService(db)
+	raffleSvc := services.NewRaffleService(db, "")
 	agencyHandler := handlers.NewAgencyHandler(agencySvc, emailAuthSvc)
 
 	engine := router.New(
@@ -476,7 +476,7 @@ func TestInternalRouter_SkipsRouteWhenSharedSecretMissing(t *testing.T) {
 	agencySvc := services.NewAgencyService(db)
 	claimSvc := services.NewClaimService(db, config.ContractConfig{}, nil)
 	spendSvc := services.NewSpendService(db, config.ContractConfig{}, nil)
-	raffleSvc := services.NewRaffleService(db)
+	raffleSvc := services.NewRaffleService(db, "")
 	agencyHandler := handlers.NewAgencyHandler(agencySvc, emailAuthSvc)
 
 	engine := router.New(
@@ -557,7 +557,7 @@ func TestInternalRouter_WithSecretSet_MiddlewareRejectsAndRouteRegistered(t *tes
 	agencySvc := services.NewAgencyService(db)
 	claimSvc := services.NewClaimService(db, config.ContractConfig{}, nil)
 	spendSvc := services.NewSpendService(db, config.ContractConfig{}, nil)
-	raffleSvc := services.NewRaffleService(db)
+	raffleSvc := services.NewRaffleService(db, "")
 	agencyHandler := handlers.NewAgencyHandler(agencySvc, emailAuthSvc)
 
 	engine := router.New(
