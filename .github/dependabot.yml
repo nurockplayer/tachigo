@@ -4,60 +4,89 @@ updates:
     directory: /backend
     schedule:
       interval: weekly
+      day: monday
+      time: "09:00"
+      timezone: Asia/Taipei
     target-branch: develop
+    open-pull-requests-limit: 2
     labels:
       - chore
+    groups:
+      backend-go-deps:
+        patterns:
+          - "*"
 
+  # Dependabot uses the "npm" ecosystem name for npm, yarn, and pnpm projects.
   - package-ecosystem: npm
     directory: /dashboard
     schedule:
       interval: weekly
+      day: monday
+      time: "09:30"
+      timezone: Asia/Taipei
     target-branch: develop
+    open-pull-requests-limit: 2
     labels:
       - chore
+    cooldown:
+      semver-major-days: 30
+      semver-minor-days: 21
+      semver-patch-days: 21
+      include:
+        - "@eslint/*"
+        - "@types/*"
+        - "@vitejs/*"
+        - "autoprefixer"
+        - "eslint*"
+        - "globals"
+        - "jsdom"
+        - "postcss"
+        - "tailwindcss"
+        - "typescript"
+        - "typescript-eslint"
+        - "vite"
+        - "vitest"
     groups:
-      typescript-tooling:
+      dashboard-prod-deps:
+        dependency-type: production
         patterns:
-          - "typescript"
-          - "@typescript-eslint/*"
-          - "eslint*"
-          - "@eslint/*"
-      react:
-        patterns:
-          - "react"
-          - "react-dom"
-          - "@types/react*"
-      vite:
-        patterns:
-          - "vite"
-          - "@vitejs/*"
-      deps:
+          - "*"
+      dashboard-dev-tooling:
+        dependency-type: development
         patterns:
           - "*"
 
+  # Dependabot uses the "npm" ecosystem name for npm, yarn, and pnpm projects.
   - package-ecosystem: npm
     directory: /tachimint
     schedule:
       interval: weekly
+      day: monday
+      time: "10:00"
+      timezone: Asia/Taipei
     target-branch: develop
+    open-pull-requests-limit: 2
     labels:
       - chore
+    cooldown:
+      semver-major-days: 30
+      semver-minor-days: 21
+      semver-patch-days: 21
+      include:
+        - "@eslint/*"
+        - "@types/*"
+        - "@vitejs/*"
+        - "eslint*"
+        - "globals"
+        - "typescript"
+        - "typescript-eslint"
+        - "vite"
     groups:
-      typescript-tooling:
+      tachimint-prod-deps:
+        dependency-type: production
         patterns:
-          - "typescript"
-          - "@typescript-eslint/*"
-          - "eslint*"
-          - "@eslint/*"
-      react:
-        patterns:
-          - "react"
-          - "react-dom"
-          - "@types/react*"
-      vite:
-        patterns:
-          - "vite"
-          - "@vitejs/*"
-      deps:
+          - "*"
+      tachimint-dev-tooling:
+        dependency-type: development
         patterns:
           - "*"
