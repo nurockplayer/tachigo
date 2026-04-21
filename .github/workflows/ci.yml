@@ -210,6 +210,9 @@ jobs:
       - name: Run tests
         run: docker compose run --pull never --no-deps --rm app go test ./...
 
+      - name: Run vet
+        run: docker compose run --pull never --no-deps --rm app go vet ./...
+
   backend-integration:
     name: Backend integration tests
     needs: [scope-gate]

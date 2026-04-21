@@ -24,6 +24,20 @@ test('frontend CI job runs the frontend test command', async () => {
   )
 })
 
+test('backend CI job runs go test and go vet', async () => {
+  const workflow = await readFile(workflowPath, 'utf8')
+
+  assert.match(
+    workflow,
+    /backend:\n[\s\S]*?- name: Run tests\n\s+run: docker compose run --pull never --no-deps --rm app go test \.\/\.\.\./,
+  )
+
+  assert.match(
+    workflow,
+    /backend:\n[\s\S]*?- name: Run vet\n\s+run: docker compose run --pull never --no-deps --rm app go vet \.\/\.\.\./,
+  )
+})
+
 test('PR size thresholds match CLAUDE.md', async () => {
   const claude = await readFile(claudePath, 'utf8')
   const workflow = await readFile(workflowPath, 'utf8')
