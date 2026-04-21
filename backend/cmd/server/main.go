@@ -151,6 +151,7 @@ func main() {
 		log.Fatal("TWITCH_CLIENT_ID is required in production for raffle snapshot sync")
 	}
 	raffleSvc := services.NewRaffleService(db, cfg.OAuth.Twitch.ClientID)
+	services.NewRaffleScheduler(raffleSvc).Start(context.Background())
 	agencyH := handlers.NewAgencyHandler(agencySvc, emailAuthSvc)
 
 	// CORS origins from env, default to localhost for dev
