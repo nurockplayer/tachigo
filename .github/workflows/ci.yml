@@ -47,7 +47,7 @@ jobs:
             }
 
             const hardMaxChangedFiles = 35
-            const hardMaxDiffLines = 1800
+            const hardMaxDiffLines = 1000
             const owner = context.repo.owner
             const repo = context.repo.repo
 

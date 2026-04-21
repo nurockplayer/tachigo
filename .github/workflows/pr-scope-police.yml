@@ -43,9 +43,9 @@ jobs:
             }
 
             const hardMaxChangedFiles = 35
-            const hardMaxDiffLines = 1500
-            const warningDiffLines = 800
-            const exceptionMaxDiffLines = 2500  // max for scope-exception PRs
+            const hardMaxDiffLines = 1000
+            const warningDiffLines = 600
+            const exceptionMaxDiffLines = 1500  // max for scope-exception PRs
             const autoCloseLabel = 'scope-violation'
             const dependencyLabel = 'blocked-by-dependency'
             const owner = context.repo.owner
