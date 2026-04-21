@@ -1,6 +1,6 @@
 # tachigo
 
-Twitch extension + Web3 rewards platform.
+Chrome sidepanel extension + Web3 rewards platform.
 Viewers spend Bits to earn on-chain tokens; streamers manage rewards from the dashboard.
 
 ## Structure
@@ -8,7 +8,7 @@ Viewers spend Bits to earn on-chain tokens; streamers manage rewards from the da
 ```
 tachigo/
 ├── backend/      # Go API (Gin + GORM + PostgreSQL)
-├── tachimint/    # Twitch Extension frontend (React + TypeScript + Vite)
+├── tachimint/    # Chrome sidepanel frontend (React + TypeScript + Vite)
 └── dashboard/    # Admin dashboard (React + TypeScript + Vite)
 ```
 
@@ -62,8 +62,8 @@ docker compose run --no-deps --rm app go test ./...
 ### Frontend (`tachimint/`)
 
 - Hot reload via Vite HMR
-- `window.Twitch.ext` is mocked in dev mode — no Twitch Developer Rig needed
-- Open http://localhost:5173 to see the extension panel
+- current migration direction is Chrome sidepanel runtime
+- Twitch identity / extension auth related flows are still retained during the migration stage
 
 ```bash
 docker compose run --no-deps --rm frontend npm run build   # production build
@@ -96,13 +96,17 @@ Key backend variables:
 | `GOOGLE_CLIENT_SECRET`    | From Google Cloud Console              |
 | `JWT_ACCESS_SECRET`       | Random string ≥ 32 chars               |
 | `JWT_REFRESH_SECRET`      | Random string ≥ 32 chars               |
+| `TACHI_CONTRACT_ADDRESS`  | Sepolia TachiToken contract address    |
+| `SEPOLIA_SIGNER_KEY`      | Backend signer key for TACHI mint/burn |
 
 ## Architecture
 
 See [docs/architecture.md](docs/architecture.md) for the full system diagram.
+For the current frontend migration decision, see [docs/tachimint-chrome-sidepanel-migration.md](docs/tachimint-chrome-sidepanel-migration.md).
 
 ## Documentation
 
+- [docs/auth-architecture.md](docs/auth-architecture.md) — current auth state 與 migration guardrails baseline
 - [docs/architecture.md](docs/architecture.md) — system architecture
 - [docs/claude-codex-cheatsheet.md](docs/claude-codex-cheatsheet.md) — quick reference for Claude Code + Codex collaboration
 - [docs/claude-codex-workflow.md](docs/claude-codex-workflow.md) — full workflow guide for low-token Claude Code usage

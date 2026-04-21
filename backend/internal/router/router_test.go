@@ -73,7 +73,6 @@ func newRouterTestEnv(t *testing.T) *routerTestEnv {
 			FrontendURL: "http://localhost:3000",
 		},
 	}
-
 	authSvc := services.NewAuthService(db, cfg)
 	userSvc := services.NewUserService(db)
 	addrSvc := services.NewAddressService(db)
@@ -85,7 +84,9 @@ func newRouterTestEnv(t *testing.T) *routerTestEnv {
 	airdropSvc := services.NewAirdropService(db, pointsSvc, channelConfigSvc)
 	streamerSvc := services.NewStreamerService(db, pointsSvc)
 	agencySvc := services.NewAgencyService(db)
-	claimSvc := services.NewClaimService(db)
+	claimSvc := services.NewClaimService(db, config.ContractConfig{}, nil)
+	spendSvc := services.NewSpendService(db, config.ContractConfig{}, nil)
+	raffleSvc := services.NewRaffleService(db, "")
 	agencyHandler := handlers.NewAgencyHandler(agencySvc, emailAuthSvc)
 
 	engine := router.New(
@@ -101,6 +102,8 @@ func newRouterTestEnv(t *testing.T) *routerTestEnv {
 		streamerSvc,
 		agencySvc,
 		claimSvc,
+		spendSvc,
+		raffleSvc,
 		agencyHandler,
 		[]string{"http://localhost:3000"},
 	)
@@ -250,6 +253,40 @@ func migrateTestDB(db *gorm.DB) error {
 			note TEXT,
 			created_at DATETIME NOT NULL DEFAULT CURRENT_TIMESTAMP
 		)`,
+		`CREATE TABLE IF NOT EXISTS claims (
+			id TEXT PRIMARY KEY,
+			user_id TEXT NOT NULL REFERENCES users(id) ON DELETE CASCADE,
+			wallet_addr TEXT NOT NULL,
+			amount INTEGER NOT NULL CHECK (amount > 0),
+			status TEXT NOT NULL CHECK (status IN ('pending', 'broadcast', 'confirmed', 'failed')),
+			tx_hash TEXT,
+			error_message TEXT,
+			broadcast_at DATETIME,
+			confirmed_at DATETIME,
+			failed_at DATETIME,
+			created_at DATETIME NOT NULL DEFAULT CURRENT_TIMESTAMP,
+			updated_at DATETIME NOT NULL DEFAULT CURRENT_TIMESTAMP
+		)`,
+		`CREATE INDEX IF NOT EXISTS idx_claims_user_created_at
+			ON claims (user_id, created_at DESC)`,
+		`CREATE INDEX IF NOT EXISTS idx_claims_status_created_at
+			ON claims (status, created_at DESC)`,
+		`CREATE UNIQUE INDEX IF NOT EXISTS idx_claims_tx_hash_not_null
+			ON claims (tx_hash)
+			WHERE tx_hash IS NOT NULL`,
+		`CREATE TABLE IF NOT EXISTS claim_items (
+			id TEXT PRIMARY KEY,
+			claim_id TEXT NOT NULL REFERENCES claims(id) ON DELETE CASCADE,
+			ledger_id TEXT NOT NULL REFERENCES points_ledgers(id),
+			points_transaction_id TEXT NOT NULL REFERENCES points_transactions(id),
+			amount INTEGER NOT NULL CHECK (amount > 0),
+			created_at DATETIME NOT NULL DEFAULT CURRENT_TIMESTAMP,
+			UNIQUE (points_transaction_id)
+		)`,
+		`CREATE INDEX IF NOT EXISTS idx_claim_items_claim_id
+			ON claim_items (claim_id)`,
+		`CREATE INDEX IF NOT EXISTS idx_claim_items_ledger_id
+			ON claim_items (ledger_id)`,
 		`CREATE TABLE IF NOT EXISTS watch_time_stats (
 			id TEXT PRIMARY KEY,
 			user_id TEXT NOT NULL REFERENCES users(id),
@@ -387,5 +424,178 @@ func TestDashboardRouter_AgencyNonOwnedChannelConfigForbidden(t *testing.T) {
 
 	if rec.Code != http.StatusForbidden {
 		t.Fatalf("want 403, got %d: %s", rec.Code, rec.Body.String())
+	}
+}
+
+func TestInternalRouter_SkipsRouteWhenSharedSecretMissing(t *testing.T) {
+	dbName := strings.NewReplacer("/", "_", " ", "_").Replace(t.Name())
+	dsn := fmt.Sprintf("file:%s?mode=memory&cache=shared", dbName)
+	db, err := gorm.Open(sqlite.Open(dsn), &gorm.Config{
+		Logger: logger.Default.LogMode(logger.Silent),
+	})
+	if err != nil {
+		t.Fatalf("open db: %v", err)
+	}
+	sqlDB, err := db.DB()
+	if err != nil {
+		t.Fatalf("db handle: %v", err)
+	}
+	sqlDB.SetMaxOpenConns(1)
+	t.Cleanup(func() {
+		_ = sqlDB.Close()
+	})
+	if err := db.Exec("PRAGMA foreign_keys = ON").Error; err != nil {
+		t.Fatalf("enable foreign keys: %v", err)
+	}
+	if err := migrateTestDB(db); err != nil {
+		t.Fatalf("migrate db: %v", err)
+	}
+
+	cfg := &config.Config{
+		JWT: config.JWTConfig{
+			AccessSecret:  "test-access-secret-at-least-32-chars!",
+			RefreshSecret: "test-refresh-secret",
+			AccessTTL:     15 * time.Minute,
+			RefreshTTL:    30 * 24 * time.Hour,
+		},
+		App: config.AppConfig{
+			FrontendURL: "http://localhost:3000",
+		},
+	}
+
+	authSvc := services.NewAuthService(db, cfg)
+	userSvc := services.NewUserService(db)
+	addrSvc := services.NewAddressService(db)
+	emailAuthSvc := services.NewEmailAuthService(db, cfg, &mockMailer{})
+	extSvc := services.NewExtensionService(db, cfg, authSvc)
+	watchSvc := services.NewWatchService(db)
+	channelConfigSvc := services.NewChannelConfigService(db)
+	pointsSvc := services.NewPointsService(db, watchSvc)
+	airdropSvc := services.NewAirdropService(db, pointsSvc, channelConfigSvc)
+	streamerSvc := services.NewStreamerService(db, pointsSvc)
+	agencySvc := services.NewAgencyService(db)
+	claimSvc := services.NewClaimService(db, config.ContractConfig{}, nil)
+	spendSvc := services.NewSpendService(db, config.ContractConfig{}, nil)
+	raffleSvc := services.NewRaffleService(db, "")
+	agencyHandler := handlers.NewAgencyHandler(agencySvc, emailAuthSvc)
+
+	engine := router.New(
+		authSvc,
+		userSvc,
+		addrSvc,
+		extSvc,
+		emailAuthSvc,
+		watchSvc,
+		channelConfigSvc,
+		pointsSvc,
+		airdropSvc,
+		streamerSvc,
+		agencySvc,
+		claimSvc,
+		spendSvc,
+		raffleSvc,
+		agencyHandler,
+		[]string{"http://localhost:3000"},
+		router.InternalRouterConfig{DB: db, Config: cfg},
+	)
+
+	req := httptest.NewRequest(http.MethodGet, "/api/v1/internal/tachiya/users/points/balance?email=viewer@example.com", nil)
+	rec := httptest.NewRecorder()
+	engine.ServeHTTP(rec, req)
+
+	if rec.Code != http.StatusNotFound {
+		t.Fatalf("want 404 when internal secret missing, got %d: %s", rec.Code, rec.Body.String())
+	}
+}
+
+func TestInternalRouter_WithSecretSet_MiddlewareRejectsAndRouteRegistered(t *testing.T) {
+	dbName := strings.NewReplacer("/", "_", " ", "_").Replace(t.Name())
+	dsn := fmt.Sprintf("file:%s?mode=memory&cache=shared", dbName)
+	db, err := gorm.Open(sqlite.Open(dsn), &gorm.Config{
+		Logger: logger.Default.LogMode(logger.Silent),
+	})
+	if err != nil {
+		t.Fatalf("open db: %v", err)
+	}
+	sqlDB, err := db.DB()
+	if err != nil {
+		t.Fatalf("db handle: %v", err)
+	}
+	sqlDB.SetMaxOpenConns(1)
+	t.Cleanup(func() {
+		_ = sqlDB.Close()
+	})
+	if err := db.Exec("PRAGMA foreign_keys = ON").Error; err != nil {
+		t.Fatalf("enable foreign keys: %v", err)
+	}
+	if err := migrateTestDB(db); err != nil {
+		t.Fatalf("migrate db: %v", err)
+	}
+
+	const secret = "test-internal-secret"
+	cfg := &config.Config{
+		JWT: config.JWTConfig{
+			AccessSecret:  "test-access-secret-at-least-32-chars!",
+			RefreshSecret: "test-refresh-secret",
+			AccessTTL:     15 * time.Minute,
+			RefreshTTL:    30 * 24 * time.Hour,
+		},
+		App:      config.AppConfig{FrontendURL: "http://localhost:3000"},
+		Internal: config.InternalConfig{TachiyaSharedSecret: secret},
+	}
+
+	authSvc := services.NewAuthService(db, cfg)
+	userSvc := services.NewUserService(db)
+	addrSvc := services.NewAddressService(db)
+	emailAuthSvc := services.NewEmailAuthService(db, cfg, &mockMailer{})
+	extSvc := services.NewExtensionService(db, cfg, authSvc)
+	watchSvc := services.NewWatchService(db)
+	channelConfigSvc := services.NewChannelConfigService(db)
+	pointsSvc := services.NewPointsService(db, watchSvc)
+	airdropSvc := services.NewAirdropService(db, pointsSvc, channelConfigSvc)
+	streamerSvc := services.NewStreamerService(db, pointsSvc)
+	agencySvc := services.NewAgencyService(db)
+	claimSvc := services.NewClaimService(db, config.ContractConfig{}, nil)
+	spendSvc := services.NewSpendService(db, config.ContractConfig{}, nil)
+	raffleSvc := services.NewRaffleService(db, "")
+	agencyHandler := handlers.NewAgencyHandler(agencySvc, emailAuthSvc)
+
+	engine := router.New(
+		authSvc,
+		userSvc,
+		addrSvc,
+		extSvc,
+		emailAuthSvc,
+		watchSvc,
+		channelConfigSvc,
+		pointsSvc,
+		airdropSvc,
+		streamerSvc,
+		agencySvc,
+		claimSvc,
+		spendSvc,
+		raffleSvc,
+		agencyHandler,
+		[]string{"http://localhost:3000"},
+		router.InternalRouterConfig{DB: db, Config: cfg},
+	)
+
+	const path = "/api/v1/internal/tachiya/users/points/balance?email=nobody@example.com"
+
+	// Without the secret header: middleware should reject with 401.
+	reqNoHeader := httptest.NewRequest(http.MethodGet, path, nil)
+	recNoHeader := httptest.NewRecorder()
+	engine.ServeHTTP(recNoHeader, reqNoHeader)
+	if recNoHeader.Code != http.StatusUnauthorized {
+		t.Fatalf("want 401 without secret header, got %d: %s", recNoHeader.Code, recNoHeader.Body.String())
+	}
+
+	// With the correct secret header: route is registered; unknown user → 404 from handler.
+	reqWithHeader := httptest.NewRequest(http.MethodGet, path, nil)
+	reqWithHeader.Header.Set("X-Tachiya-Internal-Secret", secret)
+	recWithHeader := httptest.NewRecorder()
+	engine.ServeHTTP(recWithHeader, reqWithHeader)
+	if recWithHeader.Code != http.StatusNotFound {
+		t.Fatalf("want 404 (user not found) with valid secret header, got %d: %s", recWithHeader.Code, recWithHeader.Body.String())
 	}
 }

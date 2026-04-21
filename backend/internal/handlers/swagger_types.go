@@ -45,7 +45,13 @@ type AddressesResponse struct {
 
 // NonceResponse wraps a Web3 nonce.
 type NonceResponse struct {
-	Nonce string `json:"nonce"`
+	Nonce    string `json:"nonce"`
+	IssuedAt string `json:"issued_at"`
+}
+
+// WalletResponse wraps the bound wallet address.
+type WalletResponse struct {
+	Address string `json:"address"`
 }
 
 type PointsBalanceResponse struct {

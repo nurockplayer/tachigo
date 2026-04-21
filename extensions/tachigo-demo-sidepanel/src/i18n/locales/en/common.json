@@ -13,6 +13,10 @@
   "hud": {
     "watching": "WATCHING",
     "idle": "IDLE",
+    "bgmLabel": "BGM",
+    "bgmOn": "♪ ON",
+    "bgmOff": "♪ OFF",
+    "tabAudioUnavailable": "TAB AUDIO OFF",
     "cumulativeTotal": "CUMULATIVE TOTAL",
     "nextIn": "NEXT IN {{count}}S",
     "clicksLeft": "{{count}} / 30 CLICKS",
@@ -23,6 +27,52 @@
     "titleHighlight": "accumulating watch points",
     "hintLine1": "Viewers just need to watch the stream",
     "hintLine2": "to automatically earn mining points"
+  },
+  "claim": {
+    "title": "CLAIM",
+    "from": "FROM",
+    "to": "TO",
+    "balance": "Balance: {{amount}}",
+    "max": "MAX",
+    "rate": "1 CPC = 0.1 TCG",
+    "button": "CLAIM $TCG",
+    "success": "CLAIMED!"
+  },
+  "coupon": {
+    "title": "COUPON SHOP",
+    "header": "COUPON MARKET",
+    "entry": "SHOP",
+    "back": "\u2039 BACK",
+    "balanceLabel": "PLATFORM COIN",
+    "subtitle": "Redeem your TCG for creator store discounts and shipping perks.",
+    "featured": "FEATURED COUPON",
+    "listTitle": "AVAILABLE COUPONS",
+    "cost": "COST {{amount}} TCG",
+    "redeem": "REDEEM",
+    "redeemed": "OWNED",
+    "claimedCode": "CODE {{code}} READY",
+    "insufficientBalance": "NOT ENOUGH TCG",
+    "alreadyRedeemed": "ALREADY REDEEMED",
+    "items": {
+      "tachiya95": {
+        "brand": "TACHIYA",
+        "title": "5% OFF CODE",
+        "description": "For select merch and VTuber collabs.",
+        "tag": "HOT"
+      },
+      "freeShip": {
+        "brand": "TACHI MART",
+        "title": "FREE SHIPPING",
+        "description": "Applies when your order meets the site minimum.",
+        "tag": "SHIP"
+      },
+      "bundle120": {
+        "brand": "CREATOR DROP",
+        "title": "$120 OFF",
+        "description": "Collaborator merch this month only.",
+        "tag": "DROP"
+      }
+    }
   },
   "error": {
     "account": {

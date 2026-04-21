@@ -1,4 +1,33 @@
 {
+  "loading": {
+    "text": "加载中..."
+  },
+  "login": {
+    "usernamePlaceholder": "账号",
+    "passwordPlaceholder": "密码",
+    "required": "必填",
+    "button": "登录",
+    "buttonLoading": "登录中...",
+    "forgotPassword": "忘记密码？"
+  },
+  "hud": {
+    "watching": "观看中",
+    "idle": "待机",
+    "bgmLabel": "背景音乐",
+    "bgmOn": "♪ 开",
+    "bgmOff": "♪ 关",
+    "tabAudioUnavailable": "分页音频不可用",
+    "cumulativeTotal": "累计总计",
+    "nextIn": "下次 {{count}} 秒",
+    "clicksLeft": "剩 {{count}} 次",
+    "clicksExhausted": "本轮已达上限"
+  },
+  "nonViewer": {
+    "titleLine1": "您的观众正在此频道",
+    "titleHighlight": "累积观看积分",
+    "hintLine1": "观众只要观看直播",
+    "hintLine2": "即可自动累积挖矿积分"
+  },
   "contextLoading": {
     "title": "加载中...",
     "subtitle": "正在启动 extension"
@@ -7,5 +36,79 @@
     "retry": "重试",
     "initializing": "初始化中...",
     "points": "点"
+  },
+  "claim": {
+    "title": "提领",
+    "from": "来源",
+    "to": "目标",
+    "balance": "余额：{{amount}}",
+    "max": "最大",
+    "rate": "1 CPC = 0.1 TCG",
+    "button": "提领 $TCG",
+    "success": "已提领！",
+    "actions": {
+      "claim": "领取",
+      "claiming": "领取中..."
+    },
+    "status": {
+      "complete": "领取完成。"
+    },
+    "errors": {
+      "loadBalanceFailed": "无法加载 $TACHI 余额。",
+      "claimFailed": "领取失败，请再试一次。"
+    }
+  },
+  "coupon": {
+    "title": "Coupon 商城",
+    "header": "Coupon 兑换商城",
+    "entry": "商城",
+    "back": "‹ 返回",
+    "balanceLabel": "平台币余额",
+    "subtitle": "使用 TCG 兑换创作者商城折扣码与免运福利。",
+    "featured": "本期主打",
+    "listTitle": "可兑换 Coupon",
+    "cost": "消耗 {{amount}} TCG",
+    "redeem": "立即兑换",
+    "redeemed": "已拥有",
+    "claimedCode": "折扣码 {{code}} 已入袋",
+    "insufficientBalance": "平台币不足",
+    "alreadyRedeemed": "此 Coupon 已兑换",
+    "items": {
+      "tachiya95": {
+        "brand": "TACHIYA",
+        "title": "95 折折扣码",
+        "description": "适用于精选周边与 VTuber 联名商品",
+        "tag": "HOT"
+      },
+      "freeShip": {
+        "brand": "TACHI MART",
+        "title": "免运券",
+        "description": "全站单笔订单满额即可使用",
+        "tag": "SHIP"
+      },
+      "bundle120": {
+        "brand": "CREATOR DROP",
+        "title": "现折 $120",
+        "description": "限本月合作创作者商品专区",
+        "tag": "DROP"
+      }
+    }
+  },
+  "error": {
+    "account": {
+      "title": "尚未创建账号",
+      "message": "请先创建 tachigo 账号",
+      "hint": "前往 tachigo.gg 创建账号后，刷新即可开始挖矿"
+    },
+    "backend": {
+      "title": "服务暂时不可用",
+      "message": "服务暂时不可用，请稍后再试",
+      "hint": "我们正在处理问题，请等几分钟后刷新"
+    },
+    "session": {
+      "title": "连接建立失败",
+      "message": "观看连接建立失败，请刷新",
+      "hint": "请确认网络连接是否正常后刷新页面"
+    }
   }
 }

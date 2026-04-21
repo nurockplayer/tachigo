@@ -4,12 +4,19 @@ import (
 	"github.com/gin-gonic/gin"
 	swaggerFiles "github.com/swaggo/files"
 	ginSwagger "github.com/swaggo/gin-swagger"
+	"gorm.io/gorm"
 
+	"github.com/tachigo/tachigo/internal/config"
 	"github.com/tachigo/tachigo/internal/handlers"
 	"github.com/tachigo/tachigo/internal/middleware"
 	"github.com/tachigo/tachigo/internal/models"
 	"github.com/tachigo/tachigo/internal/services"
 )
+
+type InternalRouterConfig struct {
+	DB     *gorm.DB
+	Config *config.Config
+}
 
 func New(
 	authSvc *services.AuthService,
@@ -24,14 +31,22 @@ func New(
 	streamerSvc *services.StreamerService,
 	agencySvc *services.AgencyService,
 	claimSvc *services.ClaimService,
+	spendSvc *services.SpendService,
+	raffleSvc *services.RaffleService,
 	agencyHandler *handlers.AgencyHandler,
 	allowedOrigins []string,
+	internalRouterConfig ...InternalRouterConfig,
 ) *gin.Engine {
 	r := gin.New()
 	r.Use(gin.Logger(), gin.Recovery())
 	r.Use(middleware.CORS(allowedOrigins))
 
-	authH := handlers.NewAuthHandler(authSvc).WithEmailAuth(emailAuthSvc)
+	var cfg *config.Config
+	if len(internalRouterConfig) > 0 {
+		cfg = internalRouterConfig[0].Config
+	}
+
+	authH := handlers.NewAuthHandler(authSvc, cfg).WithEmailAuth(emailAuthSvc)
 	userH := handlers.NewUserHandler(userSvc)
 	addrH := handlers.NewAddressHandler(addrSvc)
 	extH := handlers.NewExtensionHandler(extSvc)
@@ -41,7 +56,9 @@ func New(
 	pointsH := handlers.NewPointsHandler(pointsSvc)
 	streamerH := handlers.NewStreamerHandler(streamerSvc)
 	claimH := handlers.NewClaimHandler(claimSvc)
+	spendH := handlers.NewSpendHandler(spendSvc)
 	airdropH := handlers.NewAirdropHandler(airdropSvc, agencySvc, streamerSvc)
+	raffleH := handlers.NewRaffleHandler(raffleSvc)
 
 	r.GET("/health", func(c *gin.Context) {
 		c.JSON(200, gin.H{"status": "ok"})
@@ -78,11 +95,21 @@ func New(
 		auth.POST("/reset-password", emailH.ResetPassword)
 	}
 
+	// ── Public claim endpoints (no auth) ─────────────────────────────────
+	claim := v1.Group("/claim")
+	{
+		claim.GET("/:token", raffleH.GetClaim)
+		claim.POST("/:token", raffleH.SubmitClaim)
+	}
+
 	// ── Twitch Extension endpoints ────────────────────────────────────────
 	ext := v1.Group("/extension")
 	{
 		ext.POST("/auth/login", extH.Login)
 		ext.POST("/bits/complete", extH.BitsComplete)
+
+		// Raffle result — public read (no auth required)
+		ext.GET("/raffles/:id/result", raffleH.GetResult)
 
 		// Watch-time points (requires tachigo JWT — viewer must log in first)
 		watch := ext.Group("/watch")
@@ -108,9 +135,13 @@ func New(
 		protected.POST("users/me/points/claim", claimH.Claim)
 		protected.GET("users/me/tachi/balance", claimH.GetTachiBalance)
 
+		// $TACHI spend (burn)
+		protected.POST("spend/redeem", spendH.Redeem)
+
 		// User profile
 		protected.GET("users/me", userH.Me)
 		protected.PUT("users/me", userH.UpdateMe)
+		protected.POST("users/me/wallet", userH.LinkWallet)
 		protected.GET("users/me/providers", userH.ListProviders)
 		protected.DELETE("auth/providers/:provider", authH.UnlinkProvider)
 
@@ -152,6 +183,32 @@ func New(
 		dashboard.PUT("/channels/:channel_id/config",
 			middleware.RequireRole(models.RoleAdmin, models.RoleStreamer),
 			channelConfigH.UpdateChannelConfig)
+
+		// Raffle management (streamer only)
+		dashboard.POST("/raffles",
+			middleware.RequireRole(models.RoleStreamer),
+			raffleH.Create)
+		dashboard.GET("/raffles",
+			middleware.RequireRole(models.RoleStreamer),
+			raffleH.List)
+		dashboard.GET("/raffles/:id",
+			middleware.RequireRole(models.RoleStreamer),
+			raffleH.Get)
+		dashboard.POST("/raffles/:id/entries/import-csv",
+			middleware.RequireRole(models.RoleStreamer),
+			raffleH.ImportCSV)
+		dashboard.POST("/raffles/:id/draws",
+			middleware.RequireRole(models.RoleStreamer),
+			raffleH.DrawNext)
+		dashboard.GET("/raffles/:id/draws",
+			middleware.RequireRole(models.RoleStreamer),
+			raffleH.ListDraws)
+		dashboard.POST("/raffles/:id/complete",
+			middleware.RequireRole(models.RoleStreamer),
+			raffleH.Complete)
+		dashboard.POST("/raffles/:id/snapshot",
+			middleware.RequireRole(models.RoleStreamer),
+			raffleH.Snapshot)
 	}
 
 	dashboardAirdrop := v1.Group("/dashboard/channels/:channel_id")
@@ -161,12 +218,29 @@ func New(
 		dashboardAirdrop.POST("/airdrop", airdropH.Airdrop)
 	}
 
+	if len(internalRouterConfig) > 0 &&
+		internalRouterConfig[0].DB != nil &&
+		internalRouterConfig[0].Config != nil &&
+		internalRouterConfig[0].Config.Internal.TachiyaSharedSecret != "" {
+		internalPointsH := handlers.NewInternalPointsHandler(internalRouterConfig[0].DB)
+		internal := v1.Group("/internal/tachiya")
+		internal.Use(middleware.TachiyaInternalAuth(internalRouterConfig[0].Config))
+		{
+			internal.GET("/users/points/balance", internalPointsH.GetUserPointsBalance)
+		}
+	}
+
 	// ── Agency management ─────────────────────────────────────────────────
 	// POST /agencies — admin only
 	agencies := v1.Group("/agencies")
 	agencies.Use(middleware.JWTAuth(authSvc))
 	{
 		agencies.POST("", middleware.RequireRole(models.RoleAdmin), agencyHandler.Create)
+		// GET /agencies/:id — agency or admin
+		agencies.GET("/:id",
+			middleware.RequireRole(models.RoleAgency, models.RoleAdmin),
+			agencyHandler.Get,
+		)
 		// PUT /agencies/:id/settings — agency or admin
 		agencies.PUT("/:id/settings",
 			middleware.RequireRole(models.RoleAgency, models.RoleAdmin),
@@ -176,6 +250,11 @@ func New(
 		agencies.GET("/:id/streamers",
 			middleware.RequireRole(models.RoleAgency, models.RoleAdmin),
 			agencyHandler.ListStreamers,
+		)
+		// POST /agencies/:id/resend-setup — admin only
+		agencies.POST("/:id/resend-setup",
+			middleware.RequireRole(models.RoleAdmin),
+			agencyHandler.ResendSetup,
 		)
 	}
 

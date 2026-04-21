@@ -9,6 +9,7 @@ backend/bin/
 .claude/settings.local.json
 .claude/scheduled_tasks.lock
 .superpowers/
+.continue/
 
 # Frontend
 tachimint/node_modules/
@@ -34,6 +35,7 @@ extensions/tachigo-demo-sidepanel/*.local
 
 # Local caches
 .gocache/
+.go-build-cache/
 
 # IDE
 .vscode/
@@ -47,3 +49,5 @@ extensions/tachigo-demo-sidepanel/*.local
 contracts/out/
 contracts/cache/
 contracts/lib/
+contracts/broadcast/
+contracts/.env

@@ -3,27 +3,72 @@
 package services
 
 import (
+	"context"
 	"fmt"
+	"log"
 	"net/url"
 	"os"
 	"strings"
 	"testing"
 
 	"github.com/google/uuid"
+	tcpostgres "github.com/testcontainers/testcontainers-go/modules/postgres"
 	"gorm.io/driver/postgres"
 	"gorm.io/gorm"
 	"gorm.io/gorm/logger"
 )
 
+// pgContainerURL holds the connection string for the shared PostgreSQL container.
+// Set by TestMain before any test runs.
+var pgContainerURL string
+
+func TestMain(m *testing.M) {
+	// If DATABASE_URL is set, use it directly (e.g. CI with external postgres).
+	if u := os.Getenv("DATABASE_URL"); u != "" {
+		pgContainerURL = u
+		os.Exit(m.Run())
+	}
+
+	ctx := context.Background()
+	pgc, err := tcpostgres.Run(ctx,
+		"postgres:16-alpine",
+		tcpostgres.WithDatabase("tachigo"),
+		tcpostgres.WithUsername("postgres"),
+		tcpostgres.WithPassword("postgres"),
+		tcpostgres.BasicWaitStrategies(),
+	)
+	if err != nil {
+		if pgc != nil {
+			_ = pgc.Terminate(ctx)
+		}
+		log.Fatalf("start postgres container: %v", err)
+	}
+
+	connStr, err := pgc.ConnectionString(ctx, "sslmode=disable")
+	if err != nil {
+		if terr := pgc.Terminate(ctx); terr != nil {
+			log.Printf("terminate postgres container: %v", terr)
+		}
+		log.Fatalf("get connection string: %v", err)
+	}
+	pgContainerURL = connStr
+
+	code := m.Run()
+
+	if err := pgc.Terminate(ctx); err != nil {
+		log.Printf("terminate postgres container: %v", err)
+	}
+	os.Exit(code)
+}
+
 func newPGTestDB(t *testing.T) *gorm.DB {
 	t.Helper()
 
-	databaseURL := os.Getenv("DATABASE_URL")
-	if databaseURL == "" {
-		t.Skip("set DATABASE_URL to run integration tests")
+	if pgContainerURL == "" {
+		t.Skip("no postgres available")
 	}
 
-	adminDB, err := gorm.Open(postgres.Open(databaseURL), &gorm.Config{
+	adminDB, err := gorm.Open(postgres.Open(pgContainerURL), &gorm.Config{
 		Logger:         logger.Default.LogMode(logger.Silent),
 		TranslateError: true,
 	})
@@ -36,7 +81,7 @@ func newPGTestDB(t *testing.T) *gorm.DB {
 		t.Fatalf("create schema %s: %v", schemaName, err)
 	}
 
-	testDB, err := gorm.Open(postgres.Open(withSearchPath(databaseURL, schemaName)), &gorm.Config{
+	testDB, err := gorm.Open(postgres.Open(withSearchPath(pgContainerURL, schemaName)), &gorm.Config{
 		Logger:         logger.Default.LogMode(logger.Silent),
 		TranslateError: true,
 	})
@@ -132,6 +177,40 @@ func migratePGTestDB(db *gorm.DB) error {
 			note TEXT,
 			created_at TIMESTAMPTZ
 		)`,
+		`CREATE TABLE IF NOT EXISTS claims (
+			id UUID PRIMARY KEY,
+			user_id UUID NOT NULL REFERENCES users(id) ON DELETE CASCADE,
+			wallet_addr VARCHAR(42) NOT NULL,
+			amount BIGINT NOT NULL CHECK (amount > 0),
+			status VARCHAR(20) NOT NULL CHECK (status IN ('pending', 'broadcast', 'confirmed', 'failed')),
+			tx_hash VARCHAR(66),
+			error_message TEXT,
+			broadcast_at TIMESTAMPTZ,
+			confirmed_at TIMESTAMPTZ,
+			failed_at TIMESTAMPTZ,
+			created_at TIMESTAMPTZ NOT NULL DEFAULT NOW(),
+			updated_at TIMESTAMPTZ NOT NULL DEFAULT NOW()
+		)`,
+		`CREATE INDEX IF NOT EXISTS idx_claims_user_created_at
+			ON claims (user_id, created_at DESC)`,
+		`CREATE INDEX IF NOT EXISTS idx_claims_status_created_at
+			ON claims (status, created_at DESC)`,
+		`CREATE UNIQUE INDEX IF NOT EXISTS idx_claims_tx_hash_not_null
+			ON claims (tx_hash)
+			WHERE tx_hash IS NOT NULL`,
+		`CREATE TABLE IF NOT EXISTS claim_items (
+			id UUID PRIMARY KEY,
+			claim_id UUID NOT NULL REFERENCES claims(id) ON DELETE CASCADE,
+			ledger_id UUID NOT NULL REFERENCES points_ledgers(id),
+			points_transaction_id UUID NOT NULL REFERENCES points_transactions(id),
+			amount BIGINT NOT NULL CHECK (amount > 0),
+			created_at TIMESTAMPTZ NOT NULL DEFAULT NOW(),
+			UNIQUE (points_transaction_id)
+		)`,
+		`CREATE INDEX IF NOT EXISTS idx_claim_items_claim_id
+			ON claim_items (claim_id)`,
+		`CREATE INDEX IF NOT EXISTS idx_claim_items_ledger_id
+			ON claim_items (ledger_id)`,
 	}
 
 	for _, stmt := range stmts {

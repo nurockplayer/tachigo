@@ -1,7 +1,9 @@
-import React, { useState, useEffect, useRef, useCallback } from 'react';
+import { useState, useEffect, useRef, useCallback } from 'react';
 import { useTranslation } from 'react-i18next'
 
 import type { HudDemoState } from '../../extension/types'
+import { useSound } from '../hooks/useSound'
+import { hudPanelBackground } from '../theme/backgrounds'
 
 // ─── Types ────────────────────────────────────────────────────
 interface FloatItem { id: number; amount: number; offsetX: number }
@@ -210,14 +212,114 @@ function ClickableCapybara({
   );
 }
 
+// ─── Spinning Coin (CLAIM button) ────────────────────────────
+function SpinningCoin({ onClick, ariaLabel }: { onClick: () => void; ariaLabel: string }) {
+  // 8 幀：3 幀正面（延長正面停留）
+  const FRAME_HWS   = [1, 6, 14, 20, 20, 20, 14, 6]
+  // 圓形輪廓：10 列掃描半寬（依圓方程式計算，max=20）
+  const OUTLINE_HWS = [9, 14, 17, 19, 20, 20, 19, 17, 14, 9]
+  const [frame, setFrame] = useState(0)
+
+  useEffect(() => {
+    const t = setInterval(() => setFrame(f => (f + 1) % 8), 160)
+    return () => clearInterval(t)
+  }, [])
+
+  const fhw      = FRAME_HWS[frame]
+  const maxHw    = 20
+  const cx       = 26
+  const showFace = fhw >= 14
+
+  return (
+    <button
+      aria-label={ariaLabel}
+      onClick={onClick}
+      style={{
+        background: 'none',
+        border: 'none',
+        cursor: 'pointer',
+        display: 'flex',
+        alignItems: 'center',
+        justifyContent: 'center',
+        margin: '12px auto 0',
+        padding: '4px 8px',
+      }}
+    >
+      <svg
+        width="52"
+        height="44"
+        viewBox="0 0 52 44"
+        shapeRendering="crispEdges"
+        style={{ imageRendering: 'pixelated' }}
+      >
+        <defs>
+          {/* 裁切範圍跟隨幣寬，y=2 起始（10列×4px=40px 置中於 44px SVG） */}
+          <clipPath id="sc-clip">
+            <rect x={cx - fhw} y={2} width={fhw * 2} height={40} />
+          </clipPath>
+        </defs>
+        {/* 掃描列：rect 像素風，y 從 2 起始保持圓形置中 */}
+        {OUTLINE_HWS.map((ohw, i) => {
+          const hw  = Math.max(1, Math.round(ohw * fhw / maxHw))
+          const iHw = showFace ? Math.max(0, Math.round((ohw - 4) * fhw / maxHw)) : 0
+          const x   = cx - hw
+          const y   = i * 4 + 2
+          return (
+            <g key={i}>
+              {/* 陰影列 */}
+              <rect x={x + 1} y={y + 1} width={hw * 2} height={4} fill="#A06800" />
+              {/* 幣面列 */}
+              <rect x={x} y={y} width={hw * 2} height={4} fill="#FFB000" />
+              {/* 內環列 */}
+              {showFace && iHw > 0 && (
+                <rect x={cx - iHw} y={y} width={iHw * 2} height={4} fill="#E09800" />
+              )}
+            </g>
+          )
+        })}
+        {/* 高光（左上角第 1 列內） */}
+        {showFace && (
+          <rect
+            x={cx - Math.round(6 * fhw / maxHw)}
+            y={6}
+            width={Math.max(1, Math.round(6 * fhw / maxHw))}
+            height={5}
+            fill="#FFE870"
+            opacity={0.75}
+          />
+        )}
+        {/* CLAIM 文字（粗體，裁切在幣形內，y=22 為圓心） */}
+        {showFace && (
+          <text
+            x={cx}
+            y={22}
+            textAnchor="middle"
+            dominantBaseline="middle"
+            fontSize="4"
+            fontFamily="var(--pixel-font-family)"
+            fontWeight="bold"
+            letterSpacing="0.8"
+            fill="#7A4E00"
+            clipPath="url(#sc-clip)"
+          >
+            CLAIM
+          </text>
+        )}
+      </svg>
+    </button>
+  )
+}
+
 // ─── Main HUD Component ───────────────────────────────────────
 interface MarioHUDProps {
   state?: HudDemoState
   onStateChange?: (state: HudDemoState) => void
+  onNavigate?: (screen: 'claim' | 'coupon') => void
 }
 
-export function MarioHUD({ state, onStateChange }: MarioHUDProps) {
+export function MarioHUD({ state, onStateChange, onNavigate }: MarioHUDProps) {
   const { t } = useTranslation()
+  const { playMiningClick, playRewardComplete, playMaxClicks, playToggleWatch, startBgMusic, stopBgMusic, bridgeStatus } = useSound()
   const [points, setPoints]               = useState(state?.points ?? 0);
   const [totalPoints, setTotalPoints]     = useState(state?.totalPoints ?? 12847);
   const [countdown, setCountdown]         = useState(state?.countdown ?? 60);
@@ -227,6 +329,7 @@ export function MarioHUD({ state, onStateChange }: MarioHUDProps) {
   const [clickCount, setClickCount]       = useState(state?.clickCount ?? 0);
   const [showSuccess, setShowSuccess]     = useState(false);
   const [capyState, setCapyState]         = useState<'idle' | 'mining' | 'big-mining'>('idle');
+  const [bgMusicOn, setBgMusicOn]         = useState(false);
 
   const floatId = useRef(0);
 
@@ -278,6 +381,7 @@ export function MarioHUD({ state, onStateChange }: MarioHUDProps) {
       setCountdown(c => {
         if (c <= 1) {
           awardPoints(100);
+          playRewardComplete();
           setClickCount(0);
           return CYCLE;
         }
@@ -285,7 +389,13 @@ export function MarioHUD({ state, onStateChange }: MarioHUDProps) {
       });
     }, 1000);
     return () => clearInterval(tick);
-  }, [isWatching, awardPoints]);
+  }, [isWatching, awardPoints, playRewardComplete]);
+
+  // ── 背景音樂：watching 且 bgMusicOn 時才播放 ─────────────
+  useEffect(() => {
+    if (isWatching && bgMusicOn) startBgMusic();
+    else stopBgMusic();
+  }, [isWatching, bgMusicOn, startBgMusic, stopBgMusic]);
 
   useEffect(() => {
     onStateChange?.({
@@ -299,10 +409,15 @@ export function MarioHUD({ state, onStateChange }: MarioHUDProps) {
 
   // ── Click handler (awards +1, 30 clicks per cycle) ───────
   const handleCapybaraClick = useCallback(() => {
-    if (!isWatching || clickCount >= MAX_CLICKS_PER_CYCLE) return;
+    if (!isWatching) return;
+    if (clickCount >= MAX_CLICKS_PER_CYCLE) {
+      playMaxClicks();
+      return;
+    }
+    playMiningClick();
     awardPoints(1);
     setClickCount(c => c + 1);
-  }, [isWatching, clickCount, awardPoints]);
+  }, [isWatching, clickCount, awardPoints, playMiningClick, playMaxClicks]);
 
   const progress = (CYCLE - countdown) / CYCLE;
 
@@ -312,7 +427,7 @@ export function MarioHUD({ state, onStateChange }: MarioHUDProps) {
       style={{
         width: 320,
         height: 600,
-        background: '#0d0d1a',
+        background: hudPanelBackground,
         display: 'flex',
         flexDirection: 'column',
         position: 'relative',
@@ -389,7 +504,7 @@ export function MarioHUD({ state, onStateChange }: MarioHUDProps) {
 
         {/* Demo toggle */}
         <button
-          onClick={() => setIsWatching(w => !w)}
+          onClick={() => { playToggleWatch(); setIsWatching(w => !w); }}
           style={{
             padding: '2px 6px',
             borderRadius: 2,
@@ -400,10 +515,25 @@ export function MarioHUD({ state, onStateChange }: MarioHUDProps) {
             cursor: 'pointer',
             fontFamily: 'var(--pixel-font-family)',
           }}
-        >
+      >
           SW
         </button>
       </div>
+
+      {bridgeStatus === 'unsupported' && (
+        <div
+          style={{
+            padding: '6px 16px 0',
+            fontSize: 6,
+            color: '#FFB000',
+            letterSpacing: '0.08em',
+            textAlign: 'right',
+          }}
+        >
+          {t('hud.tabAudioUnavailable')}
+        </div>
+      )}
+
 
       {/* ════════════════════════════════════════════
           POINTS DISPLAY (最大字)
@@ -428,6 +558,11 @@ export function MarioHUD({ state, onStateChange }: MarioHUDProps) {
         >
           {formatPts(points)}
         </div>
+
+        {/* CLAIM 旋轉金幣按鈕 */}
+        {onNavigate && (
+          <SpinningCoin ariaLabel={t('claim.title')} onClick={() => onNavigate('claim')} />
+        )}
 
         {/* Total cumulative (small gray) */}
         <div
@@ -523,6 +658,75 @@ export function MarioHUD({ state, onStateChange }: MarioHUDProps) {
           {clickCount >= MAX_CLICKS_PER_CYCLE
             ? t('hud.clicksExhausted')
             : t('hud.clicksLeft', { count: MAX_CLICKS_PER_CYCLE - clickCount })}
+        </div>
+
+        {onNavigate && (
+          <div
+            style={{
+              width: '100%',
+              display: 'flex',
+              alignItems: 'center',
+              justifyContent: 'center',
+              marginTop: 12,
+              paddingBottom: 4,
+            }}
+          >
+            <button
+              aria-label={t('coupon.title')}
+              onClick={() => onNavigate('coupon')}
+              style={{
+                minWidth: 120,
+                border: '1px solid rgba(255,176,0,0.32)',
+                background: 'linear-gradient(180deg, rgba(255,176,0,0.18) 0%, rgba(255,176,0,0.06) 100%)',
+                color: '#FFB000',
+                borderRadius: 999,
+                padding: '8px 16px',
+                fontSize: 8,
+                cursor: 'pointer',
+                fontFamily: 'var(--pixel-font-family)',
+                letterSpacing: '0.12em',
+                boxShadow: '0 0 16px rgba(255,176,0,0.18)',
+              }}
+            >
+              {t('coupon.entry')}
+            </button>
+          </div>
+        )}
+      </div>
+
+      {/* ════════════════════════════════════════════
+          BGM 獨立控制列（HUD 主內容以外）
+      ════════════════════════════════════════════ */}
+      <div
+        style={{
+          borderTop: '1px solid rgba(145,70,255,0.15)',
+          padding: '6px 16px',
+          display: 'flex',
+          alignItems: 'center',
+          justifyContent: 'space-between',
+          background: 'rgba(0,0,0,0.3)',
+        }}
+      >
+        <div style={{ display: 'flex', alignItems: 'center', gap: 6 }}>
+          <span style={{ fontSize: 6, color: '#444', letterSpacing: '0.1em' }}>
+            {t('hud.bgmLabel')}
+          </span>
+          <button
+            onClick={() => setBgMusicOn(v => !v)}
+            style={{
+              padding: '3px 8px',
+              borderRadius: 2,
+              border: `1px solid ${bgMusicOn ? '#9146FF' : 'rgba(145,70,255,0.2)'}`,
+              background: bgMusicOn ? 'rgba(145,70,255,0.15)' : 'transparent',
+              color: bgMusicOn ? '#9146FF' : '#444',
+              fontSize: 7,
+              cursor: 'pointer',
+              fontFamily: 'var(--pixel-font-family)',
+              letterSpacing: '0.08em',
+            }}
+          >
+            {bgMusicOn ? t('hud.bgmOn') : t('hud.bgmOff')}
+          </button>
         </div>
       </div>
     </div>

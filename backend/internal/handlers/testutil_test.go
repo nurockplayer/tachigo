@@ -44,6 +44,12 @@ func migrateTestDB(db *gorm.DB) error {
 			updated_at DATETIME,
 			deleted_at DATETIME
 		)`,
+		`CREATE UNIQUE INDEX IF NOT EXISTS idx_auth_providers_provider_provider_id_active
+			ON auth_providers (provider, provider_id)
+			WHERE deleted_at IS NULL`,
+		`CREATE UNIQUE INDEX IF NOT EXISTS idx_auth_providers_web3_user_active
+			ON auth_providers (user_id, provider)
+			WHERE provider = 'web3' AND deleted_at IS NULL`,
 		`CREATE TABLE IF NOT EXISTS shipping_addresses (
 			id TEXT PRIMARY KEY,
 			user_id TEXT NOT NULL REFERENCES users(id),
@@ -154,6 +160,40 @@ func migrateTestDB(db *gorm.DB) error {
 			note TEXT,
 			created_at DATETIME NOT NULL DEFAULT CURRENT_TIMESTAMP
 		)`,
+		`CREATE TABLE IF NOT EXISTS claims (
+			id TEXT PRIMARY KEY,
+			user_id TEXT NOT NULL REFERENCES users(id) ON DELETE CASCADE,
+			wallet_addr TEXT NOT NULL,
+			amount INTEGER NOT NULL CHECK (amount > 0),
+			status TEXT NOT NULL CHECK (status IN ('pending', 'broadcast', 'confirmed', 'failed')),
+			tx_hash TEXT,
+			error_message TEXT,
+			broadcast_at DATETIME,
+			confirmed_at DATETIME,
+			failed_at DATETIME,
+			created_at DATETIME NOT NULL DEFAULT CURRENT_TIMESTAMP,
+			updated_at DATETIME NOT NULL DEFAULT CURRENT_TIMESTAMP
+		)`,
+		`CREATE INDEX IF NOT EXISTS idx_claims_user_created_at
+			ON claims (user_id, created_at DESC)`,
+		`CREATE INDEX IF NOT EXISTS idx_claims_status_created_at
+			ON claims (status, created_at DESC)`,
+		`CREATE UNIQUE INDEX IF NOT EXISTS idx_claims_tx_hash_not_null
+			ON claims (tx_hash)
+			WHERE tx_hash IS NOT NULL`,
+		`CREATE TABLE IF NOT EXISTS claim_items (
+			id TEXT PRIMARY KEY,
+			claim_id TEXT NOT NULL REFERENCES claims(id) ON DELETE CASCADE,
+			ledger_id TEXT NOT NULL REFERENCES points_ledgers(id),
+			points_transaction_id TEXT NOT NULL REFERENCES points_transactions(id),
+			amount INTEGER NOT NULL CHECK (amount > 0),
+			created_at DATETIME NOT NULL DEFAULT CURRENT_TIMESTAMP,
+			UNIQUE (points_transaction_id)
+		)`,
+		`CREATE INDEX IF NOT EXISTS idx_claim_items_claim_id
+			ON claim_items (claim_id)`,
+		`CREATE INDEX IF NOT EXISTS idx_claim_items_ledger_id
+			ON claim_items (ledger_id)`,
 		`CREATE TABLE IF NOT EXISTS watch_time_stats (
 			id TEXT PRIMARY KEY,
 			user_id TEXT NOT NULL REFERENCES users(id),
@@ -189,6 +229,51 @@ func migrateTestDB(db *gorm.DB) error {
 			UNIQUE (user_id),
 			CHECK (balance >= 0)
 		)`,
+		`CREATE TABLE IF NOT EXISTS raffles (
+			id TEXT PRIMARY KEY,
+			user_id TEXT NOT NULL REFERENCES users(id),
+			title TEXT NOT NULL,
+			status TEXT NOT NULL DEFAULT 'draft',
+			source TEXT NOT NULL DEFAULT 'csv',
+			scheduled_at DATETIME,
+			created_at DATETIME NOT NULL DEFAULT CURRENT_TIMESTAMP,
+			updated_at DATETIME NOT NULL DEFAULT CURRENT_TIMESTAMP
+		)`,
+		`CREATE INDEX IF NOT EXISTS idx_raffles_user_id ON raffles (user_id)`,
+		`CREATE TABLE IF NOT EXISTS raffle_entries (
+			id TEXT PRIMARY KEY,
+			raffle_id TEXT NOT NULL REFERENCES raffles(id),
+			user_id TEXT REFERENCES users(id),
+			twitch_login TEXT NOT NULL,
+			display_name TEXT NOT NULL DEFAULT '',
+			created_at DATETIME NOT NULL DEFAULT CURRENT_TIMESTAMP,
+			UNIQUE (raffle_id, twitch_login),
+			UNIQUE (id, raffle_id)
+		)`,
+		`CREATE INDEX IF NOT EXISTS idx_raffle_entries_raffle_id ON raffle_entries (raffle_id)`,
+		`CREATE TABLE IF NOT EXISTS raffle_draws (
+			id TEXT PRIMARY KEY,
+			raffle_id TEXT NOT NULL REFERENCES raffles(id),
+			entry_id TEXT NOT NULL,
+			claim_token TEXT NOT NULL UNIQUE,
+			claim_expires_at DATETIME NOT NULL,
+			drawn_at DATETIME NOT NULL,
+			UNIQUE (raffle_id, entry_id),
+			FOREIGN KEY (entry_id, raffle_id) REFERENCES raffle_entries(id, raffle_id)
+		)`,
+		`CREATE INDEX IF NOT EXISTS idx_raffle_draws_raffle_id ON raffle_draws (raffle_id)`,
+		`CREATE TABLE IF NOT EXISTS raffle_claims (
+			id TEXT PRIMARY KEY,
+			draw_id TEXT NOT NULL UNIQUE REFERENCES raffle_draws(id),
+			recipient_name TEXT NOT NULL,
+			phone TEXT NOT NULL DEFAULT '',
+			address_line1 TEXT NOT NULL,
+			address_line2 TEXT NOT NULL DEFAULT '',
+			city TEXT NOT NULL,
+			postal_code TEXT NOT NULL DEFAULT '',
+			country TEXT NOT NULL DEFAULT 'TW',
+			submitted_at DATETIME NOT NULL
+		)`,
 	}
 	for _, s := range stmts {
 		if err := db.Exec(s).Error; err != nil {
@@ -215,15 +300,27 @@ func (m *mockMailer) Send(to, subject, body string) error {
 type testEnv struct {
 	db           *gorm.DB
 	authSvc      *services.AuthService
+	userSvc      *services.UserService
 	emailAuthSvc *services.EmailAuthService
 	router       *gin.Engine
 }
 
 func newTestEnv(t *testing.T) *testEnv {
 	t.Helper()
+	return newTestEnvWithConfig(t, "development", "")
+}
+
+func newTestEnvWithServerEnv(t *testing.T, serverEnv string) *testEnv {
+	t.Helper()
+	return newTestEnvWithConfig(t, serverEnv, "")
+}
+
+func newTestEnvWithConfig(t *testing.T, serverEnv, frontendURL string) *testEnv {
+	t.Helper()
 
 	db, err := gorm.Open(sqlite.Open(":memory:"), &gorm.Config{
-		Logger: logger.Default.LogMode(logger.Silent),
+		Logger:         logger.Default.LogMode(logger.Silent),
+		TranslateError: true,
 	})
 	if err != nil {
 		t.Fatalf("open db: %v", err)
@@ -236,6 +333,12 @@ func newTestEnv(t *testing.T) *testEnv {
 	}
 
 	cfg := &config.Config{
+		Server: config.ServerConfig{
+			Env: serverEnv,
+		},
+		App: config.AppConfig{
+			FrontendURL: frontendURL,
+		},
 		JWT: config.JWTConfig{
 			AccessSecret:  "test-access-secret-at-least-32-chars!",
 			RefreshSecret: "test-refresh-secret",
@@ -249,7 +352,7 @@ func newTestEnv(t *testing.T) *testEnv {
 	addrSvc := services.NewAddressService(db)
 	emailAuthSvc := services.NewEmailAuthService(db, cfg, &mockMailer{})
 
-	authH := handlers.NewAuthHandler(authSvc).WithEmailAuth(emailAuthSvc)
+	authH := handlers.NewAuthHandler(authSvc, cfg).WithEmailAuth(emailAuthSvc)
 	userH := handlers.NewUserHandler(userSvc)
 	addrH := handlers.NewAddressHandler(addrSvc)
 	emailH := handlers.NewEmailAuthHandler(emailAuthSvc)
@@ -275,6 +378,7 @@ func newTestEnv(t *testing.T) *testEnv {
 	protected.GET("users/me", userH.Me)
 	protected.PUT("users/me", userH.UpdateMe)
 	protected.GET("users/me/providers", userH.ListProviders)
+	protected.POST("users/me/wallet", userH.LinkWallet)
 	protected.DELETE("auth/providers/:provider", authH.UnlinkProvider)
 	protected.POST("auth/verify-email/send", emailH.SendVerification)
 
@@ -285,7 +389,7 @@ func newTestEnv(t *testing.T) *testEnv {
 	addrs.DELETE("/:id", addrH.Delete)
 	addrs.PUT("/:id/default", addrH.SetDefault)
 
-	return &testEnv{db: db, authSvc: authSvc, emailAuthSvc: emailAuthSvc, router: r}
+	return &testEnv{db: db, authSvc: authSvc, userSvc: userSvc, emailAuthSvc: emailAuthSvc, router: r}
 }
 
 // registerUser is a helper that registers a user and returns access + refresh tokens.

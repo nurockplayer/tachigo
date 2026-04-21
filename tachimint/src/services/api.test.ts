@@ -209,6 +209,78 @@ test('sendClick ensures the watch session exists before sending click rewards', 
   )
 })
 
+test('claimPoints claims viewer points then refreshes tachi balance', async () => {
+  await withApiServer(
+    (requests) => async (req, res) => {
+      const body = await readJsonBody(req)
+      requests.push({
+        method: req.method ?? 'GET',
+        url: req.url ?? '/',
+        authorization: req.headers.authorization,
+        body,
+      })
+
+      if (req.method === 'POST' && req.url === '/api/v1/users/me/points/claim') {
+        res.writeHead(200, { 'Content-Type': 'application/json' })
+        res.end(JSON.stringify({ success: true, data: { tachi_balance: 12 } }))
+        return
+      }
+
+      if (req.method === 'GET' && req.url === '/api/v1/users/me/tachi/balance') {
+        res.writeHead(200, { 'Content-Type': 'application/json' })
+        res.end(JSON.stringify({ success: true, data: { tachi_balance: 12 } }))
+        return
+      }
+
+      res.writeHead(404, { 'Content-Type': 'application/json' })
+      res.end(JSON.stringify({ success: false, error: 'not found' }))
+    },
+    async (baseUrl, requests) => {
+      const originalBaseUrl = process.env.VITE_TACHIGO_API_URL
+      process.env.VITE_TACHIGO_API_URL = baseUrl
+
+      try {
+        const api = await import(`./api.ts?claim=${Date.now()}`)
+
+        api.setAuthToken('tachigo-access-token')
+        const claimed = await api.claimPoints()
+        const balance = await api.getTachiBalance()
+
+        assert.deepEqual(claimed, { tachiBalance: 12 })
+        assert.equal(balance, 12)
+        assert.deepEqual(
+          requests.map(({ method, url, authorization, body }) => ({
+            method,
+            url,
+            authorization,
+            body,
+          })),
+          [
+            {
+              method: 'POST',
+              url: '/api/v1/users/me/points/claim',
+              authorization: 'Bearer tachigo-access-token',
+              body: { amount: 0 },
+            },
+            {
+              method: 'GET',
+              url: '/api/v1/users/me/tachi/balance',
+              authorization: 'Bearer tachigo-access-token',
+              body: null,
+            },
+          ],
+        )
+      } finally {
+        if (originalBaseUrl === undefined) {
+          delete process.env.VITE_TACHIGO_API_URL
+        } else {
+          process.env.VITE_TACHIGO_API_URL = originalBaseUrl
+        }
+      }
+    },
+  )
+})
+
 test('sendHeartbeat re-authenticates after 401 and falls back to previous balance when balance read fails', async () => {
   let heartbeatAttempts = 0
 

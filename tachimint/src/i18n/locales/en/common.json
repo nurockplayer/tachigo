@@ -1,4 +1,33 @@
 {
+  "loading": {
+    "text": "LOADING..."
+  },
+  "login": {
+    "usernamePlaceholder": "USERNAME",
+    "passwordPlaceholder": "PASSWORD",
+    "required": "REQUIRED",
+    "button": "LOGIN",
+    "buttonLoading": "LOGIN...",
+    "forgotPassword": "FORGOT PASSWORD?"
+  },
+  "hud": {
+    "watching": "WATCHING",
+    "idle": "IDLE",
+    "bgmLabel": "BGM",
+    "bgmOn": "♪ ON",
+    "bgmOff": "♪ OFF",
+    "tabAudioUnavailable": "TAB AUDIO OFF",
+    "cumulativeTotal": "CUMULATIVE TOTAL",
+    "nextIn": "NEXT IN {{count}}S",
+    "clicksLeft": "{{count}} / 30 CLICKS",
+    "clicksExhausted": "LIMIT REACHED"
+  },
+  "nonViewer": {
+    "titleLine1": "Your audience is on this channel",
+    "titleHighlight": "accumulating watch points",
+    "hintLine1": "Viewers just need to watch the stream",
+    "hintLine2": "to automatically earn mining points"
+  },
   "contextLoading": {
     "title": "Loading...",
     "subtitle": "Starting extension"
@@ -7,5 +36,79 @@
     "retry": "Retry",
     "initializing": "Initializing...",
     "points": "points"
+  },
+  "claim": {
+    "title": "CLAIM",
+    "from": "FROM",
+    "to": "TO",
+    "balance": "Balance: {{amount}}",
+    "max": "MAX",
+    "rate": "1 CPC = 0.1 TCG",
+    "button": "CLAIM $TCG",
+    "success": "CLAIMED!",
+    "actions": {
+      "claim": "Claim",
+      "claiming": "Claiming..."
+    },
+    "status": {
+      "complete": "Claim complete."
+    },
+    "errors": {
+      "loadBalanceFailed": "Unable to load $TACHI balance.",
+      "claimFailed": "Claim failed. Please try again."
+    }
+  },
+  "coupon": {
+    "title": "COUPON SHOP",
+    "header": "COUPON MARKET",
+    "entry": "SHOP",
+    "back": "‹ BACK",
+    "balanceLabel": "PLATFORM COIN",
+    "subtitle": "Redeem your TCG for creator store discounts and shipping perks.",
+    "featured": "FEATURED COUPON",
+    "listTitle": "AVAILABLE COUPONS",
+    "cost": "COST {{amount}} TCG",
+    "redeem": "REDEEM",
+    "redeemed": "OWNED",
+    "claimedCode": "CODE {{code}} READY",
+    "insufficientBalance": "NOT ENOUGH TCG",
+    "alreadyRedeemed": "ALREADY REDEEMED",
+    "items": {
+      "tachiya95": {
+        "brand": "TACHIYA",
+        "title": "5% OFF CODE",
+        "description": "For select merch and VTuber collabs.",
+        "tag": "HOT"
+      },
+      "freeShip": {
+        "brand": "TACHI MART",
+        "title": "FREE SHIPPING",
+        "description": "Applies when your order meets the site minimum.",
+        "tag": "SHIP"
+      },
+      "bundle120": {
+        "brand": "CREATOR DROP",
+        "title": "$120 OFF",
+        "description": "Collaborator merch this month only.",
+        "tag": "DROP"
+      }
+    }
+  },
+  "error": {
+    "account": {
+      "title": "Account Not Found",
+      "message": "Please create a tachigo account first",
+      "hint": "Visit tachigo.gg to create an account, then refresh to start mining"
+    },
+    "backend": {
+      "title": "Service Unavailable",
+      "message": "Service temporarily unavailable, please try again later",
+      "hint": "We are working on the issue, please refresh in a few minutes"
+    },
+    "session": {
+      "title": "Connection Failed",
+      "message": "Watch connection failed, please refresh",
+      "hint": "Please check your network connection and refresh the page"
+    }
   }
 }
