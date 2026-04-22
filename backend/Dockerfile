@@ -17,7 +17,7 @@ CMD ["air"]
 # ── Build stage ───────────────────────────────────────────────────────────────
 FROM golang:1.25-alpine AS builder
 
-RUN apk add --no-cache git
+RUN apk add --no-cache git tzdata
 
 WORKDIR /app
 
@@ -30,7 +30,7 @@ RUN CGO_ENABLED=0 GOOS=linux go build -ldflags="-s -w" -o bin/tachigo ./cmd/serv
 # ── Runtime stage ─────────────────────────────────────────────────────────────
 # distroless/static includes ca-certificates but not tzdata.
 # Copy the timezone database from the builder so time.LoadLocation works.
-FROM gcr.io/distroless/static-nonroot:nonroot
+FROM gcr.io/distroless/static-debian13:nonroot
 
 COPY --from=builder /usr/share/zoneinfo /usr/share/zoneinfo
 COPY --from=builder /app/bin/tachigo /tachigo
