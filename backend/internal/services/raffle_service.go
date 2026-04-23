@@ -482,6 +482,7 @@ func (s *RaffleService) SyncFromTwitchAPI(ctx context.Context, raffleID, userID 
 
 // RunScheduledSnapshots finds draft raffles with scheduled_at in [now, now+10min]
 // and triggers their snapshot. Per-raffle errors are logged and do not abort the batch.
+// CSV raffles are excluded: they are uploaded manually and have no remote source to sync from.
 func (s *RaffleService) RunScheduledSnapshots(ctx context.Context, now time.Time) error {
 	window := now.Add(10 * time.Minute)
 	var raffles []models.Raffle
@@ -508,6 +509,7 @@ func (s *RaffleService) snapshotOne(ctx context.Context, r models.Raffle) error 
 	default:
 		return fmt.Errorf("unsupported snapshot source: %s", r.Source)
 	}
+	// Guard against concurrent status changes: only promote if still draft.
 	return s.db.Model(&models.Raffle{}).
 		Where("id = ? AND status = ?", r.ID, models.RaffleStatusDraft).
 		Update("status", models.RaffleStatusActive).Error
