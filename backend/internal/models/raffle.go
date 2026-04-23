@@ -26,9 +26,10 @@ type Raffle struct {
 	Title       string       `gorm:"type:varchar(255);not null"                     json:"title"`
 	Status      RaffleStatus `gorm:"type:varchar(50);not null;default:'draft'"      json:"status"`
 	Source      RaffleSource `gorm:"type:varchar(50);not null;default:'csv'"        json:"source"`
-	ScheduledAt *time.Time   `                                                      json:"scheduled_at"`
-	CreatedAt   time.Time    `                                                      json:"created_at"`
-	UpdatedAt   time.Time    `                                                      json:"updated_at"`
+	ScheduledAt        *time.Time   `                                                               json:"scheduled_at"`
+	DiscordWebhookURL  *string      `gorm:"type:varchar(512)"                                      json:"discord_webhook_url,omitempty"`
+	CreatedAt          time.Time    `                                                               json:"created_at"`
+	UpdatedAt          time.Time    `                                                               json:"updated_at"`
 }
 
 func (r *Raffle) BeforeCreate(tx *gorm.DB) error {
