@@ -39,10 +39,11 @@ type ClaimService struct {
 }
 
 type claimReservation struct {
-	userID uuid.UUID
-	toAddr string
-	amount int64
-	items  []claimReservationItem
+	userID  uuid.UUID
+	toAddr  string
+	amount  int64
+	claimID uuid.UUID
+	items   []claimReservationItem
 }
 
 type claimReservationItem struct {
@@ -105,7 +106,8 @@ func (s *ClaimService) Claim(ctx context.Context, userID uuid.UUID, amount int64
 
 	mintCtx, cancel := context.WithTimeout(ctx, 30*time.Second)
 	defer cancel()
-	if _, err := mintCaller.MintOnChain(mintCtx, reservation.toAddr, reservation.amount); err != nil {
+	mintTxHash, err := mintCaller.MintOnChain(mintCtx, reservation.toAddr, reservation.amount)
+	if err != nil {
 		rollbackErr := s.db.Transaction(func(tx *gorm.DB) error {
 			return s.rollbackClaimReservation(tx, reservation)
 		})
@@ -116,9 +118,9 @@ func (s *ClaimService) Claim(ctx context.Context, userID uuid.UUID, amount int64
 	}
 
 	var newBalance int64
-	err := s.db.Transaction(func(tx *gorm.DB) error {
+	err = s.db.Transaction(func(tx *gorm.DB) error {
 		var err error
-		newBalance, err = s.finalizeClaim(tx, reservation.userID, reservation.amount)
+		newBalance, err = s.finalizeClaim(tx, reservation, mintTxHash)
 		return err
 	})
 	if err != nil {
@@ -185,6 +187,16 @@ func (s *ClaimService) reserveClaim(tx *gorm.DB, userID uuid.UUID, amount int64)
 		amount: claimAmount,
 		items:  make([]claimReservationItem, 0, len(ledgers)),
 	}
+	claim := &models.Claim{
+		UserID:     userID,
+		WalletAddr: toAddr,
+		Amount:     claimAmount,
+		Status:     models.ClaimStatusPending,
+	}
+	if err := tx.Create(claim).Error; err != nil {
+		return claimReservation{}, err
+	}
+	reservation.claimID = claim.ID
 	remaining := claimAmount
 	now := time.Now()
 	for _, ledger := range ledgers {
@@ -212,6 +224,16 @@ func (s *ClaimService) reserveClaim(tx *gorm.DB, userID uuid.UUID, amount int64)
 		if err := tx.Create(txRecord).Error; err != nil {
 			return claimReservation{}, err
 		}
+		claimItem := &models.ClaimItem{
+			ClaimID:             claim.ID,
+			ClaimUserID:         userID,
+			LedgerID:            ledger.ID,
+			PointsTransactionID: txRecord.ID,
+			Amount:              deduct,
+		}
+		if err := tx.Create(claimItem).Error; err != nil {
+			return claimReservation{}, err
+		}
 		reservation.items = append(reservation.items, claimReservationItem{
 			ledgerID:      ledger.ID,
 			transactionID: txRecord.ID,
@@ -224,6 +246,12 @@ func (s *ClaimService) reserveClaim(tx *gorm.DB, userID uuid.UUID, amount int64)
 }
 
 func (s *ClaimService) rollbackClaimReservation(tx *gorm.DB, reservation claimReservation) error {
+	if reservation.claimID != uuid.Nil {
+		if err := tx.Delete(&models.Claim{}, "id = ?", reservation.claimID).Error; err != nil {
+			return err
+		}
+	}
+
 	now := time.Now()
 	for _, item := range reservation.items {
 		if err := tx.Model(&models.PointsLedger{}).
@@ -241,20 +269,34 @@ func (s *ClaimService) rollbackClaimReservation(tx *gorm.DB, reservation claimRe
 	return nil
 }
 
-func (s *ClaimService) finalizeClaim(tx *gorm.DB, userID uuid.UUID, claimAmount int64) (int64, error) {
+func (s *ClaimService) finalizeClaim(tx *gorm.DB, reservation claimReservation, mintTxHash string) (int64, error) {
 	now := time.Now()
+	claimUpdates := map[string]interface{}{
+		"status":       models.ClaimStatusConfirmed,
+		"confirmed_at": now,
+		"updated_at":   now,
+	}
+	if mintTxHash != "" {
+		claimUpdates["tx_hash"] = mintTxHash
+	}
+	if err := tx.Model(&models.Claim{}).
+		Where("id = ? AND user_id = ?", reservation.claimID, reservation.userID).
+		Updates(claimUpdates).Error; err != nil {
+		return 0, err
+	}
+
 	if err := tx.Exec(`
 		INSERT INTO tachi_balances (id, user_id, balance, updated_at)
 		VALUES (?, ?, ?, ?)
 		ON CONFLICT (user_id) DO UPDATE SET
 			balance    = tachi_balances.balance + EXCLUDED.balance,
 			updated_at = EXCLUDED.updated_at
-	`, newUUID(), userID, claimAmount, now).Error; err != nil {
+	`, newUUID(), reservation.userID, reservation.amount, now).Error; err != nil {
 		return 0, err
 	}
 
 	var tb models.TachiBalance
-	if err := tx.Where("user_id = ?", userID).First(&tb).Error; err != nil {
+	if err := tx.Where("user_id = ?", reservation.userID).First(&tb).Error; err != nil {
 		return 0, err
 	}
 

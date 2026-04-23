@@ -17,9 +17,10 @@ import (
 )
 
 type mockMintCaller struct {
-	txHash string
-	err    error
-	calls  []mintCall
+	txHash   string
+	txHashes []string
+	err      error
+	calls    []mintCall
 }
 
 type mintCall struct {
@@ -31,6 +32,10 @@ func (m *mockMintCaller) MintOnChain(_ context.Context, toAddr string, amount in
 	m.calls = append(m.calls, mintCall{toAddr: toAddr, amount: amount})
 	if m.err != nil {
 		return "", m.err
+	}
+	callIdx := len(m.calls) - 1
+	if callIdx < len(m.txHashes) {
+		return m.txHashes[callIdx], nil
 	}
 	return m.txHash, nil
 }
@@ -221,7 +226,7 @@ func TestClaim_NoLedgers(t *testing.T) {
 
 func TestClaim_AccumulatesOnSecondClaim(t *testing.T) {
 	db := newTestDB(t)
-	mintCaller := &mockMintCaller{txHash: "0x987"}
+	mintCaller := &mockMintCaller{txHashes: []string{"0x987a", "0x987b"}}
 	svc := &ClaimService{db: db, mintCaller: mintCaller}
 	userID := userIDForClaim(t, db)
 	seedWeb3Provider(t, db, userID, "0xd8dA6BF26964aF9D7eEd9e03E53415D37aA96045")
@@ -271,6 +276,44 @@ func TestClaim_MintSuccessUpdatesDB(t *testing.T) {
 	}
 	if remaining != 30 {
 		t.Fatalf("expected remaining spendable=30, got %d", remaining)
+	}
+}
+
+func TestClaim_PersistsClaimAndClaimItems(t *testing.T) {
+	db := newTestDB(t)
+	mintCaller := &mockMintCaller{txHash: "0xclaimtx"}
+	svc := &ClaimService{db: db, mintCaller: mintCaller}
+	userID := userIDForClaim(t, db)
+	seedWeb3Provider(t, db, userID, "0xd8dA6BF26964aF9D7eEd9e03E53415D37aA96045")
+	seedLedger(t, db, userID, "ch1", 70)
+	seedLedger(t, db, userID, "ch2", 40)
+
+	if _, err := svc.Claim(context.Background(), userID, 100); err != nil {
+		t.Fatalf("unexpected error: %v", err)
+	}
+
+	var claimCount int64
+	if err := db.Model(&models.Claim{}).Where("user_id = ?", userID).Count(&claimCount).Error; err != nil {
+		t.Fatalf("count claims: %v", err)
+	}
+	if claimCount != 1 {
+		t.Fatalf("expected 1 claim row, got %d", claimCount)
+	}
+
+	var itemCount int64
+	if err := db.Model(&models.ClaimItem{}).Joins("JOIN claims ON claims.id = claim_items.claim_id").Where("claims.user_id = ?", userID).Count(&itemCount).Error; err != nil {
+		t.Fatalf("count claim_items: %v", err)
+	}
+	if itemCount != 2 {
+		t.Fatalf("expected 2 claim_items rows, got %d", itemCount)
+	}
+
+	var wrongUserCount int64
+	if err := db.Model(&models.ClaimItem{}).Where("claim_user_id <> ?", userID).Count(&wrongUserCount).Error; err != nil {
+		t.Fatalf("count wrong claim_user_id rows: %v", err)
+	}
+	if wrongUserCount != 0 {
+		t.Fatalf("expected all claim_items.claim_user_id = user_id, got %d mismatches", wrongUserCount)
 	}
 }
 

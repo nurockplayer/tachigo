@@ -166,6 +166,8 @@ func migratePGTestDB(db *gorm.DB) error {
 		)`,
 		`CREATE UNIQUE INDEX IF NOT EXISTS idx_points_ledgers_user_channel
 			ON points_ledgers (user_id, channel_id)`,
+		`CREATE UNIQUE INDEX IF NOT EXISTS idx_points_ledgers_id_user_id
+			ON points_ledgers (id, user_id)`,
 		`CREATE TABLE IF NOT EXISTS points_transactions (
 			id UUID PRIMARY KEY,
 			ledger_id UUID NOT NULL,
@@ -177,6 +179,8 @@ func migratePGTestDB(db *gorm.DB) error {
 			note TEXT,
 			created_at TIMESTAMPTZ
 		)`,
+		`CREATE UNIQUE INDEX IF NOT EXISTS idx_points_transactions_id_ledger_id
+			ON points_transactions (id, ledger_id)`,
 		`CREATE TABLE IF NOT EXISTS claims (
 			id UUID PRIMARY KEY,
 			user_id UUID NOT NULL REFERENCES users(id) ON DELETE CASCADE,
@@ -191,6 +195,8 @@ func migratePGTestDB(db *gorm.DB) error {
 			created_at TIMESTAMPTZ NOT NULL DEFAULT NOW(),
 			updated_at TIMESTAMPTZ NOT NULL DEFAULT NOW()
 		)`,
+		`CREATE UNIQUE INDEX IF NOT EXISTS idx_claims_id_user_id
+			ON claims (id, user_id)`,
 		`CREATE INDEX IF NOT EXISTS idx_claims_user_created_at
 			ON claims (user_id, created_at DESC)`,
 		`CREATE INDEX IF NOT EXISTS idx_claims_status_created_at
@@ -200,11 +206,15 @@ func migratePGTestDB(db *gorm.DB) error {
 			WHERE tx_hash IS NOT NULL`,
 		`CREATE TABLE IF NOT EXISTS claim_items (
 			id UUID PRIMARY KEY,
-			claim_id UUID NOT NULL REFERENCES claims(id) ON DELETE CASCADE,
-			ledger_id UUID NOT NULL REFERENCES points_ledgers(id),
-			points_transaction_id UUID NOT NULL REFERENCES points_transactions(id),
+			claim_id UUID NOT NULL,
+			claim_user_id UUID NOT NULL,
+			ledger_id UUID NOT NULL,
+			points_transaction_id UUID NOT NULL,
 			amount BIGINT NOT NULL CHECK (amount > 0),
 			created_at TIMESTAMPTZ NOT NULL DEFAULT NOW(),
+			FOREIGN KEY (claim_id, claim_user_id) REFERENCES claims(id, user_id) ON DELETE CASCADE,
+			FOREIGN KEY (ledger_id, claim_user_id) REFERENCES points_ledgers(id, user_id),
+			FOREIGN KEY (points_transaction_id, ledger_id) REFERENCES points_transactions(id, ledger_id),
 			UNIQUE (points_transaction_id)
 		)`,
 		`CREATE INDEX IF NOT EXISTS idx_claim_items_claim_id
