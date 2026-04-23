@@ -3,10 +3,12 @@ package contract
 import (
 	"context"
 	"crypto/ecdsa"
+	"errors"
 	"fmt"
 	"math/big"
 	"strings"
 	"sync"
+	"time"
 
 	ethereum "github.com/ethereum/go-ethereum"
 	"github.com/ethereum/go-ethereum/accounts/abi"
@@ -16,6 +18,40 @@ import (
 	"github.com/ethereum/go-ethereum/crypto"
 	"github.com/ethereum/go-ethereum/ethclient"
 )
+
+var ErrMintReceiptStatusFailed = errors.New("mint receipt status failed")
+
+// MintReceiptError keeps tx hash machine-readable for downstream handling.
+type MintReceiptError struct {
+	TxHash string
+	Op     string
+	Err    error
+}
+
+func (e *MintReceiptError) Error() string {
+	if e == nil {
+		return "<nil>"
+	}
+	if e.Err == nil {
+		return fmt.Sprintf("%s (txHash=%s)", e.Op, e.TxHash)
+	}
+	return fmt.Sprintf("%s (txHash=%s): %v", e.Op, e.TxHash, e.Err)
+}
+
+func (e *MintReceiptError) Unwrap() error {
+	if e == nil {
+		return nil
+	}
+	return e.Err
+}
+
+func wrapMintReceiptError(txHash, op string, err error) error {
+	return &MintReceiptError{
+		TxHash: txHash,
+		Op:     op,
+		Err:    err,
+	}
+}
 
 const tachiTokenABI = `[{"type":"constructor","inputs":[],"stateMutability":"nonpayable"},{"type":"function","name":"MAX_SUPPLY","inputs":[],"outputs":[{"name":"","type":"uint256","internalType":"uint256"}],"stateMutability":"view"},{"type":"function","name":"allowance","inputs":[{"name":"owner","type":"address","internalType":"address"},{"name":"spender","type":"address","internalType":"address"}],"outputs":[{"name":"","type":"uint256","internalType":"uint256"}],"stateMutability":"view"},{"type":"function","name":"approve","inputs":[{"name":"","type":"address","internalType":"address"},{"name":"","type":"uint256","internalType":"uint256"}],"outputs":[{"name":"","type":"bool","internalType":"bool"}],"stateMutability":"pure"},{"type":"function","name":"balanceOf","inputs":[{"name":"account","type":"address","internalType":"address"}],"outputs":[{"name":"","type":"uint256","internalType":"uint256"}],"stateMutability":"view"},{"type":"function","name":"burn","inputs":[{"name":"from","type":"address","internalType":"address"},{"name":"amount","type":"uint256","internalType":"uint256"}],"outputs":[],"stateMutability":"nonpayable"},{"type":"function","name":"decimals","inputs":[],"outputs":[{"name":"","type":"uint8","internalType":"uint8"}],"stateMutability":"view"},{"type":"function","name":"mint","inputs":[{"name":"to","type":"address","internalType":"address"},{"name":"amount","type":"uint256","internalType":"uint256"}],"outputs":[],"stateMutability":"nonpayable"},{"type":"function","name":"name","inputs":[],"outputs":[{"name":"","type":"string","internalType":"string"}],"stateMutability":"view"},{"type":"function","name":"owner","inputs":[],"outputs":[{"name":"","type":"address","internalType":"address"}],"stateMutability":"view"},{"type":"function","name":"renounceOwnership","inputs":[],"outputs":[],"stateMutability":"nonpayable"},{"type":"function","name":"symbol","inputs":[],"outputs":[{"name":"","type":"string","internalType":"string"}],"stateMutability":"view"},{"type":"function","name":"totalSupply","inputs":[],"outputs":[{"name":"","type":"uint256","internalType":"uint256"}],"stateMutability":"view"},{"type":"function","name":"transfer","inputs":[{"name":"","type":"address","internalType":"address"},{"name":"","type":"uint256","internalType":"uint256"}],"outputs":[{"name":"","type":"bool","internalType":"bool"}],"stateMutability":"pure"},{"type":"function","name":"transferFrom","inputs":[{"name":"","type":"address","internalType":"address"},{"name":"","type":"address","internalType":"address"},{"name":"","type":"uint256","internalType":"uint256"}],"outputs":[{"name":"","type":"bool","internalType":"bool"}],"stateMutability":"pure"},{"type":"function","name":"transferOwnership","inputs":[{"name":"newOwner","type":"address","internalType":"address"}],"outputs":[],"stateMutability":"nonpayable"},{"type":"event","name":"Approval","inputs":[{"name":"owner","type":"address","indexed":true,"internalType":"address"},{"name":"spender","type":"address","indexed":true,"internalType":"address"},{"name":"value","type":"uint256","indexed":false,"internalType":"uint256"}],"anonymous":false},{"type":"event","name":"OwnershipTransferred","inputs":[{"name":"previousOwner","type":"address","indexed":true,"internalType":"address"},{"name":"newOwner","type":"address","indexed":true,"internalType":"address"}],"anonymous":false},{"type":"event","name":"Transfer","inputs":[{"name":"from","type":"address","indexed":true,"internalType":"address"},{"name":"to","type":"address","indexed":true,"internalType":"address"},{"name":"value","type":"uint256","indexed":false,"internalType":"uint256"}],"anonymous":false},{"type":"error","name":"ERC20InsufficientAllowance","inputs":[{"name":"spender","type":"address","internalType":"address"},{"name":"allowance","type":"uint256","internalType":"uint256"},{"name":"needed","type":"uint256","internalType":"uint256"}]},{"type":"error","name":"ERC20InsufficientBalance","inputs":[{"name":"sender","type":"address","internalType":"address"},{"name":"balance","type":"uint256","internalType":"uint256"},{"name":"needed","type":"uint256","internalType":"uint256"}]},{"type":"error","name":"ERC20InvalidApprover","inputs":[{"name":"approver","type":"address","internalType":"address"}]},{"type":"error","name":"ERC20InvalidReceiver","inputs":[{"name":"receiver","type":"address","internalType":"address"}]},{"type":"error","name":"ERC20InvalidSender","inputs":[{"name":"sender","type":"address","internalType":"address"}]},{"type":"error","name":"ERC20InvalidSpender","inputs":[{"name":"spender","type":"address","internalType":"address"}]},{"type":"error","name":"OwnableInvalidOwner","inputs":[{"name":"owner","type":"address","internalType":"address"}]},{"type":"error","name":"OwnableUnauthorizedAccount","inputs":[{"name":"account","type":"address","internalType":"address"}]}]`
 
@@ -40,6 +76,20 @@ func NewTachiToken(address common.Address, client *ethclient.Client) (*TachiToke
 }
 
 func (t *TachiToken) Mint(ctx context.Context, toAddr common.Address, amount *big.Int, signerKey *ecdsa.PrivateKey) (string, error) {
+	txHash, err := t.MintBroadcast(ctx, toAddr, amount, signerKey)
+	if err != nil {
+		return "", err
+	}
+	if err := t.WaitMintReceipt(ctx, txHash); err != nil {
+		// Preserve backward-compatible wrapper behavior while exposing tx hash
+		// when receipt is unknown.
+		return txHash, err
+	}
+	return txHash, nil
+}
+
+// MintBroadcast signs and sends the mint tx without waiting for receipt.
+func (t *TachiToken) MintBroadcast(ctx context.Context, toAddr common.Address, amount *big.Int, signerKey *ecdsa.PrivateKey) (string, error) {
 	t.mu.Lock()
 	defer t.mu.Unlock()
 
@@ -115,15 +165,28 @@ func (t *TachiToken) Mint(ctx context.Context, toAddr common.Address, amount *bi
 	if err := t.client.SendTransaction(ctx, signedTx); err != nil {
 		return "", fmt.Errorf("send mint tx: %w", err)
 	}
-	receipt, err := bind.WaitMined(ctx, t.client, signedTx)
-	if err != nil {
-		return "", fmt.Errorf("wait mint receipt: %w", err)
-	}
-	if receipt.Status != types.ReceiptStatusSuccessful {
-		return "", fmt.Errorf("mint tx failed: %s", signedTx.Hash().Hex())
-	}
 
 	return signedTx.Hash().Hex(), nil
+}
+
+// WaitMintReceipt waits for tx receipt and verifies successful status.
+func (t *TachiToken) WaitMintReceipt(ctx context.Context, txHash string) error {
+	if t.client == nil {
+		return fmt.Errorf("eth client is nil")
+	}
+	if !common.IsHexHash(txHash) {
+		return fmt.Errorf("invalid tx hash: %s", txHash)
+	}
+
+	receipt, err := waitMinedByHash(ctx, t.client, common.HexToHash(txHash))
+	if err != nil {
+		return wrapMintReceiptError(txHash, "wait mint receipt", err)
+	}
+	if receipt.Status != types.ReceiptStatusSuccessful {
+		return wrapMintReceiptError(txHash, "mint tx failed", ErrMintReceiptStatusFailed)
+	}
+
+	return nil
 }
 
 func (t *TachiToken) Burn(ctx context.Context, fromAddr common.Address, amount *big.Int, signerKey *ecdsa.PrivateKey) (string, error) {
@@ -213,4 +276,25 @@ func (t *TachiToken) Burn(ctx context.Context, fromAddr common.Address, amount *
 	}
 
 	return signedTx.Hash().Hex(), nil
+}
+
+func waitMinedByHash(ctx context.Context, client *ethclient.Client, txHash common.Hash) (*types.Receipt, error) {
+	ticker := time.NewTicker(time.Second)
+	defer ticker.Stop()
+
+	for {
+		receipt, err := client.TransactionReceipt(ctx, txHash)
+		if err == nil {
+			return receipt, nil
+		}
+		if !errors.Is(err, ethereum.NotFound) {
+			return nil, err
+		}
+
+		select {
+		case <-ctx.Done():
+			return nil, ctx.Err()
+		case <-ticker.C:
+		}
+	}
 }
