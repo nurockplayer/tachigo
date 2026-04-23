@@ -17,13 +17,7 @@ import { MarioHUD } from './components/MarioHUD';
 import { ClaimPanel } from './components/ClaimPanel';
 import { CouponShopPanel } from './components/CouponShopPanel';
 import { useTwitch } from '../hooks/useTwitch';
-import { redeemCoupon } from '../services/api';
-
-type CouponRedeemOutcome = CouponRedeemResult | 'error'
-
-function isInsufficientFundsError(error: unknown) {
-  return error instanceof Error && /insufficient|balance|402/i.test(error.message)
-}
+import { executeCouponRedeem, type CouponRedeemOutcome } from './couponRedeem';
 
 export default function App() {
   const { i18n } = useTranslation()
@@ -124,35 +118,18 @@ export default function App() {
   }
 
   const handleCouponRedeem = async (couponId: string, cost: number): Promise<CouponRedeemOutcome> => {
-    if (!Number.isFinite(cost) || cost <= 0) {
-      return 'insufficient'
-    }
-
-    if (redeemedCouponIdsRef.current.includes(couponId)) {
-      return 'already_redeemed'
-    }
-
-    if (!jwt) {
-      return 'error'
-    }
-
-    try {
-      const result = await redeemCoupon(couponId, cost, jwt)
-      tcgBalanceRef.current = result.balance
-      setTcgBalance(result.balance)
-      setVoucherCodes((currentCodes) => ({
-        ...currentCodes,
-        [couponId]: result.voucher_code,
-      }))
-
-      const nextRedeemed = [...redeemedCouponIdsRef.current, couponId]
-      redeemedCouponIdsRef.current = nextRedeemed
-      setRedeemedCouponIds(nextRedeemed)
-
-      return 'success'
-    } catch (error) {
-      return isInsufficientFundsError(error) ? 'insufficient' : 'error'
-    }
+    return executeCouponRedeem({
+      couponId,
+      cost,
+      jwt,
+      redeemedCouponIdsRef,
+      setTcgBalance: (nextBalance) => {
+        tcgBalanceRef.current = nextBalance
+        setTcgBalance(nextBalance)
+      },
+      setVoucherCodes,
+      setRedeemedCouponIds,
+    })
   }
 
   const openPopupMode = () => {

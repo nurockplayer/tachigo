@@ -4,6 +4,7 @@ import { useTranslation } from 'react-i18next'
 import { demoCouponMetas, type DemoCouponMeta } from '../../extension/couponCatalog'
 import type { CouponRedeemResult } from '../../extension/types'
 import { hudPanelBackground } from '../theme/backgrounds'
+import { renderCouponRedeemStatus } from './couponRedeemStatus'
 
 const couponMetas: DemoCouponMeta[] = demoCouponMetas
 
@@ -193,15 +194,12 @@ export function CouponShopPanel({
               {t('coupon.redeem')}
             </button>
           </div>
-          {error ? (
-            <div style={{ fontSize: 7, color: '#ff9d7b', letterSpacing: '0.06em', lineHeight: 1.7 }}>{error}</div>
-          ) : redeemedCouponIds.includes(selectedCoupon.id) ? (
-            <div style={{ fontSize: 7, color: '#b7f7cc', letterSpacing: '0.06em', lineHeight: 1.8 }}>
-              {voucherCodes[selectedCoupon.id]
-                ? t('coupon.claimedCode', { code: voucherCodes[selectedCoupon.id] })
-                : t('coupon.redeemed')}
-            </div>
-          ) : null}
+          {renderCouponRedeemStatus({
+            error,
+            isRedeemed: redeemedCouponIds.includes(selectedCoupon.id),
+            voucherCode: voucherCodes[selectedCoupon.id],
+            t,
+          })}
         </div>
 
         <div style={{ display: 'flex', flexDirection: 'column', gap: 8 }}>

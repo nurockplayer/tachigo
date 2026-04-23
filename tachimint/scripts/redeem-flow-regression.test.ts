@@ -1,7 +1,12 @@
 import assert from 'node:assert/strict'
-import { readFile } from 'node:fs/promises'
 import http from 'node:http'
 import test from 'node:test'
+import i18next from 'i18next'
+import { createElement } from 'react'
+import { renderToStaticMarkup } from 'react-dom/server'
+
+import { renderCouponRedeemStatus } from '../src/app/components/couponRedeemStatus.ts'
+import { executeCouponRedeem } from '../src/app/couponRedeem.ts'
 
 type RecordedRequest = {
   method: string
@@ -115,13 +120,189 @@ test('redeemCoupon unwraps nested ok() response data', async () => {
   )
 })
 
-test('CouponShopPanel renders redeemed fallback text instead of mock coupon code', async () => {
-  const source = await readFile(new URL('../src/app/components/CouponShopPanel.tsx', import.meta.url), 'utf8')
+async function createTestI18n() {
+  const instance = i18next.createInstance()
+  await instance.init({
+    lng: 'en',
+    fallbackLng: 'en',
+    interpolation: { escapeValue: false },
+    resources: {
+      en: {
+        common: {
+          common: {
+            error: 'Something went wrong.',
+          },
+          coupon: {
+            title: 'Coupon Shop',
+            header: 'Coupon Shop',
+            entry: 'Shop',
+            back: 'Back',
+            balanceLabel: 'Balance',
+            subtitle: 'Redeem your rewards.',
+            featured: 'Featured',
+            listTitle: 'Available',
+            cost: 'Costs {{amount}} TCG',
+            redeem: 'Redeem',
+            redeemed: 'OWNED',
+            claimedCode: 'CODE {{code}} READY',
+            insufficientBalance: 'NOT ENOUGH TCG',
+            alreadyRedeemed: 'Already redeemed',
+            items: {
+              tachiya95: {
+                brand: 'TACHIYA',
+                title: '95% Voucher',
+                description: 'Discount for creator goods',
+                tag: 'HOT',
+              },
+              freeShip: {
+                brand: 'TACHI MART',
+                title: 'Free Shipping',
+                description: 'Shipping reward',
+                tag: 'SHIP',
+              },
+              bundle120: {
+                brand: 'CREATOR DROP',
+                title: '$120 Off',
+                description: 'Bundle discount',
+                tag: 'DROP',
+              },
+            },
+          },
+        },
+      },
+    },
+  })
+  return instance
+}
 
-  assert.match(
-    source,
-    /voucherCodes\[selectedCoupon\.id\]\s*\?\s*t\('coupon\.claimedCode',\s*\{\s*code:\s*voucherCodes\[selectedCoupon\.id\]\s*\}\)\s*:\s*t\('coupon\.redeemed'\)/s,
-  )
-  assert.doesNotMatch(source, /voucherCodes\[selectedCoupon\.id\]\s*\?\?\s*selectedCoupon\.code/)
-  assert.doesNotMatch(source, /code:\s*voucherCodes\[selectedCoupon\.id\]\s*\?\?\s*selectedCoupon\.code/)
+test('CouponShopPanel renders the claimed voucher code when one exists', async () => {
+  const i18n = await createTestI18n()
+  const t = i18n.getFixedT('en', 'common')
+  const html = renderToStaticMarkup(renderCouponRedeemStatus({
+    error: '',
+    isRedeemed: true,
+    voucherCode: 'REAL-VOUCHER-24',
+    t,
+  }))
+
+  assert.match(html, /CODE REAL-VOUCHER-24 READY/)
+  assert.doesNotMatch(html, /TACHIYA95/)
+})
+
+test('CouponShopPanel does not render the mock coupon code when the voucher code is missing', async () => {
+  const i18n = await createTestI18n()
+  const t = i18n.getFixedT('en', 'common')
+  const html = renderToStaticMarkup(renderCouponRedeemStatus({
+    error: '',
+    isRedeemed: true,
+    voucherCode: '',
+    t,
+  }))
+
+  assert.match(html, /OWNED/)
+  assert.doesNotMatch(html, /TACHIYA95/)
+})
+
+test('executeCouponRedeem updates balance, voucher codes, and redeemed ids on success', async () => {
+  let balance = 18
+  let voucherCodes: Record<string, string> = {}
+  let redeemedIds = ['free-ship']
+
+  const redeemedCouponIdsRef = { current: [...redeemedIds] }
+
+  const outcome = await executeCouponRedeem({
+    couponId: 'tachiya-95',
+    cost: 18,
+    jwt: 'coupon-jwt-token',
+    redeemedCouponIdsRef,
+    setTcgBalance: (nextBalance) => {
+      balance = nextBalance
+    },
+    setVoucherCodes: (updater) => {
+      voucherCodes = updater(voucherCodes)
+    },
+    setRedeemedCouponIds: (nextRedeemedIds) => {
+      redeemedIds = nextRedeemedIds
+    },
+    redeemCouponFn: async () => ({
+      balance: 24,
+      voucher_code: 'REAL-VOUCHER-24',
+    }),
+  })
+
+  assert.equal(outcome, 'success')
+  assert.equal(balance, 24)
+  assert.deepEqual(voucherCodes, { 'tachiya-95': 'REAL-VOUCHER-24' })
+  assert.deepEqual(redeemedIds, ['free-ship', 'tachiya-95'])
+  assert.deepEqual(redeemedCouponIdsRef.current, ['free-ship', 'tachiya-95'])
+})
+
+test('executeCouponRedeem returns insufficient when the backend signals insufficient balance', async () => {
+  const outcome = await executeCouponRedeem({
+    couponId: 'tachiya-95',
+    cost: 18,
+    jwt: 'coupon-jwt-token',
+    redeemedCouponIdsRef: { current: [] },
+    setTcgBalance: () => {
+      throw new Error('should not update balance on insufficient')
+    },
+    setVoucherCodes: () => {
+      throw new Error('should not update voucher codes on insufficient')
+    },
+    setRedeemedCouponIds: () => {
+      throw new Error('should not update redeemed ids on insufficient')
+    },
+    redeemCouponFn: async () => {
+      throw new Error('Failed to redeem coupon (402): insufficient balance')
+    },
+  })
+
+  assert.equal(outcome, 'insufficient')
+})
+
+test('executeCouponRedeem returns error when JWT is missing', async () => {
+  const outcome = await executeCouponRedeem({
+    couponId: 'tachiya-95',
+    cost: 18,
+    jwt: '',
+    redeemedCouponIdsRef: { current: [] },
+    setTcgBalance: () => {
+      throw new Error('should not update balance without JWT')
+    },
+    setVoucherCodes: () => {
+      throw new Error('should not update voucher codes without JWT')
+    },
+    setRedeemedCouponIds: () => {
+      throw new Error('should not update redeemed ids without JWT')
+    },
+    redeemCouponFn: async () => ({
+      balance: 24,
+      voucher_code: 'REAL-VOUCHER-24',
+    }),
+  })
+
+  assert.equal(outcome, 'error')
+})
+
+test('executeCouponRedeem returns error on non-insufficient backend failures', async () => {
+  const outcome = await executeCouponRedeem({
+    couponId: 'tachiya-95',
+    cost: 18,
+    jwt: 'coupon-jwt-token',
+    redeemedCouponIdsRef: { current: [] },
+    setTcgBalance: () => {
+      throw new Error('should not update balance on generic error')
+    },
+    setVoucherCodes: () => {
+      throw new Error('should not update voucher codes on generic error')
+    },
+    setRedeemedCouponIds: () => {
+      throw new Error('should not update redeemed ids on generic error')
+    },
+    redeemCouponFn: async () => {
+      throw new Error('Failed to redeem coupon (500): internal error')
+    },
+  })
+
+  assert.equal(outcome, 'error')
 })
