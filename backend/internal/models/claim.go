@@ -52,6 +52,7 @@ func (c *Claim) BeforeCreate(tx *gorm.DB) error {
 type ClaimItem struct {
 	ID                  uuid.UUID `gorm:"type:uuid;primaryKey;default:gen_random_uuid()"                 json:"id"`
 	ClaimID             uuid.UUID `gorm:"type:uuid;not null;index"                                        json:"claim_id"`
+	ClaimUserID         uuid.UUID `gorm:"type:uuid;not null;index"                                        json:"claim_user_id"`
 	LedgerID            uuid.UUID `gorm:"type:uuid;not null;index"                                        json:"ledger_id"`
 	PointsTransactionID uuid.UUID `gorm:"type:uuid;not null;uniqueIndex"                                  json:"points_transaction_id"`
 	Amount              int64     `gorm:"not null;check:chk_claim_item_amount_gt_0,amount > 0"           json:"amount"`
