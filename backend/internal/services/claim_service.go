@@ -5,6 +5,7 @@ import (
 	"crypto/ecdsa"
 	"errors"
 	"fmt"
+	"math/big"
 	"strings"
 	"time"
 
@@ -31,10 +32,15 @@ type MintCaller interface {
 	MintOnChain(ctx context.Context, toAddr string, amount int64) (txHash string, err error)
 }
 
+type mintContract interface {
+	MintBroadcast(ctx context.Context, toAddr common.Address, amount *big.Int, signerKey *ecdsa.PrivateKey) (txHash string, err error)
+	WaitMintReceipt(ctx context.Context, txHash string) error
+}
+
 type ClaimService struct {
 	db          *gorm.DB
 	contractCfg config.ContractConfig
-	tachiToken  *contractpkg.TachiToken
+	tachiToken  mintContract
 	mintCaller  MintCaller
 }
 
@@ -131,6 +137,18 @@ func (s *ClaimService) Claim(ctx context.Context, userID uuid.UUID, amount int64
 }
 
 func (s *ClaimService) MintOnChain(ctx context.Context, toAddr string, amount int64) (string, error) {
+	txHash, err := s.MintBroadcastOnChain(ctx, toAddr, amount)
+	if err != nil {
+		return "", err
+	}
+	if err := s.WaitMintReceiptOnChain(ctx, txHash); err != nil {
+		return txHash, err
+	}
+	return txHash, nil
+}
+
+// MintBroadcastOnChain only broadcasts mint tx; receipt waiting is separate.
+func (s *ClaimService) MintBroadcastOnChain(ctx context.Context, toAddr string, amount int64) (string, error) {
 	if s.tachiToken == nil {
 		return "", ErrClaimContractConfig
 	}
@@ -146,8 +164,15 @@ func (s *ClaimService) MintOnChain(ctx context.Context, toAddr string, amount in
 		return "", err
 	}
 
-	// TODO: wait for receipt status == 1 before committing DB (fire-and-forget for now)
-	return s.tachiToken.Mint(ctx, common.HexToAddress(toAddr), tachiWholeTokensToRawUnits(amount), signerKey)
+	return s.tachiToken.MintBroadcast(ctx, common.HexToAddress(toAddr), tachiWholeTokensToRawUnits(amount), signerKey)
+}
+
+// WaitMintReceiptOnChain waits receipt for a previously broadcast mint tx.
+func (s *ClaimService) WaitMintReceiptOnChain(ctx context.Context, txHash string) error {
+	if s.tachiToken == nil {
+		return ErrClaimContractConfig
+	}
+	return s.tachiToken.WaitMintReceipt(ctx, txHash)
 }
 
 func (s *ClaimService) reserveClaim(tx *gorm.DB, userID uuid.UUID, amount int64) (claimReservation, error) {

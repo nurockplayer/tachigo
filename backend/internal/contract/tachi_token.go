@@ -3,10 +3,12 @@ package contract
 import (
 	"context"
 	"crypto/ecdsa"
+	"errors"
 	"fmt"
 	"math/big"
 	"strings"
 	"sync"
+	"time"
 
 	ethereum "github.com/ethereum/go-ethereum"
 	"github.com/ethereum/go-ethereum/accounts/abi"
@@ -40,6 +42,20 @@ func NewTachiToken(address common.Address, client *ethclient.Client) (*TachiToke
 }
 
 func (t *TachiToken) Mint(ctx context.Context, toAddr common.Address, amount *big.Int, signerKey *ecdsa.PrivateKey) (string, error) {
+	txHash, err := t.MintBroadcast(ctx, toAddr, amount, signerKey)
+	if err != nil {
+		return "", err
+	}
+	if err := t.WaitMintReceipt(ctx, txHash); err != nil {
+		// Preserve backward-compatible wrapper behavior while exposing tx hash
+		// when receipt is unknown.
+		return txHash, err
+	}
+	return txHash, nil
+}
+
+// MintBroadcast signs and sends the mint tx without waiting for receipt.
+func (t *TachiToken) MintBroadcast(ctx context.Context, toAddr common.Address, amount *big.Int, signerKey *ecdsa.PrivateKey) (string, error) {
 	t.mu.Lock()
 	defer t.mu.Unlock()
 
@@ -115,15 +131,28 @@ func (t *TachiToken) Mint(ctx context.Context, toAddr common.Address, amount *bi
 	if err := t.client.SendTransaction(ctx, signedTx); err != nil {
 		return "", fmt.Errorf("send mint tx: %w", err)
 	}
-	receipt, err := bind.WaitMined(ctx, t.client, signedTx)
-	if err != nil {
-		return "", fmt.Errorf("wait mint receipt: %w", err)
-	}
-	if receipt.Status != types.ReceiptStatusSuccessful {
-		return "", fmt.Errorf("mint tx failed: %s", signedTx.Hash().Hex())
-	}
 
 	return signedTx.Hash().Hex(), nil
+}
+
+// WaitMintReceipt waits for tx receipt and verifies successful status.
+func (t *TachiToken) WaitMintReceipt(ctx context.Context, txHash string) error {
+	if t.client == nil {
+		return fmt.Errorf("eth client is nil")
+	}
+	if !common.IsHexHash(txHash) {
+		return fmt.Errorf("invalid tx hash: %s", txHash)
+	}
+
+	receipt, err := waitMinedByHash(ctx, t.client, common.HexToHash(txHash))
+	if err != nil {
+		return fmt.Errorf("wait mint receipt: %w", err)
+	}
+	if receipt.Status != types.ReceiptStatusSuccessful {
+		return fmt.Errorf("mint tx failed: %s", txHash)
+	}
+
+	return nil
 }
 
 func (t *TachiToken) Burn(ctx context.Context, fromAddr common.Address, amount *big.Int, signerKey *ecdsa.PrivateKey) (string, error) {
@@ -213,4 +242,25 @@ func (t *TachiToken) Burn(ctx context.Context, fromAddr common.Address, amount *
 	}
 
 	return signedTx.Hash().Hex(), nil
+}
+
+func waitMinedByHash(ctx context.Context, client *ethclient.Client, txHash common.Hash) (*types.Receipt, error) {
+	ticker := time.NewTicker(time.Second)
+	defer ticker.Stop()
+
+	for {
+		receipt, err := client.TransactionReceipt(ctx, txHash)
+		if err == nil {
+			return receipt, nil
+		}
+		if !errors.Is(err, ethereum.NotFound) {
+			return nil, err
+		}
+
+		select {
+		case <-ctx.Done():
+			return nil, ctx.Err()
+		case <-ticker.C:
+		}
+	}
 }

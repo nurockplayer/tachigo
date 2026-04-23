@@ -2,10 +2,13 @@ package services
 
 import (
 	"context"
+	"crypto/ecdsa"
 	"errors"
+	"math/big"
 	"path/filepath"
 	"testing"
 
+	"github.com/ethereum/go-ethereum/common"
 	"github.com/ethereum/go-ethereum/ethclient"
 	"github.com/google/uuid"
 	"gorm.io/driver/sqlite"
@@ -49,6 +52,32 @@ type inspectingMintCaller struct {
 	observedMatches bool
 }
 
+type mockMintContract struct {
+	broadcastHash  string
+	broadcastErr   error
+	waitErr        error
+	broadcastCalls []mintContractCall
+	waitCalls      []string
+}
+
+type mintContractCall struct {
+	toAddr string
+	amount string
+}
+
+func (m *mockMintContract) MintBroadcast(_ context.Context, toAddr common.Address, amount *big.Int, _ *ecdsa.PrivateKey) (string, error) {
+	m.broadcastCalls = append(m.broadcastCalls, mintContractCall{
+		toAddr: toAddr.Hex(),
+		amount: amount.String(),
+	})
+	return m.broadcastHash, m.broadcastErr
+}
+
+func (m *mockMintContract) WaitMintReceipt(_ context.Context, txHash string) error {
+	m.waitCalls = append(m.waitCalls, txHash)
+	return m.waitErr
+}
+
 func (m *inspectingMintCaller) MintOnChain(_ context.Context, _ string, _ int64) (string, error) {
 	if err := m.db.Raw(
 		"SELECT spendable_balance FROM points_ledgers WHERE user_id = ? AND channel_id = ?",
@@ -60,6 +89,8 @@ func (m *inspectingMintCaller) MintOnChain(_ context.Context, _ string, _ int64)
 	m.observedMatches = m.observed == m.wantSpendable
 	return "0xreserved", nil
 }
+
+const testSepoliaSignerKey = "4f3edf983ac636a65a842ce7c78d9aa706d3b113bce036f7f6ad8d8f5795d7e0"
 
 func newFileClaimTestDB(t *testing.T) *gorm.DB {
 	t.Helper()
@@ -357,5 +388,75 @@ func TestNewClaimService_InvalidContractAddressDoesNotInitializeToken(t *testing
 
 	if svc.tachiToken != nil {
 		t.Fatal("expected invalid contract address to leave tachiToken nil")
+	}
+}
+
+func TestMintOnChain_BroadcastFailureReturnsEmptyHash(t *testing.T) {
+	token := &mockMintContract{
+		broadcastErr: errors.New("send mint tx: rpc unavailable"),
+	}
+	svc := &ClaimService{
+		contractCfg: config.ContractConfig{SepoliaSignerKey: testSepoliaSignerKey},
+		tachiToken:  token,
+	}
+
+	txHash, err := svc.MintOnChain(context.Background(), "0xd8dA6BF26964aF9D7eEd9e03E53415D37aA96045", 10)
+	if err == nil {
+		t.Fatal("expected error but got nil")
+	}
+	if txHash != "" {
+		t.Fatalf("expected empty txHash on broadcast failure, got %s", txHash)
+	}
+	if len(token.waitCalls) != 0 {
+		t.Fatalf("wait should not be called when broadcast fails, got %d calls", len(token.waitCalls))
+	}
+}
+
+func TestMintOnChain_WaitFailureReturnsBroadcastHash(t *testing.T) {
+	token := &mockMintContract{
+		broadcastHash: "0x1111111111111111111111111111111111111111111111111111111111111111",
+		waitErr:       errors.New("wait mint receipt: context deadline exceeded"),
+	}
+	svc := &ClaimService{
+		contractCfg: config.ContractConfig{SepoliaSignerKey: testSepoliaSignerKey},
+		tachiToken:  token,
+	}
+
+	txHash, err := svc.MintOnChain(context.Background(), "0xd8dA6BF26964aF9D7eEd9e03E53415D37aA96045", 10)
+	if err == nil {
+		t.Fatal("expected error but got nil")
+	}
+	if txHash != token.broadcastHash {
+		t.Fatalf("expected txHash %s, got %s", token.broadcastHash, txHash)
+	}
+	if len(token.waitCalls) != 1 {
+		t.Fatalf("expected 1 wait call, got %d", len(token.waitCalls))
+	}
+	if token.waitCalls[0] != token.broadcastHash {
+		t.Fatalf("expected wait hash %s, got %s", token.broadcastHash, token.waitCalls[0])
+	}
+}
+
+func TestMintOnChain_Success(t *testing.T) {
+	token := &mockMintContract{
+		broadcastHash: "0x2222222222222222222222222222222222222222222222222222222222222222",
+	}
+	svc := &ClaimService{
+		contractCfg: config.ContractConfig{SepoliaSignerKey: testSepoliaSignerKey},
+		tachiToken:  token,
+	}
+
+	txHash, err := svc.MintOnChain(context.Background(), "0xd8dA6BF26964aF9D7eEd9e03E53415D37aA96045", 10)
+	if err != nil {
+		t.Fatalf("unexpected error: %v", err)
+	}
+	if txHash != token.broadcastHash {
+		t.Fatalf("expected txHash %s, got %s", token.broadcastHash, txHash)
+	}
+	if len(token.broadcastCalls) != 1 {
+		t.Fatalf("expected 1 broadcast call, got %d", len(token.broadcastCalls))
+	}
+	if len(token.waitCalls) != 1 {
+		t.Fatalf("expected 1 wait call, got %d", len(token.waitCalls))
 	}
 }
