@@ -284,10 +284,15 @@ func (s *RaffleService) SetDiscordWebhook(raffleID, userID uuid.UUID, webhookURL
 }
 
 func (s *RaffleService) sendDiscordNotification(ctx context.Context, draw *models.RaffleDraw, webhookURL string) {
-	link := fmt.Sprintf("%s/claim/%s", strings.TrimRight(s.frontendURL, "/"), draw.ClaimToken)
+	// Intentionally omit the claim token from the public webhook payload.
+	// /claim/:token is an unauthenticated endpoint; posting the token to a
+	// Discord channel (which may be public) would allow any viewer to submit
+	// the claim on behalf of the winner. The claim link is delivered privately
+	// via email (issue #230) to the winner's registered address instead.
 	expiry := draw.ClaimExpiresAt.Format("2006-01-02 15:04 MST")
+	twitchLogin := draw.Entry.TwitchLogin
 	payload := map[string]interface{}{
-		"content": fmt.Sprintf("🎉 恭喜中獎！你已獲得 Tachigo 抽獎獎品。\n\n**領獎連結：** %s\n**有效期限：** %s\n\n請在期限內前往領取，逾期視同放棄。", link, expiry),
+		"content": fmt.Sprintf("🎉 抽獎結果揭曉！中獎者：**%s**\n\n領獎連結已透過 Email 寄送給中獎者，有效期限：%s。\n請中獎者至信箱確認領獎資訊。", twitchLogin, expiry),
 	}
 	body, err := json.Marshal(payload)
 	if err != nil {

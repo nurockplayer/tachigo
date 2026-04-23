@@ -130,11 +130,14 @@ func TestDrawNext_SendsDiscordNotification(t *testing.T) {
 
 	payload := dc.expectPayload(t)
 	content, _ := payload["content"].(string)
-	if !strings.Contains(content, draw.ClaimToken) {
-		t.Errorf("discord payload should contain claim token")
+	if strings.Contains(content, draw.ClaimToken) {
+		t.Errorf("discord payload must NOT contain claim token (security: public webhook)")
 	}
-	if !strings.Contains(content, "http://localhost:3000/claim/") {
-		t.Errorf("discord payload should contain claim link")
+	if strings.Contains(content, "/claim/") {
+		t.Errorf("discord payload must NOT contain claim link (security: public webhook)")
+	}
+	if !strings.Contains(content, draw.Entry.TwitchLogin) {
+		t.Errorf("discord payload should contain winner twitch login")
 	}
 }
 
