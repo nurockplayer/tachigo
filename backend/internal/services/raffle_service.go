@@ -40,14 +40,18 @@ type RaffleService struct {
 	twitchClientID string
 	twitchBaseURL  string
 	httpClient     *http.Client
+	mailer         Mailer
+	frontendURL    string
 }
 
-func NewRaffleService(db *gorm.DB, twitchClientID string) *RaffleService {
+func NewRaffleService(db *gorm.DB, twitchClientID, frontendURL string, mailer Mailer) *RaffleService {
 	return &RaffleService{
 		db:             db,
 		twitchClientID: twitchClientID,
 		twitchBaseURL:  "https://api.twitch.tv",
 		httpClient:     &http.Client{Timeout: 10 * time.Second},
+		mailer:         mailer,
+		frontendURL:    frontendURL,
 	}
 }
 
@@ -228,6 +232,18 @@ func (s *RaffleService) DrawNext(raffleID, userID uuid.UUID) (*models.RaffleDraw
 		result = draw
 		return nil
 	})
+	if err == nil && s.mailer != nil {
+		go func(d *models.RaffleDraw) {
+			defer func() {
+				if r := recover(); r != nil {
+					log.Printf("raffle sendWinnerEmail panic (draw %s): %v", d.ID, r)
+				}
+			}()
+			ctx, cancel := context.WithTimeout(context.Background(), 30*time.Second)
+			defer cancel()
+			s.sendWinnerEmail(ctx, d)
+		}(result)
+	}
 	return result, err
 }
 
@@ -513,4 +529,47 @@ func (s *RaffleService) snapshotOne(ctx context.Context, r models.Raffle) error 
 	return s.db.Model(&models.Raffle{}).
 		Where("id = ? AND status = ?", r.ID, models.RaffleStatusDraft).
 		Update("status", models.RaffleStatusActive).Error
+}
+
+// ── Winner email notification ─────────────────────────────────────────────────
+
+// sendWinnerEmail is called async after DrawNext succeeds.
+// If the winner has no linked user account or no email, it logs and skips silently.
+func (s *RaffleService) sendWinnerEmail(ctx context.Context, draw *models.RaffleDraw) {
+	if draw.Entry.UserID == nil {
+		log.Printf("raffle draw %s: winner has no user_id, skipping email", draw.ID)
+		return
+	}
+	var user models.User
+	if err := s.db.WithContext(ctx).First(&user, "id = ?", *draw.Entry.UserID).Error; err != nil {
+		log.Printf("raffle draw %s: failed to look up winner user: %v", draw.ID, err)
+		return
+	}
+	if user.Email == nil {
+		log.Printf("raffle draw %s: winner has no email, skipping", draw.ID)
+		return
+	}
+	link := fmt.Sprintf("%s/claim/%s", strings.TrimRight(s.frontendURL, "/"), draw.ClaimToken)
+	body := raffleWinnerEmailBody(draw.ClaimExpiresAt, link)
+	if err := s.mailer.Send(*user.Email, "恭喜中獎！領取你的 Tachigo 抽獎獎品", body); err != nil {
+		log.Printf("raffle draw %s: failed to send winner email to %s: %v", draw.ID, *user.Email, err)
+	}
+}
+
+func raffleWinnerEmailBody(expiresAt time.Time, claimLink string) string {
+	expiry := expiresAt.UTC().Format("2006-01-02 15:04 UTC")
+	return fmt.Sprintf(`<!DOCTYPE html>
+<html>
+<body style="font-family:sans-serif;color:#333;max-width:480px;margin:auto;padding:24px">
+  <h2>恭喜中獎！</h2>
+  <p>你已在 Tachigo 抽獎中中獎！請點擊下方按鈕填寫收件資訊以領取獎品。</p>
+  <p>領獎期限：<strong>%s</strong></p>
+  <p style="margin:32px 0">
+    <a href="%s" style="background:#6441a5;color:#fff;padding:12px 24px;border-radius:6px;text-decoration:none;font-weight:bold">
+      領取獎品
+    </a>
+  </p>
+  <p style="font-size:12px;color:#999">若你認為這封郵件有誤，請忽略。</p>
+</body>
+</html>`, expiry, claimLink)
 }
