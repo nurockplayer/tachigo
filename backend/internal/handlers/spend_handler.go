@@ -19,11 +19,13 @@ func NewSpendHandler(spendSvc *services.SpendService) *SpendHandler {
 }
 
 type redeemRequest struct {
-	Amount int64 `json:"amount" binding:"required,min=1"`
+	CouponID string `json:"coupon_id" binding:"required"`
+	Amount   int64  `json:"amount" binding:"required,min=1"`
 }
 
 type redeemResponse struct {
-	Balance int64 `json:"balance"`
+	Balance     int64  `json:"balance"`
+	VoucherCode string `json:"voucher_code,omitempty"`
 }
 
 // Redeem godoc
@@ -52,7 +54,7 @@ func (h *SpendHandler) Redeem(c *gin.Context) {
 		return
 	}
 
-	newBalance, err := h.spendSvc.Redeem(c.Request.Context(), userID, req.Amount)
+	newBalance, voucherCode, err := h.spendSvc.Redeem(c.Request.Context(), userID, req.CouponID, req.Amount)
 	if err != nil {
 		if errors.Is(err, services.ErrSpendInsufficientBalance) {
 			badRequest(c, err.Error())
@@ -71,5 +73,5 @@ func (h *SpendHandler) Redeem(c *gin.Context) {
 		return
 	}
 
-	ok(c, redeemResponse{Balance: newBalance})
+	ok(c, redeemResponse{Balance: newBalance, VoucherCode: voucherCode})
 }
