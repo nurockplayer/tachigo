@@ -486,8 +486,8 @@ func (s *RaffleService) RunScheduledSnapshots(ctx context.Context, now time.Time
 	window := now.Add(10 * time.Minute)
 	var raffles []models.Raffle
 	if err := s.db.Where(
-		"status = ? AND scheduled_at IS NOT NULL AND scheduled_at >= ? AND scheduled_at <= ?",
-		models.RaffleStatusDraft, now, window,
+		"status = ? AND source != ? AND scheduled_at IS NOT NULL AND scheduled_at >= ? AND scheduled_at <= ?",
+		models.RaffleStatusDraft, models.RaffleSourceCSV, now, window,
 	).Find(&raffles).Error; err != nil {
 		return err
 	}
@@ -508,5 +508,7 @@ func (s *RaffleService) snapshotOne(ctx context.Context, r models.Raffle) error 
 	default:
 		return fmt.Errorf("unsupported snapshot source: %s", r.Source)
 	}
-	return s.db.Model(&models.Raffle{}).Where("id = ?", r.ID).Update("status", models.RaffleStatusActive).Error
+	return s.db.Model(&models.Raffle{}).
+		Where("id = ? AND status = ?", r.ID, models.RaffleStatusDraft).
+		Update("status", models.RaffleStatusActive).Error
 }
