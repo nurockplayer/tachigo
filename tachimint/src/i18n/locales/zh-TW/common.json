@@ -35,7 +35,8 @@
   "common": {
     "retry": "重試",
     "initializing": "初始化中...",
-    "points": "點"
+    "points": "點",
+    "error": "發生錯誤，請稍後再試。"
   },
   "claim": {
     "title": "提領",
