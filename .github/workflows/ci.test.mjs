@@ -82,3 +82,13 @@ test('PR size thresholds match CLAUDE.md', async () => {
   assert.match(scopePolice, /const hardMaxDiffLines = 1000/)
   assert.match(scopePolice, /const exceptionMaxDiffLines = 1500/)
 })
+
+test('contracts CI job includes forge fmt --check', async () => {
+  const workflow = await readFile(workflowPath, 'utf8')
+  const contractsJob = workflowJobBlock(workflow, 'contracts')
+
+  assert.match(
+    contractsJob,
+    /- name: Format check\n\s+working-directory: contracts\n\s+run: forge fmt --check/,
+  )
+})

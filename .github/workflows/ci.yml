@@ -285,6 +285,14 @@ jobs:
         working-directory: contracts
         run: forge install OpenZeppelin/openzeppelin-contracts@v5.6.1 --no-git
 
+      - name: Verify clean working tree after install
+        run: |
+          if ! git diff --quiet; then
+            echo "forge install dirtied the working tree:"
+            git diff --stat
+            exit 1
+          fi
+
       - name: Build
         working-directory: contracts
         run: forge build
@@ -292,6 +300,10 @@ jobs:
       - name: Test
         working-directory: contracts
         run: forge test
+
+      - name: Format check
+        working-directory: contracts
+        run: forge fmt --check
 
   backend-ci:
     name: Backend CI (gate)
