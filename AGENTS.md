@@ -87,6 +87,13 @@ Type：`feat` / `fix` / `docs` / `chore` / `refactor` / `test`
 - 若使用者在當輪訊息已明確要求修改檔案，視為已授權該次 Edit；但公開可見操作（Change Request / Approve / Merge / comment / push）仍需再次確認。
 - 在 Codex sandbox 中執行任何 `git` 指令時，預設直接使用提權執行；不要先嘗試 sandbox 版本再重跑。
 
+### Non-interactive 指令規則
+
+- 不得執行 interactive commands；所有 `git` / `gh` 指令都必須是 non-interactive。
+- 若 `gh` 指令需要 auth、login、device code、browser flow 或任何互動式授權，必須立即停止並回報，不得嘗試互動式登入。
+- 執行 `git` / `gh` 指令前，必須先在回覆中列出該步驟要執行的指令與目的，再執行。
+- 在 mixed worktree 中不得使用 `git add -A` 或 `git add .`；只能 stage 明確屬於本次任務的檔案。
+
 ### PR Label
 
 | Label | 用途 |
