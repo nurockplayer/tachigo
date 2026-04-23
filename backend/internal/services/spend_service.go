@@ -102,7 +102,7 @@ func (s *SpendService) Redeem(ctx context.Context, userID uuid.UUID, couponID st
 	voucherCode := ""
 	if s.tachiyaClient != nil {
 		var tachiyaErr error
-		voucherCode, tachiyaErr = s.tachiyaClient.RedeemCoupon(couponID, reservation.amount)
+		voucherCode, tachiyaErr = s.tachiyaClient.RedeemCoupon(ctx, couponID, reservation.amount)
 		if tachiyaErr != nil {
 			log.Printf("warning: tachiya redeem coupon failed for coupon_id=%s user_id=%s: %v", couponID, userID, tachiyaErr)
 			voucherCode = ""

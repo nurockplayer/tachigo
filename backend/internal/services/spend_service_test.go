@@ -40,7 +40,7 @@ type tachiyaCall struct {
 	tcgCost  int64
 }
 
-func (m *mockTachiyaClient) RedeemCoupon(couponID string, tcgCost int64) (string, error) {
+func (m *mockTachiyaClient) RedeemCoupon(_ context.Context, couponID string, tcgCost int64) (string, error) {
 	m.calls = append(m.calls, tachiyaCall{couponID: couponID, tcgCost: tcgCost})
 	return m.voucherCode, m.err
 }
