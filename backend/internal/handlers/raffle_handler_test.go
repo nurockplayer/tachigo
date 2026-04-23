@@ -60,7 +60,7 @@ func newRaffleTestEnv(t *testing.T) *raffleTestEnv {
 
 	cfg := testConfig()
 	authSvc := services.NewAuthService(db, cfg)
-	raffleSvc := services.NewRaffleService(db, "")
+	raffleSvc := services.NewRaffleService(db, "", "", nil)
 	raffleH := handlers.NewRaffleHandler(raffleSvc)
 
 	r := gin.New()
