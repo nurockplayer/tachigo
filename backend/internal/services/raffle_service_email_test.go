@@ -40,12 +40,32 @@ func (m *captureMailer) expectEmail(t *testing.T) sentEmail {
 	}
 }
 
-// noEmailMailer fails the test if Send is ever called.
-type noEmailMailer struct{ t *testing.T }
+// noEmailMailer records unexpected Send calls via a buffered channel so the
+// calling goroutine never blocks and t.Error is only called from the test goroutine.
+type noEmailMailer struct {
+	ch chan struct{}
+}
+
+func newNoEmailMailer() *noEmailMailer {
+	return &noEmailMailer{ch: make(chan struct{}, 1)}
+}
 
 func (m *noEmailMailer) Send(_, _, _ string) error {
-	m.t.Error("Send called unexpectedly")
+	select {
+	case m.ch <- struct{}{}:
+	default:
+	}
 	return nil
+}
+
+// assertNoEmail waits up to 100 ms and fails if Send was called.
+func (m *noEmailMailer) assertNoEmail(t *testing.T) {
+	t.Helper()
+	select {
+	case <-m.ch:
+		t.Error("Send called unexpectedly")
+	case <-time.After(100 * time.Millisecond):
+	}
 }
 
 // ── seed helpers ──────────────────────────────────────────────────────────────
@@ -141,7 +161,8 @@ func TestDrawNext_SkipsEmailWhenNoUserID(t *testing.T) {
 	raffleID := seedRaffle(t, db, ownerID)
 	seedEntry(t, db, raffleID, nil, "anonymous_twitch") // no linked account
 
-	svc := &RaffleService{db: db, mailer: &noEmailMailer{t: t}, frontendURL: "http://localhost:3000"}
+	mailer := newNoEmailMailer()
+	svc := &RaffleService{db: db, mailer: mailer, frontendURL: "http://localhost:3000"}
 
 	draw, err := svc.DrawNext(raffleID, ownerID)
 	if err != nil {
@@ -150,8 +171,7 @@ func TestDrawNext_SkipsEmailWhenNoUserID(t *testing.T) {
 	if draw == nil {
 		t.Fatal("expected draw, got nil")
 	}
-	// noEmailMailer will call t.Error if Send is called; give goroutine time to run
-	time.Sleep(50 * time.Millisecond)
+	mailer.assertNoEmail(t)
 }
 
 func TestDrawNext_SkipsEmailWhenNoEmail(t *testing.T) {
@@ -161,7 +181,8 @@ func TestDrawNext_SkipsEmailWhenNoEmail(t *testing.T) {
 	raffleID := seedRaffle(t, db, ownerID)
 	seedEntry(t, db, raffleID, &winnerID, "noemail_twitch")
 
-	svc := &RaffleService{db: db, mailer: &noEmailMailer{t: t}, frontendURL: "http://localhost:3000"}
+	mailer := newNoEmailMailer()
+	svc := &RaffleService{db: db, mailer: mailer, frontendURL: "http://localhost:3000"}
 
 	draw, err := svc.DrawNext(raffleID, ownerID)
 	if err != nil {
@@ -170,7 +191,7 @@ func TestDrawNext_SkipsEmailWhenNoEmail(t *testing.T) {
 	if draw == nil {
 		t.Fatal("expected draw, got nil")
 	}
-	time.Sleep(50 * time.Millisecond)
+	mailer.assertNoEmail(t)
 }
 
 func TestDrawNext_EmailFailureDoesNotBlockDraw(t *testing.T) {

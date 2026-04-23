@@ -233,7 +233,16 @@ func (s *RaffleService) DrawNext(raffleID, userID uuid.UUID) (*models.RaffleDraw
 		return nil
 	})
 	if err == nil && s.mailer != nil {
-		go s.sendWinnerEmail(result)
+		go func(d *models.RaffleDraw) {
+			defer func() {
+				if r := recover(); r != nil {
+					log.Printf("raffle sendWinnerEmail panic (draw %s): %v", d.ID, r)
+				}
+			}()
+			ctx, cancel := context.WithTimeout(context.Background(), 30*time.Second)
+			defer cancel()
+			s.sendWinnerEmail(ctx, d)
+		}(result)
 	}
 	return result, err
 }
@@ -526,13 +535,13 @@ func (s *RaffleService) snapshotOne(ctx context.Context, r models.Raffle) error 
 
 // sendWinnerEmail is called async after DrawNext succeeds.
 // If the winner has no linked user account or no email, it logs and skips silently.
-func (s *RaffleService) sendWinnerEmail(draw *models.RaffleDraw) {
+func (s *RaffleService) sendWinnerEmail(ctx context.Context, draw *models.RaffleDraw) {
 	if draw.Entry.UserID == nil {
 		log.Printf("raffle draw %s: winner has no user_id, skipping email", draw.ID)
 		return
 	}
 	var user models.User
-	if err := s.db.First(&user, "id = ?", *draw.Entry.UserID).Error; err != nil {
+	if err := s.db.WithContext(ctx).First(&user, "id = ?", *draw.Entry.UserID).Error; err != nil {
 		log.Printf("raffle draw %s: failed to look up winner user: %v", draw.ID, err)
 		return
 	}
