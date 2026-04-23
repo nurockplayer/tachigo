@@ -246,6 +246,26 @@ func migrateTestDB(db *gorm.DB) error {
 			UNIQUE (user_id),
 			CHECK (balance >= 0)
 		)`,
+		`CREATE TABLE IF NOT EXISTS raffles (
+			id TEXT PRIMARY KEY,
+			user_id TEXT NOT NULL REFERENCES users(id),
+			title TEXT NOT NULL,
+			status TEXT NOT NULL DEFAULT 'draft',
+			source TEXT NOT NULL DEFAULT 'csv',
+			scheduled_at DATETIME,
+			created_at DATETIME NOT NULL DEFAULT CURRENT_TIMESTAMP,
+			updated_at DATETIME NOT NULL DEFAULT CURRENT_TIMESTAMP
+		)`,
+		`CREATE TABLE IF NOT EXISTS raffle_entries (
+			id TEXT PRIMARY KEY,
+			raffle_id TEXT NOT NULL REFERENCES raffles(id),
+			user_id TEXT REFERENCES users(id),
+			twitch_login TEXT NOT NULL,
+			display_name TEXT NOT NULL DEFAULT '',
+			created_at DATETIME NOT NULL DEFAULT CURRENT_TIMESTAMP,
+			UNIQUE (raffle_id, twitch_login),
+			UNIQUE (id, raffle_id)
+		)`,
 	}
 	for _, s := range stmts {
 		if err := db.Exec(s).Error; err != nil {

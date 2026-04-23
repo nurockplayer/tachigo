@@ -14,7 +14,9 @@ import (
 	"errors"
 	"log"
 	"os"
+	"os/signal"
 	"strings"
+	"syscall"
 	"time"
 
 	"github.com/ethereum/go-ethereum/ethclient"
@@ -151,6 +153,10 @@ func main() {
 		log.Fatal("TWITCH_CLIENT_ID is required in production for raffle snapshot sync")
 	}
 	raffleSvc := services.NewRaffleService(db, cfg.OAuth.Twitch.ClientID)
+	// Tie scheduler lifetime to server shutdown signals so the goroutine exits cleanly.
+	serverCtx, serverStop := signal.NotifyContext(context.Background(), syscall.SIGINT, syscall.SIGTERM)
+	defer serverStop()
+	services.NewRaffleScheduler(raffleSvc).Start(serverCtx)
 	agencyH := handlers.NewAgencyHandler(agencySvc, emailAuthSvc)
 
 	// CORS origins from env, default to localhost for dev
