@@ -5,12 +5,22 @@ on:
     branches: [main, develop]
   pull_request:
     branches: [main, develop]
+  workflow_dispatch:
+
+concurrency:
+  group: "${{ github.workflow }}-${{ github.ref }}"
+  cancel-in-progress: true
+
+permissions:
+  contents: read
+  pull-requests: read
 
 env:
   FORCE_JAVASCRIPT_ACTIONS_TO_NODE24: true
 
 jobs:
   scope-gate:
+    timeout-minutes: 5
     name: Scope gate
     runs-on: ubuntu-latest
     outputs:
@@ -134,6 +144,7 @@ jobs:
             }
 
   check-cache-wiring:
+    timeout-minutes: 5
     name: Check backend CI cache wiring
     needs: [scope-gate]
     if: github.event_name == 'push' || needs.scope-gate.outputs.run_ci == 'true'
@@ -145,6 +156,7 @@ jobs:
         run: bash scripts/check-backend-ci-cache.sh
 
   workflow-regression:
+    timeout-minutes: 5
     name: Workflow regression tests
     runs-on: ubuntu-latest
     steps:
@@ -158,6 +170,7 @@ jobs:
         run: node --test .github/workflows/ci.test.mjs
 
   backend-build:
+    timeout-minutes: 15
     name: Build backend image
     needs: [scope-gate]
     if: github.event_name == 'push' || needs.scope-gate.outputs.run_ci == 'true'
@@ -192,6 +205,7 @@ jobs:
           retention-days: 1
 
   backend:
+    timeout-minutes: 10
     name: Backend tests
     needs: [scope-gate, backend-build]
     if: github.event_name == 'push' || needs.scope-gate.outputs.run_ci == 'true'
@@ -214,6 +228,7 @@ jobs:
         run: docker compose run --pull never --no-deps --rm app go vet ./...
 
   backend-integration:
+    timeout-minutes: 20
     name: Backend integration tests
     needs: [scope-gate]
     runs-on: ubuntu-latest
@@ -231,6 +246,7 @@ jobs:
         run: go test -tags integration -v ./... -count=1
 
   frontend:
+    timeout-minutes: 15
     name: Frontend build
     needs: [scope-gate]
     if: github.event_name == 'push' || needs.scope-gate.outputs.run_ci == 'true'
@@ -253,6 +269,7 @@ jobs:
         run: docker compose run --no-deps --rm frontend pnpm build
 
   dashboard:
+    timeout-minutes: 15
     name: Dashboard build
     needs: [scope-gate]
     if: github.event_name == 'push' || needs.scope-gate.outputs.run_ci == 'true'
@@ -273,6 +290,7 @@ jobs:
         run: docker compose run --no-deps --rm dashboard pnpm build
 
   contracts:
+    timeout-minutes: 20
     name: Contracts build
     runs-on: ubuntu-latest
     steps:
@@ -294,6 +312,7 @@ jobs:
         run: forge test
 
   backend-ci:
+    timeout-minutes: 5
     name: Backend CI (gate)
     needs: [backend-build, backend, backend-integration]
     if: always()
@@ -320,6 +339,7 @@ jobs:
           echo "✓ Backend CI passed"
 
   notify-discord:
+    timeout-minutes: 5
     name: Notify Discord on failure
     needs: [workflow-regression, check-cache-wiring, backend-ci, frontend, dashboard, contracts]
     if: failure()
