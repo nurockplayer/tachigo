@@ -53,7 +53,7 @@ func TestNextSchedulerRun(t *testing.T) {
 
 func TestRunScheduledSnapshots_SkipsOutOfWindow(t *testing.T) {
 	db := newTestDB(t)
-	svc := NewRaffleService(db, "")
+	svc := NewRaffleService(db, "", "", nil)
 
 	user := insertRaffleTestUser(t, db)
 	scheduledAt := time.Now().UTC().Add(2 * time.Hour)
@@ -72,7 +72,7 @@ func TestRunScheduledSnapshots_SkipsOutOfWindow(t *testing.T) {
 
 func TestRunScheduledSnapshots_SkipsCompleted(t *testing.T) {
 	db := newTestDB(t)
-	svc := NewRaffleService(db, "")
+	svc := NewRaffleService(db, "", "", nil)
 
 	user := insertRaffleTestUser(t, db)
 	scheduledAt := time.Now().UTC().Add(5 * time.Minute)
@@ -98,7 +98,7 @@ func TestRunScheduledSnapshots_TwitchAPISuccess(t *testing.T) {
 	defer ts.Close()
 
 	db := newTestDB(t)
-	svc := NewRaffleService(db, "test-client-id")
+	svc := NewRaffleService(db, "test-client-id", "", nil)
 	svc.SetTwitchBaseURL(ts.URL)
 
 	user := insertRaffleTestUser(t, db)
@@ -120,7 +120,7 @@ func TestRunScheduledSnapshots_TwitchAPISuccess(t *testing.T) {
 
 func TestRunScheduledSnapshots_TwitchTokenMissing_StaysDraft(t *testing.T) {
 	db := newTestDB(t)
-	svc := NewRaffleService(db, "test-client-id")
+	svc := NewRaffleService(db, "test-client-id", "", nil)
 
 	user := insertRaffleTestUser(t, db)
 	scheduledAt := time.Now().UTC().Add(5 * time.Minute)

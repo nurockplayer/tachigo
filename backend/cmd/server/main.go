@@ -153,7 +153,7 @@ func main() {
 	if cfg.Server.Env == "production" && cfg.OAuth.Twitch.ClientID == "" {
 		log.Fatal("TWITCH_CLIENT_ID is required in production for raffle snapshot sync")
 	}
-	raffleSvc := services.NewRaffleService(db, cfg.OAuth.Twitch.ClientID)
+	raffleSvc := services.NewRaffleService(db, cfg.OAuth.Twitch.ClientID, cfg.App.FrontendURL, mailer)
 	// Tie scheduler lifetime to server shutdown signals so the goroutine exits cleanly.
 	serverCtx, serverStop := signal.NotifyContext(context.Background(), syscall.SIGINT, syscall.SIGTERM)
 	defer serverStop()

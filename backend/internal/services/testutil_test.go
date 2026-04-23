@@ -266,6 +266,15 @@ func migrateTestDB(db *gorm.DB) error {
 			UNIQUE (raffle_id, twitch_login),
 			UNIQUE (id, raffle_id)
 		)`,
+		`CREATE TABLE IF NOT EXISTS raffle_draws (
+			id TEXT PRIMARY KEY,
+			raffle_id TEXT NOT NULL REFERENCES raffles(id),
+			entry_id TEXT NOT NULL,
+			claim_token TEXT NOT NULL UNIQUE,
+			claim_expires_at DATETIME NOT NULL,
+			drawn_at DATETIME NOT NULL,
+			UNIQUE (raffle_id, entry_id)
+		)`,
 	}
 	for _, s := range stmts {
 		if err := db.Exec(s).Error; err != nil {
