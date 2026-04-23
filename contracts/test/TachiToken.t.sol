@@ -11,7 +11,7 @@ contract TachiTokenTest is Test {
 
     function setUp() public {
         alice = address(0xA1);
-        bob   = address(0xB0);
+        bob = address(0xB0);
         token = new TachiToken();
     }
 
