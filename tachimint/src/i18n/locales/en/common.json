@@ -35,7 +35,8 @@
   "common": {
     "retry": "Retry",
     "initializing": "Initializing...",
-    "points": "points"
+    "points": "points",
+    "error": "Something went wrong. Please try again."
   },
   "claim": {
     "title": "CLAIM",
