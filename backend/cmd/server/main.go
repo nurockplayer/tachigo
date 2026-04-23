@@ -148,7 +148,8 @@ func main() {
 		}
 	}
 	claimSvc := services.NewClaimService(db, cfg.Contract, ethClient)
-	spendSvc := services.NewSpendService(db, cfg.Contract, ethClient)
+	tachiyaClient := services.NewTachiyaHTTPClient(cfg.Internal.TachiyaBaseURL, cfg.Internal.TachiyaSharedSecret)
+	spendSvc := services.NewSpendService(db, cfg.Contract, ethClient, tachiyaClient)
 	if cfg.Server.Env == "production" && cfg.OAuth.Twitch.ClientID == "" {
 		log.Fatal("TWITCH_CLIENT_ID is required in production for raffle snapshot sync")
 	}

@@ -4,6 +4,7 @@ import (
 	"context"
 	"errors"
 	"fmt"
+	"log"
 	"time"
 
 	"github.com/ethereum/go-ethereum/common"
@@ -30,10 +31,11 @@ type BurnCaller interface {
 }
 
 type SpendService struct {
-	db          *gorm.DB
-	contractCfg config.ContractConfig
-	tachiToken  *contractpkg.TachiToken
-	burnCaller  BurnCaller
+	db            *gorm.DB
+	contractCfg   config.ContractConfig
+	tachiToken    *contractpkg.TachiToken
+	burnCaller    BurnCaller
+	tachiyaClient TachiyaClient
 }
 
 type spendReservation struct {
@@ -42,10 +44,11 @@ type spendReservation struct {
 	newBalance int64
 }
 
-func NewSpendService(db *gorm.DB, contractCfg config.ContractConfig, ethClient *ethclient.Client) *SpendService {
+func NewSpendService(db *gorm.DB, contractCfg config.ContractConfig, ethClient *ethclient.Client, tachiyaClient TachiyaClient) *SpendService {
 	svc := &SpendService{
-		db:          db,
-		contractCfg: contractCfg,
+		db:            db,
+		contractCfg:   contractCfg,
+		tachiyaClient: tachiyaClient,
 	}
 	if ethClient != nil && contractCfg.TachiContractAddress != "" && contractCfg.SepoliaSignerKey != "" {
 		if common.IsHexAddress(contractCfg.TachiContractAddress) {
@@ -64,9 +67,9 @@ func (s *SpendService) SetBurnCallerForTest(bc BurnCaller) { s.burnCaller = bc }
 
 // Redeem burns `amount` $TACHI from the user's on-chain wallet and deducts
 // the same amount from tachi_balances. Returns the new balance.
-func (s *SpendService) Redeem(ctx context.Context, userID uuid.UUID, amount int64) (int64, error) {
+func (s *SpendService) Redeem(ctx context.Context, userID uuid.UUID, couponID string, amount int64) (int64, string, error) {
 	if amount <= 0 {
-		return 0, ErrSpendAmountInvalid
+		return 0, "", ErrSpendAmountInvalid
 	}
 
 	var reservation spendReservation
@@ -75,7 +78,7 @@ func (s *SpendService) Redeem(ctx context.Context, userID uuid.UUID, amount int6
 		reservation, err = s.reserveSpend(tx, userID, amount)
 		return err
 	}); err != nil {
-		return 0, err
+		return 0, "", err
 	}
 
 	burnCtx, cancel := context.WithTimeout(ctx, 30*time.Second)
@@ -85,18 +88,28 @@ func (s *SpendService) Redeem(ctx context.Context, userID uuid.UUID, amount int6
 		if txHash != "" {
 			// Tx was broadcast but receipt is unknown (e.g. context deadline, RPC error).
 			// Do NOT roll back: the chain may have already burned the tokens.
-			return 0, fmt.Errorf("burn tx broadcast (txHash=%s) but receipt unknown: %w", txHash, err)
+			return 0, "", fmt.Errorf("burn tx broadcast (txHash=%s) but receipt unknown: %w", txHash, err)
 		}
 		rollbackErr := s.db.Transaction(func(tx *gorm.DB) error {
 			return s.rollbackSpendReservation(tx, userID, reservation.amount)
 		})
 		if rollbackErr != nil {
-			return 0, fmt.Errorf("%w; rollback spend reservation: %v", err, rollbackErr)
+			return 0, "", fmt.Errorf("%w; rollback spend reservation: %v", err, rollbackErr)
 		}
-		return 0, err
+		return 0, "", err
 	}
 
-	return reservation.newBalance, nil
+	voucherCode := ""
+	if s.tachiyaClient != nil {
+		var tachiyaErr error
+		voucherCode, tachiyaErr = s.tachiyaClient.RedeemCoupon(ctx, couponID, reservation.amount)
+		if tachiyaErr != nil {
+			log.Printf("warning: tachiya redeem coupon failed for coupon_id=%s user_id=%s: %v", couponID, userID, tachiyaErr)
+			voucherCode = ""
+		}
+	}
+
+	return reservation.newBalance, voucherCode, nil
 }
 
 func (s *SpendService) reserveSpend(tx *gorm.DB, userID uuid.UUID, amount int64) (spendReservation, error) {
