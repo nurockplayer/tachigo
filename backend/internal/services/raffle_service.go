@@ -549,7 +549,7 @@ func (s *RaffleService) sendWinnerEmail(ctx context.Context, draw *models.Raffle
 		log.Printf("raffle draw %s: winner has no email, skipping", draw.ID)
 		return
 	}
-	link := fmt.Sprintf("%s/claim/%s", s.frontendURL, draw.ClaimToken)
+	link := fmt.Sprintf("%s/claim/%s", strings.TrimRight(s.frontendURL, "/"), draw.ClaimToken)
 	body := raffleWinnerEmailBody(draw.ClaimExpiresAt, link)
 	if err := s.mailer.Send(*user.Email, "恭喜中獎！領取你的 Tachigo 抽獎獎品", body); err != nil {
 		log.Printf("raffle draw %s: failed to send winner email to %s: %v", draw.ID, *user.Email, err)
