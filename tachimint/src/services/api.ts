@@ -246,7 +246,7 @@ export async function redeemCoupon(
         typeof error.response?.data === 'object' && error.response?.data && 'error' in error.response.data
           ? String(error.response.data.error)
           : error.message
-      throw new Error(`Failed to redeem coupon${error.response?.status ? ` (${error.response.status})` : ''}: ${message}`)
+      throw new Error(`Failed to redeem coupon${error.response?.status ? ` (${error.response.status})` : ''}: ${message}`, { cause: error })
     }
 
     throw error instanceof Error ? error : new Error('Failed to redeem coupon')
