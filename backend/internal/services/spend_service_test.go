@@ -27,6 +27,24 @@ func (m *mockBurnCaller) BurnOnChain(_ context.Context, fromAddr string, amount 
 	return m.txHash, m.err
 }
 
+// ── mock TachiyaClient ───────────────────────────────────────────────────────
+
+type mockTachiyaClient struct {
+	voucherCode string
+	err         error
+	calls       []tachiyaCall
+}
+
+type tachiyaCall struct {
+	couponID string
+	tcgCost  int64
+}
+
+func (m *mockTachiyaClient) RedeemCoupon(couponID string, tcgCost int64) (string, error) {
+	m.calls = append(m.calls, tachiyaCall{couponID: couponID, tcgCost: tcgCost})
+	return m.voucherCode, m.err
+}
+
 // ── seed helpers ─────────────────────────────────────────────────────────────
 
 func seedTachiBalance(t *testing.T, db *gorm.DB, userID uuid.UUID, balance int64) {
@@ -44,18 +62,22 @@ func seedTachiBalance(t *testing.T, db *gorm.DB, userID uuid.UUID, balance int64
 func TestRedeem_Success(t *testing.T) {
 	db := newTestDB(t)
 	burnCaller := &mockBurnCaller{txHash: "0xburn123"}
-	svc := &SpendService{db: db, burnCaller: burnCaller}
+	tachiyaClient := &mockTachiyaClient{voucherCode: "VOUCHER-XYZ"}
+	svc := &SpendService{db: db, burnCaller: burnCaller, tachiyaClient: tachiyaClient}
 
 	userID := userIDForClaim(t, db)
 	seedWeb3Provider(t, db, userID, "0xd8dA6BF26964aF9D7eEd9e03E53415D37aA96045")
 	seedTachiBalance(t, db, userID, 500)
 
-	newBal, err := svc.Redeem(context.Background(), userID, 100)
+	newBal, voucherCode, err := svc.Redeem(context.Background(), userID, "coupon-123", 100)
 	if err != nil {
 		t.Fatalf("unexpected error: %v", err)
 	}
 	if newBal != 400 {
 		t.Fatalf("expected newBalance=400, got %d", newBal)
+	}
+	if voucherCode != "VOUCHER-XYZ" {
+		t.Fatalf("expected voucherCode=VOUCHER-XYZ, got %s", voucherCode)
 	}
 	if len(burnCaller.calls) != 1 {
 		t.Fatalf("expected 1 burn call, got %d", len(burnCaller.calls))
@@ -65,6 +87,15 @@ func TestRedeem_Success(t *testing.T) {
 	}
 	if burnCaller.calls[0].fromAddr != "0xd8dA6BF26964aF9D7eEd9e03E53415D37aA96045" {
 		t.Fatalf("unexpected burn fromAddr: %s", burnCaller.calls[0].fromAddr)
+	}
+	if len(tachiyaClient.calls) != 1 {
+		t.Fatalf("expected 1 tachiya call, got %d", len(tachiyaClient.calls))
+	}
+	if tachiyaClient.calls[0].couponID != "coupon-123" {
+		t.Fatalf("expected couponID=coupon-123, got %s", tachiyaClient.calls[0].couponID)
+	}
+	if tachiyaClient.calls[0].tcgCost != 100 {
+		t.Fatalf("expected tcgCost=100, got %d", tachiyaClient.calls[0].tcgCost)
 	}
 
 	var dbBal int64
@@ -81,7 +112,7 @@ func TestRedeem_InsufficientBalance(t *testing.T) {
 	userID := userIDForClaim(t, db)
 	seedTachiBalance(t, db, userID, 50)
 
-	_, err := svc.Redeem(context.Background(), userID, 100)
+	_, _, err := svc.Redeem(context.Background(), userID, "", 100)
 	if !errors.Is(err, ErrSpendInsufficientBalance) {
 		t.Fatalf("expected ErrSpendInsufficientBalance, got %v", err)
 	}
@@ -101,7 +132,7 @@ func TestRedeem_WalletNotLinked(t *testing.T) {
 	seedTachiBalance(t, db, userID, 200)
 	// no web3 provider seeded
 
-	_, err := svc.Redeem(context.Background(), userID, 100)
+	_, _, err := svc.Redeem(context.Background(), userID, "", 100)
 	if !errors.Is(err, ErrSpendWalletNotLinked) {
 		t.Fatalf("expected ErrSpendWalletNotLinked, got %v", err)
 	}
@@ -123,7 +154,7 @@ func TestRedeem_BurnBroadcastedButReceiptUnknown(t *testing.T) {
 	seedWeb3Provider(t, db, userID, "0xd8dA6BF26964aF9D7eEd9e03E53415D37aA96045")
 	seedTachiBalance(t, db, userID, 300)
 
-	_, err := svc.Redeem(context.Background(), userID, 100)
+	_, _, err := svc.Redeem(context.Background(), userID, "", 100)
 	if err == nil {
 		t.Fatal("expected error but got nil")
 	}
@@ -145,7 +176,7 @@ func TestRedeem_BurnFailureRollback(t *testing.T) {
 	seedWeb3Provider(t, db, userID, "0xd8dA6BF26964aF9D7eEd9e03E53415D37aA96045")
 	seedTachiBalance(t, db, userID, 300)
 
-	_, err := svc.Redeem(context.Background(), userID, 100)
+	_, _, err := svc.Redeem(context.Background(), userID, "", 100)
 	if err == nil {
 		t.Fatal("expected error but got nil")
 	}
@@ -154,5 +185,30 @@ func TestRedeem_BurnFailureRollback(t *testing.T) {
 	db.Raw("SELECT balance FROM tachi_balances WHERE user_id = ?", userID).Scan(&dbBal)
 	if dbBal != 300 {
 		t.Fatalf("expected balance rolled back to 300, got %d", dbBal)
+	}
+}
+
+func TestRedeem_TachiyaFailureIsNonBlocking(t *testing.T) {
+	db := newTestDB(t)
+	burnCaller := &mockBurnCaller{txHash: "0xburn123"}
+	tachiyaClient := &mockTachiyaClient{err: errors.New("tachiya unavailable")}
+	svc := &SpendService{db: db, burnCaller: burnCaller, tachiyaClient: tachiyaClient}
+
+	userID := userIDForClaim(t, db)
+	seedWeb3Provider(t, db, userID, "0xd8dA6BF26964aF9D7eEd9e03E53415D37aA96045")
+	seedTachiBalance(t, db, userID, 300)
+
+	newBal, voucherCode, err := svc.Redeem(context.Background(), userID, "coupon-123", 100)
+	if err != nil {
+		t.Fatalf("unexpected error: %v", err)
+	}
+	if newBal != 200 {
+		t.Fatalf("expected newBalance=200, got %d", newBal)
+	}
+	if voucherCode != "" {
+		t.Fatalf("expected empty voucherCode, got %s", voucherCode)
+	}
+	if len(tachiyaClient.calls) != 1 {
+		t.Fatalf("expected 1 tachiya call, got %d", len(tachiyaClient.calls))
 	}
 }

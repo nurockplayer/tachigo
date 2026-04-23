@@ -85,7 +85,7 @@ func newRouterTestEnv(t *testing.T) *routerTestEnv {
 	streamerSvc := services.NewStreamerService(db, pointsSvc)
 	agencySvc := services.NewAgencyService(db)
 	claimSvc := services.NewClaimService(db, config.ContractConfig{}, nil)
-	spendSvc := services.NewSpendService(db, config.ContractConfig{}, nil)
+	spendSvc := services.NewSpendService(db, config.ContractConfig{}, nil, nil)
 	raffleSvc := services.NewRaffleService(db, "")
 	agencyHandler := handlers.NewAgencyHandler(agencySvc, emailAuthSvc)
 
@@ -475,7 +475,7 @@ func TestInternalRouter_SkipsRouteWhenSharedSecretMissing(t *testing.T) {
 	streamerSvc := services.NewStreamerService(db, pointsSvc)
 	agencySvc := services.NewAgencyService(db)
 	claimSvc := services.NewClaimService(db, config.ContractConfig{}, nil)
-	spendSvc := services.NewSpendService(db, config.ContractConfig{}, nil)
+	spendSvc := services.NewSpendService(db, config.ContractConfig{}, nil, nil)
 	raffleSvc := services.NewRaffleService(db, "")
 	agencyHandler := handlers.NewAgencyHandler(agencySvc, emailAuthSvc)
 
@@ -556,7 +556,7 @@ func TestInternalRouter_WithSecretSet_MiddlewareRejectsAndRouteRegistered(t *tes
 	streamerSvc := services.NewStreamerService(db, pointsSvc)
 	agencySvc := services.NewAgencyService(db)
 	claimSvc := services.NewClaimService(db, config.ContractConfig{}, nil)
-	spendSvc := services.NewSpendService(db, config.ContractConfig{}, nil)
+	spendSvc := services.NewSpendService(db, config.ContractConfig{}, nil, nil)
 	raffleSvc := services.NewRaffleService(db, "")
 	agencyHandler := handlers.NewAgencyHandler(agencySvc, emailAuthSvc)
 
