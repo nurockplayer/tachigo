@@ -2,17 +2,15 @@ package services
 
 import (
 	"bytes"
-	"context"
 	"encoding/json"
 	"fmt"
-	"io"
 	"net/http"
 	"strings"
 	"time"
 )
 
 type TachiyaClient interface {
-	RedeemCoupon(ctx context.Context, couponID string, tcgCost int64) (string, error)
+	RedeemCoupon(couponID string, tcgCost int64) (string, error)
 }
 
 type TachiyaHTTPClient struct {
@@ -31,7 +29,7 @@ func NewTachiyaHTTPClient(baseURL, secret string) *TachiyaHTTPClient {
 	}
 }
 
-func (c *TachiyaHTTPClient) RedeemCoupon(ctx context.Context, couponID string, tcgCost int64) (string, error) {
+func (c *TachiyaHTTPClient) RedeemCoupon(couponID string, tcgCost int64) (string, error) {
 	reqBody := struct {
 		CouponID string `json:"coupon_id"`
 		TCGCost  int64  `json:"tcg_cost"`
@@ -45,7 +43,7 @@ func (c *TachiyaHTTPClient) RedeemCoupon(ctx context.Context, couponID string, t
 		return "", err
 	}
 
-	req, err := http.NewRequestWithContext(ctx, http.MethodPost, c.baseURL+"/coupons/redeem", &body)
+	req, err := http.NewRequest(http.MethodPost, c.baseURL+"/coupons/redeem", &body)
 	if err != nil {
 		return "", err
 	}
@@ -59,7 +57,6 @@ func (c *TachiyaHTTPClient) RedeemCoupon(ctx context.Context, couponID string, t
 	defer resp.Body.Close()
 
 	if resp.StatusCode < http.StatusOK || resp.StatusCode >= http.StatusMultipleChoices {
-		_, _ = io.Copy(io.Discard, resp.Body)
 		return "", fmt.Errorf("tachiya redeem coupon failed with status %d", resp.StatusCode)
 	}
 

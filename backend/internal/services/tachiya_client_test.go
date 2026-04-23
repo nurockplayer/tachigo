@@ -1,7 +1,6 @@
 package services
 
 import (
-	"context"
 	"encoding/json"
 	"net/http"
 	"net/http/httptest"
@@ -43,7 +42,7 @@ func TestTachiyaHTTPClient_RedeemCoupon_Success(t *testing.T) {
 
 	client := NewTachiyaHTTPClient(server.URL, "shared-secret")
 
-	voucherCode, err := client.RedeemCoupon(context.Background(), "coupon-123", 100)
+	voucherCode, err := client.RedeemCoupon("coupon-123", 100)
 	if err != nil {
 		t.Fatalf("unexpected error: %v", err)
 	}
@@ -60,7 +59,7 @@ func TestTachiyaHTTPClient_RedeemCoupon_NonOKStatus(t *testing.T) {
 
 	client := NewTachiyaHTTPClient(server.URL, "shared-secret")
 
-	if _, err := client.RedeemCoupon(context.Background(), "coupon-123", 100); err == nil {
+	if _, err := client.RedeemCoupon("coupon-123", 100); err == nil {
 		t.Fatal("expected error but got nil")
 	}
 }
