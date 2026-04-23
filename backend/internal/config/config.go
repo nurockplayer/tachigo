@@ -24,6 +24,7 @@ type ContractConfig struct {
 
 type InternalConfig struct {
 	TachiyaSharedSecret string // TACHIYA_INTERNAL_SHARED_SECRET
+	TachiyaBaseURL      string // TACHIYA_BASE_URL
 }
 
 type SMTPConfig struct {
@@ -120,6 +121,7 @@ func Load() *Config {
 		},
 		Internal: InternalConfig{
 			TachiyaSharedSecret: getEnv("TACHIYA_INTERNAL_SHARED_SECRET", ""),
+			TachiyaBaseURL:      getEnv("TACHIYA_BASE_URL", "http://localhost:8001"),
 		},
 	}
 }
