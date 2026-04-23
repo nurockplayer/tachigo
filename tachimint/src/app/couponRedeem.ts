@@ -3,8 +3,6 @@ import type { CouponRedeemResult } from '../extension/types.ts'
 
 export type CouponRedeemOutcome = CouponRedeemResult | 'error'
 
-type CouponRedeemStateUpdater<T> = T | ((current: T) => T)
-
 type CouponRedeemDeps = {
   couponId: string
   cost: number

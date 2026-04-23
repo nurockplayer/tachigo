@@ -120,7 +120,7 @@ interface TachiBalanceResponse {
   tachiBalance: number
 }
 
-interface RedeemCouponResponse {
+export interface RedeemCouponResponse {
   balance: number
   voucher_code: string
 }

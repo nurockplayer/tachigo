@@ -2,7 +2,6 @@ import assert from 'node:assert/strict'
 import http from 'node:http'
 import test from 'node:test'
 import i18next from 'i18next'
-import { createElement } from 'react'
 import { renderToStaticMarkup } from 'react-dom/server'
 
 import { renderCouponRedeemStatus } from '../src/app/components/couponRedeemStatus.ts'

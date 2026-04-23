@@ -5,7 +5,6 @@ import { loadDemoState, saveDemoState } from '../extension/storage';
 import {
   defaultDemoState,
   normalizeAppLanguage,
-  type CouponRedeemResult,
   type DemoScreen,
   type HudDemoState,
 } from '../extension/types';

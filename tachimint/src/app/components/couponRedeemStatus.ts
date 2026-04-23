@@ -1,6 +1,7 @@
 import { createElement, type ReactNode } from 'react'
+import type { TFunction } from 'i18next'
 
-type TranslateFn = (key: string, options?: Record<string, unknown>) => string
+type TranslateFn = TFunction<'common'>
 
 const statusStyle = {
   fontSize: 7,
