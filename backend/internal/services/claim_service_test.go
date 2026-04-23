@@ -3,12 +3,14 @@ package services
 import (
 	"context"
 	"crypto/ecdsa"
+	"encoding/hex"
 	"errors"
 	"math/big"
 	"path/filepath"
 	"testing"
 
 	"github.com/ethereum/go-ethereum/common"
+	"github.com/ethereum/go-ethereum/crypto"
 	"github.com/ethereum/go-ethereum/ethclient"
 	"github.com/google/uuid"
 	"gorm.io/driver/sqlite"
@@ -90,7 +92,14 @@ func (m *inspectingMintCaller) MintOnChain(_ context.Context, _ string, _ int64)
 	return "0xreserved", nil
 }
 
-const testSepoliaSignerKey = "4f3edf983ac636a65a842ce7c78d9aa706d3b113bce036f7f6ad8d8f5795d7e0"
+func testSignerKeyHex(t *testing.T) string {
+	t.Helper()
+	key, err := crypto.GenerateKey()
+	if err != nil {
+		t.Fatalf("generate test signer key: %v", err)
+	}
+	return hex.EncodeToString(crypto.FromECDSA(key))
+}
 
 func newFileClaimTestDB(t *testing.T) *gorm.DB {
 	t.Helper()
@@ -396,7 +405,7 @@ func TestMintOnChain_BroadcastFailureReturnsEmptyHash(t *testing.T) {
 		broadcastErr: errors.New("send mint tx: rpc unavailable"),
 	}
 	svc := &ClaimService{
-		contractCfg: config.ContractConfig{SepoliaSignerKey: testSepoliaSignerKey},
+		contractCfg: config.ContractConfig{SepoliaSignerKey: testSignerKeyHex(t)},
 		tachiToken:  token,
 	}
 
@@ -418,7 +427,7 @@ func TestMintOnChain_WaitFailureReturnsBroadcastHash(t *testing.T) {
 		waitErr:       errors.New("wait mint receipt: context deadline exceeded"),
 	}
 	svc := &ClaimService{
-		contractCfg: config.ContractConfig{SepoliaSignerKey: testSepoliaSignerKey},
+		contractCfg: config.ContractConfig{SepoliaSignerKey: testSignerKeyHex(t)},
 		tachiToken:  token,
 	}
 
@@ -442,7 +451,7 @@ func TestMintOnChain_Success(t *testing.T) {
 		broadcastHash: "0x2222222222222222222222222222222222222222222222222222222222222222",
 	}
 	svc := &ClaimService{
-		contractCfg: config.ContractConfig{SepoliaSignerKey: testSepoliaSignerKey},
+		contractCfg: config.ContractConfig{SepoliaSignerKey: testSignerKeyHex(t)},
 		tachiToken:  token,
 	}
 

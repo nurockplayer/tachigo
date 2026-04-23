@@ -5,6 +5,7 @@ import (
 	"crypto/ecdsa"
 	"errors"
 	"fmt"
+	"log"
 	"math/big"
 	"strings"
 	"time"
@@ -114,6 +115,15 @@ func (s *ClaimService) Claim(ctx context.Context, userID uuid.UUID, amount int64
 	defer cancel()
 	mintTxHash, err := mintCaller.MintOnChain(mintCtx, reservation.toAddr, reservation.amount)
 	if err != nil {
+		if mintTxHash != "" {
+			log.Printf(
+				"claim mint receipt unknown: claim_id=%s user_id=%s tx_hash=%s err=%v",
+				reservation.claimID,
+				reservation.userID,
+				mintTxHash,
+				err,
+			)
+		}
 		rollbackErr := s.db.Transaction(func(tx *gorm.DB) error {
 			return s.rollbackClaimReservation(tx, reservation)
 		})
