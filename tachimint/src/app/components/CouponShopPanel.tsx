@@ -11,13 +11,15 @@ interface CouponShopPanelProps {
   onBack: () => void
   tcgBalance: number
   redeemedCouponIds: string[]
-  onRedeem: (couponId: string, cost: number) => CouponRedeemResult
+  voucherCodes: Record<string, string>
+  onRedeem: (couponId: string, cost: number) => Promise<CouponRedeemResult | 'error'>
 }
 
 export function CouponShopPanel({
   onBack,
   tcgBalance,
   redeemedCouponIds,
+  voucherCodes,
   onRedeem,
 }: CouponShopPanelProps) {
   const { t } = useTranslation()
@@ -34,7 +36,7 @@ export function CouponShopPanel({
   const itemPath = (field: 'brand' | 'title' | 'description' | 'tag') =>
     `coupon.items.${selectedCoupon.itemKey}.${field}` as const
 
-  const handleRedeem = () => {
+  const handleRedeem = async () => {
     if (!selectedCoupon || isRedeeming) {
       return
     }
@@ -46,13 +48,17 @@ export function CouponShopPanel({
 
     setIsRedeeming(true)
     try {
-      const result = onRedeem(selectedCoupon.id, selectedCoupon.price)
+      const result = await onRedeem(selectedCoupon.id, selectedCoupon.price)
       if (result === 'already_redeemed') {
         setError(t('coupon.alreadyRedeemed'))
         return
       }
       if (result === 'insufficient') {
         setError(t('coupon.insufficientBalance'))
+        return
+      }
+      if (result === 'error') {
+        setError(t('common.error'))
         return
       }
       setError('')
@@ -191,7 +197,7 @@ export function CouponShopPanel({
             <div style={{ fontSize: 7, color: '#ff9d7b', letterSpacing: '0.06em', lineHeight: 1.7 }}>{error}</div>
           ) : redeemedCouponIds.includes(selectedCoupon.id) ? (
             <div style={{ fontSize: 7, color: '#b7f7cc', letterSpacing: '0.06em', lineHeight: 1.8 }}>
-              {t('coupon.claimedCode', { code: selectedCoupon.code })}
+              {t('coupon.claimedCode', { code: voucherCodes[selectedCoupon.id] ?? selectedCoupon.code })}
             </div>
           ) : null}
         </div>

@@ -16,9 +16,18 @@ import { LanguageSwitcher } from './components/LanguageSwitcher';
 import { MarioHUD } from './components/MarioHUD';
 import { ClaimPanel } from './components/ClaimPanel';
 import { CouponShopPanel } from './components/CouponShopPanel';
+import { useTwitch } from '../hooks/useTwitch';
+import { redeemCoupon } from '../services/api';
+
+type CouponRedeemOutcome = CouponRedeemResult | 'error'
+
+function isInsufficientFundsError(error: unknown) {
+  return error instanceof Error && /insufficient|balance|402/i.test(error.message)
+}
 
 export default function App() {
   const { i18n } = useTranslation()
+  const { jwt } = useTwitch()
   const isPopupMode = typeof window !== 'undefined' && window.location.pathname.endsWith('/popup.html')
   const [currentLanguage, setCurrentLanguage] = useState<AppLanguage>(defaultDemoState.language);
   const useZpixLanguage = currentLanguage === 'zh-TW' || currentLanguage === 'zh-CN'
@@ -35,6 +44,7 @@ export default function App() {
   const [hudState, setHudState] = useState<HudDemoState>(defaultDemoState.hud);
   const [tcgBalance, setTcgBalance] = useState(defaultDemoState.tcgBalance);
   const [redeemedCouponIds, setRedeemedCouponIds] = useState<string[]>(defaultDemoState.redeemedCouponIds);
+  const [voucherCodes, setVoucherCodes] = useState<Record<string, string>>({});
   const tcgBalanceRef = useRef(defaultDemoState.tcgBalance);
   const redeemedCouponIdsRef = useRef<string[]>([...defaultDemoState.redeemedCouponIds]);
 
@@ -113,7 +123,7 @@ export default function App() {
     })
   }
 
-  const handleCouponRedeem = (couponId: string, cost: number): CouponRedeemResult => {
+  const handleCouponRedeem = async (couponId: string, cost: number): Promise<CouponRedeemOutcome> => {
     if (!Number.isFinite(cost) || cost <= 0) {
       return 'insufficient'
     }
@@ -122,20 +132,27 @@ export default function App() {
       return 'already_redeemed'
     }
 
-    const current = tcgBalanceRef.current
-    if (cost > current) {
-      return 'insufficient'
+    if (!jwt) {
+      return 'error'
     }
 
-    const nextBalance = Number((current - cost).toFixed(2))
-    tcgBalanceRef.current = nextBalance
-    setTcgBalance(nextBalance)
+    try {
+      const result = await redeemCoupon(couponId, cost, jwt)
+      tcgBalanceRef.current = result.balance
+      setTcgBalance(result.balance)
+      setVoucherCodes((currentCodes) => ({
+        ...currentCodes,
+        [couponId]: result.voucher_code,
+      }))
 
-    const nextRedeemed = [...redeemedCouponIdsRef.current, couponId]
-    redeemedCouponIdsRef.current = nextRedeemed
-    setRedeemedCouponIds(nextRedeemed)
+      const nextRedeemed = [...redeemedCouponIdsRef.current, couponId]
+      redeemedCouponIdsRef.current = nextRedeemed
+      setRedeemedCouponIds(nextRedeemed)
 
-    return 'success'
+      return 'success'
+    } catch (error) {
+      return isInsufficientFundsError(error) ? 'insufficient' : 'error'
+    }
   }
 
   const openPopupMode = () => {
@@ -241,6 +258,7 @@ export default function App() {
             onBack={() => setScreen('hud')}
             tcgBalance={tcgBalance}
             redeemedCouponIds={redeemedCouponIds}
+            voucherCodes={voucherCodes}
             onRedeem={handleCouponRedeem}
           />
         ) : (

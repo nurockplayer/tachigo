@@ -50,7 +50,7 @@ export function setExtensionJwtForRecovery(token: string | null) {
 }
 
 /**
- * Exchange a Twitch Extension JWT + Bits transaction receipt for a tachigo token.
+ * Exchange a Twitch Extension JWT + transaction receipt for a tachigo token.
  */
 export async function completeBitsTransaction(
   extensionJwt: string,
@@ -118,6 +118,11 @@ interface HeartbeatResponse {
 
 interface TachiBalanceResponse {
   tachiBalance: number
+}
+
+interface RedeemCouponResponse {
+  balance: number
+  voucher_code: string
 }
 
 function parsePointsEarnedFromPayload(payload: unknown): number | null {
@@ -215,6 +220,36 @@ export async function claimPoints(amount = 0): Promise<TachiBalanceResponse> {
 
   return {
     tachiBalance: parseTachiBalanceFromPayload(data),
+  }
+}
+
+export async function redeemCoupon(
+  couponId: string,
+  amount: number,
+  token: string,
+): Promise<RedeemCouponResponse> {
+  try {
+    const { data } = await client.post<RedeemCouponResponse>(
+      '/spend/redeem',
+      { coupon_id: couponId, amount },
+      {
+        headers: {
+          Authorization: `Bearer ${token}`,
+          'Content-Type': 'application/json',
+        },
+      },
+    )
+    return data
+  } catch (error) {
+    if (axios.isAxiosError(error)) {
+      const message =
+        typeof error.response?.data === 'object' && error.response?.data && 'error' in error.response.data
+          ? String(error.response.data.error)
+          : error.message
+      throw new Error(`Failed to redeem coupon${error.response?.status ? ` (${error.response.status})` : ''}: ${message}`)
+    }
+
+    throw error instanceof Error ? error : new Error('Failed to redeem coupon')
   }
 }
 
