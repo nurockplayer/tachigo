@@ -20,7 +20,7 @@ updates:
   - package-ecosystem: npm
     directory: /dashboard
     schedule:
-      interval: weekly
+      interval: monthly
       day: monday
       time: "09:30"
       timezone: Asia/Taipei
@@ -60,7 +60,7 @@ updates:
   - package-ecosystem: npm
     directory: /tachimint
     schedule:
-      interval: weekly
+      interval: monthly
       day: monday
       time: "10:00"
       timezone: Asia/Taipei
