@@ -116,8 +116,13 @@ func (s *ClaimService) Claim(ctx context.Context, userID uuid.UUID, amount int64
 	mintTxHash, err := mintCaller.MintOnChain(mintCtx, reservation.toAddr, reservation.amount)
 	if err != nil {
 		if mintTxHash != "" {
+			logMsg := "claim mint receipt unknown"
+			if errors.Is(err, contractpkg.ErrMintReceiptStatusFailed) {
+				logMsg = "claim mint receipt failed"
+			}
 			log.Printf(
-				"claim mint receipt unknown: claim_id=%s user_id=%s tx_hash=%s err=%v",
+				"%s: claim_id=%s user_id=%s tx_hash=%s err=%v",
+				logMsg,
 				reservation.claimID,
 				reservation.userID,
 				mintTxHash,
