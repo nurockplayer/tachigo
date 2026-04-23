@@ -229,7 +229,7 @@ export async function redeemCoupon(
   token: string,
 ): Promise<RedeemCouponResponse> {
   try {
-    const { data } = await client.post<RedeemCouponResponse>(
+    const { data } = await client.post<{ success: boolean; data: RedeemCouponResponse }>(
       '/spend/redeem',
       { coupon_id: couponId, amount },
       {
@@ -239,7 +239,7 @@ export async function redeemCoupon(
         },
       },
     )
-    return data
+    return data.data
   } catch (error) {
     if (axios.isAxiosError(error)) {
       const message =

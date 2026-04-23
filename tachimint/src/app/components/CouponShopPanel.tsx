@@ -197,7 +197,9 @@ export function CouponShopPanel({
             <div style={{ fontSize: 7, color: '#ff9d7b', letterSpacing: '0.06em', lineHeight: 1.7 }}>{error}</div>
           ) : redeemedCouponIds.includes(selectedCoupon.id) ? (
             <div style={{ fontSize: 7, color: '#b7f7cc', letterSpacing: '0.06em', lineHeight: 1.8 }}>
-              {t('coupon.claimedCode', { code: voucherCodes[selectedCoupon.id] ?? selectedCoupon.code })}
+              {voucherCodes[selectedCoupon.id]
+                ? t('coupon.claimedCode', { code: voucherCodes[selectedCoupon.id] })
+                : t('coupon.redeemed')}
             </div>
           ) : null}
         </div>
