@@ -322,14 +322,18 @@ func (h *RaffleHandler) SetDiscordWebhook(c *gin.Context) {
 	}
 
 	var body struct {
-		DiscordWebhookURL string `json:"discord_webhook_url"`
+		DiscordWebhookURL *string `json:"discord_webhook_url"`
 	}
 	if err := c.ShouldBindJSON(&body); err != nil {
 		badRequest(c, err.Error())
 		return
 	}
+	if body.DiscordWebhookURL == nil {
+		badRequest(c, "discord_webhook_url is required (pass empty string to clear)")
+		return
+	}
 
-	raffle, err := h.raffleSvc.SetDiscordWebhook(raffleID, userID, body.DiscordWebhookURL)
+	raffle, err := h.raffleSvc.SetDiscordWebhook(raffleID, userID, *body.DiscordWebhookURL)
 	if err != nil {
 		switch {
 		case errors.Is(err, services.ErrRaffleNotFound):
@@ -344,7 +348,7 @@ func (h *RaffleHandler) SetDiscordWebhook(c *gin.Context) {
 		}
 		return
 	}
-	ok(c, gin.H{"raffle": raffle})
+	ok(c, gin.H{"raffle": raffle, "discord_webhook_configured": raffle.DiscordWebhookConfigured()})
 }
 
 // ── Public endpoints (no auth) ────────────────────────────────────────────────
