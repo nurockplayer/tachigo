@@ -51,11 +51,11 @@ Provider support is part of the shared identity layer, but client auth contracts
 Observed behavior in the current repo:
 
 - access token is kept in memory only
-- refresh token is managed via httpOnly cookie (set and rotated by the backend)
-- `login()` calls `POST /api/v1/auth/login`; cookie is set by the backend response
-- session restore on page reload calls `POST /api/v1/auth/refresh` with the cookie before React mounts
-- 401 responses trigger a single silent refresh (deduped across concurrent requests) and retry
-- logout calls `POST /api/v1/auth/logout`; no refresh token is sent in the request body
+- refresh token is persisted in `localStorage` under key `refresh_token`
+- `login()` calls `POST /api/v1/auth/login`; login stores the returned refresh token in `localStorage`
+- logout sends `refresh_token` in the request body when present
+- session restore on page reload is not implemented
+- axios client sends `withCredentials: true`; 401 responses trigger a single silent refresh (deduped across concurrent requests) and retry
 - dashboard does not currently persist a separate `current_user` payload
 
 ## Refresh Token Migration Status
@@ -63,7 +63,8 @@ Observed behavior in the current repo:
 | Phase | Description | Status |
 |---|---|---|
 | Phase 1 — Backend | httpOnly cookie set on login/refresh/logout; refresh and logout prefer cookie with body fallback | ✅ Done (PR #220) |
-| Phase 2 — Dashboard | Removed `localStorage` usage; cookie-based session restore; 401 dedupe interceptor | ✅ Done (PR #338, #339) |
+| Phase 2a — Dashboard axios layer | `withCredentials: true`; `hasAuthToken()`; 401 dedupe interceptor | ✅ Done (PR #338) |
+| Phase 2b — Dashboard auth contract | Remove `localStorage`; cookie-based session restore; update `auth.ts` and `main.tsx` | ⏳ Pending |
 
 Body fallback (sending `refresh_token` in request body) remains active in the backend during the transition period. It will be removed in a dedicated follow-up once all clients are confirmed to be on the cookie-based contract.
 
