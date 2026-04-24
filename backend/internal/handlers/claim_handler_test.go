@@ -21,8 +21,12 @@ import (
 // mockMintOK always succeeds; used to bypass on-chain call in handler tests.
 type mockMintOK struct{}
 
-func (m *mockMintOK) MintOnChain(_ context.Context, _ string, _ int64) (string, error) {
+func (m *mockMintOK) MintBroadcastOnChain(_ context.Context, _ string, _ int64) (string, error) {
 	return "0xtesthash", nil
+}
+
+func (m *mockMintOK) WaitMintReceiptOnChain(_ context.Context, _ string) error {
+	return nil
 }
 
 func seedWeb3ProviderForHandler(t *testing.T, env *testEnv, userID uuid.UUID) {

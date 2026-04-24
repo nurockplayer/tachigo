@@ -29,8 +29,38 @@ var (
 	ErrClaimContractConfig      = errors.New("claim contract config is incomplete")
 )
 
+// ClaimBroadcastRecordError preserves the tx hash when the chain tx was
+// broadcast but the DB failed before recording the broadcast state.
+type ClaimBroadcastRecordError struct {
+	ClaimID uuid.UUID
+	UserID  uuid.UUID
+	TxHash  string
+	Err     error
+}
+
+func (e *ClaimBroadcastRecordError) Error() string {
+	if e == nil {
+		return "<nil>"
+	}
+	return fmt.Sprintf(
+		"record claim broadcast failed: claim_id=%s user_id=%s tx_hash=%s: %v",
+		e.ClaimID,
+		e.UserID,
+		e.TxHash,
+		e.Err,
+	)
+}
+
+func (e *ClaimBroadcastRecordError) Unwrap() error {
+	if e == nil {
+		return nil
+	}
+	return e.Err
+}
+
 type MintCaller interface {
-	MintOnChain(ctx context.Context, toAddr string, amount int64) (txHash string, err error)
+	MintBroadcastOnChain(ctx context.Context, toAddr string, amount int64) (txHash string, err error)
+	WaitMintReceiptOnChain(ctx context.Context, txHash string) error
 }
 
 type mintContract interface {
@@ -113,27 +143,65 @@ func (s *ClaimService) Claim(ctx context.Context, userID uuid.UUID, amount int64
 
 	mintCtx, cancel := context.WithTimeout(ctx, 30*time.Second)
 	defer cancel()
-	mintTxHash, err := mintCaller.MintOnChain(mintCtx, reservation.toAddr, reservation.amount)
+	mintTxHash, err := mintCaller.MintBroadcastOnChain(mintCtx, reservation.toAddr, reservation.amount)
 	if err != nil {
-		if mintTxHash != "" {
-			logMsg := "claim mint receipt unknown"
-			if errors.Is(err, contractpkg.ErrMintReceiptStatusFailed) {
-				logMsg = "claim mint receipt failed"
-			}
-			log.Printf(
-				"%s: claim_id=%s user_id=%s tx_hash=%s err=%v",
-				logMsg,
-				reservation.claimID,
-				reservation.userID,
-				mintTxHash,
-				err,
-			)
-		}
 		rollbackErr := s.db.Transaction(func(tx *gorm.DB) error {
 			return s.rollbackClaimReservation(tx, reservation)
 		})
 		if rollbackErr != nil {
 			return 0, fmt.Errorf("%w; rollback claim reservation: %v", err, rollbackErr)
+		}
+		return 0, err
+	}
+
+	if err := s.db.Transaction(func(tx *gorm.DB) error {
+		return s.markClaimBroadcast(tx, reservation, mintTxHash)
+	}); err != nil {
+		recordErr := &ClaimBroadcastRecordError{
+			ClaimID: reservation.claimID,
+			UserID:  reservation.userID,
+			TxHash:  mintTxHash,
+			Err:     err,
+		}
+		log.Printf(
+			"claim broadcast record failed: claim_id=%s user_id=%s tx_hash=%s err=%v",
+			reservation.claimID,
+			reservation.userID,
+			mintTxHash,
+			err,
+		)
+		return 0, recordErr
+	}
+
+	if err := mintCaller.WaitMintReceiptOnChain(mintCtx, mintTxHash); err != nil {
+		logMsg := "claim mint receipt unknown"
+		if errors.Is(err, contractpkg.ErrMintReceiptStatusFailed) {
+			logMsg = "claim mint receipt failed"
+		}
+		log.Printf(
+			"%s: claim_id=%s user_id=%s tx_hash=%s err=%v",
+			logMsg,
+			reservation.claimID,
+			reservation.userID,
+			mintTxHash,
+			err,
+		)
+
+		if errors.Is(err, contractpkg.ErrMintReceiptStatusFailed) {
+			failedErr := s.db.Transaction(func(tx *gorm.DB) error {
+				return s.markClaimFailedAndCompensate(tx, reservation, mintTxHash, err)
+			})
+			if failedErr != nil {
+				return 0, fmt.Errorf("%w; mark claim failed: %v", err, failedErr)
+			}
+			return 0, err
+		}
+
+		recordErr := s.db.Transaction(func(tx *gorm.DB) error {
+			return s.recordClaimReceiptUnknown(tx, reservation, mintTxHash, err)
+		})
+		if recordErr != nil {
+			return 0, fmt.Errorf("%w; record claim receipt unknown: %v", err, recordErr)
 		}
 		return 0, err
 	}
@@ -285,6 +353,20 @@ func (s *ClaimService) reserveClaim(tx *gorm.DB, userID uuid.UUID, amount int64)
 	return reservation, nil
 }
 
+func (s *ClaimService) markClaimBroadcast(tx *gorm.DB, reservation claimReservation, mintTxHash string) error {
+	now := time.Now()
+	updates := map[string]interface{}{
+		"status":        models.ClaimStatusBroadcast,
+		"tx_hash":       mintTxHash,
+		"broadcast_at":  now,
+		"error_message": nil,
+		"updated_at":    now,
+	}
+	return tx.Model(&models.Claim{}).
+		Where("id = ? AND user_id = ?", reservation.claimID, reservation.userID).
+		Updates(updates).Error
+}
+
 func (s *ClaimService) rollbackClaimReservation(tx *gorm.DB, reservation claimReservation) error {
 	if reservation.claimID != uuid.Nil {
 		if err := tx.Delete(&models.Claim{}, "id = ?", reservation.claimID).Error; err != nil {
@@ -309,12 +391,70 @@ func (s *ClaimService) rollbackClaimReservation(tx *gorm.DB, reservation claimRe
 	return nil
 }
 
+func (s *ClaimService) recordClaimReceiptUnknown(tx *gorm.DB, reservation claimReservation, mintTxHash string, waitErr error) error {
+	return tx.Model(&models.Claim{}).
+		Where("id = ? AND user_id = ?", reservation.claimID, reservation.userID).
+		Updates(map[string]interface{}{
+			"status":        models.ClaimStatusBroadcast,
+			"tx_hash":       mintTxHash,
+			"error_message": waitErr.Error(),
+			"updated_at":    time.Now(),
+		}).Error
+}
+
+func (s *ClaimService) markClaimFailedAndCompensate(tx *gorm.DB, reservation claimReservation, mintTxHash string, mintErr error) error {
+	now := time.Now()
+	if err := tx.Model(&models.Claim{}).
+		Where("id = ? AND user_id = ?", reservation.claimID, reservation.userID).
+		Updates(map[string]interface{}{
+			"status":        models.ClaimStatusFailed,
+			"tx_hash":       mintTxHash,
+			"error_message": mintErr.Error(),
+			"failed_at":     now,
+			"updated_at":    now,
+		}).Error; err != nil {
+		return err
+	}
+
+	for _, item := range reservation.items {
+		var ledger models.PointsLedger
+		if err := tx.Clauses(clause.Locking{Strength: "UPDATE"}).
+			Where("id = ?", item.ledgerID).
+			First(&ledger).Error; err != nil {
+			return err
+		}
+
+		balanceAfter := ledger.SpendableBalance + item.amount
+		if err := tx.Model(&ledger).Updates(map[string]interface{}{
+			"spendable_balance": balanceAfter,
+			"updated_at":        now,
+		}).Error; err != nil {
+			return err
+		}
+
+		note := fmt.Sprintf("claim failed compensation for claim %s", reservation.claimID)
+		txRecord := &models.PointsTransaction{
+			LedgerID:     item.ledgerID,
+			Source:       models.TxSourceClaim,
+			Delta:        item.amount,
+			BalanceAfter: balanceAfter,
+			Note:         &note,
+		}
+		if err := tx.Create(txRecord).Error; err != nil {
+			return err
+		}
+	}
+
+	return nil
+}
+
 func (s *ClaimService) finalizeClaim(tx *gorm.DB, reservation claimReservation, mintTxHash string) (int64, error) {
 	now := time.Now()
 	claimUpdates := map[string]interface{}{
-		"status":       models.ClaimStatusConfirmed,
-		"confirmed_at": now,
-		"updated_at":   now,
+		"status":        models.ClaimStatusConfirmed,
+		"confirmed_at":  now,
+		"error_message": nil,
+		"updated_at":    now,
 	}
 	if mintTxHash != "" {
 		claimUpdates["tx_hash"] = mintTxHash
