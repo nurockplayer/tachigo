@@ -18,14 +18,17 @@ import (
 	"gorm.io/gorm/logger"
 
 	"github.com/tachigo/tachigo/internal/config"
+	contractpkg "github.com/tachigo/tachigo/internal/contract"
 	"github.com/tachigo/tachigo/internal/models"
 )
 
 type mockMintCaller struct {
-	txHash   string
-	txHashes []string
-	err      error
-	calls    []mintCall
+	broadcastHash   string
+	broadcastHashes []string
+	broadcastErr    error
+	waitErr         error
+	broadcastCalls  []mintCall
+	waitCalls       []string
 }
 
 type mintCall struct {
@@ -33,16 +36,21 @@ type mintCall struct {
 	amount int64
 }
 
-func (m *mockMintCaller) MintOnChain(_ context.Context, toAddr string, amount int64) (string, error) {
-	m.calls = append(m.calls, mintCall{toAddr: toAddr, amount: amount})
-	if m.err != nil {
-		return "", m.err
+func (m *mockMintCaller) MintBroadcastOnChain(_ context.Context, toAddr string, amount int64) (string, error) {
+	m.broadcastCalls = append(m.broadcastCalls, mintCall{toAddr: toAddr, amount: amount})
+	if m.broadcastErr != nil {
+		return "", m.broadcastErr
 	}
-	callIdx := len(m.calls) - 1
-	if callIdx < len(m.txHashes) {
-		return m.txHashes[callIdx], nil
+	callIdx := len(m.broadcastCalls) - 1
+	if callIdx < len(m.broadcastHashes) {
+		return m.broadcastHashes[callIdx], nil
 	}
-	return m.txHash, nil
+	return m.broadcastHash, nil
+}
+
+func (m *mockMintCaller) WaitMintReceiptOnChain(_ context.Context, txHash string) error {
+	m.waitCalls = append(m.waitCalls, txHash)
+	return m.waitErr
 }
 
 type inspectingMintCaller struct {
@@ -80,7 +88,7 @@ func (m *mockMintContract) WaitMintReceipt(_ context.Context, txHash string) err
 	return m.waitErr
 }
 
-func (m *inspectingMintCaller) MintOnChain(_ context.Context, _ string, _ int64) (string, error) {
+func (m *inspectingMintCaller) MintBroadcastOnChain(_ context.Context, _ string, _ int64) (string, error) {
 	if err := m.db.Raw(
 		"SELECT spendable_balance FROM points_ledgers WHERE user_id = ? AND channel_id = ?",
 		m.userID,
@@ -90,6 +98,10 @@ func (m *inspectingMintCaller) MintOnChain(_ context.Context, _ string, _ int64)
 	}
 	m.observedMatches = m.observed == m.wantSpendable
 	return "0xreserved", nil
+}
+
+func (m *inspectingMintCaller) WaitMintReceiptOnChain(_ context.Context, _ string) error {
+	return nil
 }
 
 func testSignerKeyHex(t *testing.T) string {
@@ -164,7 +176,7 @@ func TestGetTachiBalance_Zero(t *testing.T) {
 
 func TestClaim_All(t *testing.T) {
 	db := newTestDB(t)
-	mintCaller := &mockMintCaller{txHash: "0xabc"}
+	mintCaller := &mockMintCaller{broadcastHash: "0xabc"}
 	svc := &ClaimService{db: db, mintCaller: mintCaller}
 	userID := userIDForClaim(t, db)
 	seedWeb3Provider(t, db, userID, "0xd8dA6BF26964aF9D7eEd9e03E53415D37aA96045")
@@ -185,17 +197,17 @@ func TestClaim_All(t *testing.T) {
 	if total != 0 {
 		t.Fatalf("expected spendable_balance=0, got %d", total)
 	}
-	if len(mintCaller.calls) != 1 {
-		t.Fatalf("expected 1 mint call, got %d", len(mintCaller.calls))
+	if len(mintCaller.broadcastCalls) != 1 {
+		t.Fatalf("expected 1 mint call, got %d", len(mintCaller.broadcastCalls))
 	}
-	if mintCaller.calls[0].amount != 150 {
-		t.Fatalf("expected mint amount=150, got %d", mintCaller.calls[0].amount)
+	if mintCaller.broadcastCalls[0].amount != 150 {
+		t.Fatalf("expected mint amount=150, got %d", mintCaller.broadcastCalls[0].amount)
 	}
 }
 
 func TestClaim_PartialAmount(t *testing.T) {
 	db := newTestDB(t)
-	mintCaller := &mockMintCaller{txHash: "0xdef"}
+	mintCaller := &mockMintCaller{broadcastHash: "0xdef"}
 	svc := &ClaimService{db: db, mintCaller: mintCaller}
 	userID := userIDForClaim(t, db)
 	seedWeb3Provider(t, db, userID, "0xd8dA6BF26964aF9D7eEd9e03E53415D37aA96045")
@@ -266,7 +278,7 @@ func TestClaim_NoLedgers(t *testing.T) {
 
 func TestClaim_AccumulatesOnSecondClaim(t *testing.T) {
 	db := newTestDB(t)
-	mintCaller := &mockMintCaller{txHashes: []string{"0x987a", "0x987b"}}
+	mintCaller := &mockMintCaller{broadcastHashes: []string{"0x987a", "0x987b"}}
 	svc := &ClaimService{db: db, mintCaller: mintCaller}
 	userID := userIDForClaim(t, db)
 	seedWeb3Provider(t, db, userID, "0xd8dA6BF26964aF9D7eEd9e03E53415D37aA96045")
@@ -290,7 +302,7 @@ func TestClaim_AccumulatesOnSecondClaim(t *testing.T) {
 
 func TestClaim_MintSuccessUpdatesDB(t *testing.T) {
 	db := newTestDB(t)
-	mintCaller := &mockMintCaller{txHash: "0x123"}
+	mintCaller := &mockMintCaller{broadcastHash: "0x123"}
 	svc := &ClaimService{db: db, mintCaller: mintCaller}
 	userID := userIDForClaim(t, db)
 	seedWeb3Provider(t, db, userID, "0xd8dA6BF26964aF9D7eEd9e03E53415D37aA96045")
@@ -303,11 +315,11 @@ func TestClaim_MintSuccessUpdatesDB(t *testing.T) {
 	if newBal != 50 {
 		t.Fatalf("expected tachi_balance=50, got %d", newBal)
 	}
-	if len(mintCaller.calls) != 1 {
-		t.Fatalf("expected 1 mint call, got %d", len(mintCaller.calls))
+	if len(mintCaller.broadcastCalls) != 1 {
+		t.Fatalf("expected 1 mint call, got %d", len(mintCaller.broadcastCalls))
 	}
-	if mintCaller.calls[0].toAddr != "0xd8dA6BF26964aF9D7eEd9e03E53415D37aA96045" {
-		t.Fatalf("unexpected mint address: %s", mintCaller.calls[0].toAddr)
+	if mintCaller.broadcastCalls[0].toAddr != "0xd8dA6BF26964aF9D7eEd9e03E53415D37aA96045" {
+		t.Fatalf("unexpected mint address: %s", mintCaller.broadcastCalls[0].toAddr)
 	}
 
 	var remaining int64
@@ -321,7 +333,7 @@ func TestClaim_MintSuccessUpdatesDB(t *testing.T) {
 
 func TestClaim_PersistsClaimAndClaimItems(t *testing.T) {
 	db := newTestDB(t)
-	mintCaller := &mockMintCaller{txHash: "0xclaimtx"}
+	mintCaller := &mockMintCaller{broadcastHash: "0xclaimtx"}
 	svc := &ClaimService{db: db, mintCaller: mintCaller}
 	userID := userIDForClaim(t, db)
 	seedWeb3Provider(t, db, userID, "0xd8dA6BF26964aF9D7eEd9e03E53415D37aA96045")
@@ -357,9 +369,9 @@ func TestClaim_PersistsClaimAndClaimItems(t *testing.T) {
 	}
 }
 
-func TestClaim_MintFailureLeavesDBUnchanged(t *testing.T) {
+func TestClaim_BroadcastFailureLeavesDBUnchanged(t *testing.T) {
 	db := newTestDB(t)
-	mintCaller := &mockMintCaller{err: errors.New("mint reverted")}
+	mintCaller := &mockMintCaller{broadcastErr: errors.New("send mint tx: rpc unavailable")}
 	svc := &ClaimService{db: db, mintCaller: mintCaller}
 	userID := userIDForClaim(t, db)
 	seedWeb3Provider(t, db, userID, "0xd8dA6BF26964aF9D7eEd9e03E53415D37aA96045")
@@ -384,6 +396,154 @@ func TestClaim_MintFailureLeavesDBUnchanged(t *testing.T) {
 	}
 	if balanceCount != 0 {
 		t.Fatalf("expected no tachi balance rows, got %d", balanceCount)
+	}
+
+	var claimCount int64
+	if err := db.Model(&models.Claim{}).Where("user_id = ?", userID).Count(&claimCount).Error; err != nil {
+		t.Fatalf("count claims: %v", err)
+	}
+	if claimCount != 0 {
+		t.Fatalf("expected no claim rows after pre-broadcast failure, got %d", claimCount)
+	}
+}
+
+func TestClaim_WaitFailureKeepsBroadcastClaimAndDoesNotRollback(t *testing.T) {
+	db := newTestDB(t)
+	mintCaller := &mockMintCaller{
+		broadcastHash: "0xaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaa",
+		waitErr:       errors.New("wait mint receipt: context deadline exceeded"),
+	}
+	svc := &ClaimService{db: db, mintCaller: mintCaller}
+	userID := userIDForClaim(t, db)
+	seedWeb3Provider(t, db, userID, "0xd8dA6BF26964aF9D7eEd9e03E53415D37aA96045")
+	seedLedger(t, db, userID, "ch1", 80)
+
+	_, err := svc.Claim(context.Background(), userID, 50)
+	if err == nil {
+		t.Fatal("expected error but got nil")
+	}
+
+	var remaining int64
+	if err := db.Raw("SELECT spendable_balance FROM points_ledgers WHERE user_id = ? AND channel_id = 'ch1'", userID).Scan(&remaining).Error; err != nil {
+		t.Fatalf("query remaining: %v", err)
+	}
+	if remaining != 30 {
+		t.Fatalf("expected reserved spendable=30, got %d", remaining)
+	}
+
+	var claim models.Claim
+	if err := db.Where("user_id = ?", userID).First(&claim).Error; err != nil {
+		t.Fatalf("load claim: %v", err)
+	}
+	if claim.Status != models.ClaimStatusBroadcast {
+		t.Fatalf("expected claim status broadcast, got %s", claim.Status)
+	}
+	if claim.TxHash == nil || *claim.TxHash != mintCaller.broadcastHash {
+		t.Fatalf("expected txHash %s, got %v", mintCaller.broadcastHash, claim.TxHash)
+	}
+	if claim.BroadcastAt == nil {
+		t.Fatal("expected broadcast_at to be set")
+	}
+
+	var balanceCount int64
+	if err := db.Raw("SELECT COUNT(*) FROM tachi_balances WHERE user_id = ?", userID).Scan(&balanceCount).Error; err != nil {
+		t.Fatalf("query balances: %v", err)
+	}
+	if balanceCount != 0 {
+		t.Fatalf("expected no tachi balance rows, got %d", balanceCount)
+	}
+}
+
+func TestClaim_BroadcastPersistFailureReturnsTxHashForReconciliation(t *testing.T) {
+	db := newTestDB(t)
+	persistErr := errors.New("persist broadcast failed")
+	errHash := "0xcccccccccccccccccccccccccccccccccccccccccccccccccccccccccccccccc"
+	if err := db.Callback().Update().Before("gorm:update").Register("fail_claim_broadcast_update", func(tx *gorm.DB) {
+		if tx.Statement.Table != "claims" {
+			return
+		}
+		updates, ok := tx.Statement.Dest.(map[string]interface{})
+		if !ok || updates["status"] != models.ClaimStatusBroadcast {
+			return
+		}
+		tx.AddError(persistErr)
+	}); err != nil {
+		t.Fatalf("register update callback: %v", err)
+	}
+
+	mintCaller := &mockMintCaller{broadcastHash: errHash}
+	svc := &ClaimService{db: db, mintCaller: mintCaller}
+	userID := userIDForClaim(t, db)
+	seedWeb3Provider(t, db, userID, "0xd8dA6BF26964aF9D7eEd9e03E53415D37aA96045")
+	seedLedger(t, db, userID, "ch1", 80)
+
+	_, err := svc.Claim(context.Background(), userID, 50)
+	if err == nil {
+		t.Fatal("expected error but got nil")
+	}
+
+	var recordErr *ClaimBroadcastRecordError
+	if !errors.As(err, &recordErr) {
+		t.Fatalf("expected ClaimBroadcastRecordError, got %T: %v", err, err)
+	}
+	if recordErr.TxHash != errHash {
+		t.Fatalf("expected txHash %s, got %s", errHash, recordErr.TxHash)
+	}
+	if recordErr.ClaimID == uuid.Nil {
+		t.Fatal("expected claim ID to be populated")
+	}
+	if recordErr.UserID != userID {
+		t.Fatalf("expected userID %s, got %s", userID, recordErr.UserID)
+	}
+	if !errors.Is(err, persistErr) {
+		t.Fatalf("expected error to wrap persistErr, got %v", err)
+	}
+	if len(mintCaller.waitCalls) != 0 {
+		t.Fatalf("receipt wait should not run when broadcast state cannot be persisted, got %d calls", len(mintCaller.waitCalls))
+	}
+}
+
+func TestClaim_ReceiptFailedMarksFailedAndCompensates(t *testing.T) {
+	db := newTestDB(t)
+	mintCaller := &mockMintCaller{
+		broadcastHash: "0xbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbb",
+		waitErr:       contractpkg.ErrMintReceiptStatusFailed,
+	}
+	svc := &ClaimService{db: db, mintCaller: mintCaller}
+	userID := userIDForClaim(t, db)
+	seedWeb3Provider(t, db, userID, "0xd8dA6BF26964aF9D7eEd9e03E53415D37aA96045")
+	seedLedger(t, db, userID, "ch1", 80)
+
+	_, err := svc.Claim(context.Background(), userID, 50)
+	if err == nil {
+		t.Fatal("expected error but got nil")
+	}
+
+	var remaining int64
+	if err := db.Raw("SELECT spendable_balance FROM points_ledgers WHERE user_id = ? AND channel_id = 'ch1'", userID).Scan(&remaining).Error; err != nil {
+		t.Fatalf("query remaining: %v", err)
+	}
+	if remaining != 80 {
+		t.Fatalf("expected compensated spendable=80, got %d", remaining)
+	}
+
+	var claim models.Claim
+	if err := db.Where("user_id = ?", userID).First(&claim).Error; err != nil {
+		t.Fatalf("load claim: %v", err)
+	}
+	if claim.Status != models.ClaimStatusFailed {
+		t.Fatalf("expected claim status failed, got %s", claim.Status)
+	}
+	if claim.FailedAt == nil {
+		t.Fatal("expected failed_at to be set")
+	}
+
+	var txCount int64
+	if err := db.Model(&models.PointsTransaction{}).Where("ledger_id IN (SELECT id FROM points_ledgers WHERE user_id = ?)", userID).Count(&txCount).Error; err != nil {
+		t.Fatalf("count points transactions: %v", err)
+	}
+	if txCount != 2 {
+		t.Fatalf("expected claim debit + compensation credit transactions, got %d", txCount)
 	}
 }
 
