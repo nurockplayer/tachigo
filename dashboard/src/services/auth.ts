@@ -31,7 +31,7 @@ export async function restoreSession(): Promise<void> {
 }
 
 export async function logout(): Promise<void> {
-  await client.post('/api/v1/auth/logout').catch(() => {})
+  await client.post('/api/v1/auth/logout')
   clearAuthToken()
 }
 

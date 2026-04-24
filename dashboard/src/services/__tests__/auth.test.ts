@@ -72,11 +72,11 @@ describe('logout()', () => {
     expect(call?.data ?? null).toBeFalsy()
   })
 
-  it('API 失敗時仍清除本機狀態（fire-and-forget）', async () => {
+  it('API 失敗時 reject，不清除本機狀態（cookie 可能未清，不應假裝登出）', async () => {
     mock.onPost('/api/v1/auth/logout').replyOnce(500)
 
-    await expect(logout()).resolves.toBeUndefined()
-    expect(isAuthenticated()).toBe(false)
+    await expect(logout()).rejects.toBeDefined()
+    expect(isAuthenticated()).toBe(true)
   })
 
   it('不讀取也不清除 localStorage', async () => {
