@@ -7,6 +7,8 @@ import StreamersPage from '@/pages/StreamersPage'
 import StreamerDetailPage from '@/pages/StreamerDetailPage'
 import TransactionsPage from '@/pages/TransactionsPage'
 import SettingsPage from '@/pages/SettingsPage'
+import RafflesPage from '@/pages/RafflesPage'
+import RaffleDetailPage from '@/pages/RaffleDetailPage'
 
 const router = createBrowserRouter([
   {
@@ -22,6 +24,8 @@ const router = createBrowserRouter([
           { index: true, element: <DashboardPage /> },
           { path: 'streamers', element: <StreamersPage /> },
           { path: 'streamers/:streamerId', element: <StreamerDetailPage /> },
+          { path: 'raffles', element: <RafflesPage /> },
+          { path: 'raffles/:raffleId', element: <RaffleDetailPage /> },
           { path: 'transactions', element: <TransactionsPage /> },
           { path: 'settings', element: <SettingsPage /> },
         ],

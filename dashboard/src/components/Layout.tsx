@@ -1,6 +1,6 @@
 import { useState } from 'react'
 import { NavLink, Outlet, useNavigate } from 'react-router'
-import { LayoutDashboard, Users, ArrowLeftRight, Settings } from 'lucide-react'
+import { LayoutDashboard, Users, ArrowLeftRight, Settings, Ticket } from 'lucide-react'
 import { Button } from '@/components/ui/button'
 import { cn } from '@/lib/utils'
 import { logout } from '@/services/auth'
@@ -8,6 +8,7 @@ import { logout } from '@/services/auth'
 const navItems = [
   { to: '/', label: '總覽', icon: LayoutDashboard, end: true },
   { to: '/streamers', label: '實況主管理', icon: Users, end: false },
+  { to: '/raffles', label: '抽獎管理', icon: Ticket, end: false },
   { to: '/transactions', label: '交易紀錄', icon: ArrowLeftRight, end: false },
   { to: '/settings', label: '設定', icon: Settings, end: false },
 ]
