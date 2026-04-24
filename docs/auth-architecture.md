@@ -48,21 +48,24 @@ Provider support is part of the shared identity layer, but client auth contracts
 
 ## Current Dashboard State
 
-The dashboard is currently a transitional auth client.
-
 Observed behavior in the current repo:
 
 - access token is kept in memory only
-- refresh token is persisted in `localStorage` under key `refresh_token`
-- `login()` calls `POST /api/v1/auth/login`
-- login stores the returned refresh token in `localStorage`
-- session restore on page reload is not implemented
-- 401 auto-refresh is not implemented
-- dashboard does not currently persist a separate `current_user` payload on this branch
-- logout sends `refresh_token` in the request body when present
-- no current frontend refresh flow is wired against `/api/v1/auth/refresh`
+- refresh token is managed via httpOnly cookie (set and rotated by the backend)
+- `login()` calls `POST /api/v1/auth/login`; cookie is set by the backend response
+- session restore on page reload calls `POST /api/v1/auth/refresh` with the cookie before React mounts
+- 401 responses trigger a single silent refresh (deduped across concurrent requests) and retry
+- logout calls `POST /api/v1/auth/logout`; no refresh token is sent in the request body
+- dashboard does not currently persist a separate `current_user` payload
 
-This current state should be treated as the migration starting point, not as proof that the long-term dashboard auth contract is already decided.
+## Refresh Token Migration Status
+
+| Phase | Description | Status |
+|---|---|---|
+| Phase 1 — Backend | httpOnly cookie set on login/refresh/logout; refresh and logout prefer cookie with body fallback | ✅ Done (PR #220) |
+| Phase 2 — Dashboard | Removed `localStorage` usage; cookie-based session restore; 401 dedupe interceptor | ✅ Done (PR #338, #339) |
+
+Body fallback (sending `refresh_token` in request body) remains active in the backend during the transition period. It will be removed in a dedicated follow-up once all clients are confirmed to be on the cookie-based contract.
 
 ## Current Extension State
 
@@ -142,7 +145,6 @@ The following remain intentionally unresolved and should stay unresolved in this
 
 - exact production deployment model for dashboard and backend
 - exact dashboard session transport model
-- whether dashboard should eventually move to a cookie-based model
 - exact extension token storage implementation for non-Twitch extension clients
 - exact token lifetimes
 - exact cookie attributes
