@@ -136,6 +136,12 @@ func TestDrawNext_SendsDiscordNotification(t *testing.T) {
 	if strings.Contains(content, "/claim/") {
 		t.Errorf("discord payload must NOT contain claim link (security: public webhook)")
 	}
+	if strings.Contains(content, "Email") {
+		t.Errorf("discord payload must NOT imply winner email delivery succeeded")
+	}
+	if strings.Contains(content, "已透過 Email 寄送") {
+		t.Errorf("discord payload must NOT claim winner email was definitely sent")
+	}
 	if !strings.Contains(content, draw.Entry.TwitchLogin) {
 		t.Errorf("discord payload should contain winner twitch login")
 	}

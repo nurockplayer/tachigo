@@ -22,17 +22,17 @@ import (
 )
 
 var (
-	ErrRaffleNotFound          = errors.New("raffle not found")
-	ErrRaffleForbidden         = errors.New("raffle does not belong to this user")
-	ErrRaffleExhausted         = errors.New("all entries have been drawn")
-	ErrRaffleCompleted         = errors.New("raffle is already completed")
-	ErrClaimTokenExpired       = errors.New("claim token has expired")
-	ErrClaimNotFound           = errors.New("claim token not found")
-	ErrClaimAlreadyDone          = errors.New("claim already submitted")
-	ErrTwitchTokenMissing         = errors.New("no twitch access token: streamer must log in via twitch")
-	ErrTwitchInsufficientScope    = errors.New("twitch token lacks channel:read:subscriptions scope")
-	ErrUnsupportedRaffleSource    = errors.New("raffle source does not support twitch sync")
-	ErrInvalidDiscordWebhookURL   = errors.New("invalid Discord webhook URL: must start with https://discord.com/api/webhooks/")
+	ErrRaffleNotFound           = errors.New("raffle not found")
+	ErrRaffleForbidden          = errors.New("raffle does not belong to this user")
+	ErrRaffleExhausted          = errors.New("all entries have been drawn")
+	ErrRaffleCompleted          = errors.New("raffle is already completed")
+	ErrClaimTokenExpired        = errors.New("claim token has expired")
+	ErrClaimNotFound            = errors.New("claim token not found")
+	ErrClaimAlreadyDone         = errors.New("claim already submitted")
+	ErrTwitchTokenMissing       = errors.New("no twitch access token: streamer must log in via twitch")
+	ErrTwitchInsufficientScope  = errors.New("twitch token lacks channel:read:subscriptions scope")
+	ErrUnsupportedRaffleSource  = errors.New("raffle source does not support twitch sync")
+	ErrInvalidDiscordWebhookURL = errors.New("invalid Discord webhook URL: must start with https://discord.com/api/webhooks/")
 )
 
 const claimTokenTTL = 7 * 24 * time.Hour
@@ -160,7 +160,9 @@ func (s *RaffleService) ImportCSV(raffleID, userID uuid.UUID, r io.Reader) (*Imp
 			Joins("JOIN users ON users.id = auth_providers.user_id AND users.deleted_at IS NULL").
 			Where("auth_providers.provider = ? AND users.username = ?", models.ProviderTwitch, twitchLogin).
 			First(&provider).Error; err != nil {
-			if !errors.Is(err, gorm.ErrRecordNotFound) { return nil, err }
+			if !errors.Is(err, gorm.ErrRecordNotFound) {
+				return nil, err
+			}
 			result.Skipped++
 			continue
 		}
@@ -292,8 +294,9 @@ func (s *RaffleService) sendDiscordNotification(ctx context.Context, draw *model
 	expiry := draw.ClaimExpiresAt.Format("2006-01-02 15:04 MST")
 	twitchLogin := draw.Entry.TwitchLogin
 	payload := map[string]interface{}{
-		"content": fmt.Sprintf("🎉 抽獎結果揭曉！中獎者：**%s**\n\n領獎連結已透過 Email 寄送給中獎者，有效期限：%s。\n請中獎者至信箱確認領獎資訊。", twitchLogin, expiry),
+		"content": fmt.Sprintf("🎉 抽獎結果揭曉！中獎者：**%s**\n\n請中獎者留意 Tachigo 系統通知或聯繫實況主確認領獎方式。\n領獎資格保留至：%s。", twitchLogin, expiry),
 	}
+	payload["content"] = fmt.Sprintf("🎉 抽獎結果揭曉！中獎者：**%s**\n\n請中獎者留意 Tachigo 系統通知，或聯繫實況主確認領獎方式。\n領獎資格保留至：%s。", twitchLogin, expiry)
 	body, err := json.Marshal(payload)
 	if err != nil {
 		log.Printf("raffle draw %s: discord marshal failed: %v", draw.ID, err)
