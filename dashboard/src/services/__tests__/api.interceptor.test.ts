@@ -91,6 +91,16 @@ describe('401 interceptor', () => {
     expect(mock.history.post.filter(r => r.url === '/api/v1/auth/refresh')).toHaveLength(1)
   })
 
+  it('無 access token 時 401 不觸發 refresh（例：login 失敗）', async () => {
+    // clearAuthToken() already called in beforeEach — hasAuthToken() is false
+    mock.onPost('/api/v1/auth/login').replyOnce(401)
+
+    await expect(client.post('/api/v1/auth/login', {})).rejects.toMatchObject({
+      response: { status: 401 },
+    })
+    expect(mock.history.post.filter(r => r.url === '/api/v1/auth/refresh')).toHaveLength(0)
+  })
+
   it('非 401 錯誤不觸發 refresh', async () => {
     mock.onGet('/api/v1/some-resource').replyOnce(500)
 
