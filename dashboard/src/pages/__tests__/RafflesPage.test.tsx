@@ -101,7 +101,8 @@ describe('RafflesPage', () => {
 
     const input = container.querySelector('input[name="title"]') as HTMLInputElement
     await act(async () => {
-      input.value = '夏季抽獎'
+      const nativeInputValueSetter = Object.getOwnPropertyDescriptor(HTMLInputElement.prototype, 'value')?.set
+      nativeInputValueSetter?.call(input, '夏季抽獎')
       input.dispatchEvent(new Event('input', { bubbles: true }))
     })
     const form = container.querySelector('form') as HTMLFormElement
@@ -119,6 +120,18 @@ describe('RafflesPage', () => {
     await flush()
     const btn = container.querySelector('button[type="submit"]') as HTMLButtonElement
     expect(btn.disabled).toBe(true)
+    cleanupRoot(root, container)
+  })
+
+  it('navigates to detail page on Enter key press', async () => {
+    listRafflesMock.mockResolvedValue([mockRaffle])
+    const { container, root } = await renderAt('/raffles')
+    await flush()
+    const row = container.querySelector('tbody tr') as HTMLElement
+    await act(async () => {
+      row.dispatchEvent(new KeyboardEvent('keydown', { key: 'Enter', bubbles: true }))
+    })
+    expect(container.querySelector('[data-testid="detail"]')?.textContent).toBe('r1')
     cleanupRoot(root, container)
   })
 })

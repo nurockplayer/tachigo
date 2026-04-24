@@ -1,5 +1,5 @@
 import { isAxiosError } from 'axios'
-import { useEffect, useRef, useState } from 'react'
+import { useEffect, useState } from 'react'
 import { useNavigate } from 'react-router'
 import { Button } from '@/components/ui/button'
 import { Input } from '@/components/ui/input'
@@ -26,8 +26,6 @@ export default function RafflesPage() {
   const [title, setTitle] = useState('')
   const [creating, setCreating] = useState(false)
   const [createError, setCreateError] = useState<string | null>(null)
-  const inputRef = useRef<HTMLInputElement>(null)
-
   useEffect(() => {
     let mounted = true
     listRaffles()
@@ -70,10 +68,8 @@ export default function RafflesPage() {
             name="title"
             placeholder="例：2026 春季觀眾抽獎"
             value={title}
-            onInput={(e) => setTitle((e.target as HTMLInputElement).value)}
             onChange={(e) => setTitle(e.target.value)}
             disabled={creating}
-            ref={inputRef}
           />
         </div>
         <Button type="submit" disabled={!title.trim() || creating}>
