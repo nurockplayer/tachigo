@@ -114,3 +114,50 @@ func TestValidateProductionSecrets(t *testing.T) {
 		})
 	}
 }
+
+func TestShouldValidateProductionSecrets(t *testing.T) {
+	tests := []struct {
+		name string
+		cfg  *Config
+		want bool
+	}{
+		{
+			name: "validates when APP_ENV is missing and defaults to development",
+			cfg: &Config{
+				Server: ServerConfig{
+					Env: "development",
+				},
+			},
+			want: true,
+		},
+		{
+			name: "skips validation only for explicit development",
+			cfg: &Config{
+				Server: ServerConfig{
+					Env:    "development",
+					EnvSet: true,
+				},
+			},
+			want: false,
+		},
+		{
+			name: "validates production",
+			cfg: &Config{
+				Server: ServerConfig{
+					Env:    "production",
+					EnvSet: true,
+				},
+			},
+			want: true,
+		},
+	}
+
+	for _, tc := range tests {
+		t.Run(tc.name, func(t *testing.T) {
+			got := ShouldValidateProductionSecrets(tc.cfg)
+			if got != tc.want {
+				t.Fatalf("expected %v, got %v", tc.want, got)
+			}
+		})
+	}
+}

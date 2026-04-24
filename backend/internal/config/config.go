@@ -47,8 +47,9 @@ type AppConfig struct {
 }
 
 type ServerConfig struct {
-	Port string
-	Env  string
+	Port   string
+	Env    string
+	EnvSet bool
 }
 
 type DatabaseConfig struct {
@@ -84,11 +85,13 @@ func Load() *Config {
 	accessTTL, _ := strconv.Atoi(getEnv("JWT_ACCESS_TTL_MINUTES", "15"))
 	refreshTTL, _ := strconv.Atoi(getEnv("JWT_REFRESH_TTL_DAYS", "30"))
 	smtpPort, _ := strconv.Atoi(getEnv("SMTP_PORT", "587"))
+	appEnv, appEnvSet := getEnvWithPresence("APP_ENV", "development")
 
 	return &Config{
 		Server: ServerConfig{
-			Port: getEnv("PORT", "8080"),
-			Env:  getEnv("APP_ENV", "development"),
+			Port:   getEnv("PORT", "8080"),
+			Env:    appEnv,
+			EnvSet: appEnvSet,
 		},
 		Database: DatabaseConfig{
 			DSN: getEnv("DATABASE_URL", "host=localhost user=postgres password=postgres dbname=tachigo port=5432 sslmode=disable"),
@@ -134,10 +137,22 @@ func Load() *Config {
 }
 
 func getEnv(key, fallback string) string {
+	value, _ := getEnvWithPresence(key, fallback)
+	return value
+}
+
+func getEnvWithPresence(key, fallback string) (string, bool) {
 	if v := os.Getenv(key); v != "" {
-		return v
+		return v, true
 	}
-	return fallback
+	return fallback, false
+}
+
+func ShouldValidateProductionSecrets(cfg *Config) bool {
+	if cfg == nil {
+		return true
+	}
+	return !cfg.Server.EnvSet || cfg.Server.Env != "development"
 }
 
 func ValidateProductionSecrets(cfg *Config) error {
