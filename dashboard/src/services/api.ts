@@ -64,6 +64,12 @@ client.interceptors.response.use(
       return Promise.reject(error)
     }
 
+    // axios 1.x 在 error.config 中已 flatten Authorization header，retry 前需明確覆寫
+    // 否則 request-level header 優先於 defaults，新 token 不會生效
+    if (originalRequest.headers) {
+      originalRequest.headers['Authorization'] = client.defaults.headers.common['Authorization']
+    }
+
     return client(originalRequest)
   },
 )

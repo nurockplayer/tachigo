@@ -48,6 +48,8 @@ describe('401 interceptor', () => {
 
     expect(result.data).toEqual({ data: 'ok' })
     expect(hasAuthToken()).toBe(true)
+    // 重試請求必須帶新 token，不能帶舊的（axios 1.x error.config headers 已 flatten，retry 前需明確覆寫）
+    expect(mock.history.get[1].headers?.Authorization).toBe('Bearer new-token')
   })
 
   it('並發多個 401 時只呼叫一次 /auth/refresh（dedupe）', async () => {
