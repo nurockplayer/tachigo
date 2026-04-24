@@ -1,9 +1,16 @@
 package config
 
 import (
+	"fmt"
 	"os"
 	"strconv"
 	"time"
+)
+
+const (
+	defaultJWTAccessSecret  = "change-me-access-secret"
+	defaultJWTRefreshSecret = "change-me-refresh-secret"
+	minJWTSecretLength      = 32
 )
 
 type Config struct {
@@ -87,8 +94,8 @@ func Load() *Config {
 			DSN: getEnv("DATABASE_URL", "host=localhost user=postgres password=postgres dbname=tachigo port=5432 sslmode=disable"),
 		},
 		JWT: JWTConfig{
-			AccessSecret:  getEnv("JWT_ACCESS_SECRET", "change-me-access-secret"),
-			RefreshSecret: getEnv("JWT_REFRESH_SECRET", "change-me-refresh-secret"),
+			AccessSecret:  getEnv("JWT_ACCESS_SECRET", defaultJWTAccessSecret),
+			RefreshSecret: getEnv("JWT_REFRESH_SECRET", defaultJWTRefreshSecret),
 			AccessTTL:     time.Duration(accessTTL) * time.Minute,
 			RefreshTTL:    time.Duration(refreshTTL) * 24 * time.Hour,
 		},
@@ -131,4 +138,35 @@ func getEnv(key, fallback string) string {
 		return v
 	}
 	return fallback
+}
+
+func ValidateProductionSecrets(cfg *Config) error {
+	if cfg == nil {
+		return fmt.Errorf("config is required")
+	}
+
+	if err := validateJWTSecret("JWT_ACCESS_SECRET", cfg.JWT.AccessSecret, defaultJWTAccessSecret); err != nil {
+		return err
+	}
+	if err := validateJWTSecret("JWT_REFRESH_SECRET", cfg.JWT.RefreshSecret, defaultJWTRefreshSecret); err != nil {
+		return err
+	}
+	if cfg.JWT.AccessSecret == cfg.JWT.RefreshSecret {
+		return fmt.Errorf("JWT_ACCESS_SECRET and JWT_REFRESH_SECRET must be different")
+	}
+
+	return nil
+}
+
+func validateJWTSecret(name, value, fallback string) error {
+	if value == "" {
+		return fmt.Errorf("%s must not be empty", name)
+	}
+	if value == fallback {
+		return fmt.Errorf("%s must not use the default value", name)
+	}
+	if len(value) < minJWTSecretLength {
+		return fmt.Errorf("%s must be at least %d characters", name, minJWTSecretLength)
+	}
+	return nil
 }
