@@ -87,6 +87,7 @@ func newRaffleTestEnv(t *testing.T) *raffleTestEnv {
 	dash.POST("/raffles/:id/draws", raffleH.DrawNext)
 	dash.GET("/raffles/:id/draws", raffleH.ListDraws)
 	dash.POST("/raffles/:id/complete", raffleH.Complete)
+	dash.PATCH("/raffles/:id/discord-webhook", raffleH.SetDiscordWebhook)
 	dash.POST("/raffles/:id/snapshot", raffleH.Snapshot)
 
 	return &raffleTestEnv{db: db, authSvc: authSvc, raffleSvc: raffleSvc, router: r}
@@ -337,6 +338,82 @@ func TestRaffle_Complete(t *testing.T) {
 	raffle := completeResp["data"].(map[string]interface{})["raffle"].(map[string]interface{})
 	if raffle["status"] != "completed" {
 		t.Errorf("expected completed status, got %v", raffle["status"])
+	}
+}
+
+func TestRaffle_SetDiscordWebhook_RequiresField(t *testing.T) {
+	env := newRaffleTestEnv(t)
+	token := env.registerStreamer(t, "webhookhost", "webhookhost@test.com", "pass1234")
+
+	createBody, _ := json.Marshal(map[string]string{"title": "webhook test"})
+	createW := httptest.NewRecorder()
+	createReq, _ := http.NewRequest(http.MethodPost, "/api/v1/dashboard/raffles", bytes.NewReader(createBody))
+	createReq.Header.Set("Content-Type", "application/json")
+	createReq.Header.Set("Authorization", bearer(token))
+	env.router.ServeHTTP(createW, createReq)
+	raffleID := parseBody(t, createW.Body.Bytes())["data"].(map[string]interface{})["raffle"].(map[string]interface{})["id"].(string)
+
+	w := httptest.NewRecorder()
+	req, _ := http.NewRequest(http.MethodPatch, "/api/v1/dashboard/raffles/"+raffleID+"/discord-webhook", bytes.NewReader([]byte(`{}`)))
+	req.Header.Set("Content-Type", "application/json")
+	req.Header.Set("Authorization", bearer(token))
+	env.router.ServeHTTP(w, req)
+
+	if w.Code != http.StatusBadRequest {
+		t.Fatalf("want 400, got %d: %s", w.Code, w.Body.String())
+	}
+	resp := parseBody(t, w.Body.Bytes())
+	if msg, _ := resp["error"].(string); !strings.Contains(msg, "discord_webhook_url is required") {
+		t.Errorf("unexpected error: %v", resp["error"])
+	}
+}
+
+func TestRaffle_SetDiscordWebhook_ClearAndSafeResponse(t *testing.T) {
+	env := newRaffleTestEnv(t)
+	token := env.registerStreamer(t, "webhookowner", "webhookowner@test.com", "pass1234")
+
+	createBody, _ := json.Marshal(map[string]string{"title": "webhook safe response"})
+	createW := httptest.NewRecorder()
+	createReq, _ := http.NewRequest(http.MethodPost, "/api/v1/dashboard/raffles", bytes.NewReader(createBody))
+	createReq.Header.Set("Content-Type", "application/json")
+	createReq.Header.Set("Authorization", bearer(token))
+	env.router.ServeHTTP(createW, createReq)
+	raffleID := parseBody(t, createW.Body.Bytes())["data"].(map[string]interface{})["raffle"].(map[string]interface{})["id"].(string)
+
+	setBody, _ := json.Marshal(map[string]string{"discord_webhook_url": "https://discord.com/api/webhooks/123/abc"})
+	setW := httptest.NewRecorder()
+	setReq, _ := http.NewRequest(http.MethodPatch, "/api/v1/dashboard/raffles/"+raffleID+"/discord-webhook", bytes.NewReader(setBody))
+	setReq.Header.Set("Content-Type", "application/json")
+	setReq.Header.Set("Authorization", bearer(token))
+	env.router.ServeHTTP(setW, setReq)
+
+	if setW.Code != http.StatusOK {
+		t.Fatalf("set webhook: want 200, got %d: %s", setW.Code, setW.Body.String())
+	}
+	setResp := parseBody(t, setW.Body.Bytes())
+	setData := setResp["data"].(map[string]interface{})
+	if configured, ok := setData["discord_webhook_configured"].(bool); !ok || !configured {
+		t.Fatalf("expected discord_webhook_configured=true, got %v", setData["discord_webhook_configured"])
+	}
+	setRaffle := setData["raffle"].(map[string]interface{})
+	if _, ok := setRaffle["discord_webhook_url"]; ok {
+		t.Fatalf("response must not leak raw discord_webhook_url")
+	}
+
+	clearBody, _ := json.Marshal(map[string]string{"discord_webhook_url": ""})
+	clearW := httptest.NewRecorder()
+	clearReq, _ := http.NewRequest(http.MethodPatch, "/api/v1/dashboard/raffles/"+raffleID+"/discord-webhook", bytes.NewReader(clearBody))
+	clearReq.Header.Set("Content-Type", "application/json")
+	clearReq.Header.Set("Authorization", bearer(token))
+	env.router.ServeHTTP(clearW, clearReq)
+
+	if clearW.Code != http.StatusOK {
+		t.Fatalf("clear webhook: want 200, got %d: %s", clearW.Code, clearW.Body.String())
+	}
+	clearResp := parseBody(t, clearW.Body.Bytes())
+	clearData := clearResp["data"].(map[string]interface{})
+	if configured, ok := clearData["discord_webhook_configured"].(bool); !ok || configured {
+		t.Fatalf("expected discord_webhook_configured=false, got %v", clearData["discord_webhook_configured"])
 	}
 }
 

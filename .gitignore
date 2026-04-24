@@ -52,4 +52,3 @@ contracts/cache/
 contracts/lib/
 contracts/broadcast/
 contracts/.env
-.worktrees/
