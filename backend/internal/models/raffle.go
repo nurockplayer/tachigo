@@ -26,10 +26,15 @@ type Raffle struct {
 	Title       string       `gorm:"type:varchar(255);not null"                     json:"title"`
 	Status      RaffleStatus `gorm:"type:varchar(50);not null;default:'draft'"      json:"status"`
 	Source      RaffleSource `gorm:"type:varchar(50);not null;default:'csv'"        json:"source"`
-	ScheduledAt *time.Time   `                                                      json:"scheduled_at"`
-	CreatedAt   time.Time    `                                                      json:"created_at"`
-	UpdatedAt   time.Time    `                                                      json:"updated_at"`
+	ScheduledAt       *time.Time `                          json:"scheduled_at"`
+	DiscordWebhookURL *string    `gorm:"type:varchar(512)"  json:"-"`
+	CreatedAt         time.Time  `                          json:"created_at"`
+	UpdatedAt         time.Time  `                          json:"updated_at"`
 }
+
+// DiscordWebhookConfigured reports whether a webhook URL is set without
+// exposing the secret token embedded in the URL.
+func (r *Raffle) DiscordWebhookConfigured() bool { return r.DiscordWebhookURL != nil }
 
 func (r *Raffle) BeforeCreate(tx *gorm.DB) error {
 	if r.ID == uuid.Nil {

@@ -1,6 +1,7 @@
 package services
 
 import (
+	"bytes"
 	"context"
 	"encoding/csv"
 	"encoding/json"
@@ -21,16 +22,17 @@ import (
 )
 
 var (
-	ErrRaffleNotFound          = errors.New("raffle not found")
-	ErrRaffleForbidden         = errors.New("raffle does not belong to this user")
-	ErrRaffleExhausted         = errors.New("all entries have been drawn")
-	ErrRaffleCompleted         = errors.New("raffle is already completed")
-	ErrClaimTokenExpired       = errors.New("claim token has expired")
-	ErrClaimNotFound           = errors.New("claim token not found")
-	ErrClaimAlreadyDone        = errors.New("claim already submitted")
+	ErrRaffleNotFound           = errors.New("raffle not found")
+	ErrRaffleForbidden          = errors.New("raffle does not belong to this user")
+	ErrRaffleExhausted          = errors.New("all entries have been drawn")
+	ErrRaffleCompleted          = errors.New("raffle is already completed")
+	ErrClaimTokenExpired        = errors.New("claim token has expired")
+	ErrClaimNotFound            = errors.New("claim token not found")
+	ErrClaimAlreadyDone         = errors.New("claim already submitted")
 	ErrTwitchTokenMissing       = errors.New("no twitch access token: streamer must log in via twitch")
 	ErrTwitchInsufficientScope  = errors.New("twitch token lacks channel:read:subscriptions scope")
 	ErrUnsupportedRaffleSource  = errors.New("raffle source does not support twitch sync")
+	ErrInvalidDiscordWebhookURL = errors.New("invalid Discord webhook URL: must start with https://discord.com/api/webhooks/")
 )
 
 const claimTokenTTL = 7 * 24 * time.Hour
@@ -158,7 +160,9 @@ func (s *RaffleService) ImportCSV(raffleID, userID uuid.UUID, r io.Reader) (*Imp
 			Joins("JOIN users ON users.id = auth_providers.user_id AND users.deleted_at IS NULL").
 			Where("auth_providers.provider = ? AND users.username = ?", models.ProviderTwitch, twitchLogin).
 			First(&provider).Error; err != nil {
-			if !errors.Is(err, gorm.ErrRecordNotFound) { return nil, err }
+			if !errors.Is(err, gorm.ErrRecordNotFound) {
+				return nil, err
+			}
 			result.Skipped++
 			continue
 		}
@@ -244,7 +248,75 @@ func (s *RaffleService) DrawNext(raffleID, userID uuid.UUID) (*models.RaffleDraw
 			s.sendWinnerEmail(ctx, d)
 		}(result)
 	}
+	if err == nil && raffle.DiscordWebhookURL != nil {
+		go func(d *models.RaffleDraw, webhookURL string) {
+			defer func() {
+				if r := recover(); r != nil {
+					log.Printf("raffle sendDiscordNotification panic (draw %s): %v", d.ID, r)
+				}
+			}()
+			ctx, cancel := context.WithTimeout(context.Background(), 30*time.Second)
+			defer cancel()
+			s.sendDiscordNotification(ctx, d, webhookURL)
+		}(result, *raffle.DiscordWebhookURL)
+	}
 	return result, err
+}
+
+// SetDiscordWebhook sets or clears the Discord webhook URL for a raffle.
+// An empty webhookURL clears the setting.
+func (s *RaffleService) SetDiscordWebhook(raffleID, userID uuid.UUID, webhookURL string) (*models.Raffle, error) {
+	raffle, err := s.GetByID(raffleID, userID)
+	if err != nil {
+		return nil, err
+	}
+	var val *string
+	if webhookURL != "" {
+		if !strings.HasPrefix(webhookURL, "https://discord.com/api/webhooks/") &&
+			!strings.HasPrefix(webhookURL, "https://discordapp.com/api/webhooks/") {
+			return nil, ErrInvalidDiscordWebhookURL
+		}
+		val = &webhookURL
+	}
+	if err := s.db.Model(raffle).Update("discord_webhook_url", val).Error; err != nil {
+		return nil, err
+	}
+	raffle.DiscordWebhookURL = val
+	return raffle, nil
+}
+
+func (s *RaffleService) sendDiscordNotification(ctx context.Context, draw *models.RaffleDraw, webhookURL string) {
+	// Intentionally omit the claim token from the public webhook payload.
+	// /claim/:token is an unauthenticated endpoint; posting the token to a
+	// Discord channel (which may be public) would allow any viewer to submit
+	// the claim on behalf of the winner. The claim link is delivered privately
+	// via email (issue #230) to the winner's registered address instead.
+	expiry := draw.ClaimExpiresAt.Format("2006-01-02 15:04 MST")
+	twitchLogin := draw.Entry.TwitchLogin
+	payload := map[string]interface{}{
+		"content": fmt.Sprintf("🎉 抽獎結果揭曉！中獎者：**%s**\n\n請中獎者留意 Tachigo 系統通知或聯繫實況主確認領獎方式。\n領獎資格保留至：%s。", twitchLogin, expiry),
+	}
+	payload["content"] = fmt.Sprintf("🎉 抽獎結果揭曉！中獎者：**%s**\n\n請中獎者留意 Tachigo 系統通知，或聯繫實況主確認領獎方式。\n領獎資格保留至：%s。", twitchLogin, expiry)
+	body, err := json.Marshal(payload)
+	if err != nil {
+		log.Printf("raffle draw %s: discord marshal failed: %v", draw.ID, err)
+		return
+	}
+	req, err := http.NewRequestWithContext(ctx, http.MethodPost, webhookURL, bytes.NewReader(body))
+	if err != nil {
+		log.Printf("raffle draw %s: discord request build failed: %v", draw.ID, err)
+		return
+	}
+	req.Header.Set("Content-Type", "application/json")
+	resp, err := s.httpClient.Do(req)
+	if err != nil {
+		log.Printf("raffle draw %s: discord webhook failed: %v", draw.ID, err)
+		return
+	}
+	defer resp.Body.Close()
+	if resp.StatusCode < 200 || resp.StatusCode >= 300 {
+		log.Printf("raffle draw %s: discord webhook status %d", draw.ID, resp.StatusCode)
+	}
 }
 
 // ListDraws returns all draws for a raffle (with entry preloaded).

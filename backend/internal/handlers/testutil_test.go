@@ -246,6 +246,7 @@ func migrateTestDB(db *gorm.DB) error {
 			status TEXT NOT NULL DEFAULT 'draft',
 			source TEXT NOT NULL DEFAULT 'csv',
 			scheduled_at DATETIME,
+			discord_webhook_url TEXT,
 			created_at DATETIME NOT NULL DEFAULT CURRENT_TIMESTAMP,
 			updated_at DATETIME NOT NULL DEFAULT CURRENT_TIMESTAMP
 		)`,

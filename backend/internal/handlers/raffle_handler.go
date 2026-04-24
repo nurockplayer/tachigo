@@ -295,6 +295,62 @@ func (h *RaffleHandler) Complete(c *gin.Context) {
 	ok(c, gin.H{"raffle": raffle})
 }
 
+// SetDiscordWebhook godoc
+// @Summary      Set or clear the Discord webhook URL for a raffle
+// @Tags         raffles
+// @Security     BearerAuth
+// @Accept       json
+// @Produce      json
+// @Param        id   path   string                          true "Raffle ID"
+// @Param        body body   object{discord_webhook_url=string} true "Webhook URL (empty string to clear)"
+// @Success      200  {object}  Response
+// @Failure      400  {object}  Response
+// @Failure      403  {object}  Response
+// @Failure      404  {object}  Response
+// @Router       /dashboard/raffles/{id}/discord-webhook [patch]
+func (h *RaffleHandler) SetDiscordWebhook(c *gin.Context) {
+	claims := middleware.MustClaims(c)
+	userID, err := uuid.Parse(claims.UserID)
+	if err != nil {
+		badRequest(c, "invalid user id")
+		return
+	}
+	raffleID, err := uuid.Parse(c.Param("id"))
+	if err != nil {
+		badRequest(c, "invalid raffle id")
+		return
+	}
+
+	var body struct {
+		DiscordWebhookURL *string `json:"discord_webhook_url"`
+	}
+	if err := c.ShouldBindJSON(&body); err != nil {
+		badRequest(c, err.Error())
+		return
+	}
+	if body.DiscordWebhookURL == nil {
+		badRequest(c, "discord_webhook_url is required (pass empty string to clear)")
+		return
+	}
+
+	raffle, err := h.raffleSvc.SetDiscordWebhook(raffleID, userID, *body.DiscordWebhookURL)
+	if err != nil {
+		switch {
+		case errors.Is(err, services.ErrRaffleNotFound):
+			c.JSON(http.StatusNotFound, gin.H{"error": err.Error()})
+		case errors.Is(err, services.ErrRaffleForbidden):
+			c.JSON(http.StatusForbidden, gin.H{"error": err.Error()})
+		case errors.Is(err, services.ErrInvalidDiscordWebhookURL):
+			badRequest(c, err.Error())
+		default:
+			log.Printf("SetDiscordWebhook: %v", err)
+			internal(c)
+		}
+		return
+	}
+	ok(c, gin.H{"raffle": raffle, "discord_webhook_configured": raffle.DiscordWebhookConfigured()})
+}
+
 // ── Public endpoints (no auth) ────────────────────────────────────────────────
 
 // GetClaim godoc

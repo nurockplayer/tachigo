@@ -206,6 +206,9 @@ func New(
 		dashboard.POST("/raffles/:id/complete",
 			middleware.RequireRole(models.RoleStreamer),
 			raffleH.Complete)
+		dashboard.PATCH("/raffles/:id/discord-webhook",
+			middleware.RequireRole(models.RoleStreamer),
+			raffleH.SetDiscordWebhook)
 		dashboard.POST("/raffles/:id/snapshot",
 			middleware.RequireRole(models.RoleStreamer),
 			raffleH.Snapshot)
