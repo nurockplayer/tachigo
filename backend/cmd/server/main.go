@@ -39,6 +39,11 @@ func main() {
 	_ = godotenv.Load()
 
 	cfg := config.Load()
+	if config.ShouldValidateProductionSecrets(cfg) {
+		if err := config.ValidateProductionSecrets(cfg); err != nil {
+			log.Fatalf("invalid secrets: %v", err)
+		}
+	}
 
 	db := database.Connect(cfg.Database.DSN)
 
