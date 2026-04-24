@@ -157,6 +157,35 @@ repo 的 CI 目前改成：
 - 若 `[frontend]` PR 依賴尚未 merge 的 backend contract，重型 CI 會直接跳過
 - 若 PR 是正式 `[release]` 的 `develop -> main` promotion，重型 CI 會照常執行，不因 diff 過大而被 scope gate 跳過
 
+## 本地 PR preflight
+
+開 PR 前可以先在本地跑 metadata preflight，提早檢查 PR title、body template 欄位、dependency PR、backend contract 與 product surface 是否符合上方 Scope Police 規則。
+
+直接檢查既有 PR body 檔案：
+
+```bash
+make pr-meta-check TITLE="[chore] Example title" BODY_FILE=/tmp/pr-body.md
+```
+
+開 PR 前先檢查，通過後才呼叫 `gh pr create`：
+
+```bash
+make pr-open TITLE="[chore] Example title" BODY_FILE=/tmp/pr-body.md
+```
+
+可選參數：
+
+- `BASE`：預設 `develop`
+- `HEAD`：預設目前 branch
+- `DRAFT=1`：建立 draft PR
+
+底層腳本：
+
+- `scripts/pr-metadata-check.sh`
+- `scripts/pr-open.sh`
+
+這組本地 preflight 只檢查 PR metadata 與目前 branch diff 的基本 surface 規則；push 前的大型 diff 檢查仍由 `.githooks/pre-push` 負責，GitHub 上的最終 gate 仍是 `.github/workflows/pr-scope-police.yml`。
+
 ## GitHub 設定
 
 建議在 GitHub repo settings 這樣設定：
