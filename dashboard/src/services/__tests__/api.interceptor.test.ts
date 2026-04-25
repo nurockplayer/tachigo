@@ -4,6 +4,12 @@ import client, { hasAuthToken, setAuthToken, clearAuthToken } from '@/services/a
 
 let mock: InstanceType<typeof MockAdapter>
 
+describe('api client config', () => {
+  it('設定 request timeout，避免 restoreSession 阻塞首次 render', () => {
+    expect(client.defaults.timeout).toBe(10000)
+  })
+})
+
 beforeEach(() => {
   mock = new MockAdapter(client)
   clearAuthToken()
@@ -89,6 +95,16 @@ describe('401 interceptor', () => {
       response: { status: 401 },
     })
     expect(mock.history.post.filter(r => r.url === '/api/v1/auth/refresh')).toHaveLength(1)
+  })
+
+  it('無 access token 時 401 不觸發 refresh（例：login 失敗）', async () => {
+    // clearAuthToken() already called in beforeEach — hasAuthToken() is false
+    mock.onPost('/api/v1/auth/login').replyOnce(401)
+
+    await expect(client.post('/api/v1/auth/login', {})).rejects.toMatchObject({
+      response: { status: 401 },
+    })
+    expect(mock.history.post.filter(r => r.url === '/api/v1/auth/refresh')).toHaveLength(0)
   })
 
   it('非 401 錯誤不觸發 refresh', async () => {

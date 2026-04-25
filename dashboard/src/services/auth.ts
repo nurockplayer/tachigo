@@ -1,41 +1,42 @@
 import { isAxiosError } from 'axios'
-import client, { setAuthToken, clearAuthToken } from '@/services/api'
-
-// 記憶體儲存，不 export
-let accessToken: string | null = null
+import client, { clearAuthToken, hasAuthToken, setAuthToken } from '@/services/api'
 
 interface LoginResponse {
   data: {
     user: Record<string, unknown>
-    tokens: {
-      access_token: string
-      refresh_token: string
-    }
+    tokens: { access_token: string }
   }
+}
+
+interface RefreshResponse {
+  data: { tokens: { access_token: string } }
 }
 
 export async function login(email: string, password: string): Promise<void> {
-  const { data } = await client.post<LoginResponse>('/api/v1/auth/login', {
-    email,
-    password,
-  })
-  accessToken = data.data.tokens.access_token
-  localStorage.setItem('refresh_token', data.data.tokens.refresh_token)
-  setAuthToken(accessToken)
+  const { data } = await client.post<LoginResponse>('/api/v1/auth/login', { email, password })
+  setAuthToken(data.data.tokens.access_token)
+}
+
+export async function refresh(): Promise<void> {
+  const { data } = await client.post<RefreshResponse>('/api/v1/auth/refresh')
+  setAuthToken(data.data.tokens.access_token)
+}
+
+export async function restoreSession(): Promise<void> {
+  try {
+    await refresh()
+  } catch {
+    // cookie 不存在或已過期；維持未登入狀態
+  }
 }
 
 export async function logout(): Promise<void> {
-  const refreshToken = localStorage.getItem('refresh_token')
-  if (refreshToken) {
-    await client.post('/api/v1/auth/logout', { refresh_token: refreshToken }).catch(() => {})
-  }
-  accessToken = null
-  localStorage.removeItem('refresh_token')
+  await client.post('/api/v1/auth/logout')
   clearAuthToken()
 }
 
 export function isAuthenticated(): boolean {
-  return accessToken !== null
+  return hasAuthToken()
 }
 
 export { isAxiosError }

@@ -6,6 +6,7 @@ const client = axios.create({
   baseURL: BASE_URL,
   headers: { 'Content-Type': 'application/json' },
   withCredentials: true,
+  timeout: 10000,
 })
 
 let _accessToken: string | null = null
@@ -37,7 +38,7 @@ client.interceptors.response.use(
     const originalRequest = error.config as AxiosRequestConfig & { _retry?: boolean }
     const isRefreshEndpoint = (originalRequest.url ?? '').includes('/api/v1/auth/refresh')
 
-    if (error.response?.status !== 401 || originalRequest._retry || isRefreshEndpoint) {
+    if (error.response?.status !== 401 || originalRequest._retry || isRefreshEndpoint || !hasAuthToken()) {
       return Promise.reject(error)
     }
 

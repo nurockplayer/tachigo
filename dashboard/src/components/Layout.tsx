@@ -18,8 +18,13 @@ export default function Layout() {
 
   async function handleLogout() {
     setIsLoggingOut(true)
-    await logout()
-    navigate('/login')
+    try {
+      await logout()
+      navigate('/login')
+    } catch {
+      // logout request failed — cookie was not cleared; keep user logged in
+      setIsLoggingOut(false)
+    }
   }
 
   return (
