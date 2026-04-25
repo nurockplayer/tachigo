@@ -136,7 +136,10 @@ if command -v git-lfs >/dev/null 2>&1; then
     [ -z "$local_sha" ] && continue
     [ "$local_sha" = "$ZERO_SHA" ] && continue
     if [ "$remote_sha" = "$ZERO_SHA" ]; then
-      range="$local_sha"
+      base=$(git merge-base "$local_sha" refs/remotes/origin/develop 2>/dev/null \
+             || git merge-base "$local_sha" refs/remotes/origin/main 2>/dev/null \
+             || echo "")
+      [ -n "$base" ] && range="${base}..${local_sha}" || range="${local_sha}^..${local_sha}"
     else
       range="${remote_sha}..${local_sha}"
     fi
