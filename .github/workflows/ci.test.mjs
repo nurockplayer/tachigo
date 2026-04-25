@@ -82,3 +82,14 @@ test('PR size thresholds match CLAUDE.md', async () => {
   assert.match(scopePolice, /const hardMaxDiffLines = 1000/)
   assert.match(scopePolice, /const exceptionMaxDiffLines = 1500/)
 })
+
+test('docs/template-only PRs skip heavy product CI in scope gate', async () => {
+  const workflow = await readFile(workflowPath, 'utf8')
+
+  assert.match(workflow, /const isDocsTemplateOrMetadataOnly =/)
+  assert.match(workflow, /standardBodyValid &&\n\s+!isDocsTemplateOrMetadataOnly &&/)
+  assert.match(
+    workflow,
+    /Skipping heavy product CI because this PR only changes docs\/templates\/metadata\./,
+  )
+})
