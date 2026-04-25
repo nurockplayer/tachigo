@@ -4,6 +4,12 @@ import client, { hasAuthToken, setAuthToken, clearAuthToken } from '@/services/a
 
 let mock: InstanceType<typeof MockAdapter>
 
+describe('api client config', () => {
+  it('設定 request timeout，避免 restoreSession 阻塞首次 render', () => {
+    expect(client.defaults.timeout).toBe(10000)
+  })
+})
+
 beforeEach(() => {
   mock = new MockAdapter(client)
   clearAuthToken()

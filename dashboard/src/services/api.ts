@@ -6,6 +6,7 @@ const client = axios.create({
   baseURL: BASE_URL,
   headers: { 'Content-Type': 'application/json' },
   withCredentials: true,
+  timeout: 10000,
 })
 
 let _accessToken: string | null = null
