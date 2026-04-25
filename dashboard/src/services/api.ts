@@ -25,6 +25,10 @@ export function hasAuthToken(): boolean {
   return _accessToken !== null
 }
 
+export function getAuthToken(): string | null {
+  return _accessToken
+}
+
 interface RefreshResponse {
   data: { tokens: { access_token: string } }
 }
