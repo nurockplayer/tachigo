@@ -1,5 +1,7 @@
 #!/usr/bin/env bash
-# Pre-push hook: warn when diff is too large (mirrors CI hard limits)
+# Pre-push hook:
+#   1. Warn when diff is too large (mirrors CI hard limits)
+#   2. Run git-lfs pre-push only when LFS-tracked files are being pushed
 # Hard limits match pr-scope-police.yml
 MAX_FILES=35
 MAX_LINES=1800
@@ -7,6 +9,9 @@ ZERO_SHA=0000000000000000000000000000000000000000
 
 remote="$1"
 url="$2"
+
+# Save stdin — both scope police and LFS checks need the ref list
+stdin_data=$(cat)
 
 resolve_candidate_ref() {
   local candidate="$1"
@@ -121,10 +126,30 @@ while read -r local_ref local_sha remote_ref remote_sha; do
     echo "Push aborted."
     exit 1
   fi
-done
+done <<< "$stdin_data"
 
-if [ "$violations" -eq 0 ]; then
-  exit 0
+# ── LFS pre-push (skip if no LFS-tracked files in pushed commits) ────────────
+# LFS patterns mirror .gitattributes
+if command -v git-lfs >/dev/null 2>&1; then
+  has_lfs=0
+  while IFS=' ' read -r local_ref local_sha remote_ref remote_sha; do
+    [ -z "$local_sha" ] && continue
+    [ "$local_sha" = "$ZERO_SHA" ] && continue
+    if [ "$remote_sha" = "$ZERO_SHA" ]; then
+      range="$local_sha"
+    else
+      range="${remote_sha}..${local_sha}"
+    fi
+    if git log --pretty=format: --name-only "$range" 2>/dev/null \
+       | grep -qE '\.(png|jpg|jpeg|webp|gif|ttf|otf|woff|woff2)$'; then
+      has_lfs=1
+      break
+    fi
+  done <<< "$stdin_data"
+
+  if [ "$has_lfs" -eq 1 ]; then
+    printf '%s\n' "$stdin_data" | git lfs pre-push "$@"
+  fi
 fi
 
 exit 0
