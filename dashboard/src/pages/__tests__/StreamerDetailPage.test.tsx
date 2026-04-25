@@ -6,10 +6,15 @@ import StreamerDetailPage from '@/pages/StreamerDetailPage'
 
 const getStreamerStatsMock = vi.fn()
 const getChannelConfigMock = vi.fn()
+const getUserRoleMock = vi.fn()
 
 vi.mock('@/services/channels', () => ({
   getStreamerStats: (...args: unknown[]) => getStreamerStatsMock(...args),
   getChannelConfig: (...args: unknown[]) => getChannelConfigMock(...args),
+}))
+
+vi.mock('@/services/auth', () => ({
+  getUserRole: () => getUserRoleMock(),
 }))
 
 function RoutedApp() {
@@ -107,6 +112,8 @@ describe('StreamerDetailPage', () => {
   beforeEach(() => {
     getStreamerStatsMock.mockReset()
     getChannelConfigMock.mockReset()
+    getUserRoleMock.mockReset()
+    getUserRoleMock.mockReturnValue('agency')
     getStreamerStatsMock.mockResolvedValue({
       stats: defaultStats,
       channelId: 'channel-1',
@@ -134,12 +141,35 @@ describe('StreamerDetailPage', () => {
     cleanupRoot(root, container)
   })
 
-  it('顯示返回列表按鈕', async () => {
+  it('Agency 顯示返回列表按鈕', async () => {
+    getUserRoleMock.mockReturnValue('agency')
     const { container, root } = await renderAt('/streamers/uuid-1')
     await flush()
     await flush()
 
     expect(container.textContent).toContain('返回列表')
+
+    cleanupRoot(root, container)
+  })
+
+  it('Admin 顯示返回列表按鈕', async () => {
+    getUserRoleMock.mockReturnValue('admin')
+    const { container, root } = await renderAt('/streamers/uuid-1')
+    await flush()
+    await flush()
+
+    expect(container.textContent).toContain('返回列表')
+
+    cleanupRoot(root, container)
+  })
+
+  it('Streamer 不顯示返回列表按鈕', async () => {
+    getUserRoleMock.mockReturnValue('streamer')
+    const { container, root } = await renderAt('/streamers/uuid-1')
+    await flush()
+    await flush()
+
+    expect(container.textContent).not.toContain('返回列表')
 
     cleanupRoot(root, container)
   })
@@ -165,6 +195,29 @@ describe('StreamerDetailPage', () => {
     expect(container.textContent).toContain('1.5 小時')
     expect(container.textContent).toContain('挖礦倍率設定')
     expect(container.textContent).toContain('—')
+
+    cleanupRoot(root, container)
+  })
+
+  it('stats 成功後立即顯示主內容，不等 config', async () => {
+    let resolveConfig: ((value: typeof defaultConfig) => void) | null = null
+    getChannelConfigMock.mockImplementation(
+      () => new Promise((resolve) => { resolveConfig = resolve }),
+    )
+
+    const { container, root } = await renderAt('/streamers/uuid-1')
+    await flush()
+
+    // stats 已載入，主內容可見；config 尚未 resolve
+    expect(container.textContent).toContain('1.5 小時')
+    expect(container.textContent).toContain('挖礦倍率設定')
+
+    await act(async () => {
+      resolveConfig?.(defaultConfig)
+    })
+    await flush()
+
+    expect(container.textContent).toContain('30 秒 / 點')
 
     cleanupRoot(root, container)
   })
