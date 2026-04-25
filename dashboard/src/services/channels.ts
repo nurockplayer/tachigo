@@ -11,6 +11,9 @@ export interface Streamer {
   agency_user_id?: string
   channel_id: string
   display_name: string
+  daily_seconds?: number
+  unique_miners?: number
+  total_token_minted?: number
 }
 
 export interface StreamerStats {

@@ -85,7 +85,46 @@ describe('StreamersPage', () => {
     await flush()
 
     expect(container.textContent).toContain('Alice')
-    expect(container.textContent).toContain('channel-2')
+    expect(container.textContent).toContain('Bob')
+
+    cleanupRoot(root, container)
+  })
+
+  it('顯示 summary metrics 欄位（本日開台、挖礦觀眾、總產出點數）', async () => {
+    getMyChannelsMock.mockRejectedValue(axiosError(401))
+    getStreamersMock.mockResolvedValue([
+      {
+        id: 'uuid-1',
+        channel_id: 'channel-1',
+        display_name: 'Alice',
+        daily_seconds: 12600,
+        unique_miners: 1240,
+        total_token_minted: 3200,
+      },
+    ])
+
+    const { container, root } = await renderAt('/streamers')
+    await flush()
+
+    expect(container.textContent).toContain('3.5 hr')
+    expect(container.textContent).toContain('1,240')
+    expect(container.textContent).toContain('3,200')
+
+    cleanupRoot(root, container)
+  })
+
+  it('summary metrics 為 undefined 時顯示破折號', async () => {
+    getMyChannelsMock.mockRejectedValue(axiosError(401))
+    getStreamersMock.mockResolvedValue([
+      { id: 'uuid-1', channel_id: 'channel-1', display_name: 'Alice' },
+    ])
+
+    const { container, root } = await renderAt('/streamers')
+    await flush()
+
+    // 三欄都顯示破折號
+    const dashes = (container.textContent?.match(/—/g) ?? []).length
+    expect(dashes).toBeGreaterThanOrEqual(3)
 
     cleanupRoot(root, container)
   })
