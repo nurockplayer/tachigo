@@ -272,8 +272,12 @@ main() {
     dep_state=$(gh pr view "$dep_number" --repo "$repo" --json state --jq '.state' 2>/dev/null || true)
     if [ -z "$dep_state" ]; then
       failures+=("無法讀取 dependency PR #$dep_number")
+    elif [ "$dep_state" = "MERGED" ]; then
+      failures+=("[frontend] Backend contract PR #$dep_number is already MERGED into develop; please check 'Backend contract already in develop: yes'")
+    elif [ "$dep_state" = "CLOSED" ]; then
+      failures+=("[frontend] Dependency PR #$dep_number 已被 CLOSED 但未 merge；不應 stack 在已放棄的 backend contract 上，請重新評估 dependency")
     else
-      failures+=("[frontend] PR depends on #$dep_number, but backend contract is not in develop. Dependency PR state: $dep_state")
+      echo "[info] Dependency PR #$dep_number state: $dep_state (stacked or blocked, OK)" >&2
     fi
   fi
 
