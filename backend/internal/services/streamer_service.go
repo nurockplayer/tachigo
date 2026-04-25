@@ -167,7 +167,8 @@ func (s *StreamerService) GetSummaryStats(channelIDs []string) (map[string]*Stre
 		return result, nil
 	}
 
-	startOfDay := time.Now().Truncate(24 * time.Hour)
+	now := time.Now().UTC()
+	startOfDay := time.Date(now.Year(), now.Month(), now.Day(), 0, 0, 0, 0, time.UTC)
 
 	var dailyRows []struct {
 		ChannelID string `gorm:"column:channel_id"`
@@ -182,8 +183,8 @@ func (s *StreamerService) GetSummaryStats(channelIDs []string) (map[string]*Stre
 		return nil, err
 	}
 	for _, row := range dailyRows {
-		if s, ok := result[row.ChannelID]; ok {
-			s.DailySeconds = row.Total
+		if stat, ok := result[row.ChannelID]; ok {
+			stat.DailySeconds = row.Total
 		}
 	}
 
@@ -200,8 +201,8 @@ func (s *StreamerService) GetSummaryStats(channelIDs []string) (map[string]*Stre
 		return nil, err
 	}
 	for _, row := range minerRows {
-		if s, ok := result[row.ChannelID]; ok {
-			s.UniqueMiners = row.UniqueMiners
+		if stat, ok := result[row.ChannelID]; ok {
+			stat.UniqueMiners = row.UniqueMiners
 		}
 	}
 
@@ -218,8 +219,8 @@ func (s *StreamerService) GetSummaryStats(channelIDs []string) (map[string]*Stre
 		return nil, err
 	}
 	for _, row := range tokenRows {
-		if s, ok := result[row.ChannelID]; ok {
-			s.TotalTokenMinted = row.TotalTokenMinted
+		if stat, ok := result[row.ChannelID]; ok {
+			stat.TotalTokenMinted = row.TotalTokenMinted
 		}
 	}
 
