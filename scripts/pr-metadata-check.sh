@@ -164,23 +164,34 @@ main() {
     exit 2
   }
 
-  local changed_files
-  changed_files=$(git diff --name-only "$merge_base" "$head_sha")
+  local changed_files_status
+  changed_files_status=$(git diff --name-status "$merge_base" "$head_sha")
 
   local touches_backend=0 touches_dashboard=0 touches_tachimint=0 touches_contracts=0 docs_only=1
-  local file
-  while IFS= read -r file; do
-    [ -n "$file" ] || continue
-    case "$file" in
+
+  _check_path() {
+    local p="$1"
+    case "$p" in
       backend/*) touches_backend=1 ;;
       dashboard/*) touches_dashboard=1 ;;
       tachimint/*) touches_tachimint=1 ;;
       contracts/*) touches_contracts=1 ;;
     esac
-    if ! is_docs_or_template_path "$file"; then
+    if ! is_docs_or_template_path "$p"; then
       docs_only=0
     fi
-  done <<< "$changed_files"
+  }
+
+  local status old_path new_path
+  while IFS=$'\t' read -r status old_path new_path; do
+    [ -n "$status" ] || continue
+    if [[ "$status" == R* ]]; then
+      _check_path "$old_path"
+      _check_path "$new_path"
+    else
+      _check_path "$old_path"
+    fi
+  done <<< "$changed_files_status"
 
   local product_surface_count=0
   [ "$touches_backend" -eq 1 ] && product_surface_count=$((product_surface_count + 1))
