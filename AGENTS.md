@@ -74,7 +74,17 @@ docker compose run --no-deps --rm app go test ./...
 
 例：`feat/points-service`、`fix/bits-receipt`、`docs/architecture`
 
-### Commit 訊息格式
+### Merge 策略
+
+本專案使用 **squash merge**：一張 PR = develop 上的一個 commit。
+
+- **PR title** 就是 squash commit message，必須精確
+- **PR body** 放 `closes #號碼`，merge 後自動關閉 issue
+- PR 內的 commit 用 `refs #號碼`，供 review 期間追溯
+
+fixup commit（修 CodeRabbit 意見、修 scope police）是正常的，不必 rebase 清理。
+
+### Commit 訊息格式（PR 內）
 
 ```
 <type>: <short description>
@@ -83,9 +93,6 @@ refs #<issue號碼>
 
 Co-Authored-By: Codex <codex[bot]@openai.com>
 ```
-
-- 實作過程中的 commit 用 `refs #號碼`
-- PR 的最後一個 commit 或 PR 描述用 `closes #號碼`
 
 Type：`feat` / `fix` / `docs` / `chore` / `refactor` / `test`
 

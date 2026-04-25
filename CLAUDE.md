@@ -129,10 +129,12 @@
 
 ### Commit
 
-- 原子化：每個 commit 應該是獨立的工作單位，可以單獨 revert、cherry-pick、bisect
-- 避免「一次性 commit」（如一次改 schema + service + handler + 前端四個層）
-- 按邏輯層或步驟分割：schema migration → service 實作 → API 路由 → 前端整合，各為一個 commit
-- 細粒度 commit 讓 code review 和問題追蹤更精確
+本專案使用 squash merge，PR 內的 commit **不會**直接進 develop history，目的是讓 review 過程清楚，不是追求能獨立 cherry-pick / bisect。
+
+- 按邏輯步驟分割有助於 reviewer 理解實作脈絡
+- fixup commit（修 CodeRabbit 意見、修 scope police）是正常的，不必 rebase 清理
+- 避免「一次性 commit」把不相關的層混在一起（會讓 review 難以跟進）
+- 進 develop 的 commit 來自 PR title（squash message），所以 **PR title 要精確**
 
 ### PR
 
@@ -212,9 +214,17 @@
 
 例：`feat/points-service`、`fix/bits-receipt`、`docs/architecture`
 
-## Commit 訊息格式
+## Merge 策略
 
-每個 commit 必須用 `refs #<issue號碼>` 標記相關 issue，方便日後追溯當初的規格與討論。
+本專案使用 **squash merge**：一張 PR 對應 develop 上的一個 commit。
+
+- **PR title** 就是 squash commit message，必須精確描述這張 PR 做了什麼
+- **PR body** 放 `closes #號碼`，merge 後自動關閉 issue
+- PR 內的 individual commit 用 `refs #號碼` 標記，供 review 期間追溯用
+
+## Commit 訊息格式（PR 內）
+
+每個 commit 必須用 `refs #<issue號碼>` 標記，方便 review 期間追溯規格與討論。
 
 ```
 <type>: <short description>
@@ -223,9 +233,6 @@ refs #27
 
 Co-Authored-By: Claude Sonnet 4.6 <claude[bot]@anthropic.com>
 ```
-
-- 實作過程中的 commit 用 `refs #號碼`
-- PR 的最後一個 commit 或 PR 描述用 `closes #號碼`（merge 後自動關閉 issue）
 
 Type：`feat` / `fix` / `docs` / `chore` / `refactor` / `test`
 
