@@ -238,10 +238,24 @@ Type：`feat` / `fix` / `docs` / `chore` / `refactor` / `test`
 **預設工作流程：**
 
 1. 大範圍掃描 / 重複性工作 → 先交給 **Gemini**
-2. 推理、架構決策、最終實作 → **Claude**
-3. 需要跑測試並根據失敗迭代修改 → **Codex**
+2. 架構規劃、issue 撰寫（PM 角色）→ **Claude Code**
+3. 實作、debug、patch（工程師角色）→ **Codex**
+4. 最終 PR 審查 → **Claude Code**
 
 絕不用 Claude token 做重複性搜尋。
+
+### 任務規模路由
+
+> **核心原則：Codex 適合確定性高的任務，Claude 適合模糊性高的任務。**
+
+| 任務規模 | 流程 |
+|---|---|
+| **Trivial**（< 10 行、config 調整、typo）| Claude 直接 patch，不走 issue 流程 |
+| **Small-Medium**（功能、API、元件）| Claude 寫 issue → Codex 實作 → Claude review |
+| **需要迭代測試**（跑測試直到過）| 一定走 Codex；Claude 只負責寫 issue |
+| **架構重構 / 高風險改動**| Claude 先設計方案，拆成多個 issue 再交 Codex |
+
+預設路由：收到實作需求先判斷規模，Trivial 以外一律寫 issue 交 Codex。
 
 ### Gemini 專責任務
 
@@ -259,9 +273,8 @@ Type：`feat` / `fix` / `docs` / `chore` / `refactor` / `test`
 | 操作 | 誰執行 |
 |---|---|
 | 摘要大量檔案、生成樣板、審查 log、搜尋 pattern、草擬測試 | Gemini（`gemini -p "<task>"`；確認無風險時可加 `--yolo`） |
-| 架構決策、安全審查、重構策略、最終 code review | Claude Code |
-| 需要跑測試並根據失敗迭代修改的任務 | Codex（`/test-with-codex`） |
-| `git` / `gh` / 檔案操作 / 實作 / 決策 | Claude Code |
+| 架構規劃、issue 撰寫、技術決策、最終 PR 審查 | Claude Code（PM 角色） |
+| 實作、debug、patch、跑測試、推 branch、開 PR | Codex（工程師角色） |
 
 ## PR 審查流程
 
