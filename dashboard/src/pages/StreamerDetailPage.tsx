@@ -8,6 +8,7 @@ import {
   type ChannelConfig,
   type StreamerStats,
 } from '@/services/channels'
+import { getUserRole } from '@/services/auth'
 
 function formatHours(seconds?: number) {
   if (seconds === undefined) return '—'
@@ -52,35 +53,46 @@ export default function StreamerDetailPage() {
   const navigate = useNavigate()
   const [stats, setStats] = useState<StreamerStats | null>(null)
   const [config, setConfig] = useState<ChannelConfig | null>(null)
+  const [configLoading, setConfigLoading] = useState(false)
   const [resolvedStreamerId, setResolvedStreamerId] = useState<string | null>(null)
   const [failedStreamerId, setFailedStreamerId] = useState<string | null>(null)
+
+  const role = getUserRole()
+  const canGoBack = role !== 'streamer'
 
   useEffect(() => {
     if (!streamerId) return
 
     let mounted = true
 
+    setConfig(null)
+    setConfigLoading(true)
+
     getStreamerStats(streamerId)
-      .then(async ({ stats, channelId }) => {
+      .then(({ stats, channelId }) => {
         if (!mounted) return
         setStats(stats)
-
-        try {
-          const cfg = await getChannelConfig(channelId)
-          if (!mounted) return
-          setConfig(cfg)
-        } catch {
-          if (!mounted) return
-          setConfig(null)
-        }
-
-        if (!mounted) return
         setFailedStreamerId(null)
         setResolvedStreamerId(streamerId)
+
+        getChannelConfig(channelId)
+          .then((cfg) => {
+            if (!mounted) return
+            setConfig(cfg)
+          })
+          .catch(() => {
+            if (!mounted) return
+            setConfig(null)
+          })
+          .finally(() => {
+            if (!mounted) return
+            setConfigLoading(false)
+          })
       })
       .catch(() => {
         if (!mounted) return
         setFailedStreamerId(streamerId)
+        setConfigLoading(false)
       })
 
     return () => {
@@ -109,12 +121,14 @@ export default function StreamerDetailPage() {
     <div className="space-y-6">
       <div className="flex items-center justify-between">
         <div className="flex items-center gap-3">
-          <button
-            onClick={() => navigate('/streamers')}
-            className="text-sm text-muted-foreground transition-colors hover:text-foreground"
-          >
-            ← 返回列表
-          </button>
+          {canGoBack && (
+            <button
+              onClick={() => navigate('/streamers')}
+              className="text-sm text-muted-foreground transition-colors hover:text-foreground"
+            >
+              ← 返回列表
+            </button>
+          )}
           <h1 className="text-2xl font-bold text-foreground">{streamerId}</h1>
         </div>
         <div className="flex gap-2">
@@ -165,24 +179,32 @@ export default function StreamerDetailPage() {
             <h2 className="text-sm font-semibold uppercase tracking-wide text-muted-foreground">
               挖礦倍率設定
             </h2>
-            <div className="space-y-2 text-sm">
-              <div className="flex justify-between">
-                <span className="text-muted-foreground">每秒點數基準</span>
-                <span className="font-medium text-foreground">
-                  {config ? `${config.seconds_per_point} 秒 / 點` : '—'}
-                </span>
+            {configLoading ? (
+              <div className="space-y-2">
+                <Skeleton className="h-5 w-full" />
+                <Skeleton className="h-5 w-full" />
+                <Skeleton className="h-5 w-3/4" />
               </div>
-              <div className="flex justify-between">
-                <span className="text-muted-foreground">目前倍率</span>
-                <span className="font-medium text-foreground">
-                  {config ? `${config.multiplier}x` : '—'}
-                </span>
+            ) : (
+              <div className="space-y-2 text-sm">
+                <div className="flex justify-between">
+                  <span className="text-muted-foreground">每秒點數基準</span>
+                  <span className="font-medium text-foreground">
+                    {config ? `${config.seconds_per_point} 秒 / 點` : '—'}
+                  </span>
+                </div>
+                <div className="flex justify-between">
+                  <span className="text-muted-foreground">目前倍率</span>
+                  <span className="font-medium text-foreground">
+                    {config ? `${config.multiplier}x` : '—'}
+                  </span>
+                </div>
+                <div className="mt-2 flex justify-between border-t border-border pt-2">
+                  <span className="text-muted-foreground">每分鐘產出</span>
+                  <span className="font-semibold text-primary">{calcPerMinute(config)}</span>
+                </div>
               </div>
-              <div className="mt-2 flex justify-between border-t border-border pt-2">
-                <span className="text-muted-foreground">每分鐘產出</span>
-                <span className="font-semibold text-primary">{calcPerMinute(config)}</span>
-              </div>
-            </div>
+            )}
           </section>
         </>
       )}

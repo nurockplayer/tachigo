@@ -38,4 +38,16 @@ export function isAuthenticated(): boolean {
   return accessToken !== null
 }
 
+export function getUserRole(): string | null {
+  if (!accessToken) return null
+  try {
+    const b64 = accessToken.split('.')[1].replace(/-/g, '+').replace(/_/g, '/')
+    const padded = b64 + '='.repeat((4 - (b64.length % 4)) % 4)
+    const payload = JSON.parse(atob(padded)) as Record<string, unknown>
+    return typeof payload.role === 'string' ? payload.role : null
+  } catch {
+    return null
+  }
+}
+
 export { isAxiosError }
