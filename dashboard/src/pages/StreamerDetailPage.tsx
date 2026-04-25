@@ -53,9 +53,10 @@ export default function StreamerDetailPage() {
   const navigate = useNavigate()
   const [stats, setStats] = useState<StreamerStats | null>(null)
   const [config, setConfig] = useState<ChannelConfig | null>(null)
-  const [configLoading, setConfigLoading] = useState(false)
   const [resolvedStreamerId, setResolvedStreamerId] = useState<string | null>(null)
   const [failedStreamerId, setFailedStreamerId] = useState<string | null>(null)
+  const [resolvedConfigStreamerId, setResolvedConfigStreamerId] = useState<string | null>(null)
+  const [failedConfigStreamerId, setFailedConfigStreamerId] = useState<string | null>(null)
 
   const role = getUserRole()
   const canGoBack = role !== 'streamer'
@@ -65,34 +66,33 @@ export default function StreamerDetailPage() {
 
     let mounted = true
 
-    setConfig(null)
-    setConfigLoading(true)
-
     getStreamerStats(streamerId)
       .then(({ stats, channelId }) => {
         if (!mounted) return
         setStats(stats)
         setFailedStreamerId(null)
         setResolvedStreamerId(streamerId)
+        setConfig(null)
+        setResolvedConfigStreamerId(null)
+        setFailedConfigStreamerId(null)
 
         getChannelConfig(channelId)
           .then((cfg) => {
             if (!mounted) return
             setConfig(cfg)
+            setResolvedConfigStreamerId(streamerId)
+            setFailedConfigStreamerId(null)
           })
           .catch(() => {
             if (!mounted) return
             setConfig(null)
-          })
-          .finally(() => {
-            if (!mounted) return
-            setConfigLoading(false)
+            setResolvedConfigStreamerId(null)
+            setFailedConfigStreamerId(streamerId)
           })
       })
       .catch(() => {
         if (!mounted) return
         setFailedStreamerId(streamerId)
-        setConfigLoading(false)
       })
 
     return () => {
@@ -102,6 +102,13 @@ export default function StreamerDetailPage() {
 
   const loading = Boolean(streamerId) && resolvedStreamerId !== streamerId && failedStreamerId !== streamerId
   const error = failedStreamerId === streamerId
+  const configLoading =
+    Boolean(streamerId) &&
+    resolvedStreamerId === streamerId &&
+    failedStreamerId !== streamerId &&
+    resolvedConfigStreamerId !== streamerId &&
+    failedConfigStreamerId !== streamerId
+  const displayConfig = resolvedConfigStreamerId === streamerId ? config : null
 
   const timeCards = [
     { label: '本次', value: formatHours(stats?.current_session_seconds) },
@@ -190,18 +197,18 @@ export default function StreamerDetailPage() {
                 <div className="flex justify-between">
                   <span className="text-muted-foreground">每秒點數基準</span>
                   <span className="font-medium text-foreground">
-                    {config ? `${config.seconds_per_point} 秒 / 點` : '—'}
+                    {displayConfig ? `${displayConfig.seconds_per_point} 秒 / 點` : '—'}
                   </span>
                 </div>
                 <div className="flex justify-between">
                   <span className="text-muted-foreground">目前倍率</span>
                   <span className="font-medium text-foreground">
-                    {config ? `${config.multiplier}x` : '—'}
+                    {displayConfig ? `${displayConfig.multiplier}x` : '—'}
                   </span>
                 </div>
                 <div className="mt-2 flex justify-between border-t border-border pt-2">
                   <span className="text-muted-foreground">每分鐘產出</span>
-                  <span className="font-semibold text-primary">{calcPerMinute(config)}</span>
+                  <span className="font-semibold text-primary">{calcPerMinute(displayConfig)}</span>
                 </div>
               </div>
             )}

@@ -1,7 +1,7 @@
 import { afterEach, beforeEach, describe, expect, it } from 'vitest'
 import MockAdapter from 'axios-mock-adapter'
 import client, { clearAuthToken, hasAuthToken } from '@/services/api'
-import { isAuthenticated, login, logout, refresh, restoreSession } from '@/services/auth'
+import { getUserRole, isAuthenticated, login, logout, refresh, restoreSession } from '@/services/auth'
 
 let mock: InstanceType<typeof MockAdapter>
 
@@ -125,5 +125,25 @@ describe('restoreSession()', () => {
 
     await expect(restoreSession()).resolves.toBeUndefined()
     expect(isAuthenticated()).toBe(false)
+  })
+})
+
+describe('getUserRole()', () => {
+  it('從 access token payload 解析 role', async () => {
+    const payload = btoa(JSON.stringify({ role: 'agency' }))
+      .replace(/\+/g, '-')
+      .replace(/\//g, '_')
+      .replace(/=+$/g, '')
+
+    mock.onPost('/api/v1/auth/login').replyOnce(200, {
+      data: {
+        user: { id: 'u1' },
+        tokens: { access_token: `header.${payload}.signature` },
+      },
+    })
+
+    await login('user@example.com', 'password')
+
+    expect(getUserRole()).toBe('agency')
   })
 })

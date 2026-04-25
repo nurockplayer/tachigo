@@ -1,5 +1,5 @@
 import { isAxiosError } from 'axios'
-import client, { clearAuthToken, hasAuthToken, setAuthToken } from '@/services/api'
+import client, { clearAuthToken, getAuthToken, hasAuthToken, setAuthToken } from '@/services/api'
 
 interface LoginResponse {
   data: {
@@ -40,6 +40,7 @@ export function isAuthenticated(): boolean {
 }
 
 export function getUserRole(): string | null {
+  const accessToken = getAuthToken()
   if (!accessToken) return null
   try {
     const b64 = accessToken.split('.')[1].replace(/-/g, '+').replace(/_/g, '/')
