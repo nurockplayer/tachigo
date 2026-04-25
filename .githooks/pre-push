@@ -116,12 +116,12 @@ while read -r local_ref local_sha remote_ref remote_sha; do
   echo "╚══════════════════════════════════════════════════════╝"
   echo ""
 
-  if [ ! -t 0 ]; then
+  if [ ! -e /dev/tty ]; then
     echo "Non-interactive mode detected; refusing oversized push."
     exit 1
   fi
 
-  read -p "Push anyway? [y/N] " -r reply
+  read -p "Push anyway? [y/N] " -r reply </dev/tty
   if [[ ! "$reply" =~ ^[Yy]$ ]]; then
     echo "Push aborted."
     exit 1
@@ -136,8 +136,8 @@ if command -v git-lfs >/dev/null 2>&1; then
     [ -z "$local_sha" ] && continue
     [ "$local_sha" = "$ZERO_SHA" ] && continue
     if [ "$remote_sha" = "$ZERO_SHA" ]; then
-      base=$(git merge-base "$local_sha" refs/remotes/origin/develop 2>/dev/null \
-             || git merge-base "$local_sha" refs/remotes/origin/main 2>/dev/null \
+      base=$(git merge-base "$local_sha" "refs/remotes/$remote/develop" 2>/dev/null \
+             || git merge-base "$local_sha" "refs/remotes/$remote/main" 2>/dev/null \
              || echo "")
       [ -n "$base" ] && range="${base}..${local_sha}" || range="${local_sha}^..${local_sha}"
     else
@@ -150,9 +150,12 @@ if command -v git-lfs >/dev/null 2>&1; then
     fi
   done <<< "$stdin_data"
 
+  lfs_exit=0
   if [ "$has_lfs" -eq 1 ]; then
     printf '%s\n' "$stdin_data" | git lfs pre-push "$@"
+    lfs_exit=$?
   fi
+  exit $lfs_exit
 fi
 
 exit 0

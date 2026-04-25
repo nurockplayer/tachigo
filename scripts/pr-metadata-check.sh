@@ -165,7 +165,10 @@ main() {
   }
 
   local changed_files
-  changed_files=$(git diff --name-only "$merge_base" "$head_sha")
+  changed_files=$(git diff --name-only "$merge_base" "$head_sha") || {
+    echo "無法計算 diff：$merge_base vs $head_sha" >&2
+    exit 2
+  }
 
   local touches_backend=0 touches_dashboard=0 touches_tachimint=0 touches_contracts=0 docs_only=1
   local file
@@ -206,7 +209,7 @@ main() {
   fi
 
   local depends_on_raw=""
-  depends_on_raw=$(sed -nE 's/^[[:space:]-]*Depends on PR[：:][[:space:]]*(.+)$/\1/ip' "$body_file" | head -n1 | sed 's/[[:space:]]*$//')
+  depends_on_raw=$(grep -iE '^[[:space:]-]*Depends on PR[：:][[:space:]]' "$body_file" | head -n1 | sed -E 's/^[^：:]*[：:][[:space:]]*//' | sed 's/[[:space:]]*$//')
 
   if [ "$is_infra_or_chore" -eq 0 ] && [ "$is_release_promotion" -eq 0 ]; then
     grep -Eq '#[0-9]+' "$body_file" || failures+=("PR body 必須引用至少一個 issue 或 PR 編號，例如 #123")
@@ -272,8 +275,10 @@ main() {
     dep_state=$(gh pr view "$dep_number" --repo "$repo" --json state --jq '.state' 2>/dev/null || true)
     if [ -z "$dep_state" ]; then
       failures+=("無法讀取 dependency PR #$dep_number")
+    elif [ "$dep_state" = "MERGED" ]; then
+      failures+=("[frontend] Backend contract PR #$dep_number is already MERGED into develop; please check 'Backend contract already in develop: yes'")
     else
-      failures+=("[frontend] PR depends on #$dep_number, but backend contract is not in develop. Dependency PR state: $dep_state")
+      echo "[info] Dependency PR #$dep_number state: $dep_state (stacked or blocked, OK)" >&2
     fi
   fi
 

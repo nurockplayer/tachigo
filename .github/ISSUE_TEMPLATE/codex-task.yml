@@ -1,6 +1,5 @@
 name: Codex Task
 description: Claude Code 以 PM 身份替 Codex 撰寫的實作 issue。
-title: "Task: "
 labels:
   - feature
 body:
@@ -9,6 +8,9 @@ body:
       value: |
         給 Codex 的任務 issue。Claude Code 負責填寫規格，Codex 依此開發。
         Issue 必須自給自足——Codex 不應需要查閱 chat history 才能理解任務。
+
+        **Issue 標題必須以下列 prefix 之一開頭：** `[backend]`、`[frontend]`、`[discussion]`
+        範例：`[backend] ClaimService — finalize_failed 狀態流轉`
 
   - type: dropdown
     id: task_level
