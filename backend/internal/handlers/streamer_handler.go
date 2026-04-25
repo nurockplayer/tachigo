@@ -138,7 +138,36 @@ func (h *StreamerHandler) List(c *gin.Context) {
 		return
 	}
 
-	ok(c, gin.H{"streamers": streamers})
+	channelIDs := make([]string, 0, len(streamers))
+	for _, s := range streamers {
+		channelIDs = append(channelIDs, s.ChannelID)
+	}
+
+	summaryMap, err := h.streamerSvc.GetSummaryStats(channelIDs)
+	if err != nil {
+		internal(c)
+		return
+	}
+
+	type streamerWithSummary struct {
+		models.Streamer
+		DailySeconds     int64 `json:"daily_seconds"`
+		UniqueMiners     int64 `json:"unique_miners"`
+		TotalTokenMinted int64 `json:"total_token_minted"`
+	}
+
+	items := make([]streamerWithSummary, 0, len(streamers))
+	for _, s := range streamers {
+		item := streamerWithSummary{Streamer: s}
+		if sm, ok := summaryMap[s.ChannelID]; ok {
+			item.DailySeconds = sm.DailySeconds
+			item.UniqueMiners = sm.UniqueMiners
+			item.TotalTokenMinted = sm.TotalTokenMinted
+		}
+		items = append(items, item)
+	}
+
+	ok(c, gin.H{"streamers": items})
 }
 
 func (h *StreamerHandler) GetChannelStats(c *gin.Context) {

@@ -2,6 +2,7 @@ package services
 
 import (
 	"errors"
+	"time"
 
 	"github.com/google/uuid"
 	"gorm.io/gorm"
@@ -146,6 +147,83 @@ func (s *StreamerService) GetByID(id uuid.UUID) (*models.Streamer, error) {
 		return nil, err
 	}
 	return &streamer, nil
+}
+
+// StreamerSummary holds the three list-level metrics for one streamer.
+type StreamerSummary struct {
+	DailySeconds     int64 `json:"daily_seconds"`
+	UniqueMiners     int64 `json:"unique_miners"`
+	TotalTokenMinted int64 `json:"total_token_minted"`
+}
+
+// GetSummaryStats returns list-level summary metrics for the given channel IDs
+// using three batch queries to avoid N+1.
+func (s *StreamerService) GetSummaryStats(channelIDs []string) (map[string]*StreamerSummary, error) {
+	result := make(map[string]*StreamerSummary, len(channelIDs))
+	for _, id := range channelIDs {
+		result[id] = &StreamerSummary{}
+	}
+	if len(channelIDs) == 0 {
+		return result, nil
+	}
+
+	startOfDay := time.Now().Truncate(24 * time.Hour)
+
+	var dailyRows []struct {
+		ChannelID string `gorm:"column:channel_id"`
+		Total     int64  `gorm:"column:total"`
+	}
+	if err := s.db.Raw(`
+		SELECT channel_id, COALESCE(SUM(seconds), 0) AS total
+		FROM broadcast_time_logs
+		WHERE channel_id IN ? AND recorded_at >= ?
+		GROUP BY channel_id
+	`, channelIDs, startOfDay).Scan(&dailyRows).Error; err != nil {
+		return nil, err
+	}
+	for _, row := range dailyRows {
+		if s, ok := result[row.ChannelID]; ok {
+			s.DailySeconds = row.Total
+		}
+	}
+
+	var minerRows []struct {
+		ChannelID    string `gorm:"column:channel_id"`
+		UniqueMiners int64  `gorm:"column:unique_miners"`
+	}
+	if err := s.db.Raw(`
+		SELECT channel_id, COUNT(DISTINCT user_id) AS unique_miners
+		FROM watch_sessions
+		WHERE channel_id IN ?
+		GROUP BY channel_id
+	`, channelIDs).Scan(&minerRows).Error; err != nil {
+		return nil, err
+	}
+	for _, row := range minerRows {
+		if s, ok := result[row.ChannelID]; ok {
+			s.UniqueMiners = row.UniqueMiners
+		}
+	}
+
+	var tokenRows []struct {
+		ChannelID        string `gorm:"column:channel_id"`
+		TotalTokenMinted int64  `gorm:"column:total_token_minted"`
+	}
+	if err := s.db.Raw(`
+		SELECT channel_id, COALESCE(SUM(cumulative_total), 0) AS total_token_minted
+		FROM points_ledgers
+		WHERE channel_id IN ?
+		GROUP BY channel_id
+	`, channelIDs).Scan(&tokenRows).Error; err != nil {
+		return nil, err
+	}
+	for _, row := range tokenRows {
+		if s, ok := result[row.ChannelID]; ok {
+			s.TotalTokenMinted = row.TotalTokenMinted
+		}
+	}
+
+	return result, nil
 }
 
 func (s *StreamerService) ListAll() ([]models.Streamer, error) {
