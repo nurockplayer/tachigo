@@ -88,9 +88,16 @@ export default function StreamersPage() {
                 <th className="px-4 py-3 text-left font-medium text-muted-foreground">
                   直播主名稱
                 </th>
-                <th className="px-4 py-3 text-left font-medium text-muted-foreground">
-                  Channel ID
+                <th className="px-4 py-3 text-right font-medium text-muted-foreground">
+                  本日開台
                 </th>
+                <th className="px-4 py-3 text-right font-medium text-muted-foreground">
+                  挖礦觀眾
+                </th>
+                <th className="px-4 py-3 text-right font-medium text-muted-foreground">
+                  總產出點數
+                </th>
+                <th className="w-8" />
               </tr>
             </thead>
             <tbody>
@@ -112,7 +119,22 @@ export default function StreamersPage() {
                   <td className="px-4 py-3 font-medium text-foreground">
                     {streamer.display_name || streamer.channel_id}
                   </td>
-                  <td className="px-4 py-3 text-muted-foreground">{streamer.channel_id}</td>
+                  <td className="px-4 py-3 text-right text-muted-foreground">
+                    {streamer.daily_seconds !== undefined
+                      ? `${(streamer.daily_seconds / 3600).toFixed(1)} hr`
+                      : '—'}
+                  </td>
+                  <td className="px-4 py-3 text-right text-muted-foreground">
+                    {streamer.unique_miners !== undefined
+                      ? streamer.unique_miners.toLocaleString()
+                      : '—'}
+                  </td>
+                  <td className="px-4 py-3 text-right text-muted-foreground">
+                    {streamer.total_token_minted !== undefined
+                      ? streamer.total_token_minted.toLocaleString()
+                      : '—'}
+                  </td>
+                  <td className="px-4 py-3 text-right text-muted-foreground">→</td>
                 </tr>
               ))}
             </tbody>
