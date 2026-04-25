@@ -17,6 +17,7 @@ func TestClaimStatusValues(t *testing.T) {
 		{name: "broadcast", got: ClaimStatusBroadcast, want: "broadcast"},
 		{name: "confirmed", got: ClaimStatusConfirmed, want: "confirmed"},
 		{name: "failed", got: ClaimStatusFailed, want: "failed"},
+		{name: "finalize_failed", got: ClaimStatusFinalizeFailed, want: "finalize_failed"},
 	}
 
 	for _, tc := range tests {

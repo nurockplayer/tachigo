@@ -12,26 +12,28 @@ var uuidV7Func = uuid.NewV7
 type ClaimStatus string
 
 const (
-	ClaimStatusPending   ClaimStatus = "pending"
-	ClaimStatusBroadcast ClaimStatus = "broadcast"
-	ClaimStatusConfirmed ClaimStatus = "confirmed"
-	ClaimStatusFailed    ClaimStatus = "failed"
+	ClaimStatusPending        ClaimStatus = "pending"
+	ClaimStatusBroadcast      ClaimStatus = "broadcast"
+	ClaimStatusConfirmed      ClaimStatus = "confirmed"
+	ClaimStatusFailed         ClaimStatus = "failed"
+	ClaimStatusFinalizeFailed ClaimStatus = "finalize_failed"
 )
 
 // Claim tracks a single on-chain mint request lifecycle.
 type Claim struct {
-	ID           uuid.UUID   `gorm:"type:uuid;primaryKey;default:gen_random_uuid()"                                                          json:"id"`
-	UserID       uuid.UUID   `gorm:"type:uuid;not null;index:idx_claims_user_created_at,priority:1"                                         json:"user_id"`
-	WalletAddr   string      `gorm:"type:varchar(42);not null"                                                                               json:"wallet_addr"`
-	Amount       int64       `gorm:"not null;check:chk_claim_amount_gt_0,amount > 0"                                                        json:"amount"`
-	Status       ClaimStatus `gorm:"type:varchar(20);not null;index:idx_claims_status_created_at,priority:1;check:chk_claim_status,status IN ('pending','broadcast','confirmed','failed')" json:"status"`
-	TxHash       *string     `gorm:"type:varchar(66)"                                                                                         json:"tx_hash"`
-	ErrorMessage *string     `gorm:"type:text"                                                                                                json:"error_message"`
-	BroadcastAt  *time.Time  `                                                                                                                json:"broadcast_at"`
-	ConfirmedAt  *time.Time  `                                                                                                                json:"confirmed_at"`
-	FailedAt     *time.Time  `                                                                                                                json:"failed_at"`
-	CreatedAt    time.Time   `gorm:"index:idx_claims_user_created_at,priority:2;index:idx_claims_status_created_at,priority:2"             json:"created_at"`
-	UpdatedAt    time.Time   `                                                                                                                json:"updated_at"`
+	ID               uuid.UUID   `gorm:"type:uuid;primaryKey;default:gen_random_uuid()"                                                          json:"id"`
+	UserID           uuid.UUID   `gorm:"type:uuid;not null;index:idx_claims_user_created_at,priority:1"                                         json:"user_id"`
+	WalletAddr       string      `gorm:"type:varchar(42);not null"                                                                               json:"wallet_addr"`
+	Amount           int64       `gorm:"not null;check:chk_claim_amount_gt_0,amount > 0"                                                        json:"amount"`
+	Status           ClaimStatus `gorm:"type:varchar(20);not null;index:idx_claims_status_created_at,priority:1;check:chk_claim_status,status IN ('pending','broadcast','confirmed','failed','finalize_failed')" json:"status"`
+	TxHash           *string     `gorm:"type:varchar(66)"                                                                                         json:"tx_hash"`
+	ErrorMessage     *string     `gorm:"type:text"                                                                                                json:"error_message"`
+	BroadcastAt      *time.Time  `                                                                                                                json:"broadcast_at"`
+	ConfirmedAt      *time.Time  `                                                                                                                json:"confirmed_at"`
+	FailedAt         *time.Time  `                                                                                                                json:"failed_at"`
+	FinalizeFailedAt *time.Time  `                                                                                                             json:"finalize_failed_at"`
+	CreatedAt        time.Time   `gorm:"index:idx_claims_user_created_at,priority:2;index:idx_claims_status_created_at,priority:2"             json:"created_at"`
+	UpdatedAt        time.Time   `                                                                                                                json:"updated_at"`
 
 	User  User        `gorm:"foreignKey:UserID" json:"-"`
 	Items []ClaimItem `gorm:"foreignKey:ClaimID" json:"items,omitempty"`

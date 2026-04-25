@@ -32,7 +32,8 @@ func TestMigrateTestDB_CreatesClaimTables(t *testing.T) {
 		t.Fatalf("query claims ddl: %v", err)
 	}
 	assertContains(t, claimsDDL, "CHECK (amount > 0)")
-	assertContains(t, claimsDDL, "CHECK (status IN ('pending', 'broadcast', 'confirmed', 'failed'))")
+	assertContains(t, claimsDDL, "CHECK (status IN ('pending', 'broadcast', 'confirmed', 'failed', 'finalize_failed'))")
+	assertContains(t, claimsDDL, "finalize_failed_at DATETIME")
 	assertContains(t, claimsDDL, "created_at DATETIME NOT NULL DEFAULT CURRENT_TIMESTAMP")
 	assertContains(t, claimsDDL, "updated_at DATETIME NOT NULL DEFAULT CURRENT_TIMESTAMP")
 
