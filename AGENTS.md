@@ -295,6 +295,10 @@ Terminology:
   - `major`: important but non-blocking; mergeable with explicit risk note or follow-up issue / PR.
   - `minor`: useful improvement that should not block merge.
   - `nit`: style or readability detail only.
+- GitHub review action mapping (auto-merge is enabled on `develop`):
+  - blocker → Request changes (blocks auto-merge pipeline)
+  - major / minor / nit only → Approve + Comment describing risk or suggestion
+  - Never use Request changes for minor or nit — it stalls auto-merge at a cost disproportionate to the finding. Leave a Comment instead and let the author decide.
 
 預設使用省 token 路線：metadata-first + reduced review bundle + Gemini CLI first pass + Codex validation。
 除非使用者明確要求「不要用 Gemini」或 PR 很小，否則不要讓 Codex 一開始就完整讀整張 diff。
