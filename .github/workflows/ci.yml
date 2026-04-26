@@ -212,25 +212,29 @@ jobs:
   backend:
     timeout-minutes: 10
     name: Backend tests
-    needs: [scope-gate]
+    needs: [scope-gate, backend-build]
     if: github.event_name == 'push' || needs.scope-gate.outputs.run_ci == 'true'
     runs-on: ubuntu-latest
     steps:
       - uses: actions/checkout@v4
 
-      - name: Set up Go
-        uses: actions/setup-go@v6
+      - name: Set up Docker Buildx
+        uses: docker/setup-buildx-action@v3
+
+      - name: Restore backend image from cache
+        uses: docker/build-push-action@v6
         with:
-          go-version-file: backend/go.mod
-          cache: true
+          context: ./backend
+          target: dev
+          load: true
+          tags: tachigo-app:latest
+          cache-from: type=gha
 
       - name: Run tests
-        working-directory: backend
-        run: go test ./...
+        run: docker compose run --pull never --no-deps --rm app go test ./...
 
       - name: Run vet
-        working-directory: backend
-        run: go vet ./...
+        run: docker compose run --pull never --no-deps --rm app go vet ./...
 
   backend-integration:
     timeout-minutes: 20
