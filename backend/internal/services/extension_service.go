@@ -34,7 +34,7 @@ type ReceiptClaims struct {
 		TransactionID string `json:"transactionId"`
 		SKU           string `json:"sku"`
 		Amount        int    `json:"amount"`
-		Type          string `json:"type"` // "bits"
+		Type          string `json:"type"` // "bits" — Twitch SDK contract, do not rename
 	} `json:"data"`
 	jwt.RegisteredClaims
 }
@@ -74,7 +74,7 @@ func (s *ExtensionService) VerifyExtJWT(tokenStr string) (*ExtensionClaims, erro
 	return claims, nil
 }
 
-// VerifyReceiptJWT verifies a Bits transaction receipt JWT.
+// VerifyReceiptJWT verifies a Twitch transaction receipt JWT.
 func (s *ExtensionService) VerifyReceiptJWT(receiptStr string) (*ReceiptClaims, error) {
 	secret := s.cfg.OAuth.Twitch.ExtensionSecret
 	if secret == "" {
@@ -142,9 +142,9 @@ func (s *ExtensionService) LoginWithExtension(extJWT string) (*models.User, *Tok
 	return &user, tokens, nil
 }
 
-// CompleteBitsTransaction verifies the Extension JWT + receipt, then issues a
+// CompleteTPointTransaction verifies the Extension JWT + receipt, then issues a
 // tachigo token pair for the already-linked viewer.
-func (s *ExtensionService) CompleteBitsTransaction(extJWT, receipt, sku string) (*models.User, *TokenPair, error) {
+func (s *ExtensionService) CompleteTPointTransaction(extJWT, receipt, sku string) (*models.User, *TokenPair, error) {
 	extClaims, err := s.VerifyExtJWT(extJWT)
 	if err != nil {
 		return nil, nil, err
