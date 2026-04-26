@@ -146,7 +146,7 @@ func TestPointsService_AddPoints_IncreasesBothBalances(t *testing.T) {
 	svc, _ := newPointsSvc(t)
 	userID := seedViewer(t, svc)
 
-	if err := svc.AddPoints(userID, "ch_abc", models.TxSourceBits, 500); err != nil {
+	if err := svc.AddPoints(userID, "ch_abc", models.TxSourceTPoint, 500); err != nil {
 		t.Fatalf("unexpected error: %v", err)
 	}
 
@@ -161,7 +161,7 @@ func TestPointsService_AddPoints_RejectsNonPositiveAmount(t *testing.T) {
 	userID := seedViewer(t, svc)
 
 	for _, amount := range []int64{0, -1} {
-		err := svc.AddPoints(userID, "ch_abc", models.TxSourceBits, amount)
+		err := svc.AddPoints(userID, "ch_abc", models.TxSourceTPoint, amount)
 		if !errors.Is(err, ErrInvalidPointsAmount) {
 			t.Fatalf("amount %d: want ErrInvalidPointsAmount, got %v", amount, err)
 		}
@@ -176,7 +176,7 @@ func TestPointsService_AddPointsWithMeta_PersistsSKU(t *testing.T) {
 	if err := svc.AddPointsWithMeta(
 		userID,
 		"ch_abc",
-		models.TxSourceBits,
+		models.TxSourceTPoint,
 		100,
 		PointsCreditMeta{SKU: &sku},
 	); err != nil {
@@ -202,7 +202,7 @@ func TestPointsService_AddPointsWithMeta_RejectsNonPositiveAmount(t *testing.T) 
 	err := svc.AddPointsWithMeta(
 		userID,
 		"ch_abc",
-		models.TxSourceBits,
+		models.TxSourceTPoint,
 		0,
 		PointsCreditMeta{},
 	)
@@ -219,7 +219,7 @@ func TestPointsService_AddPointsWithMeta_RejectsTooLongSKU(t *testing.T) {
 	err := svc.AddPointsWithMeta(
 		userID,
 		"ch_abc",
-		models.TxSourceBits,
+		models.TxSourceTPoint,
 		100,
 		PointsCreditMeta{SKU: &sku},
 	)
@@ -247,7 +247,7 @@ func TestPointsService_ListTransactions_RecordsDeduction(t *testing.T) {
 	svc, _ := newPointsSvc(t)
 	userID := seedViewer(t, svc)
 
-	svc.AddPoints(userID, "ch_abc", models.TxSourceBits, 100)
+	svc.AddPoints(userID, "ch_abc", models.TxSourceTPoint, 100)
 	svc.DeductPoints(userID, "ch_abc", 30, "spend test")
 
 	txs, err := svc.ListTransactions(userID, "ch_abc")
@@ -263,10 +263,10 @@ func TestPointsService_ListTransactions_IsScopedToRequestedChannel(t *testing.T)
 	svc, _ := newPointsSvc(t)
 	userID := seedViewer(t, svc)
 
-	if err := svc.AddPoints(userID, "ch_abc", models.TxSourceBits, 100); err != nil {
+	if err := svc.AddPoints(userID, "ch_abc", models.TxSourceTPoint, 100); err != nil {
 		t.Fatalf("seed ch_abc: %v", err)
 	}
-	if err := svc.AddPoints(userID, "ch_other", models.TxSourceBits, 999); err != nil {
+	if err := svc.AddPoints(userID, "ch_other", models.TxSourceTPoint, 999); err != nil {
 		t.Fatalf("seed ch_other: %v", err)
 	}
 
@@ -289,7 +289,7 @@ func TestPointsService_ListTransactions_ReturnsLatest50NewestFirst(t *testing.T)
 	svc, _ := newPointsSvc(t)
 	userID := seedViewer(t, svc)
 
-	if err := svc.AddPoints(userID, "ch_abc", models.TxSourceBits, 1); err != nil {
+	if err := svc.AddPoints(userID, "ch_abc", models.TxSourceTPoint, 1); err != nil {
 		t.Fatalf("seed first point: %v", err)
 	}
 
@@ -307,7 +307,7 @@ func TestPointsService_ListTransactions_ReturnsLatest50NewestFirst(t *testing.T)
 		if err := svc.db.Exec(
 			`INSERT INTO points_transactions (id, ledger_id, source, delta, balance_after, created_at)
 			 VALUES (?, ?, ?, ?, ?, ?)`,
-			uuid.New().String(), ledger.ID, string(models.TxSourceBits), 1, int64(i+1), ts,
+			uuid.New().String(), ledger.ID, string(models.TxSourceTPoint), 1, int64(i+1), ts,
 		).Error; err != nil {
 			t.Fatalf("seed tx %d: %v", i, err)
 		}
@@ -340,7 +340,7 @@ func TestPointsService_ListTransactions_UsesIDAsTieBreakerWhenCreatedAtMatches(t
 	svc, _ := newPointsSvc(t)
 	userID := seedViewer(t, svc)
 
-	if err := svc.AddPoints(userID, "ch_abc", models.TxSourceBits, 1); err != nil {
+	if err := svc.AddPoints(userID, "ch_abc", models.TxSourceTPoint, 1); err != nil {
 		t.Fatalf("seed first point: %v", err)
 	}
 
@@ -362,7 +362,7 @@ func TestPointsService_ListTransactions_UsesIDAsTieBreakerWhenCreatedAtMatches(t
 		{
 			ID:           lowID,
 			LedgerID:     ledger.ID,
-			Source:       models.TxSourceBits,
+			Source:       models.TxSourceTPoint,
 			Delta:        1,
 			BalanceAfter: 1,
 			Note:         &lowNote,
@@ -371,7 +371,7 @@ func TestPointsService_ListTransactions_UsesIDAsTieBreakerWhenCreatedAtMatches(t
 		{
 			ID:           highID,
 			LedgerID:     ledger.ID,
-			Source:       models.TxSourceBits,
+			Source:       models.TxSourceTPoint,
 			Delta:        1,
 			BalanceAfter: 2,
 			Note:         &highNote,

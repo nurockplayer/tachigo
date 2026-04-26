@@ -52,7 +52,7 @@ func TestPointsHandler_GetBalance_ReturnsWrappedBalances(t *testing.T) {
 	e := newPointsEnv(t)
 	userID, token := e.registerViewer(t, "balance")
 
-	if err := e.pointsSvc.AddPoints(userID, "ch_abc", models.TxSourceBits, 100); err != nil {
+	if err := e.pointsSvc.AddPoints(userID, "ch_abc", models.TxSourceTPoint, 100); err != nil {
 		t.Fatalf("seed points: %v", err)
 	}
 
@@ -108,10 +108,10 @@ func TestPointsHandler_GetBalance_IsScopedToRequestedChannel(t *testing.T) {
 	e := newPointsEnv(t)
 	userID, token := e.registerViewer(t, "balance-scope")
 
-	if err := e.pointsSvc.AddPoints(userID, "ch_abc", models.TxSourceBits, 100); err != nil {
+	if err := e.pointsSvc.AddPoints(userID, "ch_abc", models.TxSourceTPoint, 100); err != nil {
 		t.Fatalf("seed ch_abc: %v", err)
 	}
-	if err := e.pointsSvc.AddPoints(userID, "ch_other", models.TxSourceBits, 999); err != nil {
+	if err := e.pointsSvc.AddPoints(userID, "ch_other", models.TxSourceTPoint, 999); err != nil {
 		t.Fatalf("seed ch_other: %v", err)
 	}
 
@@ -167,7 +167,7 @@ func TestPointsHandler_GetHistory_ReturnsMappedTransactionsInDescendingOrder(t *
 	if err := e.pointsSvc.AddPointsWithMeta(
 		userID,
 		"ch_abc",
-		models.TxSourceBits,
+		models.TxSourceTPoint,
 		100,
 		services.PointsCreditMeta{SKU: &sku},
 	); err != nil {
@@ -184,7 +184,7 @@ func TestPointsHandler_GetHistory_ReturnsMappedTransactionsInDescendingOrder(t *
 
 	base := time.Date(2026, time.January, 3, 0, 0, 0, 0, time.UTC)
 	if err := e.db.Model(&models.PointsTransaction{}).
-		Where("ledger_id = ? AND source = ?", ledger.ID, models.TxSourceBits).
+		Where("ledger_id = ? AND source = ?", ledger.ID, models.TxSourceTPoint).
 		Update("created_at", base).Error; err != nil {
 		t.Fatalf("update earn timestamp: %v", err)
 	}
@@ -284,10 +284,10 @@ func TestPointsHandler_GetHistory_IsScopedToRequestedChannel(t *testing.T) {
 	e := newPointsEnv(t)
 	userID, token := e.registerViewer(t, "history-scope")
 
-	if err := e.pointsSvc.AddPoints(userID, "ch_abc", models.TxSourceBits, 100); err != nil {
+	if err := e.pointsSvc.AddPoints(userID, "ch_abc", models.TxSourceTPoint, 100); err != nil {
 		t.Fatalf("seed ch_abc: %v", err)
 	}
-	if err := e.pointsSvc.AddPoints(userID, "ch_other", models.TxSourceBits, 999); err != nil {
+	if err := e.pointsSvc.AddPoints(userID, "ch_other", models.TxSourceTPoint, 999); err != nil {
 		t.Fatalf("seed ch_other: %v", err)
 	}
 
@@ -323,7 +323,7 @@ func TestPointsHandler_GetHistory_SkipsUnsafeSpendDeltaAndReturnsValidTransactio
 	e := newPointsEnv(t)
 	userID, token := e.registerViewer(t, "history-overflow")
 
-	if err := e.pointsSvc.AddPoints(userID, "ch_abc", models.TxSourceBits, 1); err != nil {
+	if err := e.pointsSvc.AddPoints(userID, "ch_abc", models.TxSourceTPoint, 1); err != nil {
 		t.Fatalf("seed ledger: %v", err)
 	}
 
@@ -334,7 +334,7 @@ func TestPointsHandler_GetHistory_SkipsUnsafeSpendDeltaAndReturnsValidTransactio
 
 	base := time.Date(2026, time.January, 4, 0, 0, 0, 0, time.UTC)
 	if err := e.db.Model(&models.PointsTransaction{}).
-		Where("ledger_id = ? AND source = ?", ledger.ID, models.TxSourceBits).
+		Where("ledger_id = ? AND source = ?", ledger.ID, models.TxSourceTPoint).
 		Update("created_at", base).Error; err != nil {
 		t.Fatalf("update valid tx timestamp: %v", err)
 	}
@@ -406,7 +406,7 @@ func TestPointsHandler_GetHistory_ClaimTransactionMappedToClaimType(t *testing.T
 	userID, token := e.registerViewer(t, "history-claim")
 
 	// earn first to create the ledger row
-	if err := e.pointsSvc.AddPoints(userID, "ch_abc", models.TxSourceBits, 100); err != nil {
+	if err := e.pointsSvc.AddPoints(userID, "ch_abc", models.TxSourceTPoint, 100); err != nil {
 		t.Fatalf("seed earn: %v", err)
 	}
 	var ledger models.PointsLedger
