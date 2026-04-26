@@ -3,6 +3,7 @@ package services
 import (
 	"context"
 	"crypto/ecdsa"
+	"database/sql"
 	"errors"
 	"fmt"
 	"log"
@@ -579,10 +580,14 @@ func (s *ClaimService) finalizeClaim(tx *gorm.DB, reservation claimReservation, 
 
 func loadTachiBalanceValue(db *gorm.DB, userID uuid.UUID) (int64, error) {
 	var balance int64
-	if err := db.Raw(
+	err := db.Raw(
 		"SELECT CAST(balance AS BIGINT) FROM tachi_balances WHERE user_id = ?",
 		userID,
-	).Scan(&balance).Error; err != nil {
+	).Row().Scan(&balance)
+	if err != nil {
+		if errors.Is(err, sql.ErrNoRows) {
+			return 0, gorm.ErrRecordNotFound
+		}
 		return 0, err
 	}
 	return balance, nil

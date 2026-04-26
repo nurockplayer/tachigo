@@ -653,6 +653,37 @@ func TestClaim_FinalizeIdempotent(t *testing.T) {
 	}
 }
 
+func TestClaim_FinalizeConfirmedWithoutBalanceReturnsError(t *testing.T) {
+	db := newTestDB(t)
+	svc := &ClaimService{db: db}
+	userID := userIDForClaim(t, db)
+	txHash := "0xconfirmedMissingBalanceHash"
+
+	if err := db.Exec(`
+		INSERT INTO claims (id, user_id, wallet_addr, amount, status, tx_hash, confirmed_at, created_at, updated_at)
+		VALUES (?, ?, ?, ?, ?, ?, CURRENT_TIMESTAMP, CURRENT_TIMESTAMP, CURRENT_TIMESTAMP)
+	`, uuid.NewString(), userID, "0xd8dA6BF26964aF9D7eEd9e03E53415D37aA96045", 60, models.ClaimStatusConfirmed, txHash).Error; err != nil {
+		t.Fatalf("insert claim: %v", err)
+	}
+
+	var claim models.Claim
+	if err := db.Where("user_id = ?", userID).First(&claim).Error; err != nil {
+		t.Fatalf("load claim: %v", err)
+	}
+
+	err := db.Transaction(func(tx *gorm.DB) error {
+		_, err := svc.finalizeClaim(tx, claimReservation{
+			claimID: claim.ID,
+			userID:  userID,
+			amount:  60,
+		}, txHash)
+		return err
+	})
+	if err == nil {
+		t.Fatal("expected confirmed claim without tachi balance to return error")
+	}
+}
+
 func TestClaim_FinalizeFailedRetryConfirmsAndCreditsOnce(t *testing.T) {
 	db := newTestDB(t)
 	svc := &ClaimService{db: db}
@@ -723,79 +754,50 @@ func TestClaim_FinalizeFailedRetryConfirmsAndCreditsOnce(t *testing.T) {
 	}
 }
 
-func TestClaim_FinalizeRejectsFailedStatus(t *testing.T) {
-	db := newTestDB(t)
-	svc := &ClaimService{db: db}
-	userID := userIDForClaim(t, db)
-
-	if err := db.Exec(`
-		INSERT INTO claims (id, user_id, wallet_addr, amount, status, tx_hash, failed_at, created_at, updated_at)
-		VALUES (?, ?, ?, ?, ?, ?, CURRENT_TIMESTAMP, CURRENT_TIMESTAMP, CURRENT_TIMESTAMP)
-	`, uuid.NewString(), userID, "0xd8dA6BF26964aF9D7eEd9e03E53415D37aA96045", 60, models.ClaimStatusFailed, "0xfailedHash").Error; err != nil {
-		t.Fatalf("insert claim: %v", err)
+func TestClaim_FinalizeRejectsNonFinalizableStatus(t *testing.T) {
+	cases := []struct {
+		name   string
+		status models.ClaimStatus
+		txHash string
+	}{
+		{name: "failed", status: models.ClaimStatusFailed, txHash: "0xfailedHash"},
+		{name: "pending", status: models.ClaimStatusPending, txHash: "0xpendingHash"},
 	}
 
-	var claim models.Claim
-	if err := db.Where("user_id = ?", userID).First(&claim).Error; err != nil {
-		t.Fatalf("load claim: %v", err)
-	}
+	for _, tc := range cases {
+		t.Run(tc.name, func(t *testing.T) {
+			db := newTestDB(t)
+			svc := &ClaimService{db: db}
+			userID := userIDForClaim(t, db)
 
-	err := db.Transaction(func(tx *gorm.DB) error {
-		_, err := svc.finalizeClaim(tx, claimReservation{
-			claimID: claim.ID,
-			userID:  userID,
-			amount:  60,
-		}, "0xfailedHash")
-		return err
-	})
-	if err == nil {
-		t.Fatal("expected error but got nil")
-	}
+			if err := db.Exec(`
+				INSERT INTO claims (id, user_id, wallet_addr, amount, status, tx_hash, created_at, updated_at)
+				VALUES (?, ?, ?, ?, ?, ?, CURRENT_TIMESTAMP, CURRENT_TIMESTAMP)
+			`, uuid.NewString(), userID, "0xd8dA6BF26964aF9D7eEd9e03E53415D37aA96045", 60, tc.status, tc.txHash).Error; err != nil {
+				t.Fatalf("insert claim: %v", err)
+			}
 
-	var balanceCount int64
-	if err := db.Raw("SELECT COUNT(*) FROM tachi_balances WHERE user_id = ?", userID).Scan(&balanceCount).Error; err != nil {
-		t.Fatalf("count tachi_balances: %v", err)
-	}
-	if balanceCount != 0 {
-		t.Fatalf("expected no tachi balance rows, got %d", balanceCount)
-	}
-}
+			var claim models.Claim
+			if err := db.Where("user_id = ?", userID).First(&claim).Error; err != nil {
+				t.Fatalf("load claim: %v", err)
+			}
 
-func TestClaim_FinalizeRejectsPendingStatus(t *testing.T) {
-	db := newTestDB(t)
-	svc := &ClaimService{db: db}
-	userID := userIDForClaim(t, db)
+			err := db.Transaction(func(tx *gorm.DB) error {
+				_, err := svc.finalizeClaim(tx, claimReservation{claimID: claim.ID, userID: userID, amount: 60}, tc.txHash)
+				return err
+			})
+			if err == nil {
+				t.Fatal("expected error but got nil")
+			}
 
-	if err := db.Exec(`
-		INSERT INTO claims (id, user_id, wallet_addr, amount, status, created_at, updated_at)
-		VALUES (?, ?, ?, ?, ?, CURRENT_TIMESTAMP, CURRENT_TIMESTAMP)
-	`, uuid.NewString(), userID, "0xd8dA6BF26964aF9D7eEd9e03E53415D37aA96045", 60, models.ClaimStatusPending).Error; err != nil {
-		t.Fatalf("insert claim: %v", err)
-	}
-
-	var claim models.Claim
-	if err := db.Where("user_id = ?", userID).First(&claim).Error; err != nil {
-		t.Fatalf("load claim: %v", err)
-	}
-
-	err := db.Transaction(func(tx *gorm.DB) error {
-		_, err := svc.finalizeClaim(tx, claimReservation{
-			claimID: claim.ID,
-			userID:  userID,
-			amount:  60,
-		}, "0xpendingHash")
-		return err
-	})
-	if err == nil {
-		t.Fatal("expected error but got nil")
-	}
-
-	var balanceCount int64
-	if err := db.Raw("SELECT COUNT(*) FROM tachi_balances WHERE user_id = ?", userID).Scan(&balanceCount).Error; err != nil {
-		t.Fatalf("count tachi_balances: %v", err)
-	}
-	if balanceCount != 0 {
-		t.Fatalf("expected no tachi balance rows, got %d", balanceCount)
+			var balanceCount int64
+			if err := db.Raw("SELECT COUNT(*) FROM tachi_balances WHERE user_id = ?", userID).Scan(&balanceCount).Error; err != nil {
+				t.Fatalf("count tachi_balances: %v", err)
+			}
+			if balanceCount != 0 {
+				t.Fatalf("expected no tachi balance rows, got %d", balanceCount)
+			}
+		})
 	}
 }
 
