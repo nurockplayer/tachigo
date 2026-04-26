@@ -134,6 +134,7 @@ main() {
   done
 
   local failures=()
+  local surface_failures=()
   [ -n "$title_prefix" ] || failures+=("PR title 必須以其中一個 prefix 開頭：$allowed_prefixes")
 
   local base_ref=""
@@ -165,7 +166,10 @@ main() {
   }
 
   local changed_files_status
-  changed_files_status=$(git diff --name-status "$merge_base" "$head_sha")
+  changed_files_status=$(git diff --name-status "$merge_base" "$head_sha") || {
+    echo "無法計算 diff：$merge_base vs $head_sha" >&2
+    exit 2
+  }
 
   local touches_backend=0 touches_dashboard=0 touches_tachimint=0 touches_contracts=0 docs_only=1
 
@@ -217,7 +221,7 @@ main() {
   fi
 
   local depends_on_raw=""
-  depends_on_raw=$(sed -nE 's/^[[:space:]-]*Depends on PR[：:][[:space:]]*(.+)$/\1/ip' "$body_file" | head -n1 | sed 's/[[:space:]]*$//')
+  depends_on_raw=$(grep -iE '^[[:space:]-]*Depends on PR[：:][[:space:]]*' "$body_file" | head -n1 | sed -E 's/^[^：:]*[：:][[:space:]]*//' | sed 's/[[:space:]]*$//')
 
   if [ "$is_infra_or_chore" -eq 0 ] && [ "$is_release_promotion" -eq 0 ]; then
     grep -Eq '#[0-9]+' "$body_file" || failures+=("PR body 必須引用至少一個 issue 或 PR 編號，例如 #123")
@@ -273,6 +277,22 @@ main() {
     failures+=("PR 不可同時修改多個 product surface")
   fi
 
+  # Block when [infra]/[chore] touches product surface code.
+  # Common cause: conflict-resolution commits sneak in code changes.
+  # Reviewer will block if PR body promises "不動程式碼" but diff says otherwise.
+  if [ "$is_infra_or_chore" -eq 1 ] && [ "$docs_only" -eq 0 ]; then
+    [ "$touches_backend" -eq 1 ]   && surface_failures+=("backend/")
+    [ "$touches_dashboard" -eq 1 ] && surface_failures+=("dashboard/")
+    [ "$touches_tachimint" -eq 1 ] && surface_failures+=("tachimint/")
+    [ "$touches_contracts" -eq 1 ] && surface_failures+=("contracts/")
+  fi
+
+  if [ "${#surface_failures[@]}" -gt 0 ]; then
+    local _ws
+    _ws=$(IFS=,; printf '%s' "${surface_failures[*]}")
+    failures+=("$title_prefix PR 改動了 product surface 程式碼（${_ws}）—— 若 PR body「本 PR 明確不做」承諾了不動程式碼，請先更新再 push；若屬刻意改動，請改用對應的 [backend]/[frontend] prefix")
+  fi
+
   if [ "$title_prefix" = "[frontend]" ] && [[ "$depends_on_raw" =~ ^#([0-9]+)$ ]] && [ "$backend_contract_no" -eq 1 ]; then
     command -v gh >/dev/null 2>&1 || { echo "需要 gh 才能檢查 dependency PR 狀態。" >&2; exit 2; }
     gh auth status >/dev/null 2>&1 || { echo "gh 尚未認證；請先處理 gh auth，再重跑。" >&2; exit 2; }
@@ -287,8 +307,13 @@ main() {
       failures+=("[frontend] Backend contract PR #$dep_number is already MERGED into develop; please check 'Backend contract already in develop: yes'")
     elif [ "$dep_state" = "CLOSED" ]; then
       failures+=("[frontend] Dependency PR #$dep_number 已被 CLOSED 但未 merge；不應 stack 在已放棄的 backend contract 上，請重新評估 dependency")
-    else
+    elif [ "$dep_state" = "OPEN" ]; then
+      # OPEN 視為合法：支援 stacked PR 場景（frontend PR stacks on an open backend contract PR）。
+      # 作者需在 PR body 標記 "stacked on dependency branch" 或 "intentionally blocked"，
+      # scope police 會另行驗證這兩個欄位；此處只確認 dep PR 存在且未放棄。
       echo "[info] Dependency PR #$dep_number state: $dep_state (stacked or blocked, OK)" >&2
+    else
+      failures+=("未知 dependency PR 狀態：$dep_state (#$dep_number)")
     fi
   fi
 

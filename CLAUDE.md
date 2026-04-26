@@ -136,10 +136,12 @@
 
 ### Commit
 
-- 原子化：每個 commit 應該是獨立的工作單位，可以單獨 revert、cherry-pick、bisect
-- 避免「一次性 commit」（如一次改 schema + service + handler + 前端四個層）
-- 按邏輯層或步驟分割：schema migration → service 實作 → API 路由 → 前端整合，各為一個 commit
-- 細粒度 commit 讓 code review 和問題追蹤更精確
+本專案使用 merge commit（--no-ff），PR 內的所有 commit **會直接進 develop history**，feature branch 的分支結構保留在 git graph 上。
+
+- 按邏輯步驟分割 commit，方便 reviewer 追蹤實作脈絡，也方便日後 bisect
+- fixup commit（修 CodeRabbit 意見、修 scope police）是正常的，不必 rebase 清理
+- 避免「一次性 commit」把不相關的層混在一起（會讓 review 難以跟進）
+- **PR title 仍要精確**，merge commit 會引用它
 
 ### PR
 
@@ -219,9 +221,17 @@
 
 例：`feat/points-service`、`fix/bits-receipt`、`docs/architecture`
 
-## Commit 訊息格式
+## Merge 策略
 
-每個 commit 必須用 `refs #<issue號碼>` 標記相關 issue，方便日後追溯當初的規格與討論。
+本專案使用 **merge commit（--no-ff）**：feature branch 進 develop 時保留分支結構，git graph 看得到每條 branch 的進出。
+
+- **PR body** 放 `closes #號碼`，merge 後自動關閉 issue
+- PR 內的 individual commit 用 `refs #號碼` 標記，供 review 期間追溯用
+- **PR title 要精確**，GitHub merge commit 會引用它
+
+## Commit 訊息格式（PR 內）
+
+每個 commit 必須用 `refs #<issue號碼>` 標記，方便 review 期間追溯規格與討論。
 
 ```
 <type>: <short description>
@@ -230,9 +240,6 @@ refs #27
 
 Co-Authored-By: Claude Sonnet 4.6 <claude[bot]@anthropic.com>
 ```
-
-- 實作過程中的 commit 用 `refs #號碼`
-- PR 的最後一個 commit 或 PR 描述用 `closes #號碼`（merge 後自動關閉 issue）
 
 Type：`feat` / `fix` / `docs` / `chore` / `refactor` / `test`
 
@@ -245,10 +252,24 @@ Type：`feat` / `fix` / `docs` / `chore` / `refactor` / `test`
 **預設工作流程：**
 
 1. 大範圍掃描 / 重複性工作 → 先交給 **Gemini**
-2. 推理、架構決策、最終實作 → **Claude**
-3. 需要跑測試並根據失敗迭代修改 → **Codex**
+2. 架構規劃、issue 撰寫（PM 角色）→ **Claude Code**
+3. 實作、debug、patch（工程師角色）→ **Codex**
+4. 最終 PR 審查 → **Claude Code**
 
 絕不用 Claude token 做重複性搜尋。
+
+### 任務規模路由
+
+> **核心原則：Codex 適合確定性高的任務，Claude 適合模糊性高的任務。**
+
+| 任務規模 | 流程 |
+|---|---|
+| **Trivial**（< 10 行、config 調整、typo）| Claude 直接 patch，不走 issue 流程 |
+| **Small-Medium**（功能、API、元件）| Claude 寫 issue → Codex 實作 → Claude review |
+| **需要迭代測試**（跑測試直到過）| 一定走 Codex；Claude 只負責寫 issue |
+| **架構重構 / 高風險改動**| Claude 先設計方案，拆成多個 issue 再交 Codex |
+
+預設路由：收到實作需求先判斷規模，Trivial 以外一律寫 issue 交 Codex。
 
 ### Gemini 專責任務
 
@@ -266,9 +287,8 @@ Type：`feat` / `fix` / `docs` / `chore` / `refactor` / `test`
 | 操作 | 誰執行 |
 |---|---|
 | 摘要大量檔案、生成樣板、審查 log、搜尋 pattern、草擬測試 | Gemini（`gemini -p "<task>"`；確認無風險時可加 `--yolo`） |
-| 架構決策、安全審查、重構策略、最終 code review | Claude Code |
-| 需要跑測試並根據失敗迭代修改的任務 | Codex（`/test-with-codex`） |
-| `git` / `gh` / 檔案操作 / 實作 / 決策 | Claude Code |
+| 架構規劃、issue 撰寫、技術決策、最終 PR 審查 | Claude Code（PM 角色） |
+| 實作、debug、patch、跑測試、推 branch、開 PR | Codex（工程師角色） |
 
 ## PR 審查流程
 

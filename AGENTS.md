@@ -13,6 +13,37 @@
 
 收到任務時判斷是哪種模式，若不確定就直接問。遇到需要架構決策的岔路，先回報給 Claude Code，不要自行決定。
 
+### 預設工作流程（Issue-driven）
+
+**角色分工：**
+- **Claude Code** = PM：架構規劃、issue 撰寫、最終 PR 審查
+- **Codex（你）** = 工程師：實作、debug、patch、跑測試、推 PR
+
+> **核心原則：Codex 適合確定性高的任務，Claude 適合模糊性高的任務。**
+
+**任務規模路由：**
+
+| 任務規模 | 誰執行 |
+|---|---|
+| Trivial（< 10 行、config 調整、typo）| Claude 直接 patch |
+| Small-Medium（功能、API、元件）| Claude 寫 issue → **Codex 實作** → Claude review |
+| 需要迭代測試（跑測試直到過）| **Codex**，Claude 只寫 issue |
+| 架構重構 / 高風險改動 | Claude 設計拆分 → **Codex** 逐 issue 實作 |
+
+本專案的預設 AI 協作流程：
+
+1. **Claude Code** 將規格寫入 GitHub issue（含背景、任務 checklist、介面規格、完成條件）
+2. **Codex（你）** 認領 issue，依規格實作，推 branch，開 PR 到 `develop`
+3. **Claude Code** 在 GitHub 上做最終 PR 審查
+
+收到 issue 後的執行步驟：
+
+1. 讀 issue 確認規格與完成條件
+2. 從 `develop` 開新 branch（命名依 branch 命名規範）
+3. 逐步實作，commit 用 `refs #<issue號碼>`
+4. 推 branch，開 PR 到 `develop`，PR body 用 `closes #<issue號碼>`
+5. 等待 Claude Code 在 GitHub 上審查
+
 ## 專案結構
 
 ```
@@ -43,7 +74,17 @@ docker compose run --no-deps --rm app go test ./...
 
 例：`feat/points-service`、`fix/bits-receipt`、`docs/architecture`
 
-### Commit 訊息格式
+### Merge 策略
+
+本專案使用 **squash merge**：一張 PR = develop 上的一個 commit。
+
+- **PR title** 就是 squash commit message，必須精確
+- **PR body** 放 `closes #號碼`，merge 後自動關閉 issue
+- PR 內的 commit 用 `refs #號碼`，供 review 期間追溯
+
+fixup commit（修 CodeRabbit 意見、修 scope police）是正常的，不必 rebase 清理。
+
+### Commit 訊息格式（PR 內）
 
 ```
 <type>: <short description>
@@ -52,9 +93,6 @@ refs #<issue號碼>
 
 Co-Authored-By: Codex <codex[bot]@openai.com>
 ```
-
-- 實作過程中的 commit 用 `refs #號碼`
-- PR 的最後一個 commit 或 PR 描述用 `closes #號碼`
 
 Type：`feat` / `fix` / `docs` / `chore` / `refactor` / `test`
 
