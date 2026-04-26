@@ -369,17 +369,19 @@ func TestClaim_Finalize_FromFinalizeFailedState_Succeeds(t *testing.T) {
 		amount:  60,
 	}
 
+	var finalBal int64
 	if err := db.Transaction(func(tx *gorm.DB) error {
 		bal, err := svc.finalizeClaim(tx, reservation, txHash)
 		if err != nil {
 			return err
 		}
-		if bal != 60 {
-			t.Fatalf("expected retry finalize balance=60, got %d", bal)
-		}
+		finalBal = bal
 		return nil
 	}); err != nil {
 		t.Fatalf("finalizeClaim: %v", err)
+	}
+	if finalBal != 60 {
+		t.Fatalf("expected retry finalize balance=60, got %d", finalBal)
 	}
 
 	var claim models.Claim
