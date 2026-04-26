@@ -110,6 +110,13 @@
 
 - 正式 `[release]` 的 `develop -> main` promotion PR 不屬於這條規則的限制對象
 
+### Conflict / Restack 規則
+
+- docs / template / metadata-only PR，或其他單一小 scope PR，**不得**用 `merge develop` 解 conflict
+- 正確做法是從最新 `develop` 開新 branch，將原 PR commit `cherry-pick` 過去，再更新或重開 PR
+- 若 restack 後發現 inherited 的 backend / frontend / dashboard CI failure，必須拆成獨立 product fix PR，不可把修補留在原本的小 scope PR
+- reviewer 遇到這類 inherited fix 混入小 scope PR 時，應優先要求拆 PR，而不是接受「為了讓 CI 綠」的跨 scope 修補
+
 ### 遇到岔路時怎麼做
 
 - 如果額外內容是必要前置條件：先明確說明為什麼原 issue 缺這一塊，再決定是否調整範圍

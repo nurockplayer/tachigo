@@ -70,6 +70,18 @@ jobs:
 
             const filenames = files.map((file) => file.filename)
             const diffLines = files.reduce((sum, file) => sum + file.additions + file.deletions, 0)
+            const isDocsOrTemplatePath = (name) =>
+              name.startsWith('docs/') ||
+              name.startsWith('plans/') ||
+              name.startsWith('.github/ISSUE_TEMPLATE/') ||
+              name === '.github/PULL_REQUEST_TEMPLATE.md' ||
+              /^[^/]+\.md$/i.test(name)
+            const isNonProductMetadataPath = (name) =>
+              isDocsOrTemplatePath(name) ||
+              name === '.gitignore' ||
+              name === '.gitattributes'
+            const isDocsTemplateOrMetadataOnly =
+              filenames.length > 0 && filenames.every(isNonProductMetadataPath)
             const body = pr.body || ''
             const title = pr.title || ''
             const allowedPrefixes = ['[backend]', '[frontend]', '[contract]', '[discussion]', '[release]', '[infra]', '[chore]']
@@ -116,6 +128,7 @@ jobs:
             const runCi =
               (isReleasePromotionPr && releaseBodyValid) ||
               standardBodyValid &&
+              !isDocsTemplateOrMetadataOnly &&
               (isReleasePromotionPr || filenames.length <= hardMaxChangedFiles) &&
               (isReleasePromotionPr || diffLines <= hardMaxDiffLines) &&
               (isReleasePromotionPr || productSurfaces <= 1) &&
@@ -136,7 +149,9 @@ jobs:
 
             core.setOutput('run_ci', runCi ? 'true' : 'false')
             core.setOutput('run_backend_integration', runBackendIntegration ? 'true' : 'false')
-            if (!runCi) {
+            if (isDocsTemplateOrMetadataOnly) {
+              core.notice('Skipping heavy product CI because this PR only changes docs/templates/metadata.')
+            } else if (!runCi) {
               core.notice('Skipping heavy CI because this PR does not currently pass scope rules.')
             }
             if (runCi && !runBackendIntegration) {
