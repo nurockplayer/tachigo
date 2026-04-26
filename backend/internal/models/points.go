@@ -11,7 +11,10 @@ import (
 type TxSource string
 
 const (
-	TxSourceBits      TxSource = "bits"
+	// TxSourceBits is the legacy DB value kept for backward-compat reads.
+	// Deprecated: use TxSourceTPoint for new writes.
+	TxSourceBits  TxSource = "bits"
+	TxSourceTPoint TxSource = "t_point"
 	TxSourceWatchTime TxSource = "watch_time"
 	TxSourceClick     TxSource = "click"
 	TxSourceSpend     TxSource = "spend"
@@ -43,7 +46,8 @@ func (p *PointsLedger) BeforeCreate(tx *gorm.DB) error {
 //
 // WatchSessionID rules by source:
 //   - "watch_time" → always non-nil; links to the session that triggered the reward
-//   - "bits"       → always nil; no session context
+//   - "bits"       → always nil; no session context (legacy; new writes use "t_point")
+//   - "t_point"    → always nil; no session context
 //   - "spend"      → always nil; consumption has no session context
 //
 // No FK constraint on watch_session_id — sessions may be archived or purged
