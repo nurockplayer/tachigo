@@ -45,8 +45,9 @@ export default function RafflesPage() {
       setRaffles((prev) => [raffle, ...prev])
       setTitle('')
     } catch (err) {
+      const apiError = isAxiosError(err) ? err.response?.data?.error : undefined
       setCreateError(
-        isAxiosError(err) ? (err.response?.data?.error ?? '建立失敗') : '建立失敗',
+        typeof apiError === 'string' ? apiError : '建立失敗',
       )
     } finally {
       setCreating(false)

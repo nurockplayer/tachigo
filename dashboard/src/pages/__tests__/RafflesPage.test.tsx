@@ -114,6 +114,29 @@ describe('RafflesPage', () => {
     cleanupRoot(root, container)
   })
 
+  it('falls back to a string message when create API error is not a string', async () => {
+    listRafflesMock.mockResolvedValue([])
+    createRaffleMock.mockRejectedValue({
+      isAxiosError: true,
+      response: { data: { error: { message: 'invalid title' } } },
+    })
+    const { container, root } = await renderAt('/raffles')
+    await flush()
+
+    const input = container.querySelector('input[name="title"]') as HTMLInputElement
+    await act(async () => {
+      const nativeInputValueSetter = Object.getOwnPropertyDescriptor(HTMLInputElement.prototype, 'value')?.set
+      nativeInputValueSetter?.call(input, 'new raffle')
+      input.dispatchEvent(new Event('input', { bubbles: true }))
+    })
+    const form = container.querySelector('form') as HTMLFormElement
+    await act(async () => { form.dispatchEvent(new Event('submit', { bubbles: true })) })
+    await flush()
+
+    expect(container.textContent).toContain('建立失敗')
+    cleanupRoot(root, container)
+  })
+
   it('disables submit button when title is empty', async () => {
     listRafflesMock.mockResolvedValue([])
     const { container, root } = await renderAt('/raffles')
