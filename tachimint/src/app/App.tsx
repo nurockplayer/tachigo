@@ -367,7 +367,7 @@ export default function App() {
             }}
           />
           <button
-            onClick={() => { if (currentRaffleId.trim()) setScreen('raffle') }}
+            onClick={() => { const id = currentRaffleId.trim(); if (id) { setCurrentRaffleId(id); setScreen('raffle') } }}
             style={{
               padding: '4px 12px',
               borderRadius: 4,
