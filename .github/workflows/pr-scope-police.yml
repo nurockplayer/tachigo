@@ -74,7 +74,7 @@ jobs:
               name === '.gitignore' ||
               name === '.gitattributes'
             const isDocsTemplateOrMetadataOnly =
-              filenames.length > 0 && allFilePaths.every(isNonProductMetadataPath)
+              allFilePaths.length > 0 && allFilePaths.every(isNonProductMetadataPath)
 
             const touches = {
               backend: allFilePaths.some((name) => name.startsWith('backend/')),
