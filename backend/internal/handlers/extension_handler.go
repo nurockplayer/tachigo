@@ -58,9 +58,9 @@ func (h *ExtensionHandler) Login(c *gin.Context) {
 // @Accept       json
 // @Produce      json
 // @Param        body body object{extension_jwt=string,transaction_receipt=string,sku=string} true "T-point transaction payload"
-// @Success      200 {object} models.TachigoToken
-// @Failure      400 {object} map[string]string
-// @Failure      401 {object} map[string]string
+// @Success      200  {object}  Response{data=AuthResponse}
+// @Failure      400  {object}  Response
+// @Failure      401  {object}  Response
 // @Router       /extension/t-point/complete [post]
 func (h *ExtensionHandler) TPointComplete(c *gin.Context) {
 	var body struct {
@@ -98,9 +98,9 @@ func (h *ExtensionHandler) TPointComplete(c *gin.Context) {
 // @Accept       json
 // @Produce      json
 // @Param        body body object{extension_jwt=string,transaction_receipt=string,sku=string} true "Bits transaction payload"
-// @Success      200 {object} models.TachigoToken
-// @Failure      400 {object} map[string]string
-// @Failure      401 {object} map[string]string
+// @Success      200  {object}  Response{data=AuthResponse}
+// @Failure      400  {object}  Response
+// @Failure      401  {object}  Response
 // @Router       /extension/bits/complete [post]
 // @Deprecated
 func (h *ExtensionHandler) BitsComplete(c *gin.Context) { h.TPointComplete(c) }
