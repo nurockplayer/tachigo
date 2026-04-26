@@ -38,7 +38,7 @@ jobs:
         env:
           GH_TOKEN: ${{ secrets.GITHUB_TOKEN }}
         run: |
-          EXISTING=$(gh pr list --base main --head develop --state open --json number --jq '.[0].number')
+          EXISTING=$(gh pr list --base main --head develop --state open --json number --jq '.[0].number // ""')
           echo "existing_pr=$EXISTING" >> "$GITHUB_OUTPUT"
           if [ -n "$EXISTING" ]; then
             echo "Release PR #$EXISTING already open, skipping."
