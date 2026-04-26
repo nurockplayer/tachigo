@@ -187,6 +187,29 @@ jobs:
       - name: Verify CI workflow assertions
         run: node --test .github/workflows/ci.test.mjs
 
+  commit-message-regression:
+    timeout-minutes: 5
+    name: Commit message regression tests
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+
+      - name: Verify commit message hook assertions
+        run: bash scripts/commit-message-check.test.sh
+
+  pr-commit-messages:
+    timeout-minutes: 5
+    name: PR commit messages
+    if: github.event_name == 'pull_request'
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+        with:
+          fetch-depth: 0
+
+      - name: Validate PR commit messages
+        run: bash scripts/check-pr-commit-messages.sh "origin/${{ github.base_ref }}" "${{ github.event.pull_request.head.sha }}"
+
   backend-build:
     timeout-minutes: 15
     name: Build backend image
