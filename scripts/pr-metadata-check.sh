@@ -221,7 +221,7 @@ main() {
   fi
 
   local depends_on_raw=""
-  depends_on_raw=$(grep -iE '^[[:space:]-]*Depends on PR[：:][[:space:]]*' "$body_file" | head -n1 | sed -E 's/^[^：:]*[：:][[:space:]]*//' | sed 's/[[:space:]]*$//')
+  depends_on_raw=$(grep -iE '^[[:space:]-]*Depends on PR[：:][[:space:]]*' "$body_file" | head -n1 | sed -E 's/^[^：:]*[：:][[:space:]]*//' | sed 's/[[:space:]]*$//' || true)
 
   if [ "$is_infra_or_chore" -eq 0 ] && [ "$is_release_promotion" -eq 0 ]; then
     grep -Eq '#[0-9]+' "$body_file" || failures+=("PR body 必須引用至少一個 issue 或 PR 編號，例如 #123")
