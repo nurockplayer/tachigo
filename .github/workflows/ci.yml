@@ -209,6 +209,19 @@ jobs:
           cache-from: type=gha
           cache-to: type=gha,mode=max
 
+      - name: Export image artifact
+        run: |
+          set -euo pipefail
+          docker save tachigo-app:latest | gzip -c > tachigo-app.tar.gz
+          test -s tachigo-app.tar.gz
+
+      - name: Upload image artifact
+        uses: actions/upload-artifact@v4
+        with:
+          name: backend-image
+          path: tachigo-app.tar.gz
+          retention-days: 1
+
   backend:
     timeout-minutes: 10
     name: Backend tests
@@ -218,17 +231,13 @@ jobs:
     steps:
       - uses: actions/checkout@v4
 
-      - name: Set up Docker Buildx
-        uses: docker/setup-buildx-action@v3
-
-      - name: Restore backend image from cache
-        uses: docker/build-push-action@v6
+      - name: Download image artifact
+        uses: actions/download-artifact@v4
         with:
-          context: ./backend
-          target: dev
-          load: true
-          tags: tachigo-app:latest
-          cache-from: type=gha
+          name: backend-image
+
+      - name: Load backend image
+        run: docker load < tachigo-app.tar.gz
 
       - name: Run tests
         run: docker compose run --pull never --no-deps --rm app go test ./...
