@@ -134,7 +134,7 @@ main() {
   done
 
   local failures=()
-  local warn_surfaces=()
+  local surface_failures=()
   [ -n "$title_prefix" ] || failures+=("PR title 必須以其中一個 prefix 開頭：$allowed_prefixes")
 
   local base_ref=""
@@ -266,19 +266,19 @@ main() {
     failures+=("PR 不可同時修改多個 product surface")
   fi
 
-  # Warn when [infra]/[chore] touches product surface code.
+  # Block when [infra]/[chore] touches product surface code.
   # Common cause: conflict-resolution commits sneak in code changes.
   # Reviewer will block if PR body promises "不動程式碼" but diff says otherwise.
   if [ "$is_infra_or_chore" -eq 1 ] && [ "$docs_only" -eq 0 ]; then
-    [ "$touches_backend" -eq 1 ]   && warn_surfaces+=("backend/")
-    [ "$touches_dashboard" -eq 1 ] && warn_surfaces+=("dashboard/")
-    [ "$touches_tachimint" -eq 1 ] && warn_surfaces+=("tachimint/")
-    [ "$touches_contracts" -eq 1 ] && warn_surfaces+=("contracts/")
+    [ "$touches_backend" -eq 1 ]   && surface_failures+=("backend/")
+    [ "$touches_dashboard" -eq 1 ] && surface_failures+=("dashboard/")
+    [ "$touches_tachimint" -eq 1 ] && surface_failures+=("tachimint/")
+    [ "$touches_contracts" -eq 1 ] && surface_failures+=("contracts/")
   fi
 
-  if [ "${#warn_surfaces[@]}" -gt 0 ]; then
+  if [ "${#surface_failures[@]}" -gt 0 ]; then
     local _ws
-    _ws=$(IFS=,; printf '%s' "${warn_surfaces[*]}")
+    _ws=$(IFS=,; printf '%s' "${surface_failures[*]}")
     failures+=("$title_prefix PR 改動了 product surface 程式碼（${_ws}）—— 若 PR body「本 PR 明確不做」承諾了不動程式碼，請先更新再 push；若屬刻意改動，請改用對應的 [backend]/[frontend] prefix")
   fi
 
