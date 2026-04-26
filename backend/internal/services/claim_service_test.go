@@ -567,6 +567,11 @@ func TestClaim_FinalizeFailureCanRetryAndCreditsOnce(t *testing.T) {
 	}); err != nil {
 		t.Fatalf("register callback: %v", err)
 	}
+	t.Cleanup(func() {
+		if err := db.Callback().Update().Before("gorm:update").Remove("fail_finalize_update"); err != nil {
+			t.Fatalf("remove callback: %v", err)
+		}
+	})
 
 	mintCaller := &mockMintCaller{broadcastHash: "0xfinalizeFailHash"}
 	svc := &ClaimService{db: db, mintCaller: mintCaller}
@@ -659,52 +664,53 @@ func TestClaim_FinalizeFailureCanRetryAndCreditsOnce(t *testing.T) {
 	}
 }
 
-func TestClaim_FinalizeIdempotent(t *testing.T) {
+func TestClaim_FinalizeEmptyTxHashPreservesExistingHash(t *testing.T) {
 	db := newTestDB(t)
-	mintCaller := &mockMintCaller{broadcastHash: "0xidempotentHash"}
-	svc := &ClaimService{db: db, mintCaller: mintCaller}
+	svc := &ClaimService{db: db}
 	userID := userIDForClaim(t, db)
-	seedWeb3Provider(t, db, userID, "0xd8dA6BF26964aF9D7eEd9e03E53415D37aA96045")
-	seedLedger(t, db, userID, "ch1", 100)
 
-	bal1, err := svc.Claim(context.Background(), userID, 60)
-	if err != nil {
-		t.Fatalf("first claim unexpected error: %v", err)
-	}
-	if bal1 != 60 {
-		t.Fatalf("expected tachi_balance=60, got %d", bal1)
-	}
-
-	var claim models.Claim
-	if err := db.Where("user_id = ?", userID).First(&claim).Error; err != nil {
-		t.Fatalf("load claim: %v", err)
+	insertClaim := func(txHash string) uuid.UUID {
+		claimID := uuid.New()
+		if err := db.Exec(`
+			INSERT INTO claims (id, user_id, wallet_addr, amount, status, tx_hash, broadcast_at, created_at, updated_at)
+			VALUES (?, ?, ?, ?, ?, ?, CURRENT_TIMESTAMP, CURRENT_TIMESTAMP, CURRENT_TIMESTAMP)
+		`, claimID, userID, "0xd8dA6BF26964aF9D7eEd9e03E53415D37aA96045", 60, models.ClaimStatusBroadcast, txHash).Error; err != nil {
+			t.Fatalf("insert claim: %v", err)
+		}
+		return claimID
 	}
 
-	reservation := claimReservation{
-		claimID: claim.ID,
-		userID:  userID,
-		amount:  60,
+	assertClaim := func(claimID uuid.UUID, status models.ClaimStatus, txHash string) {
+		var claim models.Claim
+		if err := db.Where("id = ?", claimID).First(&claim).Error; err != nil {
+			t.Fatalf("load claim: %v", err)
+		}
+		if claim.Status != status {
+			t.Fatalf("expected status %s, got %s", status, claim.Status)
+		}
+		if claim.TxHash == nil || *claim.TxHash != txHash {
+			t.Fatalf("expected existing tx_hash to remain %s, got %v", txHash, claim.TxHash)
+		}
 	}
 
-	var retryBal int64
+	finalizedHash := "0xexistingFinalizeHash"
+	finalizedID := insertClaim(finalizedHash)
 	if err := db.Transaction(func(tx *gorm.DB) error {
-		var err error
-		retryBal, err = svc.finalizeClaim(tx, reservation, "0xidempotentHash")
+		_, err := svc.finalizeClaim(tx, claimReservation{claimID: finalizedID, userID: userID, amount: 60}, "")
 		return err
 	}); err != nil {
-		t.Fatalf("second finalizeClaim unexpected error: %v", err)
+		t.Fatalf("finalize with empty tx hash: %v", err)
 	}
-	if retryBal != 60 {
-		t.Fatalf("expected tachi_balance=60 after retry, got %d", retryBal)
-	}
+	assertClaim(finalizedID, models.ClaimStatusConfirmed, finalizedHash)
 
-	var finalBal int64
-	if err := db.Raw("SELECT balance FROM tachi_balances WHERE user_id = ?", userID).Scan(&finalBal).Error; err != nil {
-		t.Fatalf("query final balance: %v", err)
+	markedHash := "0xexistingMarkedHash"
+	markedID := insertClaim(markedHash)
+	if err := db.Transaction(func(tx *gorm.DB) error {
+		return svc.markFinalizeFailedClaim(tx, claimReservation{claimID: markedID, userID: userID, amount: 60}, "", errors.New("finalize failed"))
+	}); err != nil {
+		t.Fatalf("mark finalize failed with empty tx hash: %v", err)
 	}
-	if finalBal != 60 {
-		t.Fatalf("expected final tachi_balance=60, got %d", finalBal)
-	}
+	assertClaim(markedID, models.ClaimStatusFinalizeFailed, markedHash)
 }
 
 func TestClaim_FinalizeConfirmedWithoutBalanceReturnsError(t *testing.T) {
@@ -735,6 +741,9 @@ func TestClaim_FinalizeConfirmedWithoutBalanceReturnsError(t *testing.T) {
 	})
 	if err == nil {
 		t.Fatal("expected confirmed claim without tachi balance to return error")
+	}
+	if !errors.Is(err, gorm.ErrRecordNotFound) {
+		t.Fatalf("expected ErrRecordNotFound, got %v", err)
 	}
 }
 

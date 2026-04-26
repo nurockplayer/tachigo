@@ -581,6 +581,7 @@ func (s *ClaimService) finalizeClaim(tx *gorm.DB, reservation claimReservation, 
 func loadTachiBalanceValue(db *gorm.DB, userID uuid.UUID) (int64, error) {
 	var balance int64
 	err := db.Raw(
+		// Claim and spend flows currently store whole-token int64 balances.
 		"SELECT CAST(balance AS BIGINT) FROM tachi_balances WHERE user_id = ?",
 		userID,
 	).Row().Scan(&balance)
