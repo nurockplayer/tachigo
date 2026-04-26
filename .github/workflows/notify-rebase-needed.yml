@@ -64,7 +64,7 @@ jobs:
                   `> **PR #${mergedPR.number}** ([${mergedPR.title}](${mergedPR.html_url})) 已 merge 進 \`develop\`，本 PR 目前有衝突，請 rebase。`,
                   `>`,
                   `> \`\`\`bash`,
-                  `> git fetch origin && git merge origin/develop`,
+                  `> git fetch origin && git rebase origin/develop`,
                   `> \`\`\``,
                 ].join('\n'),
               })
