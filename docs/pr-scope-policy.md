@@ -88,6 +88,12 @@ Dependabot maintenance PR 目前不會套用 frontend/backend 依賴關係用的
 
 這類 PR 不需要填寫 backend contract 是否已經在 `develop`，因為文件 / template / metadata 改動不引入 frontend 對 backend API 的依賴。
 
+另外，這類 PR 不應再被 product surface 的 inherited 紅燈拖住 review 流程，因此：
+
+- `Scope gate` 會直接略過 backend / frontend / dashboard 的 heavy CI
+- 仍保留 `PR Scope Police`、workflow regression 與其他 metadata / policy 檢查
+- 若 docs/template PR 因為 restack 需求碰到 `develop` 上的產品線紅燈，應拆成獨立 product fix PR，不可把 inherited 修補留在 docs PR
+
 `Source of truth` 與 `Depends on PR` 可使用半形或全形冒號，例如 `Source of truth:` 或 `Source of truth：`。自動檢查不要求模板文字必須逐字完全相同，但仍要求欄位語意存在。
 
 ## 正式 release PR
@@ -156,6 +162,21 @@ repo 的 CI 目前改成：
 - 只有目前符合同一套 scope 規則、且沒有被 dependency gate 擋住的 PR，才會繼續跑 backend / frontend / dashboard 的 docker build 與測試
 - 若 `[frontend]` PR 依賴尚未 merge 的 backend contract，重型 CI 會直接跳過
 - 若 PR 是正式 `[release]` 的 `develop -> main` promotion，重型 CI 會照常執行，不因 diff 過大而被 scope gate 跳過
+- 若 PR 是 docs / template / metadata-only，重型 product CI 會直接跳過，避免 inherited product failures 造成無限循環
+
+## Conflict / Restack 規則
+
+對 docs / template / metadata-only PR，或任何單一小 scope PR：
+
+- 不要用 `merge develop` 的方式解 conflict
+- 正確做法是從最新 `develop` 開新 branch，將原 PR commit `cherry-pick` 過去後重開或更新 PR
+- 若 restack 後發現 inherited 的 backend / frontend / dashboard failure，必須拆成獨立 product fix PR，不可把修補留在原本的小 scope PR
+
+原因：
+
+- `merge develop` 會把整個 base branch 的當下狀態搬進 PR，容易把不屬於本 PR 的紅燈一起帶進來
+- 小 scope PR 為了讓 inherited CI 轉綠而修改產品程式碼，最後會落入「不修就 CI 紅、修了就 scope 污染」的死循環
+- 用最新 `develop` 重開 branch + `cherry-pick` 原 PR commit，可以把衝突處理限制在本 PR 自身範圍
 
 ## 本地 PR preflight
 
