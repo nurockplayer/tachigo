@@ -547,11 +547,15 @@ func TestClaim_ReceiptFailedMarksFailedAndCompensates(t *testing.T) {
 	}
 }
 
-func TestClaim_FinalizeFailureMarksFinalizeFailedStatus(t *testing.T) {
+func TestClaim_FinalizeFailureCanRetryAndCreditsOnce(t *testing.T) {
 	db := newTestDB(t)
 	persistErr := errors.New("db finalize failed")
+	failFinalize := true
 
 	if err := db.Callback().Update().Before("gorm:update").Register("fail_finalize_update", func(tx *gorm.DB) {
+		if !failFinalize {
+			return
+		}
 		if tx.Statement.Table != "claims" {
 			return
 		}
@@ -602,6 +606,57 @@ func TestClaim_FinalizeFailureMarksFinalizeFailedStatus(t *testing.T) {
 	if spendable != 40 {
 		t.Fatalf("expected spendable=40 (deducted, not compensated), got %d", spendable)
 	}
+
+	failFinalize = false
+	reservation := claimReservation{
+		claimID: claim.ID,
+		userID:  userID,
+		amount:  60,
+	}
+	var bal1 int64
+	if err := db.Transaction(func(tx *gorm.DB) error {
+		var err error
+		bal1, err = svc.finalizeClaim(tx, reservation, "0xfinalizeFailHash")
+		return err
+	}); err != nil {
+		t.Fatalf("retry finalizeClaim unexpected error: %v", err)
+	}
+	if bal1 != 60 {
+		t.Fatalf("expected tachi_balance=60 after retry, got %d", bal1)
+	}
+
+	var bal2 int64
+	if err := db.Transaction(func(tx *gorm.DB) error {
+		var err error
+		bal2, err = svc.finalizeClaim(tx, reservation, "0xfinalizeFailHash")
+		return err
+	}); err != nil {
+		t.Fatalf("second retry finalizeClaim unexpected error: %v", err)
+	}
+	if bal2 != 60 {
+		t.Fatalf("expected tachi_balance=60 after second retry, got %d", bal2)
+	}
+
+	if err := db.Where("id = ?", claim.ID).First(&claim).Error; err != nil {
+		t.Fatalf("reload claim: %v", err)
+	}
+	if claim.Status != models.ClaimStatusConfirmed {
+		t.Fatalf("expected claim status confirmed, got %s", claim.Status)
+	}
+	if claim.ConfirmedAt == nil {
+		t.Fatal("expected confirmed_at to be set")
+	}
+	if claim.FinalizeFailedAt == nil {
+		t.Fatal("expected finalize_failed_at history to remain")
+	}
+
+	var finalBal int64
+	if err := db.Raw("SELECT balance FROM tachi_balances WHERE user_id = ?", userID).Scan(&finalBal).Error; err != nil {
+		t.Fatalf("query final balance: %v", err)
+	}
+	if finalBal != 60 {
+		t.Fatalf("expected final tachi_balance=60, got %d", finalBal)
+	}
 }
 
 func TestClaim_FinalizeIdempotent(t *testing.T) {
@@ -631,17 +686,16 @@ func TestClaim_FinalizeIdempotent(t *testing.T) {
 		amount:  60,
 	}
 
-	var bal2 int64
+	var retryBal int64
 	if err := db.Transaction(func(tx *gorm.DB) error {
 		var err error
-		bal2, err = svc.finalizeClaim(tx, reservation, "0xidempotentHash")
+		retryBal, err = svc.finalizeClaim(tx, reservation, "0xidempotentHash")
 		return err
 	}); err != nil {
 		t.Fatalf("second finalizeClaim unexpected error: %v", err)
 	}
-
-	if bal2 != 60 {
-		t.Fatalf("expected tachi_balance=60 after retry, got %d", bal2)
+	if retryBal != 60 {
+		t.Fatalf("expected tachi_balance=60 after retry, got %d", retryBal)
 	}
 
 	var finalBal int64
@@ -681,76 +735,6 @@ func TestClaim_FinalizeConfirmedWithoutBalanceReturnsError(t *testing.T) {
 	})
 	if err == nil {
 		t.Fatal("expected confirmed claim without tachi balance to return error")
-	}
-}
-
-func TestClaim_FinalizeFailedRetryConfirmsAndCreditsOnce(t *testing.T) {
-	db := newTestDB(t)
-	svc := &ClaimService{db: db}
-	userID := userIDForClaim(t, db)
-	txHash := "0xretryHash"
-
-	if err := db.Exec(`
-		INSERT INTO claims (id, user_id, wallet_addr, amount, status, tx_hash, error_message, broadcast_at, finalize_failed_at, created_at, updated_at)
-		VALUES (?, ?, ?, ?, ?, ?, ?, CURRENT_TIMESTAMP, CURRENT_TIMESTAMP, CURRENT_TIMESTAMP, CURRENT_TIMESTAMP)
-	`, uuid.NewString(), userID, "0xd8dA6BF26964aF9D7eEd9e03E53415D37aA96045", 60, models.ClaimStatusFinalizeFailed, txHash, "db finalize failed").Error; err != nil {
-		t.Fatalf("insert claim: %v", err)
-	}
-
-	var claim models.Claim
-	if err := db.Where("user_id = ?", userID).First(&claim).Error; err != nil {
-		t.Fatalf("load claim: %v", err)
-	}
-
-	reservation := claimReservation{
-		claimID: claim.ID,
-		userID:  userID,
-		amount:  60,
-	}
-
-	var bal1 int64
-	if err := db.Transaction(func(tx *gorm.DB) error {
-		var err error
-		bal1, err = svc.finalizeClaim(tx, reservation, txHash)
-		return err
-	}); err != nil {
-		t.Fatalf("retry finalizeClaim unexpected error: %v", err)
-	}
-	if bal1 != 60 {
-		t.Fatalf("expected tachi_balance=60 after retry, got %d", bal1)
-	}
-
-	var bal2 int64
-	if err := db.Transaction(func(tx *gorm.DB) error {
-		var err error
-		bal2, err = svc.finalizeClaim(tx, reservation, txHash)
-		return err
-	}); err != nil {
-		t.Fatalf("second retry finalizeClaim unexpected error: %v", err)
-	}
-	if bal2 != 60 {
-		t.Fatalf("expected tachi_balance=60 after second retry, got %d", bal2)
-	}
-
-	if err := db.Where("id = ?", claim.ID).First(&claim).Error; err != nil {
-		t.Fatalf("reload claim: %v", err)
-	}
-	if claim.Status != models.ClaimStatusConfirmed {
-		t.Fatalf("expected claim status confirmed, got %s", claim.Status)
-	}
-	if claim.ConfirmedAt == nil {
-		t.Fatal("expected confirmed_at to be set")
-	}
-	if claim.FinalizeFailedAt == nil {
-		t.Fatal("expected finalize_failed_at history to remain")
-	}
-
-	var finalBal int64
-	if err := db.Raw("SELECT balance FROM tachi_balances WHERE user_id = ?", userID).Scan(&finalBal).Error; err != nil {
-		t.Fatalf("query final balance: %v", err)
-	}
-	if finalBal != 60 {
-		t.Fatalf("expected final tachi_balance=60, got %d", finalBal)
 	}
 }
 
