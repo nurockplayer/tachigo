@@ -137,6 +137,18 @@ describe('RafflesPage', () => {
     cleanupRoot(root, container)
   })
 
+  it('shows the created raffle after the initial list request fails', async () => {
+    listRafflesMock.mockRejectedValue(new Error('boom')); createRaffleMock.mockResolvedValue({ ...mockRaffle, id: 'r2', title: 'manual raffle' })
+    const { container, root } = await renderAt('/raffles')
+    await flush()
+    const input = container.querySelector('input[name="title"]') as HTMLInputElement
+    Object.getOwnPropertyDescriptor(HTMLInputElement.prototype, 'value')?.set?.call(input, 'manual raffle'); await act(async () => { input.dispatchEvent(new Event('input', { bubbles: true })) })
+    await act(async () => { container.querySelector('form')?.dispatchEvent(new Event('submit', { bubbles: true })) })
+    await flush()
+    expect(container.textContent).toContain('manual raffle')
+    cleanupRoot(root, container)
+  })
+
   it('disables submit button when title is empty', async () => {
     listRafflesMock.mockResolvedValue([])
     const { container, root } = await renderAt('/raffles')

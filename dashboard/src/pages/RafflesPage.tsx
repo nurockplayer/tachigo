@@ -14,7 +14,7 @@ const statusLabel: Record<RaffleStatus, string> = {
 
 const statusClass: Record<RaffleStatus, string> = {
   draft: 'bg-secondary text-muted-foreground',
-  active: 'bg-green-100 text-green-800',
+  active: 'bg-green-500/10 text-green-700',
   completed: 'bg-destructive/10 text-destructive',
 }
 
@@ -43,6 +43,7 @@ export default function RafflesPage() {
     try {
       const raffle = await createRaffle(title.trim())
       setRaffles((prev) => [raffle, ...prev])
+      setError(false)
       setTitle('')
     } catch (err) {
       const apiError = isAxiosError(err) ? err.response?.data?.error : undefined
