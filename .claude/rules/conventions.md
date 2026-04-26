@@ -60,6 +60,19 @@ Type：`feat` / `fix` / `docs` / `chore` / `refactor` / `test`
 - 如果額外內容不是必要前置條件：先記錄成新的 issue / TODO，不要混進目前 PR
 - 若 PR 已經超出 issue 範圍，reviewer 可以直接要求拆 PR、縮 scope 或關閉 draft PR
 
+### 例外：Trivial 附帶修
+
+< 10 行、直接關聯當前 PR scope 的小修正（typo、import、config 微調），可 inline 進同一個 PR，**不需另開 issue**。由人類判斷是否符合，AI 不得自行套用此例外。
+
+### 例外：Conflict 解法
+
+以下情況允許直接 `merge develop` 解 conflict，不需 cherry-pick / restack：
+
+- PR 改動 < 50 行，且
+- Conflict 是由 develop 的無關改動造成（非 scope 污染引起）
+
+不符合以上條件時，仍須 restack（從最新 develop 開新 branch，cherry-pick 原 commits）。
+
 ## 細粒度原則
 
 禁止 scope pollution 之外，還要**主動拆細** Issue / Commit / PR。

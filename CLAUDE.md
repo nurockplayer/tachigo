@@ -78,6 +78,16 @@
 - PR 內的 individual commit 用 `refs #號碼` 標記
 - **PR title 要精確**，GitHub merge commit 會引用它
 
+## PR Diff 限制
+
+| 限制 | 行數 | 處理 |
+| --- | --- | --- |
+| **軟提示門檻** | 400+ | 建議拆分（不阻擋） |
+| **警告門檻** | 600+ | 需在 PR body 說明為何不拆（不阻擋） |
+| **硬限制** | 1000+ | 自動擋下（`scope-violation` label） |
+| **例外上限** | 1500 | migration / generated code / dependency bump 可用 `scope-exception` label |
+| **發佈無限** | — | release promotion PR (develop → main) 不受限制 |
+
 ---
 
 ## AI 分工
