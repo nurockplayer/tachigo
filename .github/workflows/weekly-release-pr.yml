@@ -67,3 +67,9 @@ EOF
             --head develop \
             --title "[release] develop → main ($DATE)" \
             --body-file /tmp/release-pr-body.md
+
+      - name: Dispatch CI against develop
+        if: steps.check.outputs.commits_ahead != '0' && steps.existing.outputs.existing_pr == ''
+        env:
+          GH_TOKEN: ${{ secrets.GITHUB_TOKEN }}
+        run: gh workflow run ci.yml --ref develop
