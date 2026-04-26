@@ -10,12 +10,7 @@ export function useRaffleResult(raffleId: string | null) {
   const [error, setError] = useState<string | null>(null)
 
   useEffect(() => {
-    if (!raffleId) {
-      setDraws([])
-      setLoading(false)
-      setError(null)
-      return
-    }
+    if (!raffleId) return
 
     let isDisposed = false
     let timer: number | null = null
@@ -30,7 +25,7 @@ export function useRaffleResult(raffleId: string | null) {
         }
       } catch {
         if (!isDisposed) {
-          setError('Failed to load raffle results')
+          setError('load_failed')
           setLoading(false)
         }
       }
@@ -49,16 +44,23 @@ export function useRaffleResult(raffleId: string | null) {
       }
     }
 
-    setLoading(true)
+    const loadingTimer = window.setTimeout(() => {
+      if (!isDisposed) setLoading(true)
+    }, 0)
     void pollLoop()
 
     return () => {
       isDisposed = true
+      window.clearTimeout(loadingTimer)
       if (timer !== null) {
         window.clearTimeout(timer)
       }
     }
   }, [raffleId])
+
+  if (!raffleId) {
+    return { draws: [], loading: false, error: null }
+  }
 
   return { draws, loading, error }
 }

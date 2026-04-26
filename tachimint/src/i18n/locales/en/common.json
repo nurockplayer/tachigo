@@ -97,7 +97,9 @@
   },
   "raffle_result": {
     "title": "RAFFLE RESULTS",
+    "loading": "LOADING...",
     "no_winners": "No winners yet.",
+    "error_load_failed": "Failed to load results.",
     "back": "BACK"
   },
   "error": {

@@ -78,7 +78,7 @@ export function RaffleResultPanel({ raffleId, onBack }: RaffleResultPanelProps) 
               paddingTop: 40,
             }}
           >
-            LOADING...
+            {t('raffle_result.loading')}
           </div>
         ) : error ? (
           <div
@@ -90,7 +90,7 @@ export function RaffleResultPanel({ raffleId, onBack }: RaffleResultPanelProps) 
               paddingTop: 40,
             }}
           >
-            {error}
+            {t('raffle_result.error_load_failed')}
           </div>
         ) : draws.length === 0 ? (
           <div
