@@ -51,21 +51,22 @@ func (h *ExtensionHandler) Login(c *gin.Context) {
 	ok(c, gin.H{"user": user, "tokens": tokens})
 }
 
-// BitsComplete godoc
-// @Summary      Complete a Bits transaction
+// TPointComplete godoc
+// @Summary      Complete a T-point transaction
+// @Description  Verifies Twitch Extension JWT and transaction receipt, then awards T-points to the viewer.
 // @Tags         extension
 // @Accept       json
 // @Produce      json
-// @Param        body body object{extension_jwt=string,transaction_receipt=string,sku=string} true "Bits transaction payload"
-// @Success      200  {object}  Response{data=AuthResponse}
-// @Failure      400  {object}  Response
-// @Failure      401  {object}  Response
-// @Router       /extension/bits/complete [post]
+// @Param        body body object{extension_jwt=string,transaction_receipt=string,sku=string} true "T-point transaction payload"
+// @Success      200 {object} models.TachigoToken
+// @Failure      400 {object} map[string]string
+// @Failure      401 {object} map[string]string
+// @Router       /extension/t-point/complete [post]
 func (h *ExtensionHandler) TPointComplete(c *gin.Context) {
 	var body struct {
-		ExtensionJWT        string `json:"extension_jwt" binding:"required"`
-		TransactionReceipt  string `json:"transaction_receipt" binding:"required"`
-		SKU                 string `json:"sku" binding:"required"`
+		ExtensionJWT       string `json:"extension_jwt" binding:"required"`
+		TransactionReceipt string `json:"transaction_receipt" binding:"required"`
+		SKU                string `json:"sku" binding:"required"`
 	}
 	if err := c.ShouldBindJSON(&body); err != nil {
 		badRequest(c, err.Error())
@@ -89,3 +90,17 @@ func (h *ExtensionHandler) TPointComplete(c *gin.Context) {
 
 	ok(c, gin.H{"user": user, "tokens": tokens})
 }
+
+// BitsComplete godoc
+// @Summary      [Deprecated] Complete a Bits transaction
+// @Description  Deprecated alias for /extension/t-point/complete. Use the new endpoint instead.
+// @Tags         extension
+// @Accept       json
+// @Produce      json
+// @Param        body body object{extension_jwt=string,transaction_receipt=string,sku=string} true "Bits transaction payload"
+// @Success      200 {object} models.TachigoToken
+// @Failure      400 {object} map[string]string
+// @Failure      401 {object} map[string]string
+// @Router       /extension/bits/complete [post]
+// @Deprecated
+func (h *ExtensionHandler) BitsComplete(c *gin.Context) { h.TPointComplete(c) }
