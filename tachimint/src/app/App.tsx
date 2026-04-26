@@ -15,6 +15,7 @@ import { LanguageSwitcher } from './components/LanguageSwitcher';
 import { MarioHUD } from './components/MarioHUD';
 import { ClaimPanel } from './components/ClaimPanel';
 import { CouponShopPanel } from './components/CouponShopPanel';
+import { RaffleResultPanel } from './components/RaffleResultPanel';
 import { useTwitch } from '../hooks/useTwitch';
 import { executeCouponRedeem, type CouponRedeemOutcome } from './couponRedeem';
 
@@ -38,6 +39,7 @@ export default function App() {
   const [tcgBalance, setTcgBalance] = useState(defaultDemoState.tcgBalance);
   const [redeemedCouponIds, setRedeemedCouponIds] = useState<string[]>(defaultDemoState.redeemedCouponIds);
   const [voucherCodes, setVoucherCodes] = useState<Record<string, string>>({});
+  const [currentRaffleId, setCurrentRaffleId] = useState('');
   const tcgBalanceRef = useRef(defaultDemoState.tcgBalance);
   const redeemedCouponIdsRef = useRef<string[]>([...defaultDemoState.redeemedCouponIds]);
 
@@ -237,6 +239,11 @@ export default function App() {
             voucherCodes={voucherCodes}
             onRedeem={handleCouponRedeem}
           />
+        ) : screen === 'raffle' ? (
+          <RaffleResultPanel
+            raffleId={currentRaffleId}
+            onBack={() => setScreen('hud')}
+          />
         ) : (
           <MarioHUD state={hudState} onStateChange={setHudState} onNavigate={(s) => setScreen(s)} />
         )}
@@ -340,6 +347,23 @@ export default function App() {
             }}
           >
             CLAIM
+          </button>
+          <span style={{ fontSize: 10, color: 'rgba(100,100,140,0.3)', fontFamily: 'var(--pixel-font-family)' }}>·</span>
+          <button
+            onClick={() => { setCurrentRaffleId(''); setScreen('raffle') }}
+            style={{
+              padding: '4px 12px',
+              borderRadius: 4,
+              border: '1px solid rgba(255,255,255,0.1)',
+              background: screen === 'raffle' ? 'rgba(200,168,73,0.15)' : 'transparent',
+              color: screen === 'raffle' ? 'rgba(200,168,73,0.8)' : 'rgba(100,100,140,0.4)',
+              fontSize: 9,
+              fontFamily: 'var(--pixel-font-family)',
+              cursor: 'pointer',
+              letterSpacing: '0.08em',
+            }}
+          >
+            RAFFLE
           </button>
           <span style={{ fontSize: 9, color: 'rgba(100,100,140,0.3)', fontFamily: 'var(--pixel-font-family)', marginLeft: 6 }}>
             320 × 600

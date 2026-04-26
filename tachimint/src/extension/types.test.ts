@@ -52,6 +52,18 @@ test('sanitizeHudDemoState rejects non-finite numeric values', async () => {
   )
 })
 
+test('sanitizeDemoState accepts raffle as a valid screen', async () => {
+  const types = await importTypesModule()
+  const result = types.sanitizeDemoState({ screen: 'raffle' })
+  assert.equal(result.screen, 'raffle')
+})
+
+test('sanitizeDemoState falls back to login for unknown screen', async () => {
+  const types = await importTypesModule()
+  const result = types.sanitizeDemoState({ screen: 'unknown_screen' })
+  assert.equal(result.screen, 'login')
+})
+
 test('sanitizeHudDemoState normalizes negative zero to positive zero', async () => {
   const types = await importTypesModule()
 

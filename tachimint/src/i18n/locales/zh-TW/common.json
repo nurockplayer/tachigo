@@ -95,6 +95,11 @@
       }
     }
   },
+  "raffle_result": {
+    "title": "抽獎結果",
+    "no_winners": "尚未抽出中獎者",
+    "back": "返回"
+  },
   "error": {
     "account": {
       "title": "尚未建立帳號",

@@ -1,6 +1,19 @@
 import type { AppLanguage } from '../i18n'
 
-export type DemoScreen = 'login' | 'loading' | 'hud' | 'claim' | 'coupon'
+export type DemoScreen = 'login' | 'loading' | 'hud' | 'claim' | 'coupon' | 'raffle'
+
+export interface RaffleResultEntry {
+  id: string
+  twitch_login: string
+  display_name: string
+}
+
+export interface RaffleResultDraw {
+  id: string
+  raffle_id: string
+  drawn_at: string
+  entry: RaffleResultEntry
+}
 
 export interface HudDemoState {
   points: number
@@ -86,7 +99,7 @@ export function sanitizeDemoState(value: unknown): DemoState {
   }
 
   const candidate = value as Partial<DemoState>
-  const screen = candidate.screen === 'login' || candidate.screen === 'loading' || candidate.screen === 'hud' || candidate.screen === 'claim' || candidate.screen === 'coupon'
+  const screen = candidate.screen === 'login' || candidate.screen === 'loading' || candidate.screen === 'hud' || candidate.screen === 'claim' || candidate.screen === 'coupon' || candidate.screen === 'raffle'
     ? candidate.screen
     : defaultDemoState.screen
 

@@ -1,6 +1,7 @@
 import axios from 'axios'
 import type { AxiosError, AxiosRequestConfig } from 'axios'
 import type { TachigoToken } from '../types/twitch'
+import type { RaffleResultDraw } from '../extension/types'
 
 const processEnv =
   typeof globalThis === 'object' && 'process' in globalThis
@@ -280,4 +281,11 @@ export async function sendHeartbeat(
       balance: Math.max(pointsEarned ?? 0, 0),
     }
   }
+}
+
+export async function getRaffleResult(raffleId: string): Promise<RaffleResultDraw[]> {
+  const { data } = await client.get<{ success: boolean; data: { draws: RaffleResultDraw[] } }>(
+    `/api/v1/extension/raffles/${raffleId}/result`,
+  )
+  return data.data.draws
 }
