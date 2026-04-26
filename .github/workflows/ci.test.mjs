@@ -35,18 +35,18 @@ test('frontend CI job runs the frontend test command', async () => {
   )
 })
 
-test('backend CI job runs go test and go vet', async () => {
+test('backend CI job runs go test and go vet via docker compose prebuilt image', async () => {
   const workflow = await readFile(workflowPath, 'utf8')
   const backendJob = workflowJobBlock(workflow, 'backend')
 
   assert.match(
     backendJob,
-    /- name: Run tests\n\s+working-directory: backend\n\s+run: go test \.\/\.\.\./,
+    /- name: Run tests\n\s+run: docker compose run --pull never --no-deps --rm app go test \.\/\.\.\./,
   )
 
   assert.match(
     backendJob,
-    /- name: Run vet\n\s+working-directory: backend\n\s+run: go vet \.\/\.\.\./,
+    /- name: Run vet\n\s+run: docker compose run --pull never --no-deps --rm app go vet \.\/\.\.\./,
   )
 })
 
