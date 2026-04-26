@@ -314,6 +314,16 @@ Claude Code 負責 PR 審查的驗證與決策階段。
 - `minor`：有用改善，不阻擋 merge。
 - `nit`：純風格或可讀性細節。
 
+**GitHub review 動作與分級對應（auto-merge 情境）**：
+
+| 情況 | 動作 |
+|---|---|
+| 有 blocker | Request changes（擋住 auto-merge） |
+| 只有 major / minor / nit | Approve + Comment 說明風險或建議 |
+| 只有 nit | Approve，可附 Comment 或不附 |
+
+`minor` 和 `nit` 不應使用 Request changes。在 auto-merge 開啟的情況下，Request changes 會卡住整個 pipeline，成本遠超過 nit 本身的價值。若 reviewer 有命名或風格建議，用 **Comment**（不是 Request changes）留下，由作者自行決定是否在此 PR 修或開 follow-up issue。
+
 #### 第一步：接收 Gemini 初審結果或獨立掃描
 
 - 若 Gemini 已初審，驗證其發現的 blocker（優先檢查 high 優先級問題）
