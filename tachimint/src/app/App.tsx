@@ -349,17 +349,34 @@ export default function App() {
             CLAIM
           </button>
           <span style={{ fontSize: 10, color: 'rgba(100,100,140,0.3)', fontFamily: 'var(--pixel-font-family)' }}>·</span>
+          <input
+            type="text"
+            placeholder="raffle id"
+            value={currentRaffleId}
+            onChange={(e) => setCurrentRaffleId(e.target.value)}
+            style={{
+              padding: '3px 6px',
+              borderRadius: 4,
+              border: '1px solid rgba(255,255,255,0.1)',
+              background: 'rgba(145,70,255,0.06)',
+              color: 'rgba(255,255,255,0.5)',
+              fontSize: 8,
+              fontFamily: 'var(--pixel-font-family)',
+              width: 72,
+              outline: 'none',
+            }}
+          />
           <button
-            onClick={() => { setCurrentRaffleId(''); setScreen('raffle') }}
+            onClick={() => { if (currentRaffleId.trim()) setScreen('raffle') }}
             style={{
               padding: '4px 12px',
               borderRadius: 4,
               border: '1px solid rgba(255,255,255,0.1)',
               background: screen === 'raffle' ? 'rgba(200,168,73,0.15)' : 'transparent',
-              color: screen === 'raffle' ? 'rgba(200,168,73,0.8)' : 'rgba(100,100,140,0.4)',
+              color: screen === 'raffle' ? 'rgba(200,168,73,0.8)' : currentRaffleId.trim() ? 'rgba(145,70,255,0.6)' : 'rgba(100,100,140,0.4)',
               fontSize: 9,
               fontFamily: 'var(--pixel-font-family)',
-              cursor: 'pointer',
+              cursor: currentRaffleId.trim() ? 'pointer' : 'default',
               letterSpacing: '0.08em',
             }}
           >

@@ -106,7 +106,7 @@ export function RaffleResultPanel({ raffleId, onBack }: RaffleResultPanelProps) 
           </div>
         ) : (
           <div style={{ display: 'flex', flexDirection: 'column', gap: 8 }}>
-            {draws.map((draw, i) => (
+            {[...draws].sort((a, b) => a.drawn_at.localeCompare(b.drawn_at)).map((draw, i) => (
               <div
                 key={draw.id}
                 style={{
