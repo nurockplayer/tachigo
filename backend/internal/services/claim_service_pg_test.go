@@ -9,6 +9,7 @@ import (
 	"sync"
 	"sync/atomic"
 	"testing"
+	"time"
 
 	"gorm.io/gorm"
 
@@ -152,7 +153,11 @@ func TestClaim_FinalizeConcurrent_AFailsAtBalanceUpsert_BSucceeds(t *testing.T) 
 	}
 
 	close(start)
-	<-hookReady
+	select {
+	case <-hookReady:
+	case <-time.After(10 * time.Second):
+		t.Fatal("timed out waiting for testAfterClaimUpdate hook")
+	}
 	close(hookProceed)
 	wg.Wait()
 	close(errs)
