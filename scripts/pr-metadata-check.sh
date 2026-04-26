@@ -185,7 +185,7 @@ main() {
   local status old_path new_path
   while IFS=$'\t' read -r status old_path new_path; do
     [ -n "$status" ] || continue
-    if [[ "$status" == R* ]]; then
+    if [[ "$status" == [RC]* ]]; then
       _check_path "$old_path"
       _check_path "$new_path"
     else
