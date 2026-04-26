@@ -78,6 +78,13 @@ Type：`feat` / `fix` / `docs` / `chore` / `refactor` / `test`
 - GitHub 相關的 `gh` 指令（issue、PR、API）與必要的 `git` 指令可由你執行
 - 執行 `git` 時仍需遵守 branch / commit / scope 規範，不得繞過 PR 流程
 
+### Conflict / Restack 規則
+
+- docs / template / metadata-only PR，或其他單一小 scope PR，**不得**用 `merge develop` 解 conflict
+- 正確做法是：從最新 `develop` 開新 branch，將原 PR commit `cherry-pick` 過去，再更新或重開 PR
+- 若 restack 後出現 inherited 的產品線紅燈（backend / dashboard / tachimint），必須拆成獨立 product fix PR，不可把修補留在原本的小 scope PR
+- 若目前 PR 已因 inherited fix 造成 scope 汙染，應先收回原範圍，再另外處理產品線修補
+
 ### 操作權限邊界
 
 - Read-only 操作可直接執行，不需要先問使用者。

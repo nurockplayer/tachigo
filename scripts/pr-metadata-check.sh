@@ -164,23 +164,34 @@ main() {
     exit 2
   }
 
-  local changed_files
-  changed_files=$(git diff --name-only "$merge_base" "$head_sha")
+  local changed_files_status
+  changed_files_status=$(git diff --name-status "$merge_base" "$head_sha")
 
   local touches_backend=0 touches_dashboard=0 touches_tachimint=0 touches_contracts=0 docs_only=1
-  local file
-  while IFS= read -r file; do
-    [ -n "$file" ] || continue
-    case "$file" in
+
+  _check_path() {
+    local p="$1"
+    case "$p" in
       backend/*) touches_backend=1 ;;
       dashboard/*) touches_dashboard=1 ;;
       tachimint/*) touches_tachimint=1 ;;
       contracts/*) touches_contracts=1 ;;
     esac
-    if ! is_docs_or_template_path "$file"; then
+    if ! is_docs_or_template_path "$p"; then
       docs_only=0
     fi
-  done <<< "$changed_files"
+  }
+
+  local status old_path new_path
+  while IFS=$'\t' read -r status old_path new_path; do
+    [ -n "$status" ] || continue
+    if [[ "$status" == [RC]* ]]; then
+      _check_path "$old_path"
+      _check_path "$new_path"
+    else
+      _check_path "$old_path"
+    fi
+  done <<< "$changed_files_status"
 
   local product_surface_count=0
   [ "$touches_backend" -eq 1 ] && product_surface_count=$((product_surface_count + 1))
@@ -272,8 +283,12 @@ main() {
     dep_state=$(gh pr view "$dep_number" --repo "$repo" --json state --jq '.state' 2>/dev/null || true)
     if [ -z "$dep_state" ]; then
       failures+=("無法讀取 dependency PR #$dep_number")
+    elif [ "$dep_state" = "MERGED" ]; then
+      failures+=("[frontend] Backend contract PR #$dep_number is already MERGED into develop; please check 'Backend contract already in develop: yes'")
+    elif [ "$dep_state" = "CLOSED" ]; then
+      failures+=("[frontend] Dependency PR #$dep_number 已被 CLOSED 但未 merge；不應 stack 在已放棄的 backend contract 上，請重新評估 dependency")
     else
-      failures+=("[frontend] PR depends on #$dep_number, but backend contract is not in develop. Dependency PR state: $dep_state")
+      echo "[info] Dependency PR #$dep_number state: $dep_state (stacked or blocked, OK)" >&2
     fi
   fi
 
