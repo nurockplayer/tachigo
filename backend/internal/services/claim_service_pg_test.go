@@ -103,6 +103,10 @@ func TestClaim_FinalizeConcurrent_AFailsAtBalanceUpsert_BSucceeds(t *testing.T) 
 	hookReady := make(chan struct{})
 	hookProceed := make(chan struct{})
 	var hookCalls atomic.Int32
+	// PG UPDATE acquires a row-level lock, so the first goroutine to reach the
+	// hook holds the lock; the second goroutine blocks on its UPDATE until the
+	// first transaction rolls back. hookCalls guards against the second goroutine
+	// accidentally triggering the hook after it unblocks.
 	svc := &ClaimService{
 		db: db,
 		testAfterClaimUpdate: func() error {
@@ -213,6 +217,10 @@ func TestClaim_FinalizeConcurrent_TxHashMismatch_NeverCredits(t *testing.T) {
 	hookReady := make(chan struct{})
 	hookProceed := make(chan struct{})
 	var hookCalls atomic.Int32
+	// The hook here is pure timing coordination: it lets goroutine A hold the PG
+	// row lock until goroutine B is blocked on its own UPDATE, then releases A to
+	// commit. The hook does NOT simulate a failure; the tx_hash mismatch is what
+	// causes B to be rejected by production logic after A commits.
 	svc := &ClaimService{
 		db: db,
 		testAfterClaimUpdate: func() error {
