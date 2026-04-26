@@ -256,6 +256,71 @@ func TestPointsHandler_GetHistory_ReturnsMappedTransactionsInDescendingOrder(t *
 	}
 }
 
+func TestPointsHandler_GetHistory_LegacyBitsSourceStillReadable(t *testing.T) {
+	e := newPointsEnv(t)
+	userID, token := e.registerViewer(t, "history-legacy-bits")
+	sku := "bits_100"
+
+	if err := e.pointsSvc.AddPoints(userID, "ch_abc", models.TxSourceTPoint, 1); err != nil {
+		t.Fatalf("seed ledger: %v", err)
+	}
+
+	var ledger models.PointsLedger
+	if err := e.db.Where("user_id = ? AND channel_id = ?", userID, "ch_abc").First(&ledger).Error; err != nil {
+		t.Fatalf("load ledger: %v", err)
+	}
+
+	base := time.Date(2026, time.January, 3, 0, 0, 0, 0, time.UTC)
+	if err := e.db.Model(&models.PointsTransaction{}).
+		Where("ledger_id = ? AND source = ?", ledger.ID, models.TxSourceTPoint).
+		Update("created_at", base).Error; err != nil {
+		t.Fatalf("update seed timestamp: %v", err)
+	}
+	if err := e.db.Create(&models.PointsTransaction{
+		LedgerID:     ledger.ID,
+		Source:       models.TxSourceBits,
+		Delta:        250,
+		BalanceAfter: 251,
+		SKU:          &sku,
+		CreatedAt:    base.Add(time.Second),
+	}).Error; err != nil {
+		t.Fatalf("seed legacy bits transaction: %v", err)
+	}
+
+	req := httptest.NewRequest(http.MethodGet, "/api/v1/users/me/points/history?channel_id=ch_abc", nil)
+	req.Header.Set("Authorization", "Bearer "+token)
+	rec := httptest.NewRecorder()
+	e.router.ServeHTTP(rec, req)
+
+	if rec.Code != http.StatusOK {
+		t.Fatalf("want 200, got %d: %s", rec.Code, rec.Body.String())
+	}
+
+	resp := parseBody(t, rec.Body.Bytes())
+	if resp["success"] != true {
+		t.Fatalf("success: want true, got %v", resp["success"])
+	}
+	data := resp["data"].(map[string]interface{})
+	transactions := data["transactions"].([]interface{})
+	if len(transactions) != 2 {
+		t.Fatalf("want 2 transactions, got %d", len(transactions))
+	}
+
+	first := transactions[0].(map[string]interface{})
+	if first["type"] != "earn" {
+		t.Fatalf("type: want earn, got %v", first["type"])
+	}
+	if first["amount"] != float64(250) {
+		t.Fatalf("amount: want 250, got %v", first["amount"])
+	}
+	if first["sku"] != "bits_100" {
+		t.Fatalf("sku: want bits_100, got %v", first["sku"])
+	}
+	if _, ok := first["note"]; ok {
+		t.Fatalf("legacy bits transaction should omit note, got %v", first["note"])
+	}
+}
+
 func TestPointsHandler_GetHistory_ReturnsEmptyListWhenNoTransactions(t *testing.T) {
 	e := newPointsEnv(t)
 	_, token := e.registerViewer(t, "empty-history")
