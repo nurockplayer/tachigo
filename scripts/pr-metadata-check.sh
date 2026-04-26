@@ -308,6 +308,9 @@ main() {
     elif [ "$dep_state" = "CLOSED" ]; then
       failures+=("[frontend] Dependency PR #$dep_number 已被 CLOSED 但未 merge；不應 stack 在已放棄的 backend contract 上，請重新評估 dependency")
     elif [ "$dep_state" = "OPEN" ]; then
+      # OPEN 視為合法：支援 stacked PR 場景（frontend PR stacks on an open backend contract PR）。
+      # 作者需在 PR body 標記 "stacked on dependency branch" 或 "intentionally blocked"，
+      # scope police 會另行驗證這兩個欄位；此處只確認 dep PR 存在且未放棄。
       echo "[info] Dependency PR #$dep_number state: $dep_state (stacked or blocked, OK)" >&2
     else
       failures+=("未知 dependency PR 狀態：$dep_state (#$dep_number)")
