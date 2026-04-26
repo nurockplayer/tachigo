@@ -106,7 +106,8 @@ func New(
 	ext := v1.Group("/extension")
 	{
 		ext.POST("/auth/login", extH.Login)
-		ext.POST("/bits/complete", extH.TPointComplete)
+		ext.POST("/t-point/complete", extH.TPointComplete)
+		ext.POST("/bits/complete", extH.BitsComplete) // deprecated alias
 
 		// Raffle result — public read (no auth required)
 		ext.GET("/raffles/:id/result", raffleH.GetResult)
