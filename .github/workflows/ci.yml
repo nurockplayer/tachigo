@@ -69,16 +69,19 @@ jobs:
             })
 
             const filenames = files.map((file) => file.filename)
+            const allFilePaths = files.flatMap((f) =>
+              f.status === 'renamed' && f.previous_filename ? [f.filename, f.previous_filename] : [f.filename]
+            )
             const diffLines = files.reduce((sum, file) => sum + file.additions + file.deletions, 0)
             const body = pr.body || ''
             const title = pr.title || ''
             const allowedPrefixes = ['[backend]', '[frontend]', '[contract]', '[discussion]', '[release]', '[infra]', '[chore]']
             const titlePrefix = allowedPrefixes.find((prefix) => title.startsWith(prefix))
             const touches = {
-              backend: filenames.some((name) => name.startsWith('backend/')),
-              dashboard: filenames.some((name) => name.startsWith('dashboard/')),
-              tachimint: filenames.some((name) => name.startsWith('tachimint/')),
-              contracts: filenames.some((name) => name.startsWith('contracts/')),
+              backend: allFilePaths.some((name) => name.startsWith('backend/')),
+              dashboard: allFilePaths.some((name) => name.startsWith('dashboard/')),
+              tachimint: allFilePaths.some((name) => name.startsWith('tachimint/')),
+              contracts: allFilePaths.some((name) => name.startsWith('contracts/')),
             }
             const productSurfaces = Object.values(touches).filter(Boolean).length
 
@@ -130,7 +133,7 @@ jobs:
               /^docker-compose(?:\..+)?\.ya?ml$/,
               /^\.github\/workflows\/ci\.yml$/,
             ]
-            const runBackendIntegration = filenames.some((name) =>
+            const runBackendIntegration = allFilePaths.some((name) =>
               backendIntegrationPaths.some((pattern) => pattern.test(name)),
             )
 

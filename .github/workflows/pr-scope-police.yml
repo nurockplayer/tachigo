@@ -59,6 +59,9 @@ jobs:
             })
 
             const filenames = files.map((file) => file.filename)
+            const allFilePaths = files.flatMap((f) =>
+              f.status === 'renamed' && f.previous_filename ? [f.filename, f.previous_filename] : [f.filename]
+            )
             const diffLines = files.reduce((sum, file) => sum + file.additions + file.deletions, 0)
             const isDocsOrTemplatePath = (name) =>
               name.startsWith('docs/') ||
@@ -71,14 +74,14 @@ jobs:
               name === '.gitignore' ||
               name === '.gitattributes'
             const isDocsTemplateOrMetadataOnly =
-              filenames.length > 0 && filenames.every(isNonProductMetadataPath)
+              filenames.length > 0 && allFilePaths.every(isNonProductMetadataPath)
 
             const touches = {
-              backend: filenames.some((name) => name.startsWith('backend/')),
-              dashboard: filenames.some((name) => name.startsWith('dashboard/')),
-              tachimint: filenames.some((name) => name.startsWith('tachimint/')),
-              contracts: filenames.some((name) => name.startsWith('contracts/')),
-              docs: filenames.some((name) => name.startsWith('docs/') || name.startsWith('plans/')),
+              backend: allFilePaths.some((name) => name.startsWith('backend/')),
+              dashboard: allFilePaths.some((name) => name.startsWith('dashboard/')),
+              tachimint: allFilePaths.some((name) => name.startsWith('tachimint/')),
+              contracts: allFilePaths.some((name) => name.startsWith('contracts/')),
+              docs: allFilePaths.some((name) => name.startsWith('docs/') || name.startsWith('plans/')),
             }
 
             const productSurfaces = Object.entries({

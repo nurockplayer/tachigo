@@ -69,6 +69,21 @@ test('backend CI vet assertion does not match vet steps from later jobs', () => 
   )
 })
 
+test('scope gate and scope police use rename-aware allFilePaths for touches', async () => {
+  const workflow = await readFile(workflowPath, 'utf8')
+  const scopePolice = await readFile(scopePolicePath, 'utf8')
+
+  const renameAwarePattern =
+    /allFilePaths = files\.flatMap\(\(f\) =>\s*\n\s+f\.status === 'renamed' && f\.previous_filename \? \[f\.filename, f\.previous_filename\] : \[f\.filename\]/
+
+  assert.match(workflow, renameAwarePattern, 'ci.yml scope-gate must define allFilePaths with previous_filename support')
+  assert.match(scopePolice, renameAwarePattern, 'pr-scope-police.yml must define allFilePaths with previous_filename support')
+
+  assert.match(workflow, /touches = \{[\s\S]*?allFilePaths\.some/, 'ci.yml touches must use allFilePaths')
+  assert.match(scopePolice, /touches = \{[\s\S]*?allFilePaths\.some/, 'pr-scope-police.yml touches must use allFilePaths')
+  assert.match(scopePolice, /isDocsTemplateOrMetadataOnly[\s\S]*?allFilePaths\.every/, 'pr-scope-police.yml isDocsTemplateOrMetadataOnly must use allFilePaths')
+})
+
 test('PR size thresholds match CLAUDE.md', async () => {
   const claude = await readFile(claudePath, 'utf8')
   const workflow = await readFile(workflowPath, 'utf8')
