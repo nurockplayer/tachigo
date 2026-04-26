@@ -222,6 +222,14 @@ func migratePGTestDB(db *gorm.DB) error {
 			ON claim_items (claim_id)`,
 		`CREATE INDEX IF NOT EXISTS idx_claim_items_ledger_id
 			ON claim_items (ledger_id)`,
+		`CREATE TABLE IF NOT EXISTS tachi_balances (
+			id UUID PRIMARY KEY,
+			user_id UUID NOT NULL REFERENCES users(id) ON DELETE CASCADE,
+			balance NUMERIC(20,6) NOT NULL DEFAULT 0,
+			updated_at TIMESTAMPTZ NOT NULL DEFAULT NOW(),
+			UNIQUE (user_id),
+			CHECK (balance >= 0)
+		)`,
 	}
 
 	for _, stmt := range stmts {

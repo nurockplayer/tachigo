@@ -112,15 +112,14 @@ func (s *ClaimService) SetMintCallerForTest(mc MintCaller) { s.mintCaller = mc }
 // GetTachiBalance returns the user's current $TACHI balance.
 // Returns 0 if no balance record exists yet.
 func (s *ClaimService) GetTachiBalance(userID uuid.UUID) (int64, error) {
-	var tb models.TachiBalance
-	err := s.db.Where("user_id = ?", userID).First(&tb).Error
+	balance, err := loadTachiBalanceValue(s.db, userID)
 	if err != nil {
 		if errors.Is(err, gorm.ErrRecordNotFound) {
 			return 0, nil
 		}
 		return 0, err
 	}
-	return tb.Balance, nil
+	return balance, nil
 }
 
 // Claim converts T-Points from all channels into $TACHI balance.
@@ -207,13 +206,19 @@ func (s *ClaimService) Claim(ctx context.Context, userID uuid.UUID, amount int64
 	}
 
 	var newBalance int64
-	err = s.db.Transaction(func(tx *gorm.DB) error {
+	finalizeErr := s.db.Transaction(func(tx *gorm.DB) error {
 		var err error
 		newBalance, err = s.finalizeClaim(tx, reservation, mintTxHash)
 		return err
 	})
-	if err != nil {
-		return 0, err
+	if finalizeErr != nil {
+		markErr := s.db.Transaction(func(tx *gorm.DB) error {
+			return s.markFinalizeFailedClaim(tx, reservation, mintTxHash, finalizeErr)
+		})
+		if markErr != nil {
+			return 0, fmt.Errorf("%w; mark finalize failed: %v", finalizeErr, markErr)
+		}
+		return 0, finalizeErr
 	}
 
 	return newBalance, nil
@@ -448,6 +453,58 @@ func (s *ClaimService) markClaimFailedAndCompensate(tx *gorm.DB, reservation cla
 	return nil
 }
 
+// markFinalizeFailedClaim records that the chain tx succeeded but the DB
+// finalization step failed. The claim is left in finalize_failed state for a
+// recovery job to retry. Points are not compensated here because the on-chain
+// mint already confirmed.
+func (s *ClaimService) markFinalizeFailedClaim(tx *gorm.DB, reservation claimReservation, mintTxHash string, finalizeErr error) error {
+	now := time.Now()
+	updates := map[string]interface{}{
+		"status":             models.ClaimStatusFinalizeFailed,
+		"error_message":      finalizeErr.Error(),
+		"finalize_failed_at": now,
+		"updated_at":         now,
+	}
+	if mintTxHash != "" {
+		updates["tx_hash"] = mintTxHash
+	}
+
+	query := tx.Model(&models.Claim{}).
+		Where(
+			"id = ? AND user_id = ? AND status IN ?",
+			reservation.claimID,
+			reservation.userID,
+			[]string{
+				string(models.ClaimStatusBroadcast),
+				string(models.ClaimStatusFinalizeFailed),
+			},
+		)
+	if mintTxHash != "" {
+		query = query.Where("(tx_hash IS NULL OR tx_hash = ?)", mintTxHash)
+	}
+
+	result := query.Updates(updates)
+	if result.Error != nil {
+		return result.Error
+	}
+	if result.RowsAffected == 0 {
+		var existing models.Claim
+		if err := tx.Select("status", "tx_hash").
+			Where("id = ? AND user_id = ?", reservation.claimID, reservation.userID).
+			First(&existing).Error; err != nil {
+			return fmt.Errorf("markFinalizeFailedClaim: load claim after skipped mark: %w", err)
+		}
+		if mintTxHash != "" && existing.TxHash != nil && *existing.TxHash != mintTxHash {
+			return fmt.Errorf("markFinalizeFailedClaim: tx_hash mismatch existing=%s retry=%s", *existing.TxHash, mintTxHash)
+		}
+		if existing.Status == models.ClaimStatusConfirmed {
+			return nil
+		}
+		return fmt.Errorf("markFinalizeFailedClaim: invalid claim status %s", existing.Status)
+	}
+	return nil
+}
+
 func (s *ClaimService) finalizeClaim(tx *gorm.DB, reservation claimReservation, mintTxHash string) (int64, error) {
 	now := time.Now()
 	claimUpdates := map[string]interface{}{
@@ -459,10 +516,47 @@ func (s *ClaimService) finalizeClaim(tx *gorm.DB, reservation claimReservation, 
 	if mintTxHash != "" {
 		claimUpdates["tx_hash"] = mintTxHash
 	}
-	if err := tx.Model(&models.Claim{}).
-		Where("id = ? AND user_id = ?", reservation.claimID, reservation.userID).
-		Updates(claimUpdates).Error; err != nil {
-		return 0, err
+
+	query := tx.Model(&models.Claim{}).
+		Where(
+			"id = ? AND user_id = ? AND status IN ?",
+			reservation.claimID,
+			reservation.userID,
+			[]string{
+				string(models.ClaimStatusBroadcast),
+				string(models.ClaimStatusFinalizeFailed),
+			},
+		)
+	if mintTxHash != "" {
+		query = query.Where("(tx_hash IS NULL OR tx_hash = ?)", mintTxHash)
+	}
+
+	result := query.Updates(claimUpdates)
+	if result.Error != nil {
+		return 0, result.Error
+	}
+
+	if result.RowsAffected == 0 {
+		var existing models.Claim
+		if err := tx.Select("status", "tx_hash").
+			Where("id = ? AND user_id = ?", reservation.claimID, reservation.userID).
+			First(&existing).Error; err != nil {
+			return 0, fmt.Errorf("finalizeClaim: load claim after skipped finalize: %w", err)
+		}
+
+		if mintTxHash != "" && existing.TxHash != nil && *existing.TxHash != mintTxHash {
+			return 0, fmt.Errorf("finalizeClaim: tx_hash mismatch existing=%s retry=%s", *existing.TxHash, mintTxHash)
+		}
+
+		if existing.Status == models.ClaimStatusConfirmed {
+			balance, err := loadTachiBalanceValue(tx, reservation.userID)
+			if err != nil {
+				return 0, fmt.Errorf("finalizeClaim: confirmed claim missing tachi balance: %w", err)
+			}
+			return balance, nil
+		}
+
+		return 0, fmt.Errorf("finalizeClaim: invalid claim status %s", existing.Status)
 	}
 
 	if err := tx.Exec(`
@@ -475,12 +569,23 @@ func (s *ClaimService) finalizeClaim(tx *gorm.DB, reservation claimReservation, 
 		return 0, err
 	}
 
-	var tb models.TachiBalance
-	if err := tx.Where("user_id = ?", reservation.userID).First(&tb).Error; err != nil {
+	balance, err := loadTachiBalanceValue(tx, reservation.userID)
+	if err != nil {
 		return 0, err
 	}
 
-	return tb.Balance, nil
+	return balance, nil
+}
+
+func loadTachiBalanceValue(db *gorm.DB, userID uuid.UUID) (int64, error) {
+	var balance int64
+	if err := db.Raw(
+		"SELECT CAST(balance AS BIGINT) FROM tachi_balances WHERE user_id = ?",
+		userID,
+	).Scan(&balance).Error; err != nil {
+		return 0, err
+	}
+	return balance, nil
 }
 
 func (s *ClaimService) resolveWalletAddress(db *gorm.DB, userID uuid.UUID) (string, error) {
