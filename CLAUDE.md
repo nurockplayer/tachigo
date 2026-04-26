@@ -129,12 +129,12 @@
 
 ### Commit
 
-本專案使用 squash merge，PR 內的 commit **不會**直接進 develop history，目的是讓 review 過程清楚，不是追求能獨立 cherry-pick / bisect。
+本專案使用 merge commit（--no-ff），PR 內的所有 commit **會直接進 develop history**，feature branch 的分支結構保留在 git graph 上。
 
-- 按邏輯步驟分割有助於 reviewer 理解實作脈絡
+- 按邏輯步驟分割 commit，方便 reviewer 追蹤實作脈絡，也方便日後 bisect
 - fixup commit（修 CodeRabbit 意見、修 scope police）是正常的，不必 rebase 清理
 - 避免「一次性 commit」把不相關的層混在一起（會讓 review 難以跟進）
-- 進 develop 的 commit 來自 PR title（squash message），所以 **PR title 要精確**
+- **PR title 仍要精確**，merge commit 會引用它
 
 ### PR
 
@@ -216,11 +216,11 @@
 
 ## Merge 策略
 
-本專案使用 **squash merge**：一張 PR 對應 develop 上的一個 commit。
+本專案使用 **merge commit（--no-ff）**：feature branch 進 develop 時保留分支結構，git graph 看得到每條 branch 的進出。
 
-- **PR title** 就是 squash commit message，必須精確描述這張 PR 做了什麼
 - **PR body** 放 `closes #號碼`，merge 後自動關閉 issue
 - PR 內的 individual commit 用 `refs #號碼` 標記，供 review 期間追溯用
+- **PR title 要精確**，GitHub merge commit 會引用它
 
 ## Commit 訊息格式（PR 內）
 
