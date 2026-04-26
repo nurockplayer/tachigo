@@ -74,6 +74,11 @@ type ClaimService struct {
 	contractCfg config.ContractConfig
 	tachiToken  mintContract
 	mintCaller  MintCaller
+
+	// testAfterClaimUpdate, if non-nil, is called after the claim row is updated
+	// to confirmed but before the balance upsert. Used only in tests; always nil
+	// in production.
+	testAfterClaimUpdate func() error
 }
 
 type claimReservation struct {
@@ -558,6 +563,12 @@ func (s *ClaimService) finalizeClaim(tx *gorm.DB, reservation claimReservation, 
 		}
 
 		return 0, fmt.Errorf("finalizeClaim: invalid claim status %s", existing.Status)
+	}
+
+	if s.testAfterClaimUpdate != nil {
+		if err := s.testAfterClaimUpdate(); err != nil {
+			return 0, err
+		}
 	}
 
 	if err := tx.Exec(`
