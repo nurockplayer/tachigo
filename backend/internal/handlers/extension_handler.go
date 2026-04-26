@@ -61,7 +61,7 @@ func (h *ExtensionHandler) Login(c *gin.Context) {
 // @Failure      400  {object}  Response
 // @Failure      401  {object}  Response
 // @Router       /extension/bits/complete [post]
-func (h *ExtensionHandler) BitsComplete(c *gin.Context) {
+func (h *ExtensionHandler) TPointComplete(c *gin.Context) {
 	var body struct {
 		ExtensionJWT        string `json:"extension_jwt" binding:"required"`
 		TransactionReceipt  string `json:"transaction_receipt" binding:"required"`
@@ -72,7 +72,7 @@ func (h *ExtensionHandler) BitsComplete(c *gin.Context) {
 		return
 	}
 
-	user, tokens, err := h.ext.CompleteBitsTransaction(body.ExtensionJWT, body.TransactionReceipt, body.SKU)
+	user, tokens, err := h.ext.CompleteTPointTransaction(body.ExtensionJWT, body.TransactionReceipt, body.SKU)
 	if err != nil {
 		switch err {
 		case services.ErrInvalidExtJWT:

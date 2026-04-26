@@ -106,7 +106,7 @@ func New(
 	ext := v1.Group("/extension")
 	{
 		ext.POST("/auth/login", extH.Login)
-		ext.POST("/bits/complete", extH.BitsComplete)
+		ext.POST("/bits/complete", extH.TPointComplete)
 
 		// Raffle result — public read (no auth required)
 		ext.GET("/raffles/:id/result", raffleH.GetResult)
