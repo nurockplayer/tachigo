@@ -11,7 +11,7 @@
   --accent-hover: #bf93ff;
   --success: #00c853;
   --error: #ff5252;
-  --bits: #f5a623;
+  --tpoint: #f5a623;
 
   --radius: 8px;
   --sans: system-ui, 'Segoe UI', Roboto, sans-serif;
@@ -295,7 +295,7 @@ p  { margin: 0; }
   white-space: nowrap;
 }
 
-/* ── Bits button ────────────────────────────────────────────────────────────── */
+/* ── T-point button ─────────────────────────────────────────────────────────── */
 .ext-btn {
   display: inline-flex;
   align-items: center;
@@ -313,7 +313,7 @@ p  { margin: 0; }
   cursor: not-allowed;
 }
 
-.ext-btn--bits {
+.ext-btn--tpoint {
   padding: 5px 10px;
   background: var(--accent);
   color: #fff;
@@ -322,7 +322,7 @@ p  { margin: 0; }
   flex-shrink: 0;
 }
 
-.ext-btn--bits:hover:not(:disabled) { background: var(--accent-hover); }
+.ext-btn--tpoint:hover:not(:disabled) { background: var(--accent-hover); }
 
 .ext-btn--ghost {
   padding: 6px 14px;
@@ -333,7 +333,7 @@ p  { margin: 0; }
 
 .ext-btn--ghost:hover:not(:disabled) { background: #3a3a45; }
 
-.ext-bits-icon {
+.ext-tpoint-icon {
   width: 16px;
   height: 16px;
   vertical-align: middle;

@@ -1,14 +1,14 @@
 import { useCallback, useState } from 'react'
-import type { BitsTransaction } from '../types/twitch'
-import { completeBitsTransaction } from '../services/api'
+import type { TPointTransaction } from '../types/twitch'
+import { completeTPointTransaction } from '../services/api'
 
 type Status = 'idle' | 'pending' | 'success' | 'error'
 
-export function useBits(jwt: string) {
+export function useTPoint(jwt: string) {
   const [status, setStatus] = useState<Status>('idle')
   const [error, setError] = useState<string | null>(null)
 
-  const buyWithBits = useCallback(
+  const buyWithTPoint = useCallback(
     (sku: string) => {
       const ext = window.Twitch?.ext
       if (!ext?.bits) return
@@ -16,9 +16,9 @@ export function useBits(jwt: string) {
       setStatus('pending')
       setError(null)
 
-      ext.bits.onTransactionComplete(async (tx: BitsTransaction) => {
+      ext.bits.onTransactionComplete(async (tx: TPointTransaction) => {
         try {
-          await completeBitsTransaction(jwt, tx.transactionReceipt, tx.product.sku)
+          await completeTPointTransaction(jwt, tx.transactionReceipt, tx.product.sku)
           setStatus('success')
         // eslint-disable-next-line @typescript-eslint/no-explicit-any
         } catch (err: any) {
@@ -36,5 +36,5 @@ export function useBits(jwt: string) {
     [jwt],
   )
 
-  return { buyWithBits, status, error }
+  return { buyWithTPoint, status, error }
 }
