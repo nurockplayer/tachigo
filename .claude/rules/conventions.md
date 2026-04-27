@@ -66,14 +66,16 @@ Type：`feat` / `fix` / `docs` / `chore` / `refactor` / `test`
 
 原則上，PR 發生 conflict 時仍須從最新 `develop` 重新開 branch 並 restack。
 
-只有在以下條件**全部**成立時，才允許直接以 `git merge develop` 或 `git rebase origin/develop` 解 conflict：
+只有在以下條件**全部**成立時，才允許直接以 `git merge origin/develop` 或 `git rebase origin/develop` 解 conflict：
 
-- PR 性質屬於 `docs` / `chore` / `test` 等非產品行為變更
-- conflict 解法本身新增的 non-merge diff < 20 行
+- conflict resolution 產生的額外 diff 不改變產品 runtime behavior，且不涉及 production code、build artifact 或 deploy config 的語意變更
+- conflict resolution 本身相對衝突雙方原始版本額外新增的 non-merge diff < 20 行
 - conflict 解法不擴張本 PR 的原始 scope
 - conflict 不涉及 schema、API contract、auth、核心商業邏輯或跨模組行為變更
 
-不符合以上任一條件時，仍須 restack。若對「是否屬於 scope 擴張」有疑義，預設採較保守做法：restack。
+由人類判斷是否符合上述條件，AI 不得自行套用此例外。
+
+不符合以上任一條件時，仍須 restack。若對「是否屬於 scope 擴張」或「是否改變 runtime behavior」有疑義，預設採較保守做法：restack。
 
 ### 例外：Trivial 附帶修
 
