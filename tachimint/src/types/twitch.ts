@@ -6,14 +6,16 @@ export interface TwitchContext {
   role: 'broadcaster' | 'moderator' | 'viewer' | 'external'
 }
 
-export interface BitsTransaction {
+// TPointTransaction is the payload received from Twitch when a viewer completes a T-point purchase.
+// Note: the `type` field value is "bits" — this is a Twitch SDK contract value and must not be changed.
+export interface TPointTransaction {
   transactionId: string
   product: {
     sku: string
     displayName: string
     cost: {
       amount: number
-      type: 'bits'
+      type: 'bits' // Twitch SDK contract — do not rename
     }
     inDevelopment: boolean
   }
