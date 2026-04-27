@@ -4,7 +4,7 @@
 interface TwitchExtBits {
   getProducts(): Promise<TwitchBitsProduct[]>
   useBits(sku: string): void
-  onTransactionComplete(callback: (transaction: import('./twitch').BitsTransaction) => void): void
+  onTransactionComplete(callback: (transaction: import('./twitch').TPointTransaction) => void): void
   onTransactionCancelled(callback: () => void): void
 }
 
