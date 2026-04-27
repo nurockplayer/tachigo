@@ -19,7 +19,7 @@ main() {
   local subject
   subject="$(sed -n '1p' "$message_file")"
 
-  if [[ "$subject" =~ ^Merge[[:space:]] ]]; then
+  if [[ "$subject" =~ ^Merge[[:space:]] ]] || [[ "$subject" =~ ^Revert[[:space:]] ]]; then
     exit 0
   fi
 

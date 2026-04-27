@@ -369,7 +369,7 @@ jobs:
   notify-discord:
     timeout-minutes: 5
     name: Notify Discord on failure
-    needs: [workflow-regression, check-cache-wiring, backend-ci, frontend, dashboard, contracts]
+    needs: [workflow-regression, commit-message-regression, check-cache-wiring, backend-ci, frontend, dashboard, contracts]
     if: failure()
     runs-on: ubuntu-latest
     steps:

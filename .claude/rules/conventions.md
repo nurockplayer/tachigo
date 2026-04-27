@@ -52,7 +52,7 @@ Type：`feat` / `fix` / `docs` / `chore` / `refactor` / `test`
 
 - 若前置 PR 尚未 merge，後續 PR 不應開出來
 - 若真有順序依賴，先等前置 PR merge，再從最新 `develop` 拉新 branch 開發
-- scope police 會自動偵測 `依賴：#xxx` 或 `depends on #xxx` 語法，若引用的 PR 仍為 open 狀態，該 PR 會被自動關閉
+- PR body 須填寫 `Depends on PR：none` 或 `Depends on PR：#xxx`；若填 `#xxx` 且 backend contract 未在 develop，scope police 會加 `blocked-by-dependency` label（不會自動關閉 PR）
 
 例外：正式 `[release]` 的 `develop -> main` promotion PR 不屬於這條規則的限制對象
 
