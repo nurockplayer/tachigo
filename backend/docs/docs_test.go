@@ -50,6 +50,7 @@ func TestSwaggerDoc_NoGlobalSecurity_ProtectedOpsRequireBearerAuth(t *testing.T)
 		{path: "/auth/reset-password", method: "post"},
 		{path: "/extension/auth/login", method: "post"},
 		{path: "/extension/bits/complete", method: "post"},
+		{path: "/extension/t-point/complete", method: "post"},
 	} {
 		tc := tc
 		t.Run(fmt.Sprintf("%s %s", tc.method, tc.path), func(t *testing.T) {

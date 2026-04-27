@@ -103,13 +103,18 @@ definitions:
       amount:
         minimum: 1
         type: integer
+      coupon_id:
+        type: string
     required:
     - amount
+    - coupon_id
     type: object
   handlers.redeemResponse:
     properties:
       balance:
         type: integer
+      voucher_code:
+        type: string
     type: object
   handlers.tachiBalanceResponse:
     properties:
@@ -229,6 +234,27 @@ definitions:
         type: string
       is_default:
         type: boolean
+      phone:
+        type: string
+      postal_code:
+        type: string
+      recipient_name:
+        type: string
+    required:
+    - address_line1
+    - city
+    - recipient_name
+    type: object
+  services.ClaimInput:
+    properties:
+      address_line1:
+        type: string
+      address_line2:
+        type: string
+      city:
+        type: string
+      country:
+        type: string
       phone:
         type: string
       postal_code:
@@ -782,6 +808,312 @@ paths:
       summary: Verify wallet signature and authenticate
       tags:
       - auth
+  /claim/{token}:
+    get:
+      parameters:
+      - description: Claim token
+        in: path
+        name: token
+        required: true
+        type: string
+      produces:
+      - application/json
+      responses:
+        "200":
+          description: OK
+          schema:
+            $ref: '#/definitions/handlers.Response'
+        "404":
+          description: Not Found
+          schema:
+            $ref: '#/definitions/handlers.Response'
+        "410":
+          description: Gone
+          schema:
+            $ref: '#/definitions/handlers.Response'
+      summary: Get claim info by token
+      tags:
+      - claim
+    post:
+      consumes:
+      - application/json
+      parameters:
+      - description: Claim token
+        in: path
+        name: token
+        required: true
+        type: string
+      - description: Shipping info
+        in: body
+        name: body
+        required: true
+        schema:
+          $ref: '#/definitions/services.ClaimInput'
+      produces:
+      - application/json
+      responses:
+        "200":
+          description: OK
+          schema:
+            $ref: '#/definitions/handlers.Response'
+        "404":
+          description: Not Found
+          schema:
+            $ref: '#/definitions/handlers.Response'
+        "409":
+          description: Conflict
+          schema:
+            $ref: '#/definitions/handlers.Response'
+        "410":
+          description: Gone
+          schema:
+            $ref: '#/definitions/handlers.Response'
+      summary: Submit shipping info for a claim
+      tags:
+      - claim
+  /dashboard/raffles:
+    get:
+      produces:
+      - application/json
+      responses:
+        "200":
+          description: OK
+          schema:
+            $ref: '#/definitions/handlers.Response'
+      security:
+      - BearerAuth: []
+      summary: List my raffles
+      tags:
+      - raffles
+    post:
+      consumes:
+      - application/json
+      parameters:
+      - description: Raffle title
+        in: body
+        name: body
+        required: true
+        schema:
+          properties:
+            title:
+              type: string
+          type: object
+      produces:
+      - application/json
+      responses:
+        "201":
+          description: Created
+          schema:
+            $ref: '#/definitions/handlers.Response'
+        "400":
+          description: Bad Request
+          schema:
+            $ref: '#/definitions/handlers.Response'
+      security:
+      - BearerAuth: []
+      summary: Create a raffle
+      tags:
+      - raffles
+  /dashboard/raffles/{id}:
+    get:
+      parameters:
+      - description: Raffle ID
+        in: path
+        name: id
+        required: true
+        type: string
+      produces:
+      - application/json
+      responses:
+        "200":
+          description: OK
+          schema:
+            $ref: '#/definitions/handlers.Response'
+        "403":
+          description: Forbidden
+          schema:
+            $ref: '#/definitions/handlers.Response'
+        "404":
+          description: Not Found
+          schema:
+            $ref: '#/definitions/handlers.Response'
+      security:
+      - BearerAuth: []
+      summary: Get raffle by ID
+      tags:
+      - raffles
+  /dashboard/raffles/{id}/complete:
+    post:
+      parameters:
+      - description: Raffle ID
+        in: path
+        name: id
+        required: true
+        type: string
+      produces:
+      - application/json
+      responses:
+        "200":
+          description: OK
+          schema:
+            $ref: '#/definitions/handlers.Response'
+      security:
+      - BearerAuth: []
+      summary: Mark a raffle as completed
+      tags:
+      - raffles
+  /dashboard/raffles/{id}/discord-webhook:
+    patch:
+      consumes:
+      - application/json
+      parameters:
+      - description: Raffle ID
+        in: path
+        name: id
+        required: true
+        type: string
+      - description: Webhook URL (empty string to clear)
+        in: body
+        name: body
+        required: true
+        schema:
+          properties:
+            discord_webhook_url:
+              type: string
+          type: object
+      produces:
+      - application/json
+      responses:
+        "200":
+          description: OK
+          schema:
+            $ref: '#/definitions/handlers.Response'
+        "400":
+          description: Bad Request
+          schema:
+            $ref: '#/definitions/handlers.Response'
+        "403":
+          description: Forbidden
+          schema:
+            $ref: '#/definitions/handlers.Response'
+        "404":
+          description: Not Found
+          schema:
+            $ref: '#/definitions/handlers.Response'
+      security:
+      - BearerAuth: []
+      summary: Set or clear the Discord webhook URL for a raffle
+      tags:
+      - raffles
+  /dashboard/raffles/{id}/draws:
+    get:
+      parameters:
+      - description: Raffle ID
+        in: path
+        name: id
+        required: true
+        type: string
+      produces:
+      - application/json
+      responses:
+        "200":
+          description: OK
+          schema:
+            $ref: '#/definitions/handlers.Response'
+      security:
+      - BearerAuth: []
+      summary: List draws for a raffle
+      tags:
+      - raffles
+    post:
+      parameters:
+      - description: Raffle ID
+        in: path
+        name: id
+        required: true
+        type: string
+      produces:
+      - application/json
+      responses:
+        "201":
+          description: Created
+          schema:
+            $ref: '#/definitions/handlers.Response'
+        "409":
+          description: Conflict
+          schema:
+            $ref: '#/definitions/handlers.Response'
+      security:
+      - BearerAuth: []
+      summary: Draw the next winner
+      tags:
+      - raffles
+  /dashboard/raffles/{id}/entries/import-csv:
+    post:
+      consumes:
+      - multipart/form-data
+      parameters:
+      - description: Raffle ID
+        in: path
+        name: id
+        required: true
+        type: string
+      - description: 'CSV file (column 1: twitch_login, column 2: display_name)'
+        in: formData
+        name: file
+        required: true
+        type: file
+      produces:
+      - application/json
+      responses:
+        "200":
+          description: OK
+          schema:
+            $ref: '#/definitions/handlers.Response'
+        "400":
+          description: Bad Request
+          schema:
+            $ref: '#/definitions/handlers.Response'
+      security:
+      - BearerAuth: []
+      summary: Import participants from CSV
+      tags:
+      - raffles
+  /dashboard/raffles/{id}/snapshot:
+    post:
+      consumes:
+      - application/json
+      parameters:
+      - description: Raffle ID
+        in: path
+        name: id
+        required: true
+        type: string
+      - description: source must be twitch_api
+        in: body
+        name: body
+        required: true
+        schema:
+          properties:
+            source:
+              type: string
+          type: object
+      produces:
+      - application/json
+      responses:
+        "200":
+          description: OK
+          schema:
+            $ref: '#/definitions/handlers.Response'
+        "400":
+          description: Bad Request
+          schema:
+            $ref: '#/definitions/handlers.Response'
+      security:
+      - BearerAuth: []
+      summary: Sync raffle entries from Twitch subscriber list
+      tags:
+      - raffles
   /extension/auth/login:
     post:
       consumes:
@@ -823,6 +1155,9 @@ paths:
     post:
       consumes:
       - application/json
+      deprecated: true
+      description: Deprecated alias for /extension/t-point/complete. Use the new endpoint
+        instead.
       parameters:
       - description: Bits transaction payload
         in: body
@@ -857,7 +1192,72 @@ paths:
           description: Unauthorized
           schema:
             $ref: '#/definitions/handlers.Response'
-      summary: Complete a Bits transaction
+      summary: '[Deprecated] Complete a Bits transaction'
+      tags:
+      - extension
+  /extension/raffles/{id}/result:
+    get:
+      parameters:
+      - description: Raffle ID
+        in: path
+        name: id
+        required: true
+        type: string
+      produces:
+      - application/json
+      responses:
+        "200":
+          description: OK
+          schema:
+            $ref: '#/definitions/handlers.Response'
+        "400":
+          description: Bad Request
+          schema:
+            $ref: '#/definitions/handlers.Response'
+      summary: Get drawn winners for a raffle (Extension)
+      tags:
+      - raffles
+  /extension/t-point/complete:
+    post:
+      consumes:
+      - application/json
+      description: Verifies Twitch Extension JWT and transaction receipt, then awards
+        T-points to the viewer.
+      parameters:
+      - description: T-point transaction payload
+        in: body
+        name: body
+        required: true
+        schema:
+          properties:
+            extension_jwt:
+              type: string
+            sku:
+              type: string
+            transaction_receipt:
+              type: string
+          type: object
+      produces:
+      - application/json
+      responses:
+        "200":
+          description: OK
+          schema:
+            allOf:
+            - $ref: '#/definitions/handlers.Response'
+            - properties:
+                data:
+                  $ref: '#/definitions/handlers.AuthResponse'
+              type: object
+        "400":
+          description: Bad Request
+          schema:
+            $ref: '#/definitions/handlers.Response'
+        "401":
+          description: Unauthorized
+          schema:
+            $ref: '#/definitions/handlers.Response'
+      summary: Complete a T-point transaction
       tags:
       - extension
   /spend/redeem:
