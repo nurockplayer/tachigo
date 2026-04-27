@@ -19,7 +19,7 @@ export function useTwitch() {
   const [context, setContext] = useState<TwitchContext | null>(null)
   const [jwt, setJwt] = useState<string>('')
   const [products, setProducts] = useState<TwitchBitsProduct[]>([])
-  const [bitsEnabled, setBitsEnabled] = useState(false)
+  const [tPointEnabled, setTPointEnabled] = useState(false)
   const [authError, setAuthError] = useState<string | null>(null)
   const [backendReady, setBackendReady] = useState(false)
 
@@ -73,9 +73,9 @@ export function useTwitch() {
         ext.bits.getProducts()
           .then((p) => {
             setProducts(p as TwitchBitsProduct[])
-            setBitsEnabled(true)
+            setTPointEnabled(true)
           })
-          .catch(() => setBitsEnabled(false))
+          .catch(() => setTPointEnabled(false))
       }
     })
 
@@ -116,5 +116,5 @@ export function useTwitch() {
     }
   }, [backendReady, jwt])
 
-  return { context, jwt, products, bitsEnabled, authError, backendReady }
+  return { context, jwt, products, tPointEnabled, authError, backendReady }
 }
