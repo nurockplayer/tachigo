@@ -1,4 +1,5 @@
 import assert from 'node:assert/strict'
+import { execFileSync } from 'node:child_process'
 import { readFile } from 'node:fs/promises'
 import path from 'node:path'
 import test from 'node:test'
@@ -8,7 +9,26 @@ const currentDir = path.dirname(fileURLToPath(import.meta.url))
 const repoRoot = path.join(currentDir, '..', '..')
 const workflowPath = path.join(currentDir, 'ci.yml')
 const scopePolicePath = path.join(currentDir, 'pr-scope-police.yml')
+const autoMergeWorkflowPath = path.join(currentDir, 'auto-merge.yml')
 const claudePath = path.join(repoRoot, 'CLAUDE.md')
+
+function parseYaml(filePath) {
+  const script = `
+require 'yaml'
+require 'json'
+
+content = File.read(ARGV[0])
+data = YAML.safe_load(content, permitted_classes: [], aliases: false)
+if data.is_a?(Hash) && data.key?(true) && !data.key?('on')
+  data['on'] = data.delete(true)
+end
+puts JSON.generate(data)
+`
+  const output = execFileSync('ruby', ['-e', script, filePath], {
+    encoding: 'utf8',
+  })
+  return JSON.parse(output)
+}
 
 function workflowJobBlock(workflow, jobName) {
   const escapedJobName = jobName.replace(/[.*+?^${}()|[\]\\]/g, '\\$&')
@@ -107,4 +127,20 @@ test('docs/template-only PRs skip heavy product CI in scope gate', async () => {
     workflow,
     /Skipping heavy product CI because this PR only changes docs\/templates\/metadata\./,
   )
+})
+
+test('global auto-merge workflow excludes Dependabot PRs', async () => {
+  const workflow = await readFile(autoMergeWorkflowPath, 'utf8')
+  const parsedWorkflow = parseYaml(autoMergeWorkflowPath)
+
+  assert.deepEqual(parsedWorkflow.on.pull_request.types, [
+    'opened',
+    'reopened',
+    'ready_for_review',
+  ])
+  assert.equal(
+    parsedWorkflow.jobs['enable-auto-merge'].if,
+    "github.event.pull_request.draft == false && github.event.pull_request.user.login != 'dependabot[bot]'",
+  )
+  assert.doesNotMatch(workflow, /if: github\.event\.pull_request\.draft == false\s*$/m)
 })
