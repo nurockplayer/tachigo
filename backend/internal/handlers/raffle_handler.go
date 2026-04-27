@@ -389,6 +389,7 @@ func (h *RaffleHandler) GetClaim(c *gin.Context) {
 // @Param        token path   string true "Claim token"
 // @Param        body  body   services.ClaimInput true "Shipping info"
 // @Success      200   {object}  Response
+// @Failure      400   {object}  Response
 // @Failure      404   {object}  Response
 // @Failure      409   {object}  Response
 // @Failure      410   {object}  Response

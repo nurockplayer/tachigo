@@ -872,6 +872,12 @@ const docTemplate = `{
                             "$ref": "#/definitions/handlers.Response"
                         }
                     },
+                    "400": {
+                        "description": "Bad Request",
+                        "schema": {
+                            "$ref": "#/definitions/handlers.Response"
+                        }
+                    },
                     "404": {
                         "description": "Not Found",
                         "schema": {

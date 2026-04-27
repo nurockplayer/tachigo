@@ -129,3 +129,32 @@ func TestSwaggerDoc_NoGlobalSecurity_ProtectedOpsRequireBearerAuth(t *testing.T)
 		})
 	}
 }
+
+func TestSwaggerDoc_ClaimSubmitDocumentsBadRequest(t *testing.T) {
+	raw := SwaggerInfo.ReadDoc()
+
+	var doc map[string]any
+	if err := json.Unmarshal([]byte(raw), &doc); err != nil {
+		t.Fatalf("unmarshal doc: %v", err)
+	}
+
+	paths, ok := doc["paths"].(map[string]any)
+	if !ok {
+		t.Fatalf("paths: got %#v", doc["paths"])
+	}
+	pathItem, ok := paths["/claim/{token}"].(map[string]any)
+	if !ok {
+		t.Fatalf("/claim/{token}: path item missing, got %#v", paths["/claim/{token}"])
+	}
+	op, ok := pathItem["post"].(map[string]any)
+	if !ok {
+		t.Fatalf("post /claim/{token}: operation missing, got %#v", pathItem["post"])
+	}
+	responses, ok := op["responses"].(map[string]any)
+	if !ok {
+		t.Fatalf("post /claim/{token}: responses invalid, got %#v", op["responses"])
+	}
+	if _, ok := responses["400"]; !ok {
+		t.Fatalf("post /claim/{token}: missing 400 response, got %#v", responses)
+	}
+}
