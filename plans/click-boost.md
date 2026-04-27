@@ -27,7 +27,7 @@
 | 預設冷卻時間 | 5 秒 / 觀眾 | 體感即時但防止 macro 暴力點擊 |
 | 每次點擊獎勵 | 固定 1 點（MVP），後續可接 ChannelConfig | 先驗證流程，再做可調參數 |
 | 速率拒絕行為 | 回傳 `429`，附帶 `retry_after_ms` | 前端可據此控制 UI 冷卻倒數 |
-| TxSource | 新增 `"click"` 值 | 帳本可區分 watch_time / bits / click / spend 來源 |
+| TxSource | 新增 `"click"` 值 | 帳本可區分 watch_time / t_point / click / spend 來源 |
 | 前端冷卻控制 | 樂觀 UI：點擊後立即灰掉按鈕並倒數，不等 API 回應 | 降低延遲感，API 429 時重置倒數即可 |
 | 視覺反饋 | 浮字（+1）+ CSS keyframe 動畫，不引入新套件 | 與現有 `isAnimating` 模式一致 |
 
@@ -56,7 +56,9 @@ ALTER TABLE watch_sessions
 ```go
 const (
     TxSourceWatchTime TxSource = "watch_time"
+    // TxSourceBits is deprecated; use TxSourceTPoint for new writes.
     TxSourceBits      TxSource = "bits"
+    TxSourceTPoint    TxSource = "t_point"
     TxSourceClick     TxSource = "click"   // 新增
     TxSourceSpend     TxSource = "spend"
 )

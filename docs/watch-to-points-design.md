@@ -111,8 +111,8 @@ finished: is_active = false, ended_at = <timestamp>
 |---|---|---|
 | `id` | UUID PK | |
 | `ledger_id` | UUID FK → points_ledgers.id | |
-| `watch_session_id` | UUID NULL | `watch_time` 來源必填，`bits` / `spend` 為 NULL |
-| `source` | VARCHAR(50) | `watch_time` / `bits` / `spend` |
+| `watch_session_id` | UUID NULL | `watch_time` 來源必填，`t_point` / `spend` 為 NULL |
+| `source` | VARCHAR(50) | `watch_time` / `t_point` / `spend`（舊記錄可能為 `bits`，詳見 #316） |
 | `delta` | BIGINT | 變動量（正 = 獲得，負 = 消費） |
 | `balance_after` | BIGINT | 交易後餘額快照（查歷史不用重算） |
 | `note` | TEXT NULL | 備註 |
@@ -124,7 +124,7 @@ finished: is_active = false, ended_at = <timestamp>
 | source | watch_session_id |
 |---|---|
 | `watch_time` | 一定有值（指向觸發這次發點的 session） |
-| `bits` | NULL |
+| `t_point` | NULL |
 | `spend` | NULL |
 
 ---
@@ -288,7 +288,7 @@ ON CONFLICT (user_id, channel_id) DO UPDATE SET
 - 前端 Extension UI：顯示餘額、heartbeat 狀態
 - `GET /api/v1/points/balance`：一般帳號查詢端點
 - `GET /api/v1/points/transactions`：交易記錄
-- Bits 發點整合（`source = "bits"`）
+- T-point 發點整合（`source = "t_point"`）
 - Claim 上鏈（`spendable_balance → Soulbound ERC-20 mint`）
 
 ---
