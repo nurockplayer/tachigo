@@ -53,12 +53,12 @@ export function setExtensionJwtForRecovery(token: string | null) {
 /**
  * Exchange a Twitch Extension JWT + transaction receipt for a tachigo token.
  */
-export async function completeBitsTransaction(
+export async function completeTPointTransaction(
   extensionJwt: string,
   transactionReceipt: string,
   sku: string,
 ): Promise<TachigoToken> {
-  const { data } = await client.post<TachigoToken>('/api/v1/extension/bits/complete', {
+  const { data } = await client.post<TachigoToken>('/api/v1/extension/t-point/complete', {
     extension_jwt: extensionJwt,
     transaction_receipt: transactionReceipt,
     sku,
