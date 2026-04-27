@@ -29,6 +29,13 @@ Co-Authored-By: Claude Sonnet 4.6 <claude[bot]@anthropic.com>
 
 Type：`feat` / `fix` / `docs` / `chore` / `refactor` / `test`
 
+## Merge 策略
+
+本專案使用 **merge commit（--no-ff）**：feature branch 進 develop 時保留分支結構。
+
+- 日常 feature PR 目標分支：`develop`
+- `main` 不接受日常 feature PR；正式 release 由 `develop → main` 的 promotion PR 合入
+
 ## Scope 邊界
 
 禁止 scope pollution：不要把 issue 沒有明確要求的內容混進同一個 PR。
