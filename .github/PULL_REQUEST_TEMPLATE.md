@@ -42,7 +42,7 @@
   - [ ] migration / schema
   - [ ] backend domain service
   - [ ] API handler / router
-  - [ ] 若有新增/修改/刪除 handler annotation 或 router 路由，已執行 `swag init` 並將 `backend/docs/` 變更一起 commit
+    - [ ] 已執行 `swag init` 並將 `backend/docs/` 變更一起 commit
   - [ ] frontend integration
   - [ ] tests
   - [ ] docs
