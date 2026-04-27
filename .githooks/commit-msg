@@ -1,0 +1,11 @@
+#!/usr/bin/env bash
+
+set -euo pipefail
+
+repo_root="$(git rev-parse --show-toplevel 2>/dev/null || true)"
+[ -n "$repo_root" ] || {
+  echo "無法判斷 repo root，略過 commit-msg 驗證。" >&2
+  exit 0
+}
+
+exec "$repo_root/scripts/commit-message-check.sh" "$1"

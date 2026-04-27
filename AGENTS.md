@@ -13,37 +13,6 @@
 
 收到任務時判斷是哪種模式，若不確定就直接問。遇到需要架構決策的岔路，先回報給 Claude Code，不要自行決定。
 
-### 預設工作流程（Issue-driven）
-
-**角色分工：**
-- **Claude Code** = PM：架構規劃、issue 撰寫、最終 PR 審查
-- **Codex（你）** = 工程師：實作、debug、patch、跑測試、推 PR
-
-> **核心原則：Codex 適合確定性高的任務，Claude 適合模糊性高的任務。**
-
-**任務規模路由：**
-
-| 任務規模 | 誰執行 |
-|---|---|
-| Trivial（< 10 行、config 調整、typo）| Claude 直接 patch |
-| Small-Medium（功能、API、元件）| Claude 寫 issue → **Codex 實作** → Claude review |
-| 需要迭代測試（跑測試直到過）| **Codex**，Claude 只寫 issue |
-| 架構重構 / 高風險改動 | Claude 設計拆分 → **Codex** 逐 issue 實作 |
-
-本專案的預設 AI 協作流程：
-
-1. **Claude Code** 將規格寫入 GitHub issue（含背景、任務 checklist、介面規格、完成條件）
-2. **Codex（你）** 認領 issue，依規格實作，推 branch，開 PR 到 `develop`
-3. **Claude Code** 在 GitHub 上做最終 PR 審查
-
-收到 issue 後的執行步驟：
-
-1. 讀 issue 確認規格與完成條件
-2. 從 `develop` 開新 branch（命名依 branch 命名規範）
-3. 逐步實作，commit 用 `refs #<issue號碼>`
-4. 推 branch，開 PR 到 `develop`，PR body 用 `closes #<issue號碼>`
-5. 等待 Claude Code 在 GitHub 上審查
-
 ## 專案結構
 
 ```
@@ -74,17 +43,7 @@ docker compose run --no-deps --rm app go test ./...
 
 例：`feat/points-service`、`fix/bits-receipt`、`docs/architecture`
 
-### Merge 策略
-
-本專案使用 **squash merge**：一張 PR = develop 上的一個 commit。
-
-- **PR title** 就是 squash commit message，必須精確
-- **PR body** 放 `closes #號碼`，merge 後自動關閉 issue
-- PR 內的 commit 用 `refs #號碼`，供 review 期間追溯
-
-fixup commit（修 CodeRabbit 意見、修 scope police）是正常的，不必 rebase 清理。
-
-### Commit 訊息格式（PR 內）
+### Commit 訊息格式
 
 ```
 <type>: <short description>
@@ -94,50 +53,38 @@ refs #<issue號碼>
 Co-Authored-By: Codex <codex[bot]@openai.com>
 ```
 
+- 實作過程中的 commit 用 `refs #號碼`
+- PR 的最後一個 commit 或 PR 描述用 `closes #號碼`
+
 Type：`feat` / `fix` / `docs` / `chore` / `refactor` / `test`
 
 ### Issue 對應策略
 
-尋找 commit / PR 對應 issue 時，預設使用省 token 路線：
-
-1. 先用 `gh issue list` / `gh search issues` 取得 issue metadata。
-2. 若候選很少（約 0-5 個），由 Codex / Claude 直接判斷。
-3. 若候選很多、搜尋詞不明確、或 backlog 很亂，交給 Gemini CLI 排序候選 issue。
-4. Gemini 只負責產出最多 3 個候選 issue 與理由；Codex / Claude 必須用 `gh issue view` 驗證最終選擇。
-5. 若沒有合適 issue，開新 issue；不得為了符合 commit 格式硬套不相關 issue。
+1. 先用 `gh issue list` / `gh search issues` 取得 issue metadata
+2. 若候選很少（0-5 個），由 Codex / Claude 直接判斷
+3. 若候選很多，交給 Gemini CLI 排序候選 issue（最多 3 個）
+4. Codex / Claude 必須用 `gh issue view` 驗證最終選擇
+5. 若沒有合適 issue，開新 issue；不得硬套不相關 issue
 
 ### 注意事項
 
-- **不要** 直接推 `main`
-- 日常 feature PR 目標分支是 `develop`
-- 正式 release 依 Git Flow 由 `develop` 開 PR 到 `main`
-- 目前暫不使用 `release/*` branch
-- 未來若有正式部署、freeze window、hotfix/backport 需求，再升級 release 流程
-- GitHub 相關的 `gh` 指令（issue、PR、API）與必要的 `git` 指令可由你執行
-- 執行 `git` 時仍需遵守 branch / commit / scope 規範，不得繞過 PR 流程
-
-### Conflict / Restack 規則
-
-- docs / template / metadata-only PR，或其他單一小 scope PR，**不得**用 `merge develop` 解 conflict
-- 正確做法是：從最新 `develop` 開新 branch，將原 PR commit `cherry-pick` 過去，再更新或重開 PR
-- 若 restack 後出現 inherited 的產品線紅燈（backend / dashboard / tachimint），必須拆成獨立 product fix PR，不可把修補留在原本的小 scope PR
-- 若目前 PR 已因 inherited fix 造成 scope 汙染，應先收回原範圍，再另外處理產品線修補
+- **不要**直接推 `main`；日常 feature PR 目標分支是 `develop`
+- GitHub 相關的 `gh` 指令與必要的 `git` 指令可由你執行
+- 執行 `git` 時仍須遵守 branch / commit / scope 規範，不得繞過 PR 流程
 
 ### 操作權限邊界
 
-- Read-only 操作可直接執行，不需要先問使用者。
-- Read-only 包含：讀檔、搜尋、查看 PR / issue metadata、檢查 diff、查看 CI 狀態、列檔案、掃描程式碼、產生本機分析摘要。
-- 會造成狀態變更的操作必須先詢問使用者並取得明確同意。
-- 狀態變更包含：Edit / 寫檔、format 造成檔案變更、commit、push、branch switch / rebase / merge、GitHub comment、GitHub review、Change Request、Approve、Merge、issue / PR 建立或編輯。
-- 若使用者在當輪訊息已明確要求修改檔案，視為已授權該次 Edit；但公開可見操作（Change Request / Approve / Merge / comment / push）仍需再次確認。
-- 在 Codex sandbox 中執行任何 `git` 指令時，預設直接使用提權執行；不要先嘗試 sandbox 版本再重跑。
+- **Read-only** 可直接執行：讀檔、搜尋、PR / issue metadata、diff、CI 狀態、本機分析
+- **狀態變更**必須先詢問並取得明確同意：Edit / 寫檔、commit、push、branch switch / rebase / merge、GitHub comment / review / CR / Approve / Merge、issue / PR 建立或編輯
+- 若使用者在當輪訊息已明確要求修改檔案，視為已授權該次 Edit；但公開可見操作仍需再次確認
+- 在 Codex sandbox 中執行任何 `git` 指令時，預設直接使用提權執行
 
 ### Non-interactive 指令規則
 
-- 不得執行 interactive commands；所有 `git` / `gh` 指令都必須是 non-interactive。
-- 若 `gh` 指令需要 auth、login、device code、browser flow 或任何互動式授權，必須立即停止並回報，不得嘗試互動式登入。
-- 執行 `git` / `gh` 指令前，必須先在回覆中列出該步驟要執行的指令與目的，再執行。
-- 在 mixed worktree 中不得使用 `git add -A` 或 `git add .`；只能 stage 明確屬於本次任務的檔案。
+- 不得執行 interactive commands；所有 `git` / `gh` 指令都必須是 non-interactive
+- 若 `gh` 指令需要 auth / login / browser flow，立即停止並回報
+- 執行 `git` / `gh` 指令前，必須先列出該步驟要執行的指令與目的
+- 在 mixed worktree 中不得使用 `git add -A` 或 `git add .`
 
 ### PR Label
 
@@ -150,290 +97,91 @@ Type：`feat` / `fix` / `docs` / `chore` / `refactor` / `test`
 
 禁止 scope pollution：不要把 issue 沒有明確要求的內容混進同一個 PR。
 
-### 基本規則
-
 - PR 只應包含該 issue 明確列出的任務、規格與完成條件
-- 若在實作途中發現額外想做的功能、重構、future work、design exploration，必須另開 issue / PR，不可順手一起提交
-- docs / research draft 不能自動視為 implementation source of truth；只有被明確指定的 issue / PR / 文件，才能作為當前實作依據
+- 若在實作途中發現額外想做的功能、重構、future work，必須另開 issue / PR
+- docs / research draft 不能自動視為 implementation source of truth
+- 遇到岔路：是必要前置條件 → 先回報 Claude Code；不是 → 開新 issue
 
-### 常見禁止情況
+### 拆分邊界
 
-- issue 只要求 migration，PR 卻同時加入 service、handler、router、前端串接
-- 本輪 MVP 只要求單一畫面，PR 卻順手加入 future panels、bottom nav、完整 design system
-- 修 bug 時順便重構整個模組，且未經事前同意
-- backend issue 混入 dashboard / tachimint UI 改動，反之亦然
+一個 PR = 一個可獨立理解、可獨立驗證的行為變更。必須先建議拆分的情況：
 
-### 遇到岔路時怎麼做
-
-- 如果額外內容是必要前置條件：先回報 Claude Code，說明為什麼原 issue 缺這一塊，再決定是否調整範圍
-- 如果額外內容不是必要前置條件：先記錄成新的 issue / TODO，不要混進目前 PR
-- 若目前 PR 已經超出 issue 範圍，應主動建議拆 PR 或縮回原範圍
-
-## Task / PR 拆分規則
-
-Claude Code / Codex 在實作前必須先判斷任務是否需要拆分。核心原則：
-
-> 一個 PR = 一個可獨立理解、可獨立驗證的行為變更；跨層變更要有明確理由；非必要改動另開 issue。
-
-### 預設拆分邊界
-
-每個 PR 應只完成一個可獨立 review、可獨立測試的任務。優先依照以下邊界拆分：
-
-- migration / schema change
-- backend domain service
-- API handler / router
-- frontend integration
-- tests
-- docs
-- refactor / cleanup
-
-除非 issue 明確要求，否則不得把上述多個層級混在同一個 PR。若必須跨層，PR 描述需說明為什麼這些變更無法獨立拆開驗證。
-
-### 必須先建議拆分的情況
-
-若符合以下任一條件，Claude Code / Codex 必須先回報拆分建議，不得直接實作成單一 PR：
-
-- 預估 diff 超過 400 行
+- 預估 diff > 400 行
 - 同時修改 backend 與 frontend
-- 同時包含 schema、service、handler、UI 任兩種以上
-- 包含非必要 refactor
-- 包含 future work、design exploration、nice-to-have
-- 需要跨多個使用者流程或多個 API endpoint
-- 測試策略無法用單一驗收條件描述
+- 同時包含 schema / service / handler / UI 任兩種以上
+- 包含非必要 refactor 或 future work
 
-### 可接受的單一 PR
+實作前若任務偏大，先輸出：建議拆成哪些 PR、每個 PR 的目的、修改哪些模組、驗收方式、依賴順序。
 
-單一 PR 應符合：
-
-- 對應單一 issue 或單一明確子任務
-- 變更目的可以用一句話說清楚
-- reviewer 不需要理解未合併的其他 PR 才能審查
-- 有明確測試或驗證方式
-- diff 目標控制在 200-400 行，最多不超過 600 行
-
-### 拆分流程
-
-實作前若任務偏大，先輸出：
-
-1. 建議拆成哪些 PR
-2. 每個 PR 的目的
-3. 每個 PR 修改哪些檔案或模組
-4. 每個 PR 的驗收方式
-5. 哪些 PR 有依賴順序
-
-除非使用者明確同意，AI 不得自行把多個 PR 的內容合併實作。
-
-### PR Diff 大小限制
-
-自動化規則會檢查 PR diff 大小，詳見 [CLAUDE.md 的 PR Diff 限制](CLAUDE.md#pr-diff-限制) 一節。
-
-**建議的 PR 大小區間**（性能指標）：
-
-- **< 200 行**：最佳（秒審）
-- **200-400 行**：很好（標準審查）
-- **400-600 行**：注意，軟提示建議拆分
-- **600-1000 行**：危險區間，需在 PR body 說明為何不拆
-- **1000+ 行**：自動擋下（特例除外）
-
-Codex 在實作時應主動意識到 PR 大小，**盡量控制在 200-400 行**，最多不超過 600。若無法拆分到 1000 以下：
-
-1. 評估是否符合例外條件（generated code / migration / dependency bump）
-2. 若符合，使用 `scope-exception` label（由 maintainer 授權）
-3. 若不符合，先回報 Claude Code 評估是否需要調整範圍
+PR Diff 大小規則詳見 [CLAUDE.md](CLAUDE.md)（conventions.md 的 PR Diff 限制一節）。
 
 ## AI 協作守則
 
-若貢獻內容主要由 AI 產生，必須額外遵守以下規則：
-
-- 不得讓 AI 自行擴張 issue scope；AI 提出的額外功能、future work、重構建議，必須拆成獨立 issue / PR
-- 不得把 docs / research draft / brainstorming 內容直接當成 implementation source of truth，除非 repo 已明確指定
-- 不得未經驗證就宣稱「已完成」；至少要回報實際執行過的測試、未驗證部分、以及已知風險
-- reviewer 應優先檢查 AI 是否偏離 issue、腦補需求、混入未要求的 schema / API / UI 改動，而不是只看程式碼表面是否完整
+- 不得自行擴張 issue scope；AI 提出的額外功能、future work、重構建議，必須拆成獨立 issue / PR
+- 不得把 docs / research draft 直接當成 implementation source of truth
+- 不得未經驗證就宣稱「已完成」；至少回報實際執行過的測試、未驗證部分、已知風險
 
 ## Gemini CLI Delegation
 
-Gemini CLI 是 Codex 的低成本大範圍掃描工。Codex 可自行判斷何時使用 Gemini CLI，不需要每次先詢問使用者。
+Gemini CLI 是 Codex 的低成本大範圍掃描工。可自行判斷何時使用，不需每次先詢問使用者。
 
-詳見 [.claude/rules/delegation.md](./.claude/rules/delegation.md) 了解全局 delegation 策略與流程。以下為 Codex 角色的具體實踐：
+詳見 [.claude/rules/delegation.md](./.claude/rules/delegation.md)。
 
 適合交給 Gemini CLI 的任務：
 
 - PR first-pass review
-- repo-wide scans 與架構盤點
-- 大型重構前的影響範圍分析
+- repo-wide 架構盤點與影響範圍分析
 - duplicate / dead-code 候選掃描
-- 長 CI / build / runtime log 摘要與初步診斷
-- 批量測試案例或測試草稿生成
+- 長 CI / build / runtime log 摘要
+- 批量測試案例生成
 
-Gemini CLI 的輸出只作為線索與候選，不是最終判斷。Codex 必須在回報 findings、修改程式、做 review 結論或宣稱完成前，用本機檔案、diff、測試、型別檢查或其他可靠來源驗證重要主張。
+Gemini 的輸出只作為線索，不是最終判斷。Codex 必須驗證重要主張再回報。
 
 ### Gemini 使用策略
 
-**模型選擇**：
-
-- 預設使用 Gemini 2.5 Flash 做低成本掃描、壓縮與摘要
-- 只有在任務需要更強推理、跨多模組高風險判斷、或 Flash 結果明顯不足時，才升級使用 Pro
-- PR review 的第一輪 Gemini 任務應優先要求「壓縮 metadata / comments / diff 並列出 files_to_inspect_first」，避免 Codex 先吃完整 PR context
-- 每次 Gemini 任務都應保持窄 scope、限制 findings 數量，並排除不相關的大型產物、binary、font、image、generated blob
-
-**配額與並發控制**：
-
-- **避免並發 Gemini 任務**（同時開多個後台任務會觸發 429 quota error）
-- 大型 PR 審查應一次性提交完整 prompt，等待完成
-- 若需多個分析，改為序列執行（一個完成後再發起下一個）
-- Free Tier 限制嚴格，特別是 PR 審查（600+ 行代碼）容易耗盡配額
-- 若遇到 429、quota exceeded、rate limit、daily limit reached，立即停止 Gemini 路徑，不做連續重試，改由 Codex / Claude 以最小必要上下文完成審查
-- 若 Gemini 額度用完或 CLI 不可用，Codex 直接改用 metadata-first + minimal patch validation，不要卡住流程
+- 預設使用 Gemini 2.5 Flash；只有需要更強推理時才升級 Pro
+- PR review 第一輪應要求「壓縮 metadata / diff 並列出 files_to_inspect_first」
+- **避免並發 Gemini 任務**（觸發 429）；需多個分析時序列執行
+- 遇到 429 / quota exceeded：立即停止，改用 metadata-first + minimal patch validation
 
 ## PR Review Strategy
 
-Terminology:
-- `Review` = code review.
-- `CR` = change request / requested changes, not code review.
-- Finding severity:
-  - `blocker`: must block merge; correctness, security, data integrity, permission, breaking change, irreversible migration risk, or high-risk missing tests.
-  - `major`: important but non-blocking; mergeable with explicit risk note or follow-up issue / PR.
-  - `minor`: useful improvement that should not block merge.
-  - `nit`: style or readability detail only.
-- GitHub review action mapping (auto-merge is enabled on `develop`):
-  - blocker → Request changes (blocks auto-merge pipeline)
-  - major / minor / nit only → Approve + Comment describing risk or suggestion
-  - Never use Request changes for minor or nit — it stalls auto-merge at a cost disproportionate to the finding. Leave a Comment instead and let the author decide.
+預設省 token 路線：metadata-first → Gemini first-pass → Codex validation。
 
-預設使用省 token 路線：metadata-first + reduced review bundle + Gemini CLI first pass + Codex validation。
-除非使用者明確要求「不要用 Gemini」或 PR 很小，否則不要讓 Codex 一開始就完整讀整張 diff。
+### 審查流程
 
-### Token 節流預設
+1. 先讀 PR metadata（linked issue、title/body、changed files、diff stat、CI、labels、existing comments）
+2. 整理 reduced review bundle，不直接讀完整 patch
+3. High blocker 快速掃（binary assets、scope 污染、schema/auth 風險、CI 失敗）→ 找到就停
+4. 依規模選深度：小 PR Codex 直審；一般 PR Gemini first-pass；高風險 PR Codex 深審
+5. 輸出分級 findings（blocker / major / minor / nit）
+6. 結尾必須明確詢問用戶：有 blocker → CR？無 blocker → merge？
 
-PR review 與大型工作預設採用分回合流程：先做 metadata / 摘要 / 風險區域 / 建議下一步，等使用者確認後才讀完整 diff、CI log、review thread 或大量 repo context。詳細流程見 [docs/agents/token-budget.md](docs/agents/token-budget.md)。
+### Gemini 審查 prompt 重點
 
-1. Load PR metadata first:
-   - linked issue
-   - PR title / body
-   - changed files
-   - diff stat
-   - CI status
-   - test coverage signals
-   - labels, especially `needs-codex-review` / `changes-requested`
-   - existing PR comments / reviews
+- 優先找 high-severity blocker，找到就停
+- 掃：不當 binary assets、scope 污染、likely bugs、edge case、git history 一致性、missing tests
+- 最多 5 個高信心 findings
+- 回傳 JSON：`summary` / `risk_level` / `findings` / `scope_pollution` / `files_to_inspect_first`
 
-2. Prepare a reduced review bundle before invoking Gemini:
-   - include issue / source-of-truth summary
-   - include PR body and scope summary
-   - include changed files and diff stat
-   - include existing review findings as a concise summary
-   - prefer `gh pr view` / GitHub PR files API for metadata and file lists; do not start with local `git fetch` for large or stacked PRs
-   - if local refs are needed, fetch the smallest specific refs with `--no-tags` and avoid broad branch fetches
-   - for stacked PRs, verify base/head ancestry before using local triple-dot diffs; if the base branch is not an ancestor of the head, report that the stack needs rebasing or use GitHub's PR file list instead of local `git diff`
-   - exclude binary assets, generated files, fonts, images, and large static blobs unless directly relevant
-   - include only text diffs by default
-   - group files by subsystem
-   - for existing follow-up reviews, prioritize changed commits and unresolved comments over re-reading the whole PR
-   - if a Git command appears stuck for more than ~30 seconds with no output, check for `.git/index.lock` and long-running editor Git processes such as `git status -z -uall`; stop the stale process before retrying instead of stacking more Git commands
+### 結構化輸出格式
 
-3. Run a high-impact blocker scan before deep review:
-   - Prioritize changed files, file types, file sizes, diff stat, CI status, linked issue scope, and obvious production-risk surfaces.
-   - Treat clearly inappropriate binary assets as high-risk by default, especially committed font files, images, screenshots, generated bundles, archives, or other large binary files that are not explicitly required by the linked issue.
-   - Also check for major scope pollution, schema / migration risk, auth / payment / permission regressions, missing required tests for risky behavior, and CI failures.
-   - If a high-severity blocker is found and verified, stop the review early. Do not continue spending tokens on medium / low issues.
-   - Report only the high blocker, explain why it blocks merge, and move directly to the Change Request decision prompt.
+```
+## Summary
+## Blockers   — [file:line] 問題 / 影響 / 建議
+## Majors     — [file:line] 問題 / 影響 / 建議
+## Minors / Nits
+## Recommended action — Change Request / Merge
+```
 
-4. Decide review depth:
-   - Small PR: Codex may review directly.
-   - Normal / large PR: use Gemini CLI for first-pass scanning before Codex opens patches.
-   - Auth / payment / security / migration / production-risk PR: Gemini may help summarize, but Codex must do the final deep review itself.
-   - If Claude Code, CodeRabbit, or another reviewer already commented, Codex should first validate those findings instead of restarting a full review.
+### 決策話術
 
-5. Use Gemini CLI for initial low-cost review:
-   - prefer Gemini 2.5 Flash for first-pass scanning and summarization
-   - upgrade to Pro only when Flash is insufficient or the PR needs unusually deep cross-file reasoning
-   - repo rule compliance, especially scope boundaries and review/CR terminology
-   - likely bugs
-   - edge cases
-   - incorrect logic
-   - scope pollution against linked issue / PR title / repo rules
-   - git history consistency against commit messages and incremental changes
-   - performance concerns
-   - missing tests for risky changes
-
-   Gemini is a scanner only. Codex keeps final judgment.
-
-   If Gemini CLI is unavailable, skip the external-model pass and use Codex metadata-first triage before reading patches.
-
-6. Gemini review prompt:
-   Review the PR metadata, scope summary, existing review summary, and reduced text diff.
-
-   Focus on:
-   - high-severity blockers first; stop after the first verified high-confidence high blocker
-   - repo rule compliance, especially scope boundaries and review/CR terminology
-   - inappropriate committed binary assets, including font files, images, screenshots, generated bundles, archives, or other large binary files
-   - likely bugs
-   - scope pollution against linked issue / PR title / repo rules
-   - edge cases
-   - incorrect logic
-   - git history consistency against commit messages and incremental changes
-   - performance issues
-   - missing tests for risky changes
-
-   Rules:
-   - prioritize changed lines
-   - use unchanged context only when needed
-   - if a high-severity blocker is found, return that finding and do not continue looking for medium / low issues
-   - return at most 5 high-confidence findings total across `findings` and `scope_pollution`
-   - ignore purely stylistic comments unless they affect correctness, maintainability, or repo rules
-   - omit findings with confidence below 70
-   - every finding must include file path and concrete evidence
-   - output concise JSON only
-
-   Return JSON:
-   - summary
-   - risk_level: low / medium / high
-   - findings: [{title, file, evidence, why_it_matters, confidence}]
-   - scope_pollution: [{file, evidence, reason, confidence}]
-   - files_to_inspect_first
-
-   This schema is for Codex's repo-level Review workflow. It is not the same
-   contract as Claude Code's local `/code-review` script, which may return a
-   flat issue array for its own command pipeline. Claude Code's local script
-   documents 4 dimensions (`CLAUDE.md` compliance, bugs, git history, code
-   comments); Codex's repo-level Review uses the broader focus list above and
-   validates final findings itself.
-
-   If Gemini CLI is unavailable, skip the external-model pass and use Codex metadata-first triage before reading patches.
-   This fallback applies only to Codex's repo-level Review flow; it does not change or override Claude Code's local `/code-review` marker fallback behavior.
-
-7. Split only the necessary PR diff into logical chunks:
-   - group related files when behavior crosses file boundaries
-   - prefer small chunks for large diffs
-   - include only necessary unchanged context
-
-8. Summarize Gemini findings:
-   - merge duplicate issues
-   - discard vague or non-actionable comments
-   - keep only blockers, likely regressions, and meaningful test gaps
-
-9. Use Codex for validation:
-   - validate which Gemini findings are real
-   - identify false positives
-   - refine suggested fixes
-   - check for missing critical issues
-   - re-read cited files or diffs before reporting findings
-   - verify against issue scope and repo rules
-   - inspect minimal necessary patch context only when summary is insufficient
-
-10. Avoid using Codex on the full diff unless necessary.
-
-11. Generate the final PR review comment:
-   - group by severity: blocker / major / minor / nit
-   - include actionable suggestions only
-   - avoid posting unverified Gemini findings
-
-12. End every PR review with an explicit decision prompt:
-   - If there are blockers, ask the user directly whether they agree to submit a Change Request.
-   - If there are no blockers and CI / required checks are acceptable, recommend merge and ask the user directly whether they agree to merge.
-   - If there are majors but no blockers, still treat the PR as mergeable by default; summarize the medium risk and recommend follow-up issue / PR when appropriate.
-   - If CI, tests, scope, or review state is still uncertain, state the uncertainty first, then ask whether to continue investigating or pause before deciding.
-   - Do not end with a vague "what do you think"; present the recommended action and ask for confirmation.
+| 情況 | 結尾動作 |
+|---|---|
+| 有 blocker | 列出 blocker → 問「同意提交 Change Request 嗎？」 |
+| 有 major/minor、無 blocker | 列出非阻塞建議 → 問「是否同意 Merge？」 |
+| 只有 nit | 問「沒有 blocker，是否直接 Merge？」 |
+| 不確定 | 列出疑點 → 問「繼續調查或先暫停？」 |
 
 ## 輸出格式
 
