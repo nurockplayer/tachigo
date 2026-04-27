@@ -62,6 +62,19 @@ Type：`feat` / `fix` / `docs` / `chore` / `refactor` / `test`
 - 如果額外內容不是必要前置條件：先記錄成新的 issue / TODO，不要混進目前 PR
 - 若 PR 已經超出 issue 範圍，reviewer 可以直接要求拆 PR、縮 scope 或關閉 draft PR
 
+### 例外：Conflict 解法
+
+原則上，PR 發生 conflict 時仍須從最新 `develop` 重新開 branch 並 restack。
+
+只有在以下條件**全部**成立時，才允許直接以 `git merge develop` 或 `git rebase origin/develop` 解 conflict：
+
+- PR 性質屬於 `docs` / `chore` / `test` 等非產品行為變更
+- conflict 解法本身新增的 non-merge diff < 20 行
+- conflict 解法不擴張本 PR 的原始 scope
+- conflict 不涉及 schema、API contract、auth、核心商業邏輯或跨模組行為變更
+
+不符合以上任一條件時，仍須 restack。若對「是否屬於 scope 擴張」有疑義，預設採較保守做法：restack。
+
 ### 例外：Trivial 附帶修
 
 < 10 行、直接關聯當前 PR scope 的小修正（typo、import、config 微調），可 inline 進同一個 PR，**不需另開 issue**。由人類判斷是否符合，AI 不得自行套用此例外。
