@@ -8,6 +8,7 @@ const currentDir = path.dirname(fileURLToPath(import.meta.url))
 const repoRoot = path.join(currentDir, '..', '..')
 const workflowPath = path.join(currentDir, 'ci.yml')
 const scopePolicePath = path.join(currentDir, 'pr-scope-police.yml')
+const autoMergeWorkflowPath = path.join(currentDir, 'auto-merge.yml')
 const claudePath = path.join(repoRoot, 'CLAUDE.md')
 
 function workflowJobBlock(workflow, jobName) {
@@ -107,4 +108,11 @@ test('docs/template-only PRs skip heavy product CI in scope gate', async () => {
     workflow,
     /Skipping heavy product CI because this PR only changes docs\/templates\/metadata\./,
   )
+})
+
+test('global auto-merge workflow excludes Dependabot PRs', async () => {
+  const workflow = await readFile(autoMergeWorkflowPath, 'utf8')
+
+  assert.match(workflow, /jobs:\n  enable-auto-merge:\n    if: .+dependabot\[bot\].+/)
+  assert.doesNotMatch(workflow, /if: github\.event\.pull_request\.draft == false\s*$/m)
 })
