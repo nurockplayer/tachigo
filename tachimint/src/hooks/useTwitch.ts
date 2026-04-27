@@ -8,7 +8,7 @@ import {
 } from '../services/api'
 import i18n, { mapTwitchLocaleToAppLanguage } from '../i18n'
 
-export interface TwitchBitsProduct {
+export interface TwitchTPointProduct {
   sku: string
   displayName: string
   cost: { amount: number; type: 'bits' }
@@ -18,7 +18,7 @@ export interface TwitchBitsProduct {
 export function useTwitch() {
   const [context, setContext] = useState<TwitchContext | null>(null)
   const [jwt, setJwt] = useState<string>('')
-  const [products, setProducts] = useState<TwitchBitsProduct[]>([])
+  const [products, setProducts] = useState<TwitchTPointProduct[]>([])
   const [tPointEnabled, setTPointEnabled] = useState(false)
   const [authError, setAuthError] = useState<string | null>(null)
   const [backendReady, setBackendReady] = useState(false)
@@ -62,17 +62,17 @@ export function useTwitch() {
           setAuthError(null)
         }
       } catch {
-        // Non-fatal: bits flow still works via extension JWT directly
+        // Non-fatal: t-point flow still works via extension JWT directly
         clearAuthToken()
         setBackendReady(false)
         setAuthError('Backend unavailable')
       }
 
-      // Fetch bits products
+      // Fetch T-point products
       if (ext.bits?.getProducts) {
         ext.bits.getProducts()
           .then((p) => {
-            setProducts(p as TwitchBitsProduct[])
+            setProducts(p as TwitchTPointProduct[])
             setTPointEnabled(true)
           })
           .catch(() => setTPointEnabled(false))
