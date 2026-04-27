@@ -1,7 +1,7 @@
 import { useCallback, useEffect, useState } from 'react'
 import { useTranslation } from 'react-i18next'
 import { useTwitch } from './hooks/useTwitch'
-import { useBits } from './hooks/useBits'
+import { useTPoint } from './hooks/useTPoint'
 import { useHeartbeat } from './hooks/useHeartbeat'
 import { useClickBoost } from './hooks/useClickBoost'
 import { claimPoints, getTachiBalance } from './services/api'
@@ -10,8 +10,8 @@ type ClaimErrorKey = 'loadBalanceFailed' | 'claimFailed'
 
 export default function App() {
   const { t } = useTranslation()
-  const { context, jwt, products, bitsEnabled, authError, backendReady } = useTwitch()
-  const { buyWithBits, status, error } = useBits(jwt)
+  const { context, jwt, products, tPointEnabled, authError, backendReady } = useTwitch()
+  const { buyWithTPoint, status, error } = useTPoint(jwt)
   const isViewer = context?.role === 'viewer'
   const [tachiBalance, setTachiBalance] = useState<number | null>(null)
   const [claimStatus, setClaimStatus] = useState<'idle' | 'pending' | 'success' | 'error'>('idle')
@@ -94,7 +94,7 @@ export default function App() {
         </header>
         <div className="ext-broadcaster">
           <p>Broadcaster view</p>
-          <p className="ext-hint">Viewers can spend Bits to earn rewards.</p>
+          <p className="ext-hint">Viewers can spend T-points to earn rewards.</p>
         </div>
       </div>
     )
@@ -175,7 +175,7 @@ export default function App() {
 
         {status !== 'success' && (
           <>
-            {bitsEnabled && products.length > 0 ? (
+            {tPointEnabled && products.length > 0 ? (
               <ul className="ext-products">
                 {products.map((product) => (
                   <li key={product.sku} className="ext-product">
@@ -186,14 +186,14 @@ export default function App() {
                       )}
                     </div>
                     <button
-                      className="ext-btn ext-btn--bits"
+                      className="ext-btn ext-btn--tpoint"
                       disabled={status === 'pending'}
-                      onClick={() => buyWithBits(product.sku)}
+                      onClick={() => buyWithTPoint(product.sku)}
                     >
                       <img
                         src="https://static-cdn.jtvnw.net/bits/dark/animated/purple/1"
                         alt=""
-                        className="ext-bits-icon"
+                        className="ext-tpoint-icon"
                       />
                       {status === 'pending' ? '…' : product.cost.amount.toLocaleString()}
                     </button>
@@ -202,7 +202,7 @@ export default function App() {
               </ul>
             ) : (
               <p className="ext-hint">
-                {bitsEnabled ? 'No products available.' : 'Bits not available.'}
+                {tPointEnabled ? 'No products available.' : 'T-points not available.'}
               </p>
             )}
 
