@@ -148,7 +148,7 @@ docker compose run --no-deps --rm app go test ./...
 
 ## Swagger Docs 更新規則
 
-任何 PR 若有以下改動，**必須**在同一個 PR 裡附帶 `swag init` 產出的 docs 變更（`backend/docs/` 下的三個檔案）：
+任何 PR 若有以下改動，**必須**在同一個 PR 裡附帶 `swag init` 產出的 docs 變更（`backend/docs/docs.go`、`backend/docs/swagger.json`、`backend/docs/swagger.yaml`）：
 
 - 新增、修改、刪除 handler function 的 swagger annotation（`// @Router`、`// @Param`、`// @Success` 等）
 - 在 `router.go` 新增或移除路由
