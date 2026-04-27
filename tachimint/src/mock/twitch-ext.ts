@@ -1,4 +1,4 @@
-import type { BitsTransaction } from '../types/twitch'
+import type { TPointTransaction } from '../types/twitch'
 
 /**
  * Injects a fake window.Twitch.ext when running outside of a real Twitch iframe.
@@ -12,7 +12,7 @@ export function injectTwitchExtMock() {
   // In that case, we force-inject the mock to make localhost development usable.
   const isInIFrame = window.self !== window.top
   if (window.Twitch?.ext && isInIFrame) return
-  let onTransactionComplete: ((tx: BitsTransaction) => void) | null = null
+  let onTransactionComplete: ((tx: TPointTransaction) => void) | null = null
 
   window.Twitch = {
     ext: {
