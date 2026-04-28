@@ -86,7 +86,7 @@ jobs:
               name === '.gitignore' ||
               name === '.gitattributes'
             const isDocsTemplateOrMetadataOnly =
-              filenames.length > 0 && filenames.every(isNonProductMetadataPath)
+              allFilePaths.length > 0 && allFilePaths.every(isNonProductMetadataPath)
             const body = pr.body || ''
             const title = pr.title || ''
             const allowedPrefixes = ['[backend]', '[frontend]', '[contract]', '[discussion]', '[release]', '[infra]', '[chore]']

@@ -160,6 +160,11 @@ test('docs/template-only PRs skip heavy product CI in scope gate', async () => {
   const workflow = await readFile(workflowPath, 'utf8')
 
   assert.match(workflow, /const isDocsTemplateOrMetadataOnly =/)
+  assert.match(
+    workflow,
+    /const isDocsTemplateOrMetadataOnly =\n\s+allFilePaths\.length > 0 && allFilePaths\.every\(isNonProductMetadataPath\)/,
+    'ci.yml metadata-only detection must stay rename-aware via allFilePaths.every(...)',
+  )
   assert.match(workflow, /standardBodyValid &&\n\s+!isDocsTemplateOrMetadataOnly &&/)
   assert.match(
     workflow,
