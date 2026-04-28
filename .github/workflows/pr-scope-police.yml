@@ -65,29 +65,37 @@ jobs:
             const diffLines = files.reduce((sum, file) => sum + file.additions + file.deletions, 0)
             const isDocsOrTemplatePath = (name) =>
               name.startsWith('docs/') ||
+              name.startsWith('docs/ai/') ||
               name.startsWith('plans/') ||
               name.startsWith('.github/ISSUE_TEMPLATE/') ||
               name === '.github/PULL_REQUEST_TEMPLATE.md' ||
               /^[^/]+\.md$/i.test(name)
             const isNonProductMetadataPath = (name) =>
               isDocsOrTemplatePath(name) ||
+              name.startsWith('infra/') ||
               name === '.gitignore' ||
               name === '.gitattributes'
             const isDocsTemplateOrMetadataOnly =
               allFilePaths.length > 0 && allFilePaths.every(isNonProductMetadataPath)
 
             const touches = {
-              backend: allFilePaths.some((name) => name.startsWith('backend/')),
-              dashboard: allFilePaths.some((name) => name.startsWith('dashboard/')),
-              tachimint: allFilePaths.some((name) => name.startsWith('tachimint/')),
+              backend: allFilePaths.some((name) =>
+                name.startsWith('backend/') || name.startsWith('services/api/'),
+              ),
+              frontend: allFilePaths.some((name) =>
+                name.startsWith('dashboard/') ||
+                name.startsWith('tachimint/') ||
+                name.startsWith('apps/dashboard/') ||
+                name.startsWith('apps/extension/'),
+              ),
               contracts: allFilePaths.some((name) => name.startsWith('contracts/')),
               docs: allFilePaths.some((name) => name.startsWith('docs/') || name.startsWith('plans/')),
+              packages: allFilePaths.some((name) => name.startsWith('packages/')),
             }
 
             const productSurfaces = Object.entries({
               backend: touches.backend,
-              dashboard: touches.dashboard,
-              tachimint: touches.tachimint,
+              frontend: touches.frontend,
               contracts: touches.contracts,
             })
               .filter(([, touched]) => touched)
@@ -222,8 +230,8 @@ jobs:
                 severeFailures.push(message)
               }
 
-              if (!isReleasePromotionPr && titlePrefix === '[backend]' && (touches.dashboard || touches.tachimint)) {
-                const message = '[backend] PR must not change dashboard/ or tachimint/.'
+              if (!isReleasePromotionPr && titlePrefix === '[backend]' && touches.frontend) {
+                const message = '[backend] PR must not change frontend surfaces such as dashboard/, tachimint/, apps/dashboard/, or apps/extension/.'
                 failures.push(message)
                 severeFailures.push(message)
               }
@@ -235,8 +243,8 @@ jobs:
                 severeFailures.push(message)
               }
 
-              if (!isReleasePromotionPr && titlePrefix === '[contract]' && (touches.backend || touches.dashboard || touches.tachimint)) {
-                const message = '[contract] PR must not change backend/, dashboard/, or tachimint/.'
+              if (!isReleasePromotionPr && titlePrefix === '[contract]' && (touches.backend || touches.frontend)) {
+                const message = '[contract] PR must not change backend/ or frontend surfaces.'
                 failures.push(message)
                 severeFailures.push(message)
               }

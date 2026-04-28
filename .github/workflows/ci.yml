@@ -75,12 +75,14 @@ jobs:
             const diffLines = files.reduce((sum, file) => sum + file.additions + file.deletions, 0)
             const isDocsOrTemplatePath = (name) =>
               name.startsWith('docs/') ||
+              name.startsWith('docs/ai/') ||
               name.startsWith('plans/') ||
               name.startsWith('.github/ISSUE_TEMPLATE/') ||
               name === '.github/PULL_REQUEST_TEMPLATE.md' ||
               /^[^/]+\.md$/i.test(name)
             const isNonProductMetadataPath = (name) =>
               isDocsOrTemplatePath(name) ||
+              name.startsWith('infra/') ||
               name === '.gitignore' ||
               name === '.gitattributes'
             const isDocsTemplateOrMetadataOnly =
@@ -90,12 +92,19 @@ jobs:
             const allowedPrefixes = ['[backend]', '[frontend]', '[contract]', '[discussion]', '[release]', '[infra]', '[chore]']
             const titlePrefix = allowedPrefixes.find((prefix) => title.startsWith(prefix))
             const touches = {
-              backend: allFilePaths.some((name) => name.startsWith('backend/')),
-              dashboard: allFilePaths.some((name) => name.startsWith('dashboard/')),
-              tachimint: allFilePaths.some((name) => name.startsWith('tachimint/')),
+              backend: allFilePaths.some((name) =>
+                name.startsWith('backend/') || name.startsWith('services/api/'),
+              ),
+              frontend: allFilePaths.some((name) =>
+                name.startsWith('dashboard/') ||
+                name.startsWith('tachimint/') ||
+                name.startsWith('apps/dashboard/') ||
+                name.startsWith('apps/extension/'),
+              ),
               contracts: allFilePaths.some((name) => name.startsWith('contracts/')),
+              packages: allFilePaths.some((name) => name.startsWith('packages/')),
             }
-            const productSurfaces = Object.values(touches).filter(Boolean).length
+            const productSurfaces = ['backend', 'frontend', 'contracts'].filter((surface) => touches[surface]).length
 
             const dependsOnMatch = body.match(/Depends on PR[：:]\s*(.+)/i)
             const dependsOnRaw = dependsOnMatch?.[1]?.trim()
@@ -135,13 +144,14 @@ jobs:
               (isReleasePromotionPr || filenames.length <= hardMaxChangedFiles) &&
               (isReleasePromotionPr || diffLines <= hardMaxDiffLines) &&
               (isReleasePromotionPr || productSurfaces <= 1) &&
-              (isReleasePromotionPr || !(titlePrefix === '[backend]' && (touches.dashboard || touches.tachimint))) &&
+              (isReleasePromotionPr || !(titlePrefix === '[backend]' && touches.frontend)) &&
               (isReleasePromotionPr || !(titlePrefix === '[frontend]' && touches.backend)) &&
-              (isReleasePromotionPr || !(titlePrefix === '[contract]' && (touches.backend || touches.dashboard || touches.tachimint))) &&
+              (isReleasePromotionPr || !(titlePrefix === '[contract]' && (touches.backend || touches.frontend))) &&
               !dependencyBlocked
 
             const backendIntegrationPaths = [
               /^backend\//,
+              /^services\/api\//,
               /^contracts\//,
               /^docker-compose(?:\..+)?\.ya?ml$/,
               /^\.github\/workflows\/ci\.yml$/,
