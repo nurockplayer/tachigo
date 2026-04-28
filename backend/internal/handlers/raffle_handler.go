@@ -384,12 +384,15 @@ func (h *RaffleHandler) GetClaim(c *gin.Context) {
 // SubmitClaim godoc
 // @Summary      Submit shipping info for a claim
 // @Tags         claim
+// @Security     BearerAuth
 // @Accept       json
 // @Produce      json
 // @Param        token path   string true "Claim token"
 // @Param        body  body   services.ClaimInput true "Shipping info"
 // @Success      200   {object}  Response
 // @Failure      400   {object}  Response
+// @Failure      401   {object}  Response
+// @Failure      403   {object}  Response
 // @Failure      404   {object}  Response
 // @Failure      409   {object}  Response
 // @Failure      410   {object}  Response
@@ -397,13 +400,20 @@ func (h *RaffleHandler) GetClaim(c *gin.Context) {
 func (h *RaffleHandler) SubmitClaim(c *gin.Context) {
 	token := c.Param("token")
 
+	claims := middleware.MustClaims(c)
+	userID, err := uuid.Parse(claims.UserID)
+	if err != nil {
+		c.JSON(http.StatusUnauthorized, Response{Success: false, Error: "invalid user identity"})
+		return
+	}
+
 	var input services.ClaimInput
 	if err := c.ShouldBindJSON(&input); err != nil {
 		badRequest(c, err.Error())
 		return
 	}
 
-	claim, err := h.raffleSvc.SubmitClaim(token, input)
+	claim, err := h.raffleSvc.SubmitClaim(token, userID, input)
 	if err != nil {
 		if errors.Is(err, services.ErrClaimNotFound) {
 			notFound(c, "claim not found")
@@ -411,6 +421,10 @@ func (h *RaffleHandler) SubmitClaim(c *gin.Context) {
 		}
 		if errors.Is(err, services.ErrClaimTokenExpired) {
 			c.JSON(http.StatusGone, Response{Success: false, Error: "claim token has expired"})
+			return
+		}
+		if errors.Is(err, services.ErrClaimForbidden) {
+			c.JSON(http.StatusForbidden, Response{Success: false, Error: "forbidden"})
 			return
 		}
 		if errors.Is(err, services.ErrClaimAlreadyDone) {

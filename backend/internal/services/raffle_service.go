@@ -29,6 +29,7 @@ var (
 	ErrClaimTokenExpired        = errors.New("claim token has expired")
 	ErrClaimNotFound            = errors.New("claim token not found")
 	ErrClaimAlreadyDone         = errors.New("claim already submitted")
+	ErrClaimForbidden           = errors.New("claim forbidden: not the winner")
 	ErrTwitchTokenMissing       = errors.New("no twitch access token: streamer must log in via twitch")
 	ErrTwitchInsufficientScope  = errors.New("twitch token lacks channel:read:subscriptions scope")
 	ErrUnsupportedRaffleSource  = errors.New("raffle source does not support twitch sync")
@@ -385,10 +386,15 @@ type ClaimInput struct {
 
 // SubmitClaim records the winner's shipping information.
 // Duplicate submissions are caught by the unique constraint on draw_id.
-func (s *RaffleService) SubmitClaim(token string, input ClaimInput) (*models.RaffleClaim, error) {
+// userID must match the linked user on the winning entry; otherwise ErrClaimForbidden is returned.
+func (s *RaffleService) SubmitClaim(token string, userID uuid.UUID, input ClaimInput) (*models.RaffleClaim, error) {
 	draw, err := s.GetDrawByToken(token)
 	if err != nil {
 		return nil, err
+	}
+
+	if draw.Entry.UserID == nil || *draw.Entry.UserID != userID {
+		return nil, ErrClaimForbidden
 	}
 
 	country := input.Country

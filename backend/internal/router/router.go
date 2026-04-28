@@ -95,11 +95,13 @@ func New(
 		auth.POST("/reset-password", emailH.ResetPassword)
 	}
 
-	// ── Public claim endpoints (no auth) ─────────────────────────────────
-	claim := v1.Group("/claim")
+	// ── Claim endpoints ───────────────────────────────────────────────────
+	// GET is public; POST requires the winner's JWT.
+	v1.GET("/claim/:token", raffleH.GetClaim)
+	claimAuth := v1.Group("/claim")
+	claimAuth.Use(middleware.JWTAuth(authSvc))
 	{
-		claim.GET("/:token", raffleH.GetClaim)
-		claim.POST("/:token", raffleH.SubmitClaim)
+		claimAuth.POST("/:token", raffleH.SubmitClaim)
 	}
 
 	// ── Twitch Extension endpoints ────────────────────────────────────────
