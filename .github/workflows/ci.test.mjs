@@ -104,6 +104,44 @@ test('scope gate and scope police use rename-aware allFilePaths for touches', as
   assert.match(scopePolice, /isDocsTemplateOrMetadataOnly[\s\S]*?allFilePaths\.every/, 'pr-scope-police.yml isDocsTemplateOrMetadataOnly must use allFilePaths')
 })
 
+test('scope gate and scope police recognize legacy and monorepo frontend/backend paths', async () => {
+  const workflow = await readFile(workflowPath, 'utf8')
+  const scopePolice = await readFile(scopePolicePath, 'utf8')
+
+  assert.match(
+    workflow,
+    /frontend: allFilePaths\.some\(\(name\) =>[\s\S]*name\.startsWith\('dashboard\/'\)[\s\S]*name\.startsWith\('tachimint\/'\)[\s\S]*name\.startsWith\('apps\/dashboard\/'\)[\s\S]*name\.startsWith\('apps\/extension\/'\)/,
+    'ci.yml must treat legacy and future frontend paths as one frontend surface',
+  )
+  assert.match(
+    scopePolice,
+    /frontend: allFilePaths\.some\(\(name\) =>[\s\S]*name\.startsWith\('dashboard\/'\)[\s\S]*name\.startsWith\('tachimint\/'\)[\s\S]*name\.startsWith\('apps\/dashboard\/'\)[\s\S]*name\.startsWith\('apps\/extension\/'\)/,
+    'pr-scope-police.yml must treat legacy and future frontend paths as one frontend surface',
+  )
+
+  assert.match(
+    workflow,
+    /backend: allFilePaths\.some\(\(name\) =>[\s\S]*name\.startsWith\('backend\/'\)[\s\S]*name\.startsWith\('services\/api\/'\)/,
+    'ci.yml must recognize legacy and future backend paths',
+  )
+  assert.match(
+    scopePolice,
+    /backend: allFilePaths\.some\(\(name\) =>[\s\S]*name\.startsWith\('backend\/'\)[\s\S]*name\.startsWith\('services\/api\/'\)/,
+    'pr-scope-police.yml must recognize legacy and future backend paths',
+  )
+
+  assert.match(
+    workflow,
+    /name\.startsWith\('packages\/'\)/,
+    'ci.yml must recognize future packages paths',
+  )
+  assert.match(
+    scopePolice,
+    /name\.startsWith\('packages\/'\)/,
+    'pr-scope-police.yml must recognize future packages paths',
+  )
+})
+
 test('PR size thresholds match CLAUDE.md', async () => {
   const claude = await readFile(claudePath, 'utf8')
   const workflow = await readFile(workflowPath, 'utf8')
@@ -122,6 +160,11 @@ test('docs/template-only PRs skip heavy product CI in scope gate', async () => {
   const workflow = await readFile(workflowPath, 'utf8')
 
   assert.match(workflow, /const isDocsTemplateOrMetadataOnly =/)
+  assert.match(
+    workflow,
+    /const isDocsTemplateOrMetadataOnly =\n\s+allFilePaths\.length > 0 && allFilePaths\.every\(isNonProductMetadataPath\)/,
+    'ci.yml metadata-only detection must stay rename-aware via allFilePaths.every(...)',
+  )
   assert.match(workflow, /standardBodyValid &&\n\s+!isDocsTemplateOrMetadataOnly &&/)
   assert.match(
     workflow,

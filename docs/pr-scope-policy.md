@@ -34,13 +34,15 @@ repo 目前有一個 GitHub Actions workflow：
 - PR 變更檔案數超過 `35` 個時 fail
 - PR diff 超過 `1500` 行時 fail
 - PR 不可同時改多個 product surface：
-  - `backend/`
-  - `dashboard/`
-  - `tachimint/`
-- `[backend]` PR 不可修改 `dashboard/` 或 `tachimint/`
-- `[frontend]` PR 不可修改 `backend/`
-- `[contract]` PR 不可修改 `backend/` / `dashboard/` / `tachimint/`
+  - backend surface：`backend/` 或未來的 `services/api/`
+  - frontend surface：`dashboard/`、`tachimint/` 或未來的 `apps/dashboard/`、`apps/extension/`
+  - contract surface：`contracts/`
+- `[backend]` PR 不可修改 frontend surface
+- `[frontend]` PR 不可修改 backend surface
+- `[contract]` PR 不可修改 backend / frontend surface
 - `[frontend]` PR 若依賴尚未 merge 的 backend contract，會被 dependency gate 擋下
+
+未來 monorepo 的共享套件路徑（例如 `packages/shared-types/`、`packages/api-client/`）會被 workflow 辨識，但目前不單獨視為 product surface。是否能與某個 surface 同 PR 出現，仍應以 issue scope 與 reviewer 判斷為準，避免把 shared package 變成順手混改的出口。
 
 ### Dependabot maintenance PR
 
@@ -69,7 +71,9 @@ Dependabot maintenance PR 目前不會套用 frontend/backend 依賴關係用的
 目前視為 docs / template / metadata-only 的路徑：
 
 - `docs/`
+- `docs/ai/`
 - `plans/`
+- `infra/`
 - `.github/ISSUE_TEMPLATE/`
 - `.github/PULL_REQUEST_TEMPLATE.md`
 - repo root 的 Markdown 文件，例如 `AGENTS.md`、`CLAUDE.md`、`README.md`
@@ -129,9 +133,9 @@ Dependabot maintenance PR 目前不會套用 frontend/backend 依賴關係用的
 - 檔案數超過 `35`
 - diff 超過 `1500` 行
 - 同時改多個 product surface
-- `[backend]` PR 去改前端
+- `[backend]` PR 去改 frontend surface
 - `[frontend]` PR 去改 backend
-- `[contract]` PR 去改 backend / dashboard / tachimint
+- `[contract]` PR 去改 backend / frontend surface
 
 ## 例外機制
 
