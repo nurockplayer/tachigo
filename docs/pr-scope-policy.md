@@ -35,7 +35,7 @@ repo 目前有一個 GitHub Actions workflow：
 - PR diff 超過 `1500` 行時 fail
 - PR 不可同時改多個 product surface：
   - backend surface：`backend/` 或未來的 `services/api/`
-  - frontend surface：`dashboard/`、`tachimint/` 或未來的 `apps/dashboard/`、`apps/extension/`
+  - frontend surface：`apps/dashboard/`、`apps/extension/`（舊路徑 `dashboard/`、`tachimint/` 仍作為歷史 PR 判斷）
   - contract surface：`contracts/`
 - `[backend]` PR 不可修改 frontend surface
 - `[frontend]` PR 不可修改 backend surface
@@ -270,7 +270,7 @@ make pr-open TITLE="[chore] Example title" BODY_FILE=/tmp/pr-body.md
 
 應該被擋：
 
-- `[backend]` PR 同時修改 `backend/` 與 `dashboard/`
+- `[backend]` PR 同時修改 `backend/` 與 `apps/dashboard/`
 - `[frontend]` PR 依賴 `#123` 的 backend contract，但 `#123` 還沒 merge 到 `develop`
 - 一張票只做 dashboard UI，PR 卻順手改 migration、router、service、docs
 - PR 改了 50 個檔案，混入多個 issue 的工作
@@ -278,7 +278,7 @@ make pr-open TITLE="[chore] Example title" BODY_FILE=/tmp/pr-body.md
 可以接受：
 
 - `[backend]` PR 只改 `backend/`，且有清楚的 source of truth
-- `[frontend]` PR 只改 `dashboard/`，必要測試一起補齊
+- `[frontend]` PR 只改 `apps/dashboard/`，必要測試一起補齊
 - `[discussion]` PR 只改文件，不碰產品程式碼
 - `[release]` PR 從 `develop` 整批 promotion 到 `main`
 

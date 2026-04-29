@@ -3,8 +3,8 @@
 # ── Setup (run once after cloning) ────────────────────────────────────────────
 setup:
 	@[ -f backend/.env ]   || cp backend/.env.example backend/.env   && echo "created backend/.env"
-	@[ -f tachimint/.env ] || cp tachimint/.env.example tachimint/.env && echo "created tachimint/.env"
-	@[ -f dashboard/.env ] || cp dashboard/.env.example dashboard/.env && echo "created dashboard/.env"
+	@[ -f apps/extension/.env ] || cp apps/extension/.env.example apps/extension/.env && echo "created apps/extension/.env"
+	@[ -f apps/dashboard/.env ] || cp apps/dashboard/.env.example apps/dashboard/.env && echo "created apps/dashboard/.env"
 	@git config core.hooksPath .githooks
 
 # ── Dev (setup + build + up) ───────────────────────────────────────────────────

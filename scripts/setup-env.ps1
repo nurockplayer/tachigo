@@ -2,8 +2,8 @@ $ErrorActionPreference = "Stop"
 
 $pairs = @(
     @{ Example = "backend/.env.example"; Target = "backend/.env" },
-    @{ Example = "tachimint/.env.example"; Target = "tachimint/.env" },
-    @{ Example = "dashboard/.env.example"; Target = "dashboard/.env" }
+    @{ Example = "apps/extension/.env.example"; Target = "apps/extension/.env" },
+    @{ Example = "apps/dashboard/.env.example"; Target = "apps/dashboard/.env" }
 )
 
 foreach ($pair in $pairs) {

@@ -9,8 +9,8 @@ Dependabot uses `package-ecosystem: npm` for npm, yarn, and pnpm projects.
 The dashboard and Twitch extension are pnpm projects because each directory has
 its own `pnpm-lock.yaml`:
 
-- `dashboard/pnpm-lock.yaml`
-- `tachimint/pnpm-lock.yaml`
+- `apps/dashboard/pnpm-lock.yaml`
+- `apps/extension/pnpm-lock.yaml`
 
 Do not change these entries to a non-existent `pnpm` ecosystem name.
 
@@ -19,8 +19,8 @@ Do not change these entries to a non-existent `pnpm` ecosystem name.
 Version updates target `develop` and run on Monday morning in `Asia/Taipei`:
 
 - `/backend`: 09:00
-- `/dashboard`: 09:30
-- `/tachimint`: 10:00
+- `/apps/dashboard`: 09:30
+- `/apps/extension`: 10:00
 
 Each ecosystem has `open-pull-requests-limit: 2` so Dependabot cannot flood the
 queue when many packages release close together.
