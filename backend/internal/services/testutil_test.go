@@ -289,7 +289,7 @@ func migrateTestDB(db *gorm.DB) error {
 		)`,
 		`CREATE TABLE IF NOT EXISTS raffle_claims (
 			id TEXT PRIMARY KEY,
-			draw_id TEXT NOT NULL UNIQUE REFERENCES raffle_draws(id),
+			draw_id TEXT NOT NULL UNIQUE REFERENCES raffle_draws(id) ON UPDATE CASCADE ON DELETE CASCADE,
 			recipient_name TEXT NOT NULL,
 			phone TEXT,
 			address_line1 TEXT NOT NULL,
