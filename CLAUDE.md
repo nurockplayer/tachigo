@@ -155,6 +155,7 @@ docker compose run --no-deps --rm app go test ./...
 
 執行指令：
 ```bash
+go install github.com/swaggo/swag/cmd/swag@latest
 cd backend && $(go env GOPATH)/bin/swag init -g cmd/server/main.go -o docs
 ```
 
