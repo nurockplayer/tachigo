@@ -42,6 +42,7 @@
   - [ ] migration / schema
   - [ ] backend domain service
   - [ ] API handler / router
+    - [ ] 已執行 `swag init` 並將 `backend/docs/` 變更一起 commit
   - [ ] frontend integration
   - [ ] tests
   - [ ] docs
