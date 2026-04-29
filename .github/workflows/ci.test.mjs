@@ -142,6 +142,32 @@ test('scope gate and scope police recognize legacy and monorepo frontend/backend
   )
 })
 
+test('scope gate backend contract regex accepts full-width and half-width colons', async () => {
+  const workflow = await readFile(workflowPath, 'utf8')
+  const scopePolice = await readFile(scopePolicePath, 'utf8')
+  const backendContractYesPattern =
+    String.raw`Backend contract already in develop\s*[：:][\s\S]*?- \[[xX]\] yes`
+  const backendContractNoPattern =
+    String.raw`Backend contract already in develop\s*[：:][\s\S]*?- \[[xX]\] no`
+
+  assert.ok(
+    workflow.includes(backendContractYesPattern),
+    'ci.yml Backend contract regex must accept full-width and half-width colons',
+  )
+  assert.ok(
+    workflow.includes(backendContractNoPattern),
+    'ci.yml Backend contract regex must accept full-width and half-width colons',
+  )
+  assert.ok(
+    scopePolice.includes(backendContractYesPattern),
+    'pr-scope-police.yml Backend contract regex must accept full-width and half-width colons',
+  )
+  assert.ok(
+    scopePolice.includes(backendContractNoPattern),
+    'pr-scope-police.yml Backend contract regex must accept full-width and half-width colons',
+  )
+})
+
 test('PR size thresholds match CLAUDE.md', async () => {
   const claude = await readFile(claudePath, 'utf8')
   const workflow = await readFile(workflowPath, 'utf8')
