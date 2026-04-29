@@ -2,6 +2,8 @@ package handlers_test
 
 import (
 	"bytes"
+	"crypto/sha256"
+	"encoding/hex"
 	"encoding/json"
 	"fmt"
 	"mime/multipart"
@@ -514,20 +516,22 @@ func TestRaffle_ClaimExpired(t *testing.T) {
 	raffleID := "00000000-0000-0000-0000-000000000001"
 	entryID := "00000000-0000-0000-0000-000000000002"
 	drawID := "00000000-0000-0000-0000-000000000003"
-	expiredToken := "expired-token-test"
+	expiredRawToken := "expired-token-test"
+	h := sha256.Sum256([]byte(expiredRawToken))
+	tokenHash := hex.EncodeToString(h[:])
 
 	// Need a user for raffle.user_id
 	env.db.Exec(`INSERT INTO users (id, role) VALUES ('00000000-0000-0000-0000-000000000099', 'streamer')`)
 	env.db.Exec(`INSERT INTO raffles (id, user_id, title, status) VALUES (?, '00000000-0000-0000-0000-000000000099', 'x', 'active')`, raffleID)
 	env.db.Exec(`INSERT INTO raffle_entries (id, raffle_id, twitch_login) VALUES (?, ?, 'testuser')`, entryID, raffleID)
 	env.db.Exec(`INSERT INTO raffle_draws (id, raffle_id, entry_id, claim_token, claim_expires_at, drawn_at) VALUES (?, ?, ?, ?, ?, ?)`,
-		drawID, raffleID, entryID, expiredToken,
+		drawID, raffleID, entryID, tokenHash,
 		time.Now().Add(-24*time.Hour).Format(time.RFC3339),
 		time.Now().Add(-25*time.Hour).Format(time.RFC3339),
 	)
 
 	w := httptest.NewRecorder()
-	req, _ := http.NewRequest(http.MethodGet, "/api/v1/claim/"+expiredToken, nil)
+	req, _ := http.NewRequest(http.MethodGet, "/api/v1/claim/"+expiredRawToken, nil)
 	env.router.ServeHTTP(w, req)
 	if w.Code != http.StatusGone {
 		t.Fatalf("expired claim: want 410, got %d: %s", w.Code, w.Body.String())

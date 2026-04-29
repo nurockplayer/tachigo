@@ -73,12 +73,15 @@ func (e *RaffleEntry) BeforeCreate(tx *gorm.DB) error {
 }
 
 // RaffleDraw records one drawn winner.
-// ClaimToken is a one-time token sent to the winner for submitting shipping info.
+// ClaimToken stores the SHA-256 hex hash of the raw token.
+// ClaimTokenRaw is a transient field populated only when a draw is first created;
+// it is never persisted and carries the raw token for the HTTP response and email.
 type RaffleDraw struct {
 	ID             uuid.UUID   `gorm:"type:uuid;primaryKey;default:gen_random_uuid()"        json:"id"`
 	RaffleID       uuid.UUID   `gorm:"type:uuid;not null;uniqueIndex:idx_raffle_draw_entry"  json:"raffle_id"`
 	EntryID        uuid.UUID   `gorm:"type:uuid;not null;uniqueIndex:idx_raffle_draw_entry"  json:"entry_id"`
-	ClaimToken     string      `gorm:"type:varchar(255);not null;uniqueIndex"                json:"claim_token"`
+	ClaimToken     string      `gorm:"type:varchar(255);not null;uniqueIndex"                json:"-"`
+	ClaimTokenRaw  string      `gorm:"-"                                                     json:"claim_token,omitempty"`
 	ClaimExpiresAt time.Time   `                                                             json:"claim_expires_at"`
 	DrawnAt        time.Time   `                                                             json:"drawn_at"`
 	Raffle         Raffle      `gorm:"foreignKey:RaffleID;constraint:OnUpdate:CASCADE,OnDelete:CASCADE" json:"-"`

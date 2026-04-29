@@ -2,6 +2,8 @@ package services
 
 import (
 	"context"
+	"crypto/sha256"
+	"encoding/hex"
 	"strings"
 	"testing"
 	"time"
@@ -122,6 +124,21 @@ func seedEntry(t *testing.T, db *gorm.DB, raffleID uuid.UUID, userID *uuid.UUID,
 	return id
 }
 
+func seedDraw(t *testing.T, db *gorm.DB, raffleID, entryID uuid.UUID, rawToken string) uuid.UUID {
+	t.Helper()
+	id := uuid.New()
+	h := sha256.Sum256([]byte(rawToken))
+	tokenHash := hex.EncodeToString(h[:])
+	if err := db.Exec(`
+		INSERT INTO raffle_draws (id, raffle_id, entry_id, claim_token, claim_expires_at, drawn_at)
+		VALUES (?, ?, ?, ?, ?, CURRENT_TIMESTAMP)
+	`, id.String(), raffleID.String(), entryID.String(), tokenHash,
+		time.Now().Add(7*24*time.Hour).Format(time.RFC3339)).Error; err != nil {
+		t.Fatalf("seedDraw: %v", err)
+	}
+	return id
+}
+
 // ── tests ─────────────────────────────────────────────────────────────────────
 
 func TestDrawNext_SendsEmailToWinner(t *testing.T) {
@@ -147,8 +164,8 @@ func TestDrawNext_SendsEmailToWinner(t *testing.T) {
 	if email.to != "winner@example.com" {
 		t.Errorf("expected to=winner@example.com, got %s", email.to)
 	}
-	if !strings.Contains(email.body, draw.ClaimToken) {
-		t.Errorf("email body should contain claim token")
+	if !strings.Contains(email.body, draw.ClaimTokenRaw) {
+		t.Errorf("email body should contain raw claim token")
 	}
 	if !strings.Contains(email.body, "http://localhost:3000/claim/") {
 		t.Errorf("email body should contain claim link")

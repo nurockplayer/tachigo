@@ -3,7 +3,9 @@ package services
 import (
 	"bytes"
 	"context"
+	"crypto/sha256"
 	"encoding/csv"
+	"encoding/hex"
 	"encoding/json"
 	"errors"
 	"fmt"
@@ -37,6 +39,13 @@ var (
 )
 
 const claimTokenTTL = 7 * 24 * time.Hour
+
+// hashClaimToken returns the SHA-256 hex digest of a raw claim token.
+// Only the hash is stored in the DB; the raw token is returned to callers once.
+func hashClaimToken(raw string) string {
+	h := sha256.Sum256([]byte(raw))
+	return hex.EncodeToString(h[:])
+}
 
 type RaffleService struct {
 	db             *gorm.DB
@@ -197,46 +206,65 @@ func (s *RaffleService) DrawNext(raffleID, userID uuid.UUID) (*models.RaffleDraw
 		return nil, ErrRaffleCompleted
 	}
 
+	const drawMaxRetries = 5
+
+	// Each attempt runs in its own transaction so that a duplicate-key error on
+	// PostgreSQL (which aborts the transaction) does not poison subsequent SELECTs.
 	var result *models.RaffleDraw
-	err = s.db.Transaction(func(tx *gorm.DB) error {
-		var entry models.RaffleEntry
-		if err := tx.Raw(`
-			SELECT * FROM raffle_entries
-			WHERE raffle_id = ?
-			  AND id NOT IN (
-			        SELECT entry_id FROM raffle_draws WHERE raffle_id = ?
-			      )
-			ORDER BY RANDOM()
-			LIMIT 1
-		`, raffleID, raffleID).Scan(&entry).Error; err != nil {
-			return err
-		}
-		if entry.ID == uuid.Nil {
-			return ErrRaffleExhausted
-		}
+	err = func() error {
+		for attempt := 0; attempt < drawMaxRetries; attempt++ {
+			var draw *models.RaffleDraw
+			txErr := s.db.Transaction(func(tx *gorm.DB) error {
+				var entry models.RaffleEntry
+				if err := tx.Raw(`
+					SELECT * FROM raffle_entries
+					WHERE raffle_id = ?
+					  AND id NOT IN (
+					        SELECT entry_id FROM raffle_draws WHERE raffle_id = ?
+					      )
+					ORDER BY RANDOM()
+					LIMIT 1
+				`, raffleID, raffleID).Scan(&entry).Error; err != nil {
+					return err
+				}
+				if entry.ID == uuid.Nil {
+					return ErrRaffleExhausted
+				}
 
-		token, err := uuid.NewV7()
-		if err != nil {
-			return err
-		}
+				rawToken, err := uuid.NewV7()
+				if err != nil {
+					return err
+				}
 
-		draw := &models.RaffleDraw{
-			RaffleID:       raffleID,
-			EntryID:        entry.ID,
-			ClaimToken:     token.String(),
-			ClaimExpiresAt: time.Now().Add(claimTokenTTL),
-			DrawnAt:        time.Now(),
-		}
-		if err := tx.Create(draw).Error; err != nil {
-			if errors.Is(err, gorm.ErrDuplicatedKey) {
-				return ErrRaffleExhausted
+				d := &models.RaffleDraw{
+					RaffleID:       raffleID,
+					EntryID:        entry.ID,
+					ClaimToken:     hashClaimToken(rawToken.String()),
+					ClaimExpiresAt: time.Now().Add(claimTokenTTL),
+					DrawnAt:        time.Now(),
+				}
+				if err := tx.Create(d).Error; err != nil {
+					return err
+				}
+				d.ClaimTokenRaw = rawToken.String()
+				d.Entry = entry
+				draw = d
+				return nil
+			})
+			if txErr == nil {
+				result = draw
+				return nil
 			}
-			return err
+			if errors.Is(txErr, ErrRaffleExhausted) {
+				return txErr
+			}
+			if errors.Is(txErr, gorm.ErrDuplicatedKey) {
+				continue
+			}
+			return txErr
 		}
-		draw.Entry = entry
-		result = draw
-		return nil
-	})
+		return ErrRaffleExhausted
+	}()
 	if err == nil && s.mailer != nil {
 		go func(d *models.RaffleDraw) {
 			defer func() {
@@ -360,7 +388,7 @@ func (s *RaffleService) GetDrawByToken(token string) (*models.RaffleDraw, error)
 	var draw models.RaffleDraw
 	if err := s.db.
 		Preload("Entry").
-		Where("claim_token = ?", token).
+		Where("claim_token = ?", hashClaimToken(token)).
 		First(&draw).Error; err != nil {
 		if errors.Is(err, gorm.ErrRecordNotFound) {
 			return nil, ErrClaimNotFound
@@ -627,7 +655,7 @@ func (s *RaffleService) sendWinnerEmail(ctx context.Context, draw *models.Raffle
 		log.Printf("raffle draw %s: winner has no email, skipping", draw.ID)
 		return
 	}
-	link := fmt.Sprintf("%s/claim/%s", strings.TrimRight(s.frontendURL, "/"), draw.ClaimToken)
+	link := fmt.Sprintf("%s/claim/%s", strings.TrimRight(s.frontendURL, "/"), draw.ClaimTokenRaw)
 	body := raffleWinnerEmailBody(draw.ClaimExpiresAt, link)
 	if err := s.mailer.Send(*user.Email, "恭喜中獎！領取你的 Tachigo 抽獎獎品", body); err != nil {
 		log.Printf("raffle draw %s: failed to send winner email to %s: %v", draw.ID, *user.Email, err)

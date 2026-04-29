@@ -127,6 +127,18 @@ func main() {
 	if err := applyStreamerAgencyMigration(db); err != nil {
 		log.Fatalf("failed to run migration 008: %v", err)
 	}
+	// One-time migration: hash existing plain-text claim tokens.
+	// claim_token was previously a raw UUIDv7 (36 chars); it now stores the
+	// SHA-256 hex digest (64 chars). The WHERE filter is idempotent:
+	// already-hashed values are 64 chars and will not match.
+	if err := db.Exec(`
+		UPDATE raffle_draws
+		SET claim_token = encode(sha256(claim_token::bytea), 'hex')
+		WHERE length(claim_token) = 36
+	`).Error; err != nil {
+		log.Fatalf("failed to hash existing claim tokens: %v", err)
+	}
+
 	// Wire services
 	authSvc := services.NewAuthService(db, cfg)
 	userSvc := services.NewUserService(db)
