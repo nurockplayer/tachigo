@@ -68,10 +68,11 @@ func newRaffleTestEnv(t *testing.T) *raffleTestEnv {
 
 	v1 := r.Group("/api/v1")
 
-	// Public claim routes
-	claim := v1.Group("/claim")
-	claim.GET("/:token", raffleH.GetClaim)
-	claim.POST("/:token", raffleH.SubmitClaim)
+	// Claim routes: GET is public, POST requires JWT
+	v1.GET("/claim/:token", raffleH.GetClaim)
+	claimAuth := v1.Group("/claim")
+	claimAuth.Use(middleware.JWTAuth(authSvc))
+	claimAuth.POST("/:token", raffleH.SubmitClaim)
 
 	// Extension result
 	v1.GET("/extension/raffles/:id/result", raffleH.GetResult)
@@ -137,6 +138,19 @@ func (e *raffleTestEnv) createTwitchLinkedUser(t *testing.T, twitchLogin string)
 }
 
 func bearer(token string) string { return "Bearer " + token }
+
+// loginUser logs in a user created by createTwitchLinkedUser (email = login+"@test.com", password = "pass1234").
+func (e *raffleTestEnv) loginUser(t *testing.T, twitchLogin string) string {
+	t.Helper()
+	_, tokens, err := e.authSvc.Login(services.LoginInput{
+		Email:    twitchLogin + "@test.com",
+		Password: "pass1234",
+	})
+	if err != nil {
+		t.Fatalf("loginUser %s: %v", twitchLogin, err)
+	}
+	return tokens.AccessToken
+}
 
 // ── Tests ──────────────────────────────────────────────────────────────────────
 
@@ -432,6 +446,7 @@ func TestRaffle_ClaimFlow(t *testing.T) {
 	raffleID := resp["data"].(map[string]interface{})["raffle"].(map[string]interface{})["id"].(string)
 
 	env.createTwitchLinkedUser(t, "winner1")
+	winnerJWT := env.loginUser(t, "winner1")
 
 	var buf bytes.Buffer
 	mw := multipart.NewWriter(&buf)
@@ -454,7 +469,7 @@ func TestRaffle_ClaimFlow(t *testing.T) {
 	drawResp := parseBody(t, w3.Body.Bytes())
 	claimToken := drawResp["data"].(map[string]interface{})["draw"].(map[string]interface{})["claim_token"].(string)
 
-	// GET /claim/:token
+	// GET /claim/:token — no auth required
 	w4 := httptest.NewRecorder()
 	req4, _ := http.NewRequest(http.MethodGet, "/api/v1/claim/"+claimToken, nil)
 	env.router.ServeHTTP(w4, req4)
@@ -462,7 +477,7 @@ func TestRaffle_ClaimFlow(t *testing.T) {
 		t.Fatalf("get claim: want 200, got %d: %s", w4.Code, w4.Body.String())
 	}
 
-	// POST /claim/:token — submit shipping info
+	// POST /claim/:token — winner submits with JWT
 	claimBody, _ := json.Marshal(map[string]string{
 		"recipient_name": "王大明",
 		"phone":          "0912345678",
@@ -474,16 +489,18 @@ func TestRaffle_ClaimFlow(t *testing.T) {
 	req5, _ := http.NewRequest(http.MethodPost, "/api/v1/claim/"+claimToken,
 		bytes.NewReader(claimBody))
 	req5.Header.Set("Content-Type", "application/json")
+	req5.Header.Set("Authorization", bearer(winnerJWT))
 	env.router.ServeHTTP(w5, req5)
 	if w5.Code != http.StatusOK {
 		t.Fatalf("submit claim: want 200, got %d: %s", w5.Code, w5.Body.String())
 	}
 
-	// POST again → 409
+	// POST again with winner JWT → 409 duplicate
 	w6 := httptest.NewRecorder()
 	req6, _ := http.NewRequest(http.MethodPost, "/api/v1/claim/"+claimToken,
 		bytes.NewReader(claimBody))
 	req6.Header.Set("Content-Type", "application/json")
+	req6.Header.Set("Authorization", bearer(winnerJWT))
 	env.router.ServeHTTP(w6, req6)
 	if w6.Code != http.StatusConflict {
 		t.Fatalf("duplicate claim: want 409, got %d", w6.Code)
@@ -514,6 +531,115 @@ func TestRaffle_ClaimExpired(t *testing.T) {
 	env.router.ServeHTTP(w, req)
 	if w.Code != http.StatusGone {
 		t.Fatalf("expired claim: want 410, got %d: %s", w.Code, w.Body.String())
+	}
+}
+
+// TestRaffle_ClaimSubmit_Unauthorized verifies that POST /claim/:token without
+// an Authorization header returns 401.
+func TestRaffle_ClaimSubmit_Unauthorized(t *testing.T) {
+	env := newRaffleTestEnv(t)
+	hostToken := env.registerStreamer(t, "auth_host", "auth_host@test.com", "pass1234")
+
+	body, _ := json.Marshal(map[string]string{"title": "auth test raffle"})
+	w := httptest.NewRecorder()
+	req, _ := http.NewRequest(http.MethodPost, "/api/v1/dashboard/raffles", bytes.NewReader(body))
+	req.Header.Set("Content-Type", "application/json")
+	req.Header.Set("Authorization", bearer(hostToken))
+	env.router.ServeHTTP(w, req)
+	resp := parseBody(t, w.Body.Bytes())
+	raffleID := resp["data"].(map[string]interface{})["raffle"].(map[string]interface{})["id"].(string)
+
+	env.createTwitchLinkedUser(t, "auth_winner")
+
+	var buf bytes.Buffer
+	mw := multipart.NewWriter(&buf)
+	fw, _ := mw.CreateFormFile("file", "entries.csv")
+	fmt.Fprintln(fw, "auth_winner")
+	mw.Close()
+	w2 := httptest.NewRecorder()
+	req2, _ := http.NewRequest(http.MethodPost,
+		"/api/v1/dashboard/raffles/"+raffleID+"/entries/import-csv", &buf)
+	req2.Header.Set("Content-Type", mw.FormDataContentType())
+	req2.Header.Set("Authorization", bearer(hostToken))
+	env.router.ServeHTTP(w2, req2)
+
+	w3 := httptest.NewRecorder()
+	req3, _ := http.NewRequest(http.MethodPost,
+		"/api/v1/dashboard/raffles/"+raffleID+"/draws", nil)
+	req3.Header.Set("Authorization", bearer(hostToken))
+	env.router.ServeHTTP(w3, req3)
+	drawResp := parseBody(t, w3.Body.Bytes())
+	claimToken := drawResp["data"].(map[string]interface{})["draw"].(map[string]interface{})["claim_token"].(string)
+
+	// POST without Authorization → 401
+	claimBody, _ := json.Marshal(map[string]string{
+		"recipient_name": "無名氏",
+		"address_line1":  "某地址",
+		"city":           "某市",
+	})
+	w4 := httptest.NewRecorder()
+	req4, _ := http.NewRequest(http.MethodPost, "/api/v1/claim/"+claimToken,
+		bytes.NewReader(claimBody))
+	req4.Header.Set("Content-Type", "application/json")
+	env.router.ServeHTTP(w4, req4)
+	if w4.Code != http.StatusUnauthorized {
+		t.Fatalf("unauthenticated submit: want 401, got %d: %s", w4.Code, w4.Body.String())
+	}
+}
+
+// TestRaffle_ClaimSubmit_Forbidden verifies that a logged-in user who is NOT
+// the draw winner receives 403 when attempting to POST /claim/:token.
+func TestRaffle_ClaimSubmit_Forbidden(t *testing.T) {
+	env := newRaffleTestEnv(t)
+	hostToken := env.registerStreamer(t, "fbd_host", "fbd_host@test.com", "pass1234")
+
+	body, _ := json.Marshal(map[string]string{"title": "forbidden test raffle"})
+	w := httptest.NewRecorder()
+	req, _ := http.NewRequest(http.MethodPost, "/api/v1/dashboard/raffles", bytes.NewReader(body))
+	req.Header.Set("Content-Type", "application/json")
+	req.Header.Set("Authorization", bearer(hostToken))
+	env.router.ServeHTTP(w, req)
+	resp := parseBody(t, w.Body.Bytes())
+	raffleID := resp["data"].(map[string]interface{})["raffle"].(map[string]interface{})["id"].(string)
+
+	env.createTwitchLinkedUser(t, "fbd_winner")
+	env.createTwitchLinkedUser(t, "fbd_other")
+	otherJWT := env.loginUser(t, "fbd_other")
+
+	var buf bytes.Buffer
+	mw := multipart.NewWriter(&buf)
+	fw, _ := mw.CreateFormFile("file", "entries.csv")
+	fmt.Fprintln(fw, "fbd_winner")
+	mw.Close()
+	w2 := httptest.NewRecorder()
+	req2, _ := http.NewRequest(http.MethodPost,
+		"/api/v1/dashboard/raffles/"+raffleID+"/entries/import-csv", &buf)
+	req2.Header.Set("Content-Type", mw.FormDataContentType())
+	req2.Header.Set("Authorization", bearer(hostToken))
+	env.router.ServeHTTP(w2, req2)
+
+	w3 := httptest.NewRecorder()
+	req3, _ := http.NewRequest(http.MethodPost,
+		"/api/v1/dashboard/raffles/"+raffleID+"/draws", nil)
+	req3.Header.Set("Authorization", bearer(hostToken))
+	env.router.ServeHTTP(w3, req3)
+	drawResp := parseBody(t, w3.Body.Bytes())
+	claimToken := drawResp["data"].(map[string]interface{})["draw"].(map[string]interface{})["claim_token"].(string)
+
+	// POST with non-winner JWT → 403
+	claimBody, _ := json.Marshal(map[string]string{
+		"recipient_name": "非得獎者",
+		"address_line1":  "某地址",
+		"city":           "某市",
+	})
+	w4 := httptest.NewRecorder()
+	req4, _ := http.NewRequest(http.MethodPost, "/api/v1/claim/"+claimToken,
+		bytes.NewReader(claimBody))
+	req4.Header.Set("Content-Type", "application/json")
+	req4.Header.Set("Authorization", bearer(otherJWT))
+	env.router.ServeHTTP(w4, req4)
+	if w4.Code != http.StatusForbidden {
+		t.Fatalf("non-winner submit: want 403, got %d: %s", w4.Code, w4.Body.String())
 	}
 }
 

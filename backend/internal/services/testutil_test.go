@@ -287,6 +287,18 @@ func migrateTestDB(db *gorm.DB) error {
 			drawn_at DATETIME NOT NULL,
 			UNIQUE (raffle_id, entry_id)
 		)`,
+		`CREATE TABLE IF NOT EXISTS raffle_claims (
+			id TEXT PRIMARY KEY,
+			draw_id TEXT NOT NULL UNIQUE REFERENCES raffle_draws(id) ON UPDATE CASCADE ON DELETE CASCADE,
+			recipient_name TEXT NOT NULL,
+			phone TEXT,
+			address_line1 TEXT NOT NULL,
+			address_line2 TEXT,
+			city TEXT NOT NULL,
+			postal_code TEXT,
+			country TEXT NOT NULL DEFAULT 'TW',
+			submitted_at DATETIME NOT NULL
+		)`,
 	}
 	for _, s := range stmts {
 		if err := db.Exec(s).Error; err != nil {
