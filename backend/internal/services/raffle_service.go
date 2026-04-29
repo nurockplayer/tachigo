@@ -207,50 +207,63 @@ func (s *RaffleService) DrawNext(raffleID, userID uuid.UUID) (*models.RaffleDraw
 
 	const drawMaxRetries = 5
 
+	// Each attempt runs in its own transaction so that a duplicate-key error on
+	// PostgreSQL (which aborts the transaction) does not poison subsequent SELECTs.
 	var result *models.RaffleDraw
-	err = s.db.Transaction(func(tx *gorm.DB) error {
+	err = func() error {
 		for attempt := 0; attempt < drawMaxRetries; attempt++ {
-			var entry models.RaffleEntry
-			if err := tx.Raw(`
-				SELECT * FROM raffle_entries
-				WHERE raffle_id = ?
-				  AND id NOT IN (
-				        SELECT entry_id FROM raffle_draws WHERE raffle_id = ?
-				      )
-				ORDER BY RANDOM()
-				LIMIT 1
-			`, raffleID, raffleID).Scan(&entry).Error; err != nil {
-				return err
-			}
-			if entry.ID == uuid.Nil {
-				return ErrRaffleExhausted
-			}
-
-			rawToken, err := uuid.NewV7()
-			if err != nil {
-				return err
-			}
-
-			draw := &models.RaffleDraw{
-				RaffleID:       raffleID,
-				EntryID:        entry.ID,
-				ClaimToken:     hashClaimToken(rawToken.String()),
-				ClaimExpiresAt: time.Now().Add(claimTokenTTL),
-				DrawnAt:        time.Now(),
-			}
-			if err := tx.Create(draw).Error; err != nil {
-				if errors.Is(err, gorm.ErrDuplicatedKey) {
-					continue
+			var draw *models.RaffleDraw
+			txErr := s.db.Transaction(func(tx *gorm.DB) error {
+				var entry models.RaffleEntry
+				if err := tx.Raw(`
+					SELECT * FROM raffle_entries
+					WHERE raffle_id = ?
+					  AND id NOT IN (
+					        SELECT entry_id FROM raffle_draws WHERE raffle_id = ?
+					      )
+					ORDER BY RANDOM()
+					LIMIT 1
+				`, raffleID, raffleID).Scan(&entry).Error; err != nil {
+					return err
 				}
-				return err
+				if entry.ID == uuid.Nil {
+					return ErrRaffleExhausted
+				}
+
+				rawToken, err := uuid.NewV7()
+				if err != nil {
+					return err
+				}
+
+				d := &models.RaffleDraw{
+					RaffleID:       raffleID,
+					EntryID:        entry.ID,
+					ClaimToken:     hashClaimToken(rawToken.String()),
+					ClaimExpiresAt: time.Now().Add(claimTokenTTL),
+					DrawnAt:        time.Now(),
+				}
+				if err := tx.Create(d).Error; err != nil {
+					return err
+				}
+				d.ClaimTokenRaw = rawToken.String()
+				d.Entry = entry
+				draw = d
+				return nil
+			})
+			if txErr == nil {
+				result = draw
+				return nil
 			}
-			draw.ClaimTokenRaw = rawToken.String()
-			draw.Entry = entry
-			result = draw
-			return nil
+			if errors.Is(txErr, ErrRaffleExhausted) {
+				return txErr
+			}
+			if errors.Is(txErr, gorm.ErrDuplicatedKey) {
+				continue
+			}
+			return txErr
 		}
 		return ErrRaffleExhausted
-	})
+	}()
 	if err == nil && s.mailer != nil {
 		go func(d *models.RaffleDraw) {
 			defer func() {
