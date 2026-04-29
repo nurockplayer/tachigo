@@ -27,7 +27,7 @@ func TestSubmitClaim_WinnerCanSubmit(t *testing.T) {
 		AddressLine1:  "台北市信義區信義路一段1號",
 		City:          "台北市",
 	}
-	claim, err := svc.SubmitClaim(draw.ClaimToken, winnerID, input)
+	claim, err := svc.SubmitClaim(draw.ClaimTokenRaw, winnerID, input)
 	if err != nil {
 		t.Fatalf("SubmitClaim: expected success, got %v", err)
 	}
@@ -57,7 +57,7 @@ func TestSubmitClaim_NonWinnerForbidden(t *testing.T) {
 		AddressLine1:  "台北市中正區重慶南路一段122號",
 		City:          "台北市",
 	}
-	_, err = svc.SubmitClaim(draw.ClaimToken, otherID, input)
+	_, err = svc.SubmitClaim(draw.ClaimTokenRaw, otherID, input)
 	if !errors.Is(err, ErrClaimForbidden) {
 		t.Errorf("expected ErrClaimForbidden, got %v", err)
 	}
@@ -78,7 +78,7 @@ func TestSubmitClaim_NilUserIDForbidden(t *testing.T) {
 	}
 
 	someUserID := uuid.New()
-	_, err = svc.SubmitClaim(draw.ClaimToken, someUserID, ClaimInput{
+	_, err = svc.SubmitClaim(draw.ClaimTokenRaw, someUserID, ClaimInput{
 		RecipientName: "任何人",
 		AddressLine1:  "某地址",
 		City:          "某市",
