@@ -116,7 +116,7 @@
 
 本輪已回答：
 
-1. `apps/extension/` 保留，作為唯一正式前端 surface
+1. `apps/extension/` 保留，作為唯一正式 extension 前端 surface
 2. Chrome sidepanel 是已定案產品方向
 3. 本階段仍沿用 Twitch identity 與既有 backend contract
 4. 新的 migration decision source of truth 為 [docs/tachimint-chrome-sidepanel-migration.md](tachimint-chrome-sidepanel-migration.md)

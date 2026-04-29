@@ -10,7 +10,7 @@
 
 `tachimint` 前端接下來採用以下方向：
 
-1. 保留 `apps/extension/` 作為唯一正式前端 surface，不另開長期並行的第二前端 product surface
+1. 保留 `apps/extension/` 作為唯一正式 extension 前端 surface，不另開長期並行的第二 extension 前端 product surface
 2. 前端 runtime 由舊的 Twitch-hosted panel，遷移為 Chrome sidepanel extension
 3. 身份來源在本階段仍沿用 Twitch 相關流程
 4. backend contract 在本階段沿用既有 API，不於本輪重設
@@ -36,7 +36,7 @@
 
 因此這次 migration 採用的策略是：
 
-- 保留 `apps/extension/` 作為唯一正式前端 surface
+- 保留 `apps/extension/` 作為唯一正式 extension 前端 surface
 - 以 `extensions/` 的 runtime 與 UI 作為 migration source
 - 逐步把既有 `tachimint` 的產品邏輯接回新的 sidepanel shell
 
