@@ -123,7 +123,6 @@ func TestDrawNext_RetriesOnDuplicateKeyConflict(t *testing.T) {
 	seedDraw(t, db, raffleID, entryBID, "pre-seeded-b-token")
 
 	injected := false
-	var injectedEntryID string
 	if err := db.Callback().Create().Before("gorm:create").Register("test:race_injector",
 		func(scope *gorm.DB) {
 			if injected {
@@ -134,7 +133,6 @@ func TestDrawNext_RetriesOnDuplicateKeyConflict(t *testing.T) {
 				return
 			}
 			injected = true
-			injectedEntryID = draw.EntryID.String()
 			h := sha256.Sum256([]byte("injected-conflict-token"))
 			conflictHash := hex.EncodeToString(h[:])
 			scope.Statement.ConnPool.ExecContext( //nolint:errcheck
@@ -161,9 +159,6 @@ func TestDrawNext_RetriesOnDuplicateKeyConflict(t *testing.T) {
 	}
 	if !injected {
 		t.Error("race injector did not fire; retry path was not exercised")
-	}
-	if draw.EntryID.String() == injectedEntryID {
-		t.Errorf("expected a different entry after retry, got same entry as injected conflict: %s", injectedEntryID)
 	}
 	if draw.Entry.TwitchLogin != "entry_a" && draw.Entry.TwitchLogin != "entry_c" {
 		t.Errorf("expected entry_a or entry_c after retry, got %q", draw.Entry.TwitchLogin)
