@@ -339,6 +339,13 @@ export function MarioHUD({ state, onStateChange, onNavigate }: MarioHUDProps) {
   const [bgMusicOn, setBgMusicOn]         = useState(false);
 
   const floatId = useRef(0);
+  const timeoutRefs = useRef<ReturnType<typeof setTimeout>[]>([]);
+
+  useEffect(() => {
+    return () => {
+      timeoutRefs.current.forEach(clearTimeout);
+    };
+  }, []);
 
   // ── Helpers ──────────────────────────────────────────────
   const formatPts = (n: number) =>
@@ -346,14 +353,16 @@ export function MarioHUD({ state, onStateChange, onNavigate }: MarioHUDProps) {
 
   const triggerBalancePop = useCallback(() => {
     setBalanceBump(true);
-    setTimeout(() => setBalanceBump(false), 420);
+    const timeoutId = setTimeout(() => setBalanceBump(false), 420);
+    timeoutRefs.current.push(timeoutId);
   }, []);
 
   const spawnFloat = useCallback((amount: number) => {
     const id = ++floatId.current;
     const offsetX = (Math.random() - 0.5) * 40;
     setFloats(f => [...f, { id, amount, offsetX }]);
-    setTimeout(() => setFloats(f => f.filter(x => x.id !== id)), 1600);
+    const timeoutId = setTimeout(() => setFloats(f => f.filter(x => x.id !== id)), 1600);
+    timeoutRefs.current.push(timeoutId);
   }, []);
 
   const awardPoints = useCallback(
@@ -365,17 +374,20 @@ export function MarioHUD({ state, onStateChange, onNavigate }: MarioHUDProps) {
 
       // Success animation
       setShowSuccess(true);
-      setTimeout(() => setShowSuccess(false), 600);
+      const successTimeoutId = setTimeout(() => setShowSuccess(false), 600);
+      timeoutRefs.current.push(successTimeoutId);
 
       // Trigger mining animation based on amount
       if (amount >= 100) {
         // Big mining for +100 points
         setCapyState('big-mining');
-        setTimeout(() => setCapyState('idle'), 500);
+        const capyTimeoutId = setTimeout(() => setCapyState('idle'), 500);
+        timeoutRefs.current.push(capyTimeoutId);
       } else {
         // Regular mining for +1 point
         setCapyState('mining');
-        setTimeout(() => setCapyState('idle'), 250);
+        const capyTimeoutId = setTimeout(() => setCapyState('idle'), 250);
+        timeoutRefs.current.push(capyTimeoutId);
       }
     },
     [triggerBalancePop, spawnFloat]
