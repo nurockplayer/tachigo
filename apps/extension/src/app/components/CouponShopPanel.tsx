@@ -5,6 +5,7 @@ import { demoCouponMetas, type DemoCouponMeta } from '../../extension/couponCata
 import type { CouponRedeemResult } from '../../extension/types'
 import { hudPanelBackground } from '../theme/backgrounds'
 import { renderCouponRedeemStatus } from './couponRedeemStatus'
+import { redeemCouponForPanel } from './redeemCouponForPanel'
 
 const couponMetas: DemoCouponMeta[] = demoCouponMetas
 
@@ -49,20 +50,17 @@ export function CouponShopPanel({
 
     setIsRedeeming(true)
     try {
-      const result = await onRedeem(selectedCoupon.id, selectedCoupon.price)
-      if (result === 'already_redeemed') {
-        setError(t('coupon.alreadyRedeemed'))
-        return
-      }
-      if (result === 'insufficient') {
-        setError(t('coupon.insufficientBalance'))
-        return
-      }
-      if (result === 'error') {
-        setError(t('common.error'))
-        return
-      }
-      setError('')
+      await redeemCouponForPanel({
+        couponId: selectedCoupon.id,
+        cost: selectedCoupon.price,
+        messages: {
+          alreadyRedeemed: t('coupon.alreadyRedeemed'),
+          insufficientBalance: t('coupon.insufficientBalance'),
+          genericError: t('common.error'),
+        },
+        onRedeem,
+        setError,
+      })
     } finally {
       setIsRedeeming(false)
     }
