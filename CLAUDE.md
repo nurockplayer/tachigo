@@ -71,10 +71,10 @@
    **開 PR 時必須以 `.github/PULL_REQUEST_TEMPLATE.md` 為起點**，不得自由格式撰寫：
 
    ```bash
-   gh pr create --title "[type] ..." --body "$(cat .github/PULL_REQUEST_TEMPLATE.md)"
+   gh pr create --title "[type] ..." --base develop --body "$(cat .github/PULL_REQUEST_TEMPLATE.md)"
    ```
 
-   填入 template 所有必填欄位（`Source of truth`、`Depends on PR`、`Backend contract already in develop` checkbox、`本 PR 明確不做`）後再送出。
+   **先將 template 所有欄位填妥（不得留空或刪除 section）**，再將填妥內容作為 `--body` 傳入後送出。
 
 4. 正式 release 流程走 Git Flow：
 
