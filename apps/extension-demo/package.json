@@ -1,5 +1,5 @@
 {
-  "name": "tachigo-demo-sidepanel",
+  "name": "extension-demo",
   "private": true,
   "packageManager": "pnpm@10.33.0",
   "version": "0.0.1",

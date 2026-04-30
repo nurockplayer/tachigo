@@ -24,12 +24,12 @@ This document is intended to answer:
 The repo currently contains multiple client surfaces that touch auth:
 
 - dashboard web app
-- `tachimint`
+- `apps/extension`
   - Twitch Extension panel
   - runs inside a Twitch-controlled iframe
-- `extensions/tachigo-demo-sidepanel`
+- `apps/extension-demo`
   - Chrome sidepanel demo client
-  - separate from `tachimint`
+  - separate from `apps/extension`
 
 These surfaces should not be treated as one single runtime. Their current auth behavior and constraints are different.
 
@@ -72,7 +72,7 @@ Body fallback (sending `refresh_token` in request body) remains active in the ba
 
 Extension auth is not uniform across extension-shaped clients in this repo.
 
-### `tachimint`
+### `apps/extension`
 
 `tachimint` is a Twitch Extension panel and should be treated as implemented current-state behavior.
 
@@ -84,9 +84,9 @@ Current documented and observed flow:
 - backend returns a tachigo token for follow-up requests
 - existing watch flows already assume tachigo JWT usage after successful extension login
 
-### `tachigo-demo-sidepanel`
+### `apps/extension-demo`
 
-`extensions/tachigo-demo-sidepanel` should be treated as a demo or exploratory client, not as a production auth reference.
+`apps/extension-demo` should be treated as a demo or exploratory client, not as a production auth reference.
 
 Observed behavior:
 
@@ -100,7 +100,7 @@ Based on the current repo state, these cross-client distinctions are observable 
 
 - dashboard and extension do not currently present the same auth contract
 - dashboard auth behavior does not currently describe extension auth behavior
-- `tachimint` and `tachigo-demo-sidepanel` do not currently behave as the same runtime
+- `apps/extension` and `apps/extension-demo` do not currently behave as the same runtime
 - backend auth endpoints and JWT-based flows already exist and may already be depended on by current clients
 
 This section records current-state observations only. It does not adopt new cross-client rules by itself.

@@ -67,7 +67,7 @@ apps/extension/src/assets/**/*.woff2 filter=lfs diff=lfs merge=lfs -text
 
 先不要一口氣套到所有 product surface，原因是：
 
-- `apps/dashboard/`、`extensions/` 可能有不同資產策略
+- `apps/dashboard/`、`apps/extension-demo/` 可能有不同資產策略
 - 小型 SVG 或 source-like assets 不一定需要 LFS
 - 避免單一 infra PR 造成不必要的大範圍 renormalize
 

@@ -100,7 +100,7 @@
 - sidepanel runtime 骨架
 - 新 app shell / UI 導入
 - Twitch auth / heartbeat / claim 邏輯接線
-- 舊殼與 `extensions/` cleanup
+- 舊殼與 demo workspace cleanup
 
 ### 第三類：程式碼命名清理
 
