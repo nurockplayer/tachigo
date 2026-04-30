@@ -29,7 +29,7 @@
 
 ## 快捷指令
 
-完整清單見 [CLAUDE.md](../CLAUDE.md)（AI 分工 → 建議優先使用的快捷指令）。
+完整清單見 [CLAUDE.md](../../CLAUDE.md)（AI 分工 → 建議優先使用的快捷指令）。
 
 | 指令 | 一句話 |
 | --- | --- |
@@ -70,5 +70,5 @@
 
 ## 文件
 
-- 完整版教學：`docs/claude-codex-workflow.md`
+- 完整版教學：`docs/ai/claude-codex-workflow.md`
 - 協作入口：`CLAUDE.md`

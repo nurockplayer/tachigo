@@ -206,10 +206,10 @@ make pr-open TITLE="[chore] Example title" BODY_FILE=/tmp/pr-body.md
 
 底層腳本：
 
-- `scripts/pr-metadata-check.sh`
-- `scripts/pr-open.sh`
+- `infra/scripts/pr-metadata-check.sh`
+- `infra/scripts/pr-open.sh`
 
-這組本地 preflight 只檢查 PR metadata 與目前 branch diff 的基本 surface 規則；push 前的大型 diff 檢查仍由 `.githooks/pre-push` 負責，GitHub 上的最終 gate 仍是 `.github/workflows/pr-scope-police.yml`。
+這組本地 preflight 只檢查 PR metadata 與目前 branch diff 的基本 surface 規則；push 前的大型 diff 檢查仍由 `infra/githooks/pre-push` 負責，GitHub 上的最終 gate 仍是 `.github/workflows/pr-scope-police.yml`。
 
 ## GitHub 設定
 

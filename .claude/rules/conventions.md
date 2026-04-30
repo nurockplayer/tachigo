@@ -14,7 +14,7 @@
 
 每個 commit 必須用 `refs #<issue號碼>` 標記，方便日後追溯規格與討論。
 
-此規則由本機 `.githooks/commit-msg` 與 CI PR commit 驗證共同檢查。
+此規則由本機 `infra/githooks/commit-msg` 與 CI PR commit 驗證共同檢查。
 
 ```
 <type>: <short description>

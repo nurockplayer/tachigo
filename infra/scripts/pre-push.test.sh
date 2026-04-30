@@ -2,7 +2,7 @@
 
 set -euo pipefail
 
-root_dir="$(cd "$(dirname "$0")/.." && pwd)"
+root_dir="$(cd "$(dirname "$0")/../.." && pwd)"
 tmpdir="$(mktemp -d)"
 trap 'rm -rf "$tmpdir"' EXIT
 
@@ -53,7 +53,7 @@ stdin_line="refs/heads/feature/lfs-scan $(git rev-parse HEAD) refs/heads/feature
 
 set +e
 printf '%s\n' "$stdin_line" | PATH="$fakebin:$PATH" LFS_LOG_FILE="$lfs_log" \
-  bash "$root_dir/.githooks/pre-push" fork https://example.com/fork.git >/dev/null 2>"$tmpdir/pre-push.stderr"
+  bash "$root_dir/infra/githooks/pre-push" fork https://example.com/fork.git >/dev/null 2>"$tmpdir/pre-push.stderr"
 exit_code=$?
 set -e
 

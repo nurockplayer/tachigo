@@ -135,7 +135,8 @@ tachigo/
 ├── apps/
 │   ├── extension/    # Twitch Extension 前端 (React + TypeScript)
 │   └── dashboard/    # 後台管理介面 (React + TypeScript) ← 建置中
-└── docs/             # 設計文件
+├── docs/             # 設計文件與 AI 協作文檔
+└── infra/            # repo automation scripts 與 git hooks
 ```
 
 ## 開發指令
@@ -173,6 +174,8 @@ cd services/api && $(go env GOPATH)/bin/swag init -g cmd/server/main.go -o docs
 |---|---|---|
 | `README.md` | 所有人 | 開發環境建置（快速上手） |
 | `docs/` | 工程師 | 架構設計、API 規格、技術決策 |
+| `docs/ai/` | AI 協作者 / 工程師 | AI 協作指南與較長篇的 agent-facing 文件 |
+| `infra/` | 工程師 / CI | repo-level automation scripts、git hooks、workflow 輔助檢查 |
 | `plans/` | 工程師 | 實作計畫（每個功能開始前先寫） |
 | `.claude/rules/` | 工程師 | agent 委託規則、工作流程決策（版控、共享） |
 | GitHub Wiki | 全體人員 | 產品說明、功能介紹、非技術文件 |

@@ -25,4 +25,4 @@ https://github.com/nurockplayer/tachigo/pull/277#discussion_r3104971218
 
 ## PR 審查流程
 
-見 [CLAUDE.md](../../../CLAUDE.md) 的「Review 流程」段落。
+見 [CLAUDE.md](../../CLAUDE.md) 的「Review 流程」段落。

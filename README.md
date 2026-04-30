@@ -37,7 +37,7 @@ Fill in the secrets in `services/api/.env` before using OAuth or Twitch Extensio
 On Windows PowerShell, you can generate the local env files with:
 
 ```powershell
-./scripts/setup-env.ps1
+./infra/scripts/setup-env.ps1
 ```
 
 ## Development
@@ -84,7 +84,7 @@ cp apps/dashboard/.env.example apps/dashboard/.env
 Windows PowerShell:
 
 ```powershell
-./scripts/setup-env.ps1
+./infra/scripts/setup-env.ps1
 ```
 
 Key backend variables:
@@ -110,8 +110,10 @@ For the current frontend migration decision, see [docs/tachimint-chrome-sidepane
 
 - [docs/auth-architecture.md](docs/auth-architecture.md) — current auth state 與 migration guardrails baseline
 - [docs/architecture.md](docs/architecture.md) — system architecture
-- [docs/claude-codex-cheatsheet.md](docs/claude-codex-cheatsheet.md) — quick reference for Claude Code + Codex collaboration
-- [docs/claude-codex-workflow.md](docs/claude-codex-workflow.md) — full workflow guide for low-token Claude Code usage
+- [docs/ai/README.md](docs/ai/README.md) — AI 協作文檔首頁與 root entrypoint 例外
+- [docs/ai/claude-codex-cheatsheet.md](docs/ai/claude-codex-cheatsheet.md) — quick reference for Claude Code + Codex collaboration
+- [docs/ai/claude-codex-workflow.md](docs/ai/claude-codex-workflow.md) — full workflow guide for low-token Claude Code usage
+- [infra/README.md](infra/README.md) — repo automation scripts and git hooks
 - [docs/pr-scope-policy.md](docs/pr-scope-policy.md) — PR 邊界規則、required checks、scope police 設定
 - [CLAUDE.md](CLAUDE.md) — repo-specific collaboration rules and command entry points
 
