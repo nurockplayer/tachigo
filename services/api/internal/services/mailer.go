@@ -45,9 +45,25 @@ func (m *SMTPMailer) Send(ctx context.Context, to, subject, htmlBody string) err
 	msg.SetBody("text/html", htmlBody)
 
 	d := gomail.NewDialer(m.host, m.port, m.username, m.password)
-	sc, err := d.Dial()
-	if err != nil {
-		return err
+
+	// Dial in a goroutine so ctx cancellation unblocks the caller even if
+	// gomail's internal 10-second net.DialTimeout has not yet expired.
+	type dialResult struct {
+		sc  gomail.SendCloser
+		err error
+	}
+	dialCh := make(chan dialResult, 1)
+	go func() { sc, err := d.Dial(); dialCh <- dialResult{sc, err} }()
+
+	var sc gomail.SendCloser
+	select {
+	case <-ctx.Done():
+		return ctx.Err()
+	case r := <-dialCh:
+		if r.err != nil {
+			return r.err
+		}
+		sc = r.sc
 	}
 	defer sc.Close()
 

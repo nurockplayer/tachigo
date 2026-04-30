@@ -5,6 +5,7 @@ import (
 	"crypto/rand"
 	"encoding/hex"
 	"errors"
+	"log"
 	"net/http"
 	"net/url"
 	"strings"
@@ -77,7 +78,9 @@ func (h *AuthHandler) Register(c *gin.Context) {
 		go func() {
 			ctx, cancel := context.WithTimeout(context.Background(), 30*time.Second)
 			defer cancel()
-			h.emailAuth.SendVerificationEmail(ctx, user.ID)
+			if err := h.emailAuth.SendVerificationEmail(ctx, user.ID); err != nil {
+				log.Printf("auth register: send verification email failed user_id=%s err=%v", user.ID, err)
+			}
 		}()
 	}
 
