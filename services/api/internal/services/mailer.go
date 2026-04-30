@@ -2,8 +2,11 @@ package services
 
 import (
 	"context"
+	"crypto/tls"
 	"fmt"
 	"log"
+	"net"
+	"net/smtp"
 
 	"gopkg.in/gomail.v2"
 )
@@ -44,46 +47,62 @@ func (m *SMTPMailer) Send(ctx context.Context, to, subject, htmlBody string) err
 	msg.SetHeader("Subject", subject)
 	msg.SetBody("text/html", htmlBody)
 
-	d := gomail.NewDialer(m.host, m.port, m.username, m.password)
+	tlsCfg := &tls.Config{ServerName: m.host}
+	addr := fmt.Sprintf("%s:%d", m.host, m.port)
 
-	// Dial in a goroutine so ctx cancellation unblocks the caller even if
-	// gomail's internal 10-second net.DialTimeout has not yet expired.
-	type dialResult struct {
-		sc  gomail.SendCloser
-		err error
-	}
-	dialCh := make(chan dialResult, 1)
-	go func() { sc, err := d.Dial(); dialCh <- dialResult{sc, err} }()
-
-	var sc gomail.SendCloser
-	select {
-	case <-ctx.Done():
-		// Drain the channel in the background so the goroutine can exit and
-		// any successfully-opened connection is properly closed.
-		go func() {
-			if r := <-dialCh; r.sc != nil {
-				r.sc.Close()
-			}
-		}()
-		return ctx.Err()
-	case r := <-dialCh:
-		if r.err != nil {
-			return r.err
-		}
-		sc = r.sc
-	}
-	defer sc.Close()
-
-	errCh := make(chan error, 1)
-	go func() { errCh <- gomail.Send(sc, msg) }()
-
-	select {
-	case <-ctx.Done():
-		sc.Close() // closes the SMTP connection, causing the goroutine to fail fast
-		return ctx.Err()
-	case err := <-errCh:
+	// DialContext lets the TCP dial itself be cancelled or time-out via ctx.
+	var nd net.Dialer
+	conn, err := nd.DialContext(ctx, "tcp", addr)
+	if err != nil {
 		return err
 	}
+	// Propagate ctx deadline to all subsequent SMTP I/O (STARTTLS, AUTH, DATA).
+	if dl, ok := ctx.Deadline(); ok {
+		conn.SetDeadline(dl)
+	}
+
+	var client *smtp.Client
+	if m.port == 465 {
+		// Port 465: implicit TLS (SMTPS) — wrap conn before SMTP handshake.
+		client, err = smtp.NewClient(tls.Client(conn, tlsCfg), m.host)
+	} else {
+		// Other ports (587, 25): plain connection upgraded via STARTTLS.
+		client, err = smtp.NewClient(conn, m.host)
+		if err == nil {
+			if startErr := client.StartTLS(tlsCfg); startErr != nil {
+				client.Close()
+				err = startErr
+			}
+		}
+	}
+	if err != nil {
+		conn.Close()
+		return err
+	}
+	defer client.Close()
+
+	if m.username != "" {
+		if err := client.Auth(smtp.PlainAuth("", m.username, m.password, m.host)); err != nil {
+			return err
+		}
+	}
+	if err := client.Mail(m.from); err != nil {
+		return err
+	}
+	if err := client.Rcpt(to); err != nil {
+		return err
+	}
+	w, err := client.Data()
+	if err != nil {
+		return err
+	}
+	if _, err := msg.WriteTo(w); err != nil {
+		return err
+	}
+	if err := w.Close(); err != nil {
+		return err
+	}
+	return client.Quit()
 }
 
 // NoOpMailer is used when SMTP is not configured.
