@@ -2,6 +2,12 @@
 
 @.claude/rules/conventions.md
 
+## 動手前
+
+- 需求有歧義時，列出多種詮釋再問，不要默默選一個
+- 不確定的地方直接說出來，不要猜測後實作
+- 若有更簡單的解法，主動說出來並等確認
+
 ## GitHub Issue 慣例
 
 ### 標題前綴
@@ -121,6 +127,23 @@
 | 摘要大量檔案、生成樣板、審查 log、搜尋 pattern、草擬測試 | Gemini |
 | 架構規劃、issue 撰寫、技術決策、最終 PR 審查 | Claude Code |
 | 實作、debug、patch、跑測試、推 branch、開 PR | Codex |
+
+### Claude Code 接到任務時
+
+把模糊目標轉成可驗證目標再開始：
+
+| 模糊 | 可驗證 |
+|---|---|
+| 「加驗證」 | 先寫 invalid input 測試，再讓測試通過 |
+| 「修這個 bug」 | 先重現 bug 的測試，再讓測試通過 |
+| 「實作 X」 | 先列出 checklist，每步附驗證條件 |
+
+多步驟任務先說計畫再動手：
+
+```text
+1. [步驟] → 驗證：[如何確認]
+2. [步驟] → 驗證：[如何確認]
+```
 
 @.claude/rules/pr-review-workflow.md
 
