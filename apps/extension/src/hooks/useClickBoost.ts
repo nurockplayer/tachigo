@@ -17,6 +17,7 @@ export function useClickBoost(
   const onCooldownRef = useRef(false)
   const cooldownTimerRef = useRef<number | null>(null)
   const animTimerRef = useRef<number | null>(null)
+  const mountedRef = useRef(true)
 
   const stopCooldown = useCallback(() => {
     if (cooldownTimerRef.current !== null) {
@@ -53,6 +54,7 @@ export function useClickBoost(
 
     try {
       const result = await sendClick(channelId)
+      if (!mountedRef.current) return
       onBalanceUpdate(result.balance)
       setGain(result.delta)
       setIsAnimating(true)
@@ -62,6 +64,7 @@ export function useClickBoost(
         setGain(null)
       }, ANIM_DURATION_MS)
     } catch (err: unknown) {
+      if (!mountedRef.current) return
       // If the server returns a precise retry-after, honour it.
       const retryAfterMs = (
         err as { response?: { data?: { retry_after_ms?: number } } }
@@ -79,6 +82,7 @@ export function useClickBoost(
   // Cleanup on unmount.
   useEffect(() => {
     return () => {
+      mountedRef.current = false
       if (cooldownTimerRef.current !== null) clearInterval(cooldownTimerRef.current)
       if (animTimerRef.current !== null) clearTimeout(animTimerRef.current)
     }
