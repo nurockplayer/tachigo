@@ -225,6 +225,16 @@ test('docs/template-only PRs skip heavy product CI in scope gate', async () => {
     workflow,
     /Skipping heavy product CI because this PR only changes docs\/templates\/metadata\./,
   )
+  assert.doesNotMatch(
+    workflow,
+    /name\.startsWith\('\.github\/workflows\/'\)/,
+    'workflow changes must not be classified as metadata-only because they need CI validation',
+  )
+  assert.match(
+    workflow,
+    /\^\\.github\\\/workflows\\\/ci\\.yml\$/,
+    'ci.yml changes must request backend integration validation',
+  )
 })
 
 test('global auto-merge workflow excludes Dependabot PRs', async () => {
