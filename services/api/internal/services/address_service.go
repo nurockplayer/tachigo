@@ -38,12 +38,6 @@ func (s *AddressService) List(userID uuid.UUID) ([]models.ShippingAddress, error
 }
 
 func (s *AddressService) Create(userID uuid.UUID, input AddressInput) (*models.ShippingAddress, error) {
-	if input.IsDefault {
-		s.db.Model(&models.ShippingAddress{}).
-			Where("user_id = ?", userID).
-			Update("is_default", false)
-	}
-
 	country := input.Country
 	if country == "" {
 		country = "TW"
@@ -62,7 +56,17 @@ func (s *AddressService) Create(userID uuid.UUID, input AddressInput) (*models.S
 		IsDefault:     input.IsDefault,
 	}
 
-	if err := s.db.Create(addr).Error; err != nil {
+	if err := s.db.Transaction(func(tx *gorm.DB) error {
+		if input.IsDefault {
+			if err := tx.Model(&models.ShippingAddress{}).
+				Where("user_id = ?", userID).
+				Update("is_default", false).Error; err != nil {
+				return err
+			}
+		}
+
+		return tx.Create(addr).Error
+	}); err != nil {
 		return nil, err
 	}
 	return addr, nil
@@ -73,12 +77,7 @@ func (s *AddressService) Update(userID, addrID uuid.UUID, input AddressInput) (*
 	if err := s.db.Where("id = ? AND user_id = ?", addrID, userID).First(&addr).Error; err != nil {
 		return nil, ErrAddressNotFound
 	}
-
-	if input.IsDefault && !addr.IsDefault {
-		s.db.Model(&models.ShippingAddress{}).
-			Where("user_id = ? AND id != ?", userID, addrID).
-			Update("is_default", false)
-	}
+	wasDefault := addr.IsDefault
 
 	addr.RecipientName = input.RecipientName
 	addr.Phone = input.Phone
@@ -92,7 +91,17 @@ func (s *AddressService) Update(userID, addrID uuid.UUID, input AddressInput) (*
 	}
 	addr.IsDefault = input.IsDefault
 
-	if err := s.db.Save(&addr).Error; err != nil {
+	if err := s.db.Transaction(func(tx *gorm.DB) error {
+		if input.IsDefault && !wasDefault {
+			if err := tx.Model(&models.ShippingAddress{}).
+				Where("user_id = ? AND id != ?", userID, addrID).
+				Update("is_default", false).Error; err != nil {
+				return err
+			}
+		}
+
+		return tx.Save(&addr).Error
+	}); err != nil {
 		return nil, err
 	}
 	return &addr, nil
@@ -100,10 +109,13 @@ func (s *AddressService) Update(userID, addrID uuid.UUID, input AddressInput) (*
 
 func (s *AddressService) Delete(userID, addrID uuid.UUID) error {
 	result := s.db.Where("id = ? AND user_id = ?", addrID, userID).Delete(&models.ShippingAddress{})
+	if result.Error != nil {
+		return result.Error
+	}
 	if result.RowsAffected == 0 {
 		return ErrAddressNotFound
 	}
-	return result.Error
+	return nil
 }
 
 func (s *AddressService) SetDefault(userID, addrID uuid.UUID) (*models.ShippingAddress, error) {
@@ -112,11 +124,17 @@ func (s *AddressService) SetDefault(userID, addrID uuid.UUID) (*models.ShippingA
 		return nil, ErrAddressNotFound
 	}
 
-	s.db.Model(&models.ShippingAddress{}).
-		Where("user_id = ? AND id != ?", userID, addrID).
-		Update("is_default", false)
+	if err := s.db.Transaction(func(tx *gorm.DB) error {
+		if err := tx.Model(&models.ShippingAddress{}).
+			Where("user_id = ? AND id != ?", userID, addrID).
+			Update("is_default", false).Error; err != nil {
+			return err
+		}
 
-	addr.IsDefault = true
-	s.db.Save(&addr)
+		addr.IsDefault = true
+		return tx.Save(&addr).Error
+	}); err != nil {
+		return nil, err
+	}
 	return &addr, nil
 }
