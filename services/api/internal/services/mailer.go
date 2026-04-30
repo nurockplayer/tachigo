@@ -58,6 +58,13 @@ func (m *SMTPMailer) Send(ctx context.Context, to, subject, htmlBody string) err
 	var sc gomail.SendCloser
 	select {
 	case <-ctx.Done():
+		// Drain the channel in the background so the goroutine can exit and
+		// any successfully-opened connection is properly closed.
+		go func() {
+			if r := <-dialCh; r.sc != nil {
+				r.sc.Close()
+			}
+		}()
 		return ctx.Err()
 	case r := <-dialCh:
 		if r.err != nil {
