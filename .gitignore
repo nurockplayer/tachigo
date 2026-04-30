@@ -4,6 +4,11 @@ backend/.env.*
 !backend/.env.example
 backend/tmp/
 backend/bin/
+services/api/*.env
+services/api/.env.*
+!services/api/.env.example
+services/api/tmp/
+services/api/bin/
 
 # Claude Code
 .claude/settings.local.json

@@ -3,5 +3,5 @@ tachimint/node_modules/
 tachimint/dist/
 
 # Backend build artifacts
-backend/tmp/
-backend/docs/
+services/api/tmp/
+services/api/docs/
