@@ -253,6 +253,12 @@ func TestLinkWallet_AddressAlreadyLinkedToOtherUser(t *testing.T) {
 	if err != ErrProviderLinked {
 		t.Errorf("want ErrProviderLinked, got %v", err)
 	}
+
+	var nonceCount int64
+	db.Model(&models.Web3Nonce{}).Where("nonce = ?", nonceB).Count(&nonceCount)
+	if nonceCount != 1 {
+		t.Errorf("nonce should remain after failed wallet link, got %d rows", nonceCount)
+	}
 }
 
 func TestLinkWallet_ReplacesUsersExistingPrimaryWallet(t *testing.T) {
