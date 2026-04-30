@@ -29,6 +29,8 @@ export function useTwitch() {
     if (!ext) return
 
     ext.onContext((ctx: TwitchExtContext) => {
+      if (!mounted) return
+
       const rawLocale = ctx.locale ?? ctx.language ?? 'en'
       const appLang = mapTwitchLocaleToAppLanguage(rawLocale)
       if (i18n.language !== appLang && i18n.resolvedLanguage !== appLang) {
@@ -49,30 +51,32 @@ export function useTwitch() {
     })
 
     ext.onAuthorized(async (auth: TwitchExtAuth) => {
-      if (mounted) setJwt(auth.token)
+      if (!mounted) return
+
+      setJwt(auth.token)
       setExtensionJwtForRecovery(auth.token)
-      if (mounted) setBackendReady(false)
+      setBackendReady(false)
 
       // Login to tachigo backend with the extension JWT
       try {
         const result = await loginWithTwitchExtension(auth.token)
+        if (!mounted) return
+
         // result.data.tokens.access_token
         // eslint-disable-next-line @typescript-eslint/no-explicit-any
         const tokens = (result as any)?.data?.tokens ?? (result as any)?.tokens
         if (tokens?.access_token) {
           setAuthToken(tokens.access_token)
-          if (mounted) {
-            setBackendReady(true)
-            setAuthError(null)
-          }
+          setBackendReady(true)
+          setAuthError(null)
         }
       } catch {
+        if (!mounted) return
+
         // Non-fatal: t-point flow still works via extension JWT directly
         clearAuthToken()
-        if (mounted) {
-          setBackendReady(false)
-          setAuthError('Backend unavailable')
-        }
+        setBackendReady(false)
+        setAuthError('Backend unavailable')
       }
 
       // Fetch T-point products
