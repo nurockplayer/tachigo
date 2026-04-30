@@ -16,6 +16,52 @@ interface CouponShopPanelProps {
   onRedeem: (couponId: string, cost: number) => Promise<CouponRedeemResult | 'error'>
 }
 
+interface RedeemPanelMessages {
+  alreadyRedeemed: string
+  insufficientBalance: string
+  genericError: string
+}
+
+export async function redeemCouponForPanel({
+  couponId,
+  cost,
+  isAlreadyRedeemed,
+  messages,
+  onRedeem,
+  setError,
+}: {
+  couponId: string
+  cost: number
+  isAlreadyRedeemed: boolean
+  messages: RedeemPanelMessages
+  onRedeem: (couponId: string, cost: number) => Promise<CouponRedeemResult | 'error'>
+  setError: (message: string) => void
+}): Promise<void> {
+  if (isAlreadyRedeemed) {
+    setError(messages.alreadyRedeemed)
+    return
+  }
+
+  try {
+    const result = await onRedeem(couponId, cost)
+    if (result === 'already_redeemed') {
+      setError(messages.alreadyRedeemed)
+      return
+    }
+    if (result === 'insufficient') {
+      setError(messages.insufficientBalance)
+      return
+    }
+    if (result === 'error') {
+      setError(messages.genericError)
+      return
+    }
+    setError('')
+  } catch (err) {
+    setError(err instanceof Error && err.message ? err.message : messages.genericError)
+  }
+}
+
 export function CouponShopPanel({
   onBack,
   tcgBalance,
@@ -49,20 +95,20 @@ export function CouponShopPanel({
 
     setIsRedeeming(true)
     try {
-      const result = await onRedeem(selectedCoupon.id, selectedCoupon.price)
-      if (result === 'already_redeemed') {
-        setError(t('coupon.alreadyRedeemed'))
-        return
-      }
-      if (result === 'insufficient') {
-        setError(t('coupon.insufficientBalance'))
-        return
-      }
-      if (result === 'error') {
-        setError(t('common.error'))
-        return
-      }
-      setError('')
+      await redeemCouponForPanel({
+        couponId: selectedCoupon.id,
+        cost: selectedCoupon.price,
+        isAlreadyRedeemed: false,
+        messages: {
+          alreadyRedeemed: t('coupon.alreadyRedeemed'),
+          insufficientBalance: t('coupon.insufficientBalance'),
+          genericError: t('common.error'),
+        },
+        onRedeem,
+        setError,
+      })
+    } catch (err) {
+      setError(err instanceof Error && err.message ? err.message : t('common.error'))
     } finally {
       setIsRedeeming(false)
     }
