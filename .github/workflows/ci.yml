@@ -110,8 +110,8 @@ jobs:
             const dependsOnRaw = dependsOnMatch?.[1]?.trim()
             const dependsOnNone = dependsOnRaw?.toLowerCase() === 'none'
             const dependsOnPrMatch = dependsOnRaw?.match(/^#(\d+)$/)
-            const backendContractYes = /Backend contract already in develop:[\s\S]*?- \[[xX]\] yes/i.test(body)
-            const backendContractNo = /Backend contract already in develop:[\s\S]*?- \[[xX]\] no/i.test(body)
+            const backendContractYes = /Backend contract already in develop\s*[：:][\s\S]*?- \[[xX]\] yes/i.test(body)
+            const backendContractNo = /Backend contract already in develop\s*[：:][\s\S]*?- \[[xX]\] no/i.test(body)
             const dependencyBlocked =
               titlePrefix === '[frontend]' &&
               Boolean(dependsOnPrMatch) &&
