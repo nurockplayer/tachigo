@@ -107,8 +107,6 @@ export function CouponShopPanel({
         onRedeem,
         setError,
       })
-    } catch (err) {
-      setError(err instanceof Error && err.message ? err.message : t('common.error'))
     } finally {
       setIsRedeeming(false)
     }
