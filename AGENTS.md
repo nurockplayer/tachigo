@@ -73,6 +73,13 @@ Type：`feat` / `fix` / `docs` / `chore` / `refactor` / `test`
 - **不要**直接推 `main`；日常 feature PR 目標分支是 `develop`
 - GitHub 相關的 `gh` 指令與必要的 `git` 指令可由你執行
 - 執行 `git` 時仍須遵守 branch / commit / scope 規範，不得繞過 PR 流程
+- **開 PR 時必須以 `.github/PULL_REQUEST_TEMPLATE.md` 為起點**，不得自由格式撰寫：
+
+  ```bash
+  gh pr create --title "[type] ..." --body "$(cat .github/PULL_REQUEST_TEMPLATE.md)"
+  ```
+
+  填入 template 所有必填欄位（`Source of truth`、`Depends on PR`、`Backend contract already in develop` checkbox、`本 PR 明確不做`）後再送出。
 
 ### 操作權限邊界
 
