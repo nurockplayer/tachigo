@@ -24,6 +24,7 @@ export function useTwitch() {
   const [backendReady, setBackendReady] = useState(false)
 
   useEffect(() => {
+    let mounted = true
     const ext = window.Twitch?.ext
     if (!ext) return
 
@@ -36,19 +37,21 @@ export function useTwitch() {
         })
       }
 
-      setContext({
-        channelId: ctx.channelId,
-        clientId: ctx.clientId,
-        userId: ctx.userId,
-        opaqueUserId: ctx.opaqueUserId,
-        role: ctx.role,
-      })
+      if (mounted) {
+        setContext({
+          channelId: ctx.channelId,
+          clientId: ctx.clientId,
+          userId: ctx.userId,
+          opaqueUserId: ctx.opaqueUserId,
+          role: ctx.role,
+        })
+      }
     })
 
     ext.onAuthorized(async (auth: TwitchExtAuth) => {
-      setJwt(auth.token)
+      if (mounted) setJwt(auth.token)
       setExtensionJwtForRecovery(auth.token)
-      setBackendReady(false)
+      if (mounted) setBackendReady(false)
 
       // Login to tachigo backend with the extension JWT
       try {
@@ -58,28 +61,37 @@ export function useTwitch() {
         const tokens = (result as any)?.data?.tokens ?? (result as any)?.tokens
         if (tokens?.access_token) {
           setAuthToken(tokens.access_token)
-          setBackendReady(true)
-          setAuthError(null)
+          if (mounted) {
+            setBackendReady(true)
+            setAuthError(null)
+          }
         }
       } catch {
         // Non-fatal: t-point flow still works via extension JWT directly
         clearAuthToken()
-        setBackendReady(false)
-        setAuthError('Backend unavailable')
+        if (mounted) {
+          setBackendReady(false)
+          setAuthError('Backend unavailable')
+        }
       }
 
       // Fetch T-point products
       if (ext.bits?.getProducts) {
         ext.bits.getProducts()
           .then((p) => {
-            setProducts(p as TwitchTPointProduct[])
-            setTPointEnabled(true)
+            if (mounted) {
+              setProducts(p as TwitchTPointProduct[])
+              setTPointEnabled(true)
+            }
           })
-          .catch(() => setTPointEnabled(false))
+          .catch(() => {
+            if (mounted) setTPointEnabled(false)
+          })
       }
     })
 
     return () => {
+      mounted = false
       setExtensionJwtForRecovery(null)
       clearAuthToken()
     }
@@ -91,7 +103,10 @@ export function useTwitch() {
     }
 
     let cancelled = false
+    let inFlight = false
     const retryTimer = window.setInterval(() => {
+      if (inFlight) return
+      inFlight = true
       void (async () => {
         try {
           const result = await loginWithTwitchExtension(jwt)
@@ -106,6 +121,8 @@ export function useTwitch() {
           if (!cancelled) {
             setBackendReady(false)
           }
+        } finally {
+          inFlight = false
         }
       })()
     }, 15_000)
