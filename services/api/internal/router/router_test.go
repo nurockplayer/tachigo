@@ -253,6 +253,7 @@ func migrateTestDB(db *gorm.DB) error {
 			balance_after INTEGER NOT NULL,
 			sku TEXT,
 			note TEXT,
+			external_transaction_id TEXT UNIQUE,
 			created_at DATETIME NOT NULL DEFAULT CURRENT_TIMESTAMP
 		)`,
 		`CREATE UNIQUE INDEX IF NOT EXISTS idx_points_transactions_id_ledger_id

@@ -53,15 +53,16 @@ func (p *PointsLedger) BeforeCreate(tx *gorm.DB) error {
 // No FK constraint on watch_session_id — sessions may be archived or purged
 // independently without orphaning the transaction history.
 type PointsTransaction struct {
-	ID             uuid.UUID  `gorm:"type:uuid;primaryKey;default:gen_random_uuid()" json:"id"`
-	LedgerID       uuid.UUID  `gorm:"type:uuid;not null;index"                       json:"ledger_id"`
-	WatchSessionID *uuid.UUID `gorm:"type:uuid;index"                                json:"watch_session_id"`
-	Source         TxSource   `gorm:"type:varchar(50);not null"                      json:"source"`
-	Delta          int64      `gorm:"not null"                                       json:"delta"`
-	BalanceAfter   int64      `gorm:"not null"                                       json:"balance_after"`
-	SKU            *string    `gorm:"type:varchar(255)"                              json:"sku,omitempty"`
-	Note           *string    `gorm:"type:text"                                      json:"note"`
-	CreatedAt      time.Time  `                                                      json:"created_at"`
+	ID                    uuid.UUID  `gorm:"type:uuid;primaryKey;default:gen_random_uuid()" json:"id"`
+	LedgerID              uuid.UUID  `gorm:"type:uuid;not null;index"                       json:"ledger_id"`
+	WatchSessionID        *uuid.UUID `gorm:"type:uuid;index"                                json:"watch_session_id"`
+	Source                TxSource   `gorm:"type:varchar(50);not null"                      json:"source"`
+	Delta                 int64      `gorm:"not null"                                       json:"delta"`
+	BalanceAfter          int64      `gorm:"not null"                                       json:"balance_after"`
+	SKU                   *string    `gorm:"type:varchar(255)"                              json:"sku,omitempty"`
+	Note                  *string    `gorm:"type:text"                                      json:"note"`
+	ExternalTransactionID *string    `gorm:"type:varchar(255);uniqueIndex"                  json:"external_transaction_id,omitempty"`
+	CreatedAt             time.Time  `                                                      json:"created_at"`
 
 	Ledger PointsLedger `gorm:"foreignKey:LedgerID" json:"-"`
 }
