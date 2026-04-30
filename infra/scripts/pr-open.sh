@@ -5,7 +5,7 @@ set -euo pipefail
 usage() {
   cat <<'EOF'
 Usage:
-  scripts/pr-open.sh --title "<pr title>" --body-file <path> [--base develop] [--head <branch>] [--draft]
+  infra/scripts/pr-open.sh --title "<pr title>" --body-file <path> [--base develop] [--head <branch>] [--draft]
 
 Runs local PR metadata checks, then opens a PR with gh.
 EOF
@@ -65,9 +65,9 @@ main() {
   gh auth status >/dev/null 2>&1 || { echo "gh 尚未認證；請先處理 gh auth，再重跑。" >&2; exit 2; }
 
   local root_dir
-  root_dir="$(cd "$(dirname "$0")/.." && pwd)"
+  root_dir="$(cd "$(dirname "$0")/../.." && pwd)"
 
-  "$root_dir/scripts/pr-metadata-check.sh" \
+  "$root_dir/infra/scripts/pr-metadata-check.sh" \
     --title "$title" \
     --body-file "$body_file" \
     --base "$base_branch" \

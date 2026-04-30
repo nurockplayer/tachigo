@@ -5,7 +5,7 @@ set -euo pipefail
 usage() {
   cat <<'EOF'
 Usage:
-  scripts/commit-message-check.sh <commit-message-file>
+  infra/scripts/commit-message-check.sh <commit-message-file>
 
 Validates a git commit message against the repo commit policy.
 EOF

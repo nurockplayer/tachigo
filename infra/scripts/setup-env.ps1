@@ -6,9 +6,11 @@ $pairs = @(
     @{ Example = "apps/dashboard/.env.example"; Target = "apps/dashboard/.env" }
 )
 
+$repoRoot = Join-Path $PSScriptRoot "../.."
+
 foreach ($pair in $pairs) {
-    $example = Join-Path $PSScriptRoot ".." $pair.Example
-    $target = Join-Path $PSScriptRoot ".." $pair.Target
+    $example = Join-Path $repoRoot $pair.Example
+    $target = Join-Path $repoRoot $pair.Target
 
     if (Test-Path $target) {
         Write-Host "exists $($pair.Target)"

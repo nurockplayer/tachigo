@@ -165,7 +165,7 @@ done <<< "$stdin_data"
 # Fetches the current PR title + body from GitHub and runs pr-metadata-check.sh
 # locally so metadata failures surface before CI, avoiding fixup commit cycles.
 _repo_root=$(git rev-parse --show-toplevel 2>/dev/null || true)
-_meta_script="$_repo_root/scripts/pr-metadata-check.sh"
+_meta_script="$_repo_root/infra/scripts/pr-metadata-check.sh"
 
 if [ -x "$_meta_script" ] && command -v gh >/dev/null 2>&1; then
   while IFS=' ' read -r local_ref local_sha _r _s; do
