@@ -68,6 +68,14 @@
 
 3. 在 GitHub 發 PR，日常 feature PR 目標分支：`develop`
 
+   **開 PR 時必須以 `.github/PULL_REQUEST_TEMPLATE.md` 為起點**，不得自由格式撰寫：
+
+   ```bash
+   cp .github/PULL_REQUEST_TEMPLATE.md /tmp/pr_body.md
+   # 填妥 /tmp/pr_body.md 所有欄位，不得留空或刪除 section
+   gh pr create --title "[type] ..." --base develop --body-file /tmp/pr_body.md
+   ```
+
 4. 正式 release 流程走 Git Flow：
 
    - `main` 不接受日常 feature PR
