@@ -353,16 +353,22 @@ export function MarioHUD({ state, onStateChange, onNavigate }: MarioHUDProps) {
 
   const triggerBalancePop = useCallback(() => {
     setBalanceBump(true);
-    const timeoutId = setTimeout(() => setBalanceBump(false), 420);
-    timeoutRefs.current.push(timeoutId);
+    const id = setTimeout(() => {
+      setBalanceBump(false);
+      timeoutRefs.current = timeoutRefs.current.filter(t => t !== id);
+    }, 420);
+    timeoutRefs.current.push(id);
   }, []);
 
   const spawnFloat = useCallback((amount: number) => {
-    const id = ++floatId.current;
+    const floatItemId = ++floatId.current;
     const offsetX = (Math.random() - 0.5) * 40;
-    setFloats(f => [...f, { id, amount, offsetX }]);
-    const timeoutId = setTimeout(() => setFloats(f => f.filter(x => x.id !== id)), 1600);
-    timeoutRefs.current.push(timeoutId);
+    setFloats(f => [...f, { id: floatItemId, amount, offsetX }]);
+    const id = setTimeout(() => {
+      setFloats(f => f.filter(x => x.id !== floatItemId));
+      timeoutRefs.current = timeoutRefs.current.filter(t => t !== id);
+    }, 1600);
+    timeoutRefs.current.push(id);
   }, []);
 
   const awardPoints = useCallback(
@@ -374,20 +380,27 @@ export function MarioHUD({ state, onStateChange, onNavigate }: MarioHUDProps) {
 
       // Success animation
       setShowSuccess(true);
-      const successTimeoutId = setTimeout(() => setShowSuccess(false), 600);
-      timeoutRefs.current.push(successTimeoutId);
+      const successId = setTimeout(() => {
+        setShowSuccess(false);
+        timeoutRefs.current = timeoutRefs.current.filter(t => t !== successId);
+      }, 600);
+      timeoutRefs.current.push(successId);
 
       // Trigger mining animation based on amount
       if (amount >= 100) {
-        // Big mining for +100 points
         setCapyState('big-mining');
-        const capyTimeoutId = setTimeout(() => setCapyState('idle'), 500);
-        timeoutRefs.current.push(capyTimeoutId);
+        const capyId = setTimeout(() => {
+          setCapyState('idle');
+          timeoutRefs.current = timeoutRefs.current.filter(t => t !== capyId);
+        }, 500);
+        timeoutRefs.current.push(capyId);
       } else {
-        // Regular mining for +1 point
         setCapyState('mining');
-        const capyTimeoutId = setTimeout(() => setCapyState('idle'), 250);
-        timeoutRefs.current.push(capyTimeoutId);
+        const capyId = setTimeout(() => {
+          setCapyState('idle');
+          timeoutRefs.current = timeoutRefs.current.filter(t => t !== capyId);
+        }, 250);
+        timeoutRefs.current.push(capyId);
       }
     },
     [triggerBalancePop, spawnFloat]
