@@ -1,7 +1,7 @@
 $ErrorActionPreference = "Stop"
 
 $pairs = @(
-    @{ Example = "backend/.env.example"; Target = "backend/.env" },
+    @{ Example = "services/api/.env.example"; Target = "services/api/.env" },
     @{ Example = "apps/extension/.env.example"; Target = "apps/extension/.env" },
     @{ Example = "apps/dashboard/.env.example"; Target = "apps/dashboard/.env" }
 )

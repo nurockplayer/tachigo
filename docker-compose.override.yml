@@ -1,10 +1,10 @@
 services:
   app:
     build:
-      context: ./backend
+      context: ./services/api
       target: dev
     volumes:
-      - ./backend:/app
+      - ./services/api:/app
       - go_mod_cache:/go/pkg/mod
     restart: "no"
 

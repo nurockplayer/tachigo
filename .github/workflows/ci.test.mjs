@@ -142,6 +142,26 @@ test('scope gate and scope police recognize legacy and monorepo frontend/backend
   )
 })
 
+test('backend CI uses services/api as the Go service root', async () => {
+  const workflow = await readFile(workflowPath, 'utf8')
+
+  assert.match(
+    workflow,
+    /context: \.\/services\/api/,
+    'backend image build context must use services/api',
+  )
+  assert.match(
+    workflow,
+    /go-version-file: services\/api\/go\.mod/,
+    'backend integration setup-go must read services/api/go.mod',
+  )
+  assert.match(
+    workflow,
+    /working-directory: services\/api/,
+    'backend integration tests must run from services/api',
+  )
+})
+
 test('scope gate backend contract regex accepts full-width and half-width colons', async () => {
   const workflow = await readFile(workflowPath, 'utf8')
   const scopePolice = await readFile(scopePolicePath, 'utf8')

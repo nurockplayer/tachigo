@@ -176,7 +176,7 @@ main() {
   _check_path() {
     local p="$1"
     case "$p" in
-      backend/*) touches_backend=1 ;;
+      backend/*|services/api/*) touches_backend=1 ;;
       dashboard/*|apps/dashboard/*|tachimint/*|apps/extension/*) touches_frontend=1 ;;
       contracts/*) touches_contracts=1 ;;
     esac
@@ -266,10 +266,10 @@ main() {
     failures+=("[backend] PR 不可修改 dashboard/、tachimint/、apps/dashboard/ 或 apps/extension/")
   fi
   if [ "$title_prefix" = "[frontend]" ] && [ "$touches_backend" -eq 1 ]; then
-    failures+=("[frontend] PR 不可修改 backend/")
+    failures+=("[frontend] PR 不可修改 backend/ 或 services/api/")
   fi
   if [ "$title_prefix" = "[contract]" ] && { [ "$touches_backend" -eq 1 ] || [ "$touches_frontend" -eq 1 ]; }; then
-    failures+=("[contract] PR 不可修改 backend/、dashboard/、tachimint/、apps/dashboard/ 或 apps/extension/")
+    failures+=("[contract] PR 不可修改 backend/、services/api/、dashboard/、tachimint/、apps/dashboard/ 或 apps/extension/")
   fi
   if [ "$is_release_promotion" -eq 0 ] && [ "$product_surface_count" -gt 1 ]; then
     failures+=("PR 不可同時修改多個 product surface")
@@ -279,7 +279,7 @@ main() {
   # Common cause: conflict-resolution commits sneak in code changes.
   # Reviewer will block if PR body promises "不動程式碼" but diff says otherwise.
   if [ "$is_infra_or_chore" -eq 1 ] && [ "$docs_only" -eq 0 ]; then
-    [ "$touches_backend" -eq 1 ]   && surface_failures+=("backend/")
+    [ "$touches_backend" -eq 1 ]   && surface_failures+=("backend/services/api")
     [ "$touches_frontend" -eq 1 ] && surface_failures+=("dashboard/tachimint or apps/dashboard/apps/extension/")
     [ "$touches_contracts" -eq 1 ] && surface_failures+=("contracts/")
   fi

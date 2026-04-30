@@ -34,7 +34,7 @@ repo 目前有一個 GitHub Actions workflow：
 - PR 變更檔案數超過 `35` 個時 fail
 - PR diff 超過 `1500` 行時 fail
 - PR 不可同時改多個 product surface：
-  - backend surface：`backend/` 或未來的 `services/api/`
+  - backend surface：`services/api/`（舊路徑 `backend/` 仍作為歷史 PR 判斷）
   - frontend surface：`apps/dashboard/`、`apps/extension/`（舊路徑 `dashboard/`、`tachimint/` 仍作為歷史 PR 判斷）
   - contract surface：`contracts/`
 - `[backend]` PR 不可修改 frontend surface

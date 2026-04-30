@@ -7,7 +7,8 @@ Viewers spend Bits to earn on-chain tokens; streamers manage rewards from the da
 
 ```
 tachigo/
-├── backend/          # Go API (Gin + GORM + PostgreSQL)
+├── services/
+│   └── api/          # Go API (Gin + GORM + PostgreSQL)
 └── apps/
     ├── extension/    # Chrome sidepanel frontend (React + TypeScript + Vite)
     └── dashboard/    # Admin dashboard (React + TypeScript + Vite)
@@ -31,7 +32,7 @@ docker compose up --build
 | Postgres | localhost:5433                           |
 
 If you want local `.env` files, copy the examples first. Docker Compose can still start without them because the env files are optional.
-Fill in the secrets in `backend/.env` before using OAuth or Twitch Extension features.
+Fill in the secrets in `services/api/.env` before using OAuth or Twitch Extension features.
 
 On Windows PowerShell, you can generate the local env files with:
 
@@ -50,7 +51,7 @@ docker compose logs -f        # tail all logs
 
 `make` is still available as a convenience on macOS/Linux, but it is not required.
 
-### Backend (`backend/`)
+### Backend (`services/api/`)
 
 - Hot reload via [air](https://github.com/air-verse/air) — save any `.go` file to rebuild
 - Swagger docs regenerated automatically on each build (`swag init`)
@@ -75,7 +76,7 @@ docker compose run --no-deps --rm frontend npm run build   # production build
 Copy the examples and fill in your secrets:
 
 ```bash
-cp backend/.env.example backend/.env
+cp services/api/.env.example services/api/.env
 cp apps/extension/.env.example apps/extension/.env
 cp apps/dashboard/.env.example apps/dashboard/.env
 ```
