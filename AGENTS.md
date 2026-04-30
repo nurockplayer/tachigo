@@ -76,10 +76,10 @@ Type：`feat` / `fix` / `docs` / `chore` / `refactor` / `test`
 - **開 PR 時必須以 `.github/PULL_REQUEST_TEMPLATE.md` 為起點**，不得自由格式撰寫：
 
   ```bash
-  gh pr create --title "[type] ..." --base develop --body "$(cat .github/PULL_REQUEST_TEMPLATE.md)"
+  cp .github/PULL_REQUEST_TEMPLATE.md /tmp/pr_body.md
+  # 填妥 /tmp/pr_body.md 所有欄位，不得留空或刪除 section
+  gh pr create --title "[type] ..." --base develop --body-file /tmp/pr_body.md
   ```
-
-  **先將 template 所有欄位填妥（不得留空或刪除 section）**，再將填妥內容作為 `--body` 傳入後送出。
 
 ### 操作權限邊界
 
