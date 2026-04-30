@@ -1,11 +1,11 @@
 services:
   app:
     image: tachigo-app:latest
-    build: ./backend
+    build: ./services/api
     ports:
       - "8080:8080"
     env_file:
-      - path: ./backend/.env
+      - path: ./services/api/.env
         required: false
     environment:
       DATABASE_URL: host=postgres user=postgres password=postgres dbname=tachigo port=5432 sslmode=disable

@@ -30,7 +30,7 @@
   - 已完成登入 UI，並串接登入 API
 - [`apps/dashboard/src/services/auth.ts`](../apps/dashboard/src/services/auth.ts)
   - 已有 login/logout 邏輯與 token 設定
-- [`backend/internal/router/router.go`](../backend/internal/router/router.go)
+- [`services/api/internal/router/router.go`](../services/api/internal/router/router.go)
   - 後端已提供 auth 與部分 dashboard/API 路由骨架
 
 ### 尚未成形的部分

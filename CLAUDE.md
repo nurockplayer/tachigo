@@ -130,7 +130,8 @@
 
 ```
 tachigo/
-├── backend/          # Go API (Gin + GORM + PostgreSQL)
+├── services/
+│   └── api/          # Go API (Gin + GORM + PostgreSQL)
 ├── apps/
 │   ├── extension/    # Twitch Extension 前端 (React + TypeScript)
 │   └── dashboard/    # 後台管理介面 (React + TypeScript) ← 建置中
@@ -149,7 +150,7 @@ docker compose run --no-deps --rm app go test ./...
 
 ## Swagger Docs 更新規則
 
-任何 PR 若有以下改動，**必須**在同一個 PR 裡附帶 `swag init` 產出的 docs 變更（`backend/docs/docs.go`、`backend/docs/swagger.json`、`backend/docs/swagger.yaml`）：
+任何 PR 若有以下改動，**必須**在同一個 PR 裡附帶 `swag init` 產出的 docs 變更（`services/api/docs/docs.go`、`services/api/docs/swagger.json`、`services/api/docs/swagger.yaml`）：
 
 - 新增、修改、刪除 handler function 的 swagger annotation（`// @Router`、`// @Param`、`// @Success` 等）
 - 在 `router.go` 新增或移除路由
@@ -157,7 +158,7 @@ docker compose run --no-deps --rm app go test ./...
 執行指令：
 ```bash
 go install github.com/swaggo/swag/cmd/swag@latest
-cd backend && $(go env GOPATH)/bin/swag init -g cmd/server/main.go -o docs
+cd services/api && $(go env GOPATH)/bin/swag init -g cmd/server/main.go -o docs
 ```
 
 ## Claude Code 設定

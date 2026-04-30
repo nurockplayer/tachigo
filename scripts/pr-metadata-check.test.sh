@@ -100,9 +100,9 @@ run_case invalid_dependency_value "[discussion] metadata parser regression" "Dep
 git branch -f "$head_branch" "$base_ref" >/dev/null 2>&1
 _surface_wt="$tmpdir/surface-wt"
 git worktree add -q "$_surface_wt" "$head_branch"
-mkdir -p "$_surface_wt/backend"
-printf '// surface test\n' > "$_surface_wt/backend/_pr_meta_surface_test.go"
-git -C "$_surface_wt" add backend/_pr_meta_surface_test.go
+mkdir -p "$_surface_wt/services/api"
+printf '// surface test\n' > "$_surface_wt/services/api/_pr_meta_surface_test.go"
+git -C "$_surface_wt" add services/api/_pr_meta_surface_test.go
 git -C "$_surface_wt" commit -q -m "test: chore touches backend"
 git worktree remove -f "$_surface_wt"
 run_case chore_product_surface "[chore] update ci config" "Depends on PR：none" "" "" 1

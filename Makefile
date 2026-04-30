@@ -2,7 +2,7 @@
 
 # ── Setup (run once after cloning) ────────────────────────────────────────────
 setup:
-	@[ -f backend/.env ]   || cp backend/.env.example backend/.env   && echo "created backend/.env"
+	@[ -f services/api/.env ]   || cp services/api/.env.example services/api/.env   && echo "created services/api/.env"
 	@[ -f apps/extension/.env ] || cp apps/extension/.env.example apps/extension/.env && echo "created apps/extension/.env"
 	@[ -f apps/dashboard/.env ] || cp apps/dashboard/.env.example apps/dashboard/.env && echo "created apps/dashboard/.env"
 	@git config core.hooksPath .githooks

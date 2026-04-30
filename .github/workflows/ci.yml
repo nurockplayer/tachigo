@@ -235,7 +235,7 @@ jobs:
       - name: Build backend image
         uses: docker/build-push-action@v6
         with:
-          context: ./backend
+          context: ./services/api
           target: dev
           load: true
           tags: tachigo-app:latest
@@ -290,10 +290,10 @@ jobs:
       - name: Set up Go
         uses: actions/setup-go@v6
         with:
-          go-version-file: backend/go.mod
+          go-version-file: services/api/go.mod
 
       - name: Run integration tests
-        working-directory: backend
+        working-directory: services/api
         run: go test -tags integration -v ./... -count=1
 
   frontend:

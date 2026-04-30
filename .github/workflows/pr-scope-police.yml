@@ -238,13 +238,13 @@ jobs:
 
               if (!isReleasePromotionPr && titlePrefix === '[frontend]' && touches.backend) {
                 const message =
-                  '[frontend] PR must not change backend/. Move backend prerequisites into a separate PR.'
+                  '[frontend] PR must not change backend/service API files. Move backend prerequisites into a separate PR.'
                 failures.push(message)
                 severeFailures.push(message)
               }
 
               if (!isReleasePromotionPr && titlePrefix === '[contract]' && (touches.backend || touches.frontend)) {
-                const message = '[contract] PR must not change backend/ or frontend surfaces.'
+                const message = '[contract] PR must not change backend/service API or frontend surfaces.'
                 failures.push(message)
                 severeFailures.push(message)
               }

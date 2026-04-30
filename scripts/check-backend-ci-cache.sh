@@ -29,6 +29,7 @@ reject_in() {
 require_in "$compose_file" "image: tachigo-app:latest" "docker compose app service should use the CI-built image tag"
 require_in "$workflow" "docker/setup-buildx-action@v3" "backend CI should initialize Docker Buildx"
 require_in "$workflow" "docker/build-push-action@v6" "backend CI should build app image through build-push-action"
+require_in "$workflow" "context: ./services/api" "backend CI should build from services/api"
 require_in "$workflow" "target: dev" "backend CI should build the same dev target used by docker compose tests"
 require_in "$workflow" "cache-from: type=gha" "backend CI should restore Docker layers from GitHub Actions cache"
 require_in "$workflow" "cache-to: type=gha,mode=max" "backend CI should save Docker layers to GitHub Actions cache"
