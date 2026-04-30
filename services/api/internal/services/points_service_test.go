@@ -7,6 +7,7 @@ import (
 	"time"
 
 	"github.com/google/uuid"
+	"gorm.io/gorm"
 
 	"github.com/tachigo/tachigo/internal/models"
 )
@@ -225,6 +226,42 @@ func TestPointsService_AddPointsWithMeta_RejectsTooLongSKU(t *testing.T) {
 	)
 	if !errors.Is(err, ErrInvalidSKU) {
 		t.Fatalf("want ErrInvalidSKU, got %v", err)
+	}
+}
+
+func TestAddPointsWithMeta_ExternalTransactionID_Persisted(t *testing.T) {
+	svc, _ := newPointsSvc(t)
+	userID := seedViewer(t, svc)
+	txID := "ext-tx-abc123"
+
+	err := svc.AddPointsWithMeta(userID, "ch1", models.TxSourceTPoint, 100, PointsCreditMeta{
+		ExternalTransactionID: &txID,
+	})
+	if err != nil {
+		t.Fatalf("unexpected error: %v", err)
+	}
+
+	var tx models.PointsTransaction
+	if err := svc.db.Where("external_transaction_id = ?", txID).First(&tx).Error; err != nil {
+		t.Fatalf("points_transaction not found by external_transaction_id: %v", err)
+	}
+	if tx.ExternalTransactionID == nil || *tx.ExternalTransactionID != txID {
+		t.Errorf("want ExternalTransactionID=%q, got %v", txID, tx.ExternalTransactionID)
+	}
+}
+
+func TestAddPointsWithMeta_DuplicateExternalTransactionID_Fails(t *testing.T) {
+	svc, _ := newPointsSvc(t)
+	userID := seedViewer(t, svc)
+	txID := "ext-tx-dup"
+	meta := PointsCreditMeta{ExternalTransactionID: &txID}
+
+	if err := svc.AddPointsWithMeta(userID, "ch1", models.TxSourceTPoint, 100, meta); err != nil {
+		t.Fatalf("first insert: %v", err)
+	}
+	err := svc.AddPointsWithMeta(userID, "ch1", models.TxSourceTPoint, 100, meta)
+	if !errors.Is(err, gorm.ErrDuplicatedKey) {
+		t.Errorf("want gorm.ErrDuplicatedKey, got %v", err)
 	}
 }
 

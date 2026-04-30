@@ -13,9 +13,12 @@ import (
 )
 
 var (
-	ErrInvalidExtJWT    = errors.New("invalid extension JWT")
-	ErrInvalidReceipt   = errors.New("invalid transaction receipt")
-	ErrExtSecretMissing = errors.New("TWITCH_EXTENSION_SECRET not configured")
+	ErrInvalidExtJWT        = errors.New("invalid extension JWT")
+	ErrInvalidReceipt       = errors.New("invalid transaction receipt")
+	ErrExtSecretMissing     = errors.New("TWITCH_EXTENSION_SECRET not configured")
+	ErrDuplicateTransaction = errors.New("transaction already processed")
+	ErrInvalidReceiptAmount = errors.New("receipt amount must be greater than zero")
+	ErrInvalidReceiptType   = errors.New("receipt type must be bits")
 	// ErrUserNotFound is defined in auth_service.go (same package).
 )
 
@@ -40,13 +43,14 @@ type ReceiptClaims struct {
 }
 
 type ExtensionService struct {
-	db      *gorm.DB
-	cfg     *config.Config
-	authSvc *AuthService
+	db        *gorm.DB
+	cfg       *config.Config
+	authSvc   *AuthService
+	pointsSvc *PointsService
 }
 
-func NewExtensionService(db *gorm.DB, cfg *config.Config, authSvc *AuthService) *ExtensionService {
-	return &ExtensionService{db: db, cfg: cfg, authSvc: authSvc}
+func NewExtensionService(db *gorm.DB, cfg *config.Config, authSvc *AuthService, pointsSvc *PointsService) *ExtensionService {
+	return &ExtensionService{db: db, cfg: cfg, authSvc: authSvc, pointsSvc: pointsSvc}
 }
 
 // VerifyExtJWT verifies a Twitch Extension JWT and returns its claims.
@@ -159,6 +163,15 @@ func (s *ExtensionService) CompleteTPointTransaction(extJWT, receipt, sku string
 	if receiptClaims.Data.SKU != sku {
 		return nil, nil, ErrInvalidReceipt
 	}
+	if receiptClaims.Data.Type != "bits" {
+		return nil, nil, ErrInvalidReceiptType
+	}
+	if receiptClaims.Data.Amount <= 0 {
+		return nil, nil, ErrInvalidReceiptAmount
+	}
+	if receiptClaims.Data.TransactionID == "" {
+		return nil, nil, ErrInvalidReceipt
+	}
 
 	// Re-use the login flow to get/create the user, then issue tokens.
 	user, tokens, err := s.LoginWithExtension(extJWT)
@@ -166,7 +179,23 @@ func (s *ExtensionService) CompleteTPointTransaction(extJWT, receipt, sku string
 		return nil, nil, err
 	}
 
-	_ = extClaims // available for future logging / reward logic
+	txID := receiptClaims.Data.TransactionID
+	err = s.pointsSvc.AddPointsWithMeta(
+		user.ID,
+		extClaims.ChannelID,
+		models.TxSourceTPoint,
+		int64(receiptClaims.Data.Amount),
+		PointsCreditMeta{
+			SKU:                   &sku,
+			ExternalTransactionID: &txID,
+		},
+	)
+	if err != nil {
+		if errors.Is(err, gorm.ErrDuplicatedKey) {
+			return nil, nil, ErrDuplicateTransaction
+		}
+		return nil, nil, err
+	}
 
 	return user, tokens, nil
 }

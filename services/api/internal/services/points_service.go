@@ -22,8 +22,9 @@ var (
 )
 
 type PointsCreditMeta struct {
-	SKU  *string
-	Note *string
+	SKU                   *string
+	Note                  *string
+	ExternalTransactionID *string
 }
 
 // PointsBalance holds both balance views for a viewer in a channel.
@@ -198,13 +199,14 @@ func (s *PointsService) addPointsWithMetaAt(
 	}
 
 	txRecord := &models.PointsTransaction{
-		LedgerID:     ledger.ID,
-		Source:       source,
-		Delta:        amount,
-		BalanceAfter: ledger.SpendableBalance,
-		SKU:          meta.SKU,
-		Note:         meta.Note,
-		CreatedAt:    at,
+		LedgerID:              ledger.ID,
+		Source:                source,
+		Delta:                 amount,
+		BalanceAfter:          ledger.SpendableBalance,
+		SKU:                   meta.SKU,
+		Note:                  meta.Note,
+		ExternalTransactionID: meta.ExternalTransactionID,
+		CreatedAt:             at,
 	}
 	return tx.Create(txRecord).Error
 }

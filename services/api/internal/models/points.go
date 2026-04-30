@@ -61,7 +61,7 @@ type PointsTransaction struct {
 	BalanceAfter          int64      `gorm:"not null"                                       json:"balance_after"`
 	SKU                   *string    `gorm:"type:varchar(255)"                              json:"sku,omitempty"`
 	Note                  *string    `gorm:"type:text"                                      json:"note"`
-	ExternalTransactionID *string    `gorm:"type:varchar(255);uniqueIndex"                  json:"external_transaction_id,omitempty"`
+	ExternalTransactionID *string    `gorm:"type:varchar(255)"                              json:"external_transaction_id,omitempty"`
 	CreatedAt             time.Time  `                                                      json:"created_at"`
 
 	Ledger PointsLedger `gorm:"foreignKey:LedgerID" json:"-"`
