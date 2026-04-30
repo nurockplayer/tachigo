@@ -171,14 +171,13 @@ main() {
     exit 2
   }
 
-  local touches_backend=0 touches_dashboard=0 touches_tachimint=0 touches_contracts=0 docs_only=1
+  local touches_backend=0 touches_frontend=0 touches_contracts=0 docs_only=1
 
   _check_path() {
     local p="$1"
     case "$p" in
       backend/*) touches_backend=1 ;;
-      dashboard/*) touches_dashboard=1 ;;
-      tachimint/*) touches_tachimint=1 ;;
+      dashboard/*|apps/dashboard/*|tachimint/*|apps/extension/*) touches_frontend=1 ;;
       contracts/*) touches_contracts=1 ;;
     esac
     if ! is_docs_or_template_path "$p"; then
@@ -199,8 +198,7 @@ main() {
 
   local product_surface_count=0
   [ "$touches_backend" -eq 1 ] && product_surface_count=$((product_surface_count + 1))
-  [ "$touches_dashboard" -eq 1 ] && product_surface_count=$((product_surface_count + 1))
-  [ "$touches_tachimint" -eq 1 ] && product_surface_count=$((product_surface_count + 1))
+  [ "$touches_frontend" -eq 1 ] && product_surface_count=$((product_surface_count + 1))
   [ "$touches_contracts" -eq 1 ] && product_surface_count=$((product_surface_count + 1))
 
   local is_release_promotion=0
@@ -264,14 +262,14 @@ main() {
     fi
   fi
 
-  if [ "$title_prefix" = "[backend]" ] && { [ "$touches_dashboard" -eq 1 ] || [ "$touches_tachimint" -eq 1 ]; }; then
-    failures+=("[backend] PR 不可修改 dashboard/ 或 tachimint/")
+  if [ "$title_prefix" = "[backend]" ] && [ "$touches_frontend" -eq 1 ]; then
+    failures+=("[backend] PR 不可修改 dashboard/、tachimint/、apps/dashboard/ 或 apps/extension/")
   fi
   if [ "$title_prefix" = "[frontend]" ] && [ "$touches_backend" -eq 1 ]; then
     failures+=("[frontend] PR 不可修改 backend/")
   fi
-  if [ "$title_prefix" = "[contract]" ] && { [ "$touches_backend" -eq 1 ] || [ "$touches_dashboard" -eq 1 ] || [ "$touches_tachimint" -eq 1 ]; }; then
-    failures+=("[contract] PR 不可修改 backend/、dashboard/ 或 tachimint/")
+  if [ "$title_prefix" = "[contract]" ] && { [ "$touches_backend" -eq 1 ] || [ "$touches_frontend" -eq 1 ]; }; then
+    failures+=("[contract] PR 不可修改 backend/、dashboard/、tachimint/、apps/dashboard/ 或 apps/extension/")
   fi
   if [ "$is_release_promotion" -eq 0 ] && [ "$product_surface_count" -gt 1 ]; then
     failures+=("PR 不可同時修改多個 product surface")
@@ -282,8 +280,7 @@ main() {
   # Reviewer will block if PR body promises "不動程式碼" but diff says otherwise.
   if [ "$is_infra_or_chore" -eq 1 ] && [ "$docs_only" -eq 0 ]; then
     [ "$touches_backend" -eq 1 ]   && surface_failures+=("backend/")
-    [ "$touches_dashboard" -eq 1 ] && surface_failures+=("dashboard/")
-    [ "$touches_tachimint" -eq 1 ] && surface_failures+=("tachimint/")
+    [ "$touches_frontend" -eq 1 ] && surface_failures+=("dashboard/tachimint or apps/dashboard/apps/extension/")
     [ "$touches_contracts" -eq 1 ] && surface_failures+=("contracts/")
   fi
 

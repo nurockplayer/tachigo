@@ -108,4 +108,16 @@ git worktree remove -f "$_surface_wt"
 run_case chore_product_surface "[chore] update ci config" "Depends on PR：none" "" "" 1
 git branch -f "$head_branch" "$base_ref" >/dev/null 2>&1
 
+# apps/dashboard/ and apps/extension/ are one frontend product surface.
+_frontend_wt="$tmpdir/frontend-wt"
+git worktree add -q "$_frontend_wt" "$head_branch"
+mkdir -p "$_frontend_wt/apps/dashboard" "$_frontend_wt/apps/extension"
+printf '// dashboard surface test\n' > "$_frontend_wt/apps/dashboard/_pr_meta_surface_test.ts"
+printf '// extension surface test\n' > "$_frontend_wt/apps/extension/_pr_meta_surface_test.ts"
+git -C "$_frontend_wt" add apps/dashboard/_pr_meta_surface_test.ts apps/extension/_pr_meta_surface_test.ts
+git -C "$_frontend_wt" commit -q -m "test: frontend apps share surface"
+git worktree remove -f "$_frontend_wt"
+run_case frontend_apps_single_surface "[frontend] update both frontend apps" "Depends on PR：none"
+git branch -f "$head_branch" "$base_ref" >/dev/null 2>&1
+
 echo "pr-metadata-check regression tests passed"

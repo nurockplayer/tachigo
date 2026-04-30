@@ -53,7 +53,7 @@ body:
       description: 明確列出 Codex 可以動哪些檔案或模組。
       placeholder: |
         例：
-        只改 backend/internal/points/，不動 tachimint/ 與 dashboard/。
+        只改 backend/internal/points/，不動 apps/extension/ 與 apps/dashboard/。
     validations:
       required: true
 

@@ -18,7 +18,7 @@ updates:
 
   # Dependabot uses the "npm" ecosystem name for npm, yarn, and pnpm projects.
   - package-ecosystem: npm
-    directory: /dashboard
+    directory: /apps/dashboard
     schedule:
       interval: monthly
       day: monday
@@ -58,7 +58,7 @@ updates:
 
   # Dependabot uses the "npm" ecosystem name for npm, yarn, and pnpm projects.
   - package-ecosystem: npm
-    directory: /tachimint
+    directory: /apps/extension
     schedule:
       interval: monthly
       day: monday

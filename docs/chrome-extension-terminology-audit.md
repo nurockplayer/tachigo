@@ -35,7 +35,7 @@
 - [docs/feature-discussion.md](feature-discussion.md)
 - [docs/tokenomics.md](tokenomics.md)
 - [docs/watch-to-points-design.md](watch-to-points-design.md)
-- [tachimint/README.md](../tachimint/README.md)
+- [apps/extension/README.md](../apps/extension/README.md)
 
 以下文件已另拆處理，不混在本 PR：
 
@@ -50,13 +50,13 @@
 
 這些項目不是單純改字詞就能處理：
 
-- [tachimint/index.html](../tachimint/index.html)
+- [apps/extension/index.html](../apps/extension/index.html)
   - 仍載入 Twitch Extension Helper
-- [tachimint/src/mock/twitch-ext.ts](../tachimint/src/mock/twitch-ext.ts)
+- [apps/extension/src/mock/twitch-ext.ts](../apps/extension/src/mock/twitch-ext.ts)
   - 本地開發使用 `window.Twitch.ext` mock
-- [tachimint/src/types/twitch-ext.d.ts](../tachimint/src/types/twitch-ext.d.ts)
+- [apps/extension/src/types/twitch-ext.d.ts](../apps/extension/src/types/twitch-ext.d.ts)
   - 型別直接綁定 Twitch helper
-- [tachimint/src/services/api.ts](../tachimint/src/services/api.ts)
+- [apps/extension/src/services/api.ts](../apps/extension/src/services/api.ts)
   - 使用 `extension_jwt`、`loginWithTwitchExtension`
 
 ### B. 實作層泛用 `extension` 命名
@@ -116,7 +116,7 @@
 
 本輪已回答：
 
-1. `tachimint/` 保留，作為唯一正式前端 surface
+1. `apps/extension/` 保留，作為唯一正式 extension 前端 surface
 2. Chrome sidepanel 是已定案產品方向
 3. 本階段仍沿用 Twitch identity 與既有 backend contract
 4. 新的 migration decision source of truth 為 [docs/tachimint-chrome-sidepanel-migration.md](tachimint-chrome-sidepanel-migration.md)

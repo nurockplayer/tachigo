@@ -2,7 +2,7 @@
 
 ## 背景
 
-目前 `tachigo` 已有一個獨立的 `dashboard/` 前端專案，技術基礎如下：
+目前 `tachigo` 已有一個獨立的 `apps/dashboard/` 前端專案，技術基礎如下：
 
 - React 19 + TypeScript + Vite
 - React Router
@@ -22,13 +22,13 @@
 
 ### 已有基礎
 
-- [`dashboard/src/App.tsx`](../dashboard/src/App.tsx)
+- [`apps/dashboard/src/App.tsx`](../apps/dashboard/src/App.tsx)
   - 已建立登入頁、受保護路由、Layout 與幾個基礎頁面
-- [`dashboard/src/components/Layout.tsx`](../dashboard/src/components/Layout.tsx)
+- [`apps/dashboard/src/components/Layout.tsx`](../apps/dashboard/src/components/Layout.tsx)
   - 已有基本側邊欄與頁面容器
-- [`dashboard/src/pages/LoginPage.tsx`](../dashboard/src/pages/LoginPage.tsx)
+- [`apps/dashboard/src/pages/LoginPage.tsx`](../apps/dashboard/src/pages/LoginPage.tsx)
   - 已完成登入 UI，並串接登入 API
-- [`dashboard/src/services/auth.ts`](../dashboard/src/services/auth.ts)
+- [`apps/dashboard/src/services/auth.ts`](../apps/dashboard/src/services/auth.ts)
   - 已有 login/logout 邏輯與 token 設定
 - [`backend/internal/router/router.go`](../backend/internal/router/router.go)
   - 後端已提供 auth 與部分 dashboard/API 路由骨架
@@ -41,12 +41,12 @@
 
 ### 目前技術風險
 
-- [`dashboard/src/services/auth.ts`](../dashboard/src/services/auth.ts)
+- [`apps/dashboard/src/services/auth.ts`](../apps/dashboard/src/services/auth.ts)
   - `accessToken` 僅保存在記憶體
   - 重新整理頁面後，`isAuthenticated()` 會回傳 false
-- [`dashboard/src/components/ProtectedRoute.tsx`](../dashboard/src/components/ProtectedRoute.tsx)
+- [`apps/dashboard/src/components/ProtectedRoute.tsx`](../apps/dashboard/src/components/ProtectedRoute.tsx)
   - 現在的 route guard 只適合非常早期原型
-- [`dashboard/README.md`](../dashboard/README.md)
+- [`apps/dashboard/README.md`](../apps/dashboard/README.md)
   - 仍是 Vite 預設內容，尚未反映專案實際開發方式
 
 ---
@@ -67,7 +67,7 @@
 
 ### 為什麼不是 Go Admin
 
-- 目前已經有獨立 `dashboard/` React 專案
+- 目前已經有獨立 `apps/dashboard/` React 專案
 - 現有 backend 是 API-first 架構，不是 server-rendered admin 架構
 - 若改用 Go Admin，會與現有前後端分離方向衝突
 - UI 自由度與前端生態整合性都較差
@@ -110,12 +110,12 @@
 
 不建議做法：
 
-- 直接推翻整個 `dashboard/`
+- 直接推翻整個 `apps/dashboard/`
 - 完全照搬 Refine 預設範本，不保留現有 layout
 
 建議做法：
 
-- 保留既有 `dashboard/` Vite 專案
+- 保留既有 `apps/dashboard/` Vite 專案
 - 導入 `Refine` 作為 app framework
 - 保留現有 `Layout` 視覺骨架
 - 把 auth 改寫為 `authProvider`

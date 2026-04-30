@@ -18,8 +18,9 @@
 ```
 tachigo/
 ├── backend/          # Go API (Gin + GORM + PostgreSQL)
-├── tachimint/        # Twitch Extension 前端 (React + TypeScript)
-├── dashboard/        # 後台管理介面 (React + TypeScript) ← 建置中
+├── apps/
+│   ├── extension/    # Twitch Extension 前端 (React + TypeScript)
+│   └── dashboard/    # 後台管理介面 (React + TypeScript) ← 建置中
 └── docs/             # 設計文件
 ```
 

@@ -7,9 +7,10 @@ Viewers spend Bits to earn on-chain tokens; streamers manage rewards from the da
 
 ```
 tachigo/
-├── backend/      # Go API (Gin + GORM + PostgreSQL)
-├── tachimint/    # Chrome sidepanel frontend (React + TypeScript + Vite)
-└── dashboard/    # Admin dashboard (React + TypeScript + Vite)
+├── backend/          # Go API (Gin + GORM + PostgreSQL)
+└── apps/
+    ├── extension/    # Chrome sidepanel frontend (React + TypeScript + Vite)
+    └── dashboard/    # Admin dashboard (React + TypeScript + Vite)
 ```
 
 ## Quick start
@@ -59,7 +60,7 @@ docker compose logs -f        # tail all logs
 docker compose run --no-deps --rm app go test ./...
 ```
 
-### Frontend (`tachimint/`)
+### Frontend (`apps/extension/`)
 
 - Hot reload via Vite HMR
 - current migration direction is Chrome sidepanel runtime
@@ -75,8 +76,8 @@ Copy the examples and fill in your secrets:
 
 ```bash
 cp backend/.env.example backend/.env
-cp tachimint/.env.example tachimint/.env
-cp dashboard/.env.example dashboard/.env
+cp apps/extension/.env.example apps/extension/.env
+cp apps/dashboard/.env.example apps/dashboard/.env
 ```
 
 Windows PowerShell:

@@ -14,7 +14,7 @@ git init -q
 git config user.name "Codex Test"
 git config user.email "codex@example.com"
 
-mkdir -p tachimint/src/assets
+mkdir -p apps/extension/src/assets
 printf 'seed\n' > README.md
 git add README.md
 git commit -q -m "seed"
@@ -23,8 +23,8 @@ git branch -M develop
 git checkout -q -b feature/lfs-scan
 git config branch.feature/lfs-scan.merge refs/heads/develop
 
-printf 'not really png\n' > tachimint/src/assets/hero.png
-git add tachimint/src/assets/hero.png
+printf 'not really png\n' > apps/extension/src/assets/hero.png
+git add apps/extension/src/assets/hero.png
 git commit -q -m "add lfs asset"
 
 printf 'follow-up\n' >> README.md

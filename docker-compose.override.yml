@@ -15,12 +15,13 @@ services:
     restart: "no"
 
   dashboard:
-    build: ./dashboard
+    build: ./apps/dashboard
     ports:
       - "5174:5174"
     volumes:
-      - ./dashboard/src:/app/src
-      - ./dashboard/index.html:/app/index.html
+      - ./apps/dashboard/src:/app/src
+      - ./apps/dashboard/public:/app/public
+      - ./apps/dashboard/index.html:/app/index.html
       - /app/node_modules
     depends_on:
       - app
