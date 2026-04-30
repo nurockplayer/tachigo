@@ -61,7 +61,7 @@ test('backend CI job runs go test and go vet natively from services/api', async 
 
   assert.match(
     backendJob,
-    /uses: actions\/setup-go@v5\n\s+with:\n\s+go-version-file: services\/api\/go\.mod/,
+    /uses: actions\/setup-go@v6\n\s+with:\n\s+go-version-file: services\/api\/go\.mod/,
   )
 
   assert.match(
