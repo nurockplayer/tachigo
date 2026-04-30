@@ -1,6 +1,7 @@
 package handlers
 
 import (
+	"context"
 	"crypto/rand"
 	"encoding/hex"
 	"errors"
@@ -73,7 +74,11 @@ func (h *AuthHandler) Register(c *gin.Context) {
 
 	// Best-effort: send verification email if mailer is configured
 	if h.emailAuth != nil {
-		go h.emailAuth.SendVerificationEmail(user.ID)
+		go func() {
+			ctx, cancel := context.WithTimeout(context.Background(), 30*time.Second)
+			defer cancel()
+			h.emailAuth.SendVerificationEmail(ctx, user.ID)
+		}()
 	}
 
 	h.setRefreshCookie(c, tokens.RefreshToken)

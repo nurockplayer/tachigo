@@ -64,7 +64,7 @@ func (h *AgencyHandler) Create(c *gin.Context) {
 		return
 	}
 
-	if err := h.emailAuthSvc.ForgotPassword(*user.Email); err != nil {
+	if err := h.emailAuthSvc.ForgotPassword(c.Request.Context(), *user.Email); err != nil {
 		// Agency is already committed; ForgotPassword failure is non-fatal.
 		// Admin can re-trigger via POST /agencies/:id/resend-setup.
 		if errors.Is(err, services.ErrPasswordResetEmailSend) {
@@ -162,7 +162,7 @@ func (h *AgencyHandler) ResendSetup(c *gin.Context) {
 	// ForgotPassword returns nil only for ErrRecordNotFound (anti-enumeration for
 	// public callers). Other DB errors are propagated, so a transient failure here
 	// is visible to the caller rather than silently succeeding.
-	if err := h.emailAuthSvc.ForgotPassword(email); err != nil {
+	if err := h.emailAuthSvc.ForgotPassword(c.Request.Context(), email); err != nil {
 		if errors.Is(err, services.ErrPasswordResetEmailSend) {
 			log.Printf("agency resend-setup: email delivery failed agency_id=%s email=%s err=%v", agencyID, email, err)
 		} else {

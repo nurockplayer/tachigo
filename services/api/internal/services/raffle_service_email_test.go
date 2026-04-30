@@ -25,7 +25,7 @@ func newCaptureMailer() *captureMailer {
 	return &captureMailer{ch: make(chan sentEmail, 1)}
 }
 
-func (m *captureMailer) Send(to, subject, body string) error {
+func (m *captureMailer) Send(_ context.Context, to, subject, body string) error {
 	m.ch <- sentEmail{to, subject, body}
 	return nil
 }
@@ -52,7 +52,7 @@ func newNoEmailMailer() *noEmailMailer {
 	return &noEmailMailer{ch: make(chan struct{}, 1)}
 }
 
-func (m *noEmailMailer) Send(_, _, _ string) error {
+func (m *noEmailMailer) Send(_ context.Context, _, _, _ string) error {
 	select {
 	case m.ch <- struct{}{}:
 	default:
@@ -253,6 +253,6 @@ func TestDrawNext_NoEmailWhenMailerNil(t *testing.T) {
 
 type errSendMailer struct{}
 
-func (m *errSendMailer) Send(_, _, _ string) error {
+func (m *errSendMailer) Send(_ context.Context, _, _, _ string) error {
 	return context.DeadlineExceeded
 }

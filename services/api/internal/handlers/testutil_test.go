@@ -1,6 +1,7 @@
 package handlers_test
 
 import (
+	"context"
 	"encoding/json"
 	"testing"
 	"time"
@@ -304,7 +305,7 @@ type mockMailer struct {
 	sent []struct{ to, subject, body string }
 }
 
-func (m *mockMailer) Send(to, subject, body string) error {
+func (m *mockMailer) Send(_ context.Context, to, subject, body string) error {
 	m.sent = append(m.sent, struct{ to, subject, body string }{to, subject, body})
 	return nil
 }

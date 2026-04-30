@@ -31,7 +31,7 @@ func (h *EmailAuthHandler) SendVerification(c *gin.Context) {
 	claims := middleware.MustClaims(c)
 	userID, _ := uuid.Parse(claims.UserID)
 
-	if err := h.emailAuth.SendVerificationEmail(userID); err != nil {
+	if err := h.emailAuth.SendVerificationEmail(c.Request.Context(), userID); err != nil {
 		switch err {
 		case services.ErrAlreadyVerified:
 			badRequest(c, "email already verified")
@@ -97,7 +97,7 @@ func (h *EmailAuthHandler) ForgotPassword(c *gin.Context) {
 	}
 
 	// Best-effort: ignore errors so we don't reveal whether the email exists
-	h.emailAuth.ForgotPassword(body.Email)
+	h.emailAuth.ForgotPassword(c.Request.Context(), body.Email)
 
 	c.JSON(http.StatusOK, gin.H{
 		"success": true,

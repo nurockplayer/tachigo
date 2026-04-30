@@ -2,6 +2,7 @@ package handlers_test
 
 import (
 	"bytes"
+	"context"
 	"encoding/json"
 	"errors"
 	"net/http"
@@ -23,7 +24,7 @@ import (
 
 type failingMailer struct{}
 
-func (m *failingMailer) Send(to, subject, body string) error {
+func (m *failingMailer) Send(_ context.Context, to, subject, body string) error {
 	return errors.New("smtp: connection refused")
 }
 

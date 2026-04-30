@@ -1,6 +1,7 @@
 package router_test
 
 import (
+	"context"
 	"fmt"
 	"net/http"
 	"net/http/httptest"
@@ -26,7 +27,7 @@ func init() {
 
 type mockMailer struct{}
 
-func (m *mockMailer) Send(to, subject, body string) error {
+func (m *mockMailer) Send(_ context.Context, to, subject, body string) error {
 	return nil
 }
 
