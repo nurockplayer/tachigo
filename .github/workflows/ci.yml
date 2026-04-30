@@ -237,46 +237,32 @@ jobs:
         with:
           context: ./services/api
           target: dev
-          load: true
+          load: false
           tags: tachigo-app:latest
           cache-from: type=gha
           cache-to: type=gha,mode=max
 
-      - name: Export image artifact
-        run: |
-          set -euo pipefail
-          docker save tachigo-app:latest | gzip -c > tachigo-app.tar.gz
-          test -s tachigo-app.tar.gz
-
-      - name: Upload image artifact
-        uses: actions/upload-artifact@v4
-        with:
-          name: backend-image
-          path: tachigo-app.tar.gz
-          retention-days: 1
-
   backend:
     timeout-minutes: 10
     name: Backend tests
-    needs: [scope-gate, backend-build]
+    needs: [scope-gate]
     if: github.event_name == 'push' || needs.scope-gate.outputs.run_ci == 'true'
     runs-on: ubuntu-latest
     steps:
       - uses: actions/checkout@v4
 
-      - name: Download image artifact
-        uses: actions/download-artifact@v4
+      - name: Set up Go
+        uses: actions/setup-go@v6
         with:
-          name: backend-image
-
-      - name: Load backend image
-        run: docker load < tachigo-app.tar.gz
+          go-version-file: services/api/go.mod
 
       - name: Run tests
-        run: docker compose run --pull never --no-deps --rm app go test ./...
+        working-directory: services/api
+        run: go test ./...
 
       - name: Run vet
-        run: docker compose run --pull never --no-deps --rm app go vet ./...
+        working-directory: services/api
+        run: go vet ./...
 
   backend-integration:
     timeout-minutes: 20
