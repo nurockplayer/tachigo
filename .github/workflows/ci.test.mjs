@@ -55,37 +55,46 @@ test('frontend CI job runs the frontend test command', async () => {
   )
 })
 
-test('backend CI job runs go test and go vet via docker compose prebuilt image', async () => {
+test('backend CI job runs go test and go vet natively from services/api', async () => {
   const workflow = await readFile(workflowPath, 'utf8')
   const backendJob = workflowJobBlock(workflow, 'backend')
 
   assert.match(
     backendJob,
-    /- name: Run tests\n\s+run: docker compose run --pull never --no-deps --rm app go test \.\/\.\.\./,
+    /uses: actions\/setup-go@v5\n\s+with:\n\s+go-version-file: services\/api\/go\.mod/,
   )
 
   assert.match(
     backendJob,
-    /- name: Run vet\n\s+run: docker compose run --pull never --no-deps --rm app go vet \.\/\.\.\./,
+    /- name: Run tests\n\s+working-directory: services\/api\n\s+run: go test \.\/\.\.\./,
   )
+
+  assert.match(
+    backendJob,
+    /- name: Run vet\n\s+working-directory: services\/api\n\s+run: go vet \.\/\.\.\./,
+  )
+
+  assert.doesNotMatch(backendJob, /actions\/download-artifact|docker load|backend-image/)
 })
 
 test('backend CI vet assertion does not match vet steps from later jobs', () => {
   const workflow = `  backend:
     steps:
       - name: Run tests
-        run: docker compose run --pull never --no-deps --rm app go test ./...
+        working-directory: services/api
+        run: go test ./...
 
   frontend:
     steps:
       - name: Run vet
-        run: docker compose run --pull never --no-deps --rm app go vet ./...
+        working-directory: services/api
+        run: go vet ./...
 `
   const backendJob = workflowJobBlock(workflow, 'backend')
 
   assert.doesNotMatch(
     backendJob,
-    /- name: Run vet\n\s+run: docker compose run --pull never --no-deps --rm app go vet \.\/\.\.\./,
+    /- name: Run vet\n\s+working-directory: services\/api\n\s+run: go vet \.\/\.\.\./,
   )
 })
 
