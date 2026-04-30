@@ -339,6 +339,13 @@ export function MarioHUD({ state, onStateChange, onNavigate }: MarioHUDProps) {
   const [bgMusicOn, setBgMusicOn]         = useState(false);
 
   const floatId = useRef(0);
+  const timeoutRefs = useRef<ReturnType<typeof setTimeout>[]>([]);
+
+  useEffect(() => {
+    return () => {
+      timeoutRefs.current.forEach(clearTimeout);
+    };
+  }, []);
 
   // ── Helpers ──────────────────────────────────────────────
   const formatPts = (n: number) =>
@@ -346,14 +353,22 @@ export function MarioHUD({ state, onStateChange, onNavigate }: MarioHUDProps) {
 
   const triggerBalancePop = useCallback(() => {
     setBalanceBump(true);
-    setTimeout(() => setBalanceBump(false), 420);
+    const id = setTimeout(() => {
+      setBalanceBump(false);
+      timeoutRefs.current = timeoutRefs.current.filter(t => t !== id);
+    }, 420);
+    timeoutRefs.current.push(id);
   }, []);
 
   const spawnFloat = useCallback((amount: number) => {
-    const id = ++floatId.current;
+    const floatItemId = ++floatId.current;
     const offsetX = (Math.random() - 0.5) * 40;
-    setFloats(f => [...f, { id, amount, offsetX }]);
-    setTimeout(() => setFloats(f => f.filter(x => x.id !== id)), 1600);
+    setFloats(f => [...f, { id: floatItemId, amount, offsetX }]);
+    const id = setTimeout(() => {
+      setFloats(f => f.filter(x => x.id !== floatItemId));
+      timeoutRefs.current = timeoutRefs.current.filter(t => t !== id);
+    }, 1600);
+    timeoutRefs.current.push(id);
   }, []);
 
   const awardPoints = useCallback(
@@ -365,17 +380,27 @@ export function MarioHUD({ state, onStateChange, onNavigate }: MarioHUDProps) {
 
       // Success animation
       setShowSuccess(true);
-      setTimeout(() => setShowSuccess(false), 600);
+      const successId = setTimeout(() => {
+        setShowSuccess(false);
+        timeoutRefs.current = timeoutRefs.current.filter(t => t !== successId);
+      }, 600);
+      timeoutRefs.current.push(successId);
 
       // Trigger mining animation based on amount
       if (amount >= 100) {
-        // Big mining for +100 points
         setCapyState('big-mining');
-        setTimeout(() => setCapyState('idle'), 500);
+        const capyId = setTimeout(() => {
+          setCapyState('idle');
+          timeoutRefs.current = timeoutRefs.current.filter(t => t !== capyId);
+        }, 500);
+        timeoutRefs.current.push(capyId);
       } else {
-        // Regular mining for +1 point
         setCapyState('mining');
-        setTimeout(() => setCapyState('idle'), 250);
+        const capyId = setTimeout(() => {
+          setCapyState('idle');
+          timeoutRefs.current = timeoutRefs.current.filter(t => t !== capyId);
+        }, 250);
+        timeoutRefs.current.push(capyId);
       }
     },
     [triggerBalancePop, spawnFloat]
