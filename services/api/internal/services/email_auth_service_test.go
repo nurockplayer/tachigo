@@ -82,8 +82,12 @@ func TestSendVerificationEmail_ReplacesExistingToken(t *testing.T) {
 	svc, _ := newEmailAuthSvc(t)
 	userID := seedEmailUser(t, svc, "resend@example.com", false)
 
-	svc.SendVerificationEmail(context.Background(), userID)
-	svc.SendVerificationEmail(context.Background(), userID)
+	if err := svc.SendVerificationEmail(context.Background(), userID); err != nil {
+		t.Fatalf("first SendVerificationEmail failed: %v", err)
+	}
+	if err := svc.SendVerificationEmail(context.Background(), userID); err != nil {
+		t.Fatalf("second SendVerificationEmail failed: %v", err)
+	}
 
 	var count int64
 	svc.db.Model(&models.EmailVerification{}).Where("user_id = ?", userID).Count(&count)
@@ -219,8 +223,12 @@ func TestForgotPassword_ReplacesExistingToken(t *testing.T) {
 	email := "resend_reset@example.com"
 	seedEmailUser(t, svc, email, true)
 
-	svc.ForgotPassword(context.Background(), email)
-	svc.ForgotPassword(context.Background(), email)
+	if err := svc.ForgotPassword(context.Background(), email); err != nil {
+		t.Fatalf("first ForgotPassword failed: %v", err)
+	}
+	if err := svc.ForgotPassword(context.Background(), email); err != nil {
+		t.Fatalf("second ForgotPassword failed: %v", err)
+	}
 
 	var count int64
 	svc.db.Model(&models.PasswordReset{}).Where("email = ?", email).Count(&count)

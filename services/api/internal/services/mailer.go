@@ -34,23 +34,32 @@ func NewSMTPMailer(host string, port int, username, password, from string) *SMTP
 }
 
 func (m *SMTPMailer) Send(ctx context.Context, to, subject, htmlBody string) error {
+	if err := ctx.Err(); err != nil {
+		return err
+	}
+
 	msg := gomail.NewMessage()
 	msg.SetHeader("From", m.from)
 	msg.SetHeader("To", to)
 	msg.SetHeader("Subject", subject)
 	msg.SetBody("text/html", htmlBody)
 
-	type result struct{ err error }
-	ch := make(chan result, 1)
-	go func() {
-		d := gomail.NewDialer(m.host, m.port, m.username, m.password)
-		ch <- result{d.DialAndSend(msg)}
-	}()
+	d := gomail.NewDialer(m.host, m.port, m.username, m.password)
+	sc, err := d.Dial()
+	if err != nil {
+		return err
+	}
+	defer sc.Close()
+
+	errCh := make(chan error, 1)
+	go func() { errCh <- gomail.Send(sc, msg) }()
+
 	select {
 	case <-ctx.Done():
+		sc.Close() // closes the SMTP connection, causing the goroutine to fail fast
 		return ctx.Err()
-	case r := <-ch:
-		return r.err
+	case err := <-errCh:
+		return err
 	}
 }
 
