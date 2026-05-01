@@ -6,6 +6,7 @@ import (
 	"fmt"
 	"log"
 	"net"
+	"net/mail"
 	"net/smtp"
 
 	"gopkg.in/gomail.v2"
@@ -99,7 +100,12 @@ func (m *SMTPMailer) Send(ctx context.Context, to, subject, htmlBody string) err
 			return err
 		}
 	}
-	if err := client.Mail(m.from); err != nil {
+	// m.from may carry a display name ("Name <addr>"); MAIL FROM requires a bare address.
+	fromAddr, parseErr := mail.ParseAddress(m.from)
+	if parseErr != nil {
+		return fmt.Errorf("mailer: invalid from address %q: %w", m.from, parseErr)
+	}
+	if err := client.Mail(fromAddr.Address); err != nil {
 		return err
 	}
 	if err := client.Rcpt(to); err != nil {
