@@ -40,6 +40,10 @@ func unprocessableEntity(c *gin.Context, msg string) {
 	c.JSON(http.StatusUnprocessableEntity, Response{Success: false, Error: msg})
 }
 
+func serviceUnavailable(c *gin.Context, msg string) {
+	c.JSON(http.StatusServiceUnavailable, Response{Success: false, Error: msg})
+}
+
 func internal(c *gin.Context) {
 	c.JSON(http.StatusInternalServerError, Response{Success: false, Error: "internal server error"})
 }

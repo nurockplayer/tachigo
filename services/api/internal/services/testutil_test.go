@@ -302,7 +302,7 @@ func migrateTestDB(db *gorm.DB) error {
 		)`,
 		`CREATE TABLE IF NOT EXISTS coupon_redemptions (
 			id TEXT PRIMARY KEY,
-			user_id TEXT NOT NULL,
+			user_id TEXT NOT NULL REFERENCES users(id) ON DELETE CASCADE,
 			coupon_id TEXT NOT NULL,
 			amount INTEGER NOT NULL CHECK (amount > 0),
 			tx_hash TEXT NOT NULL,

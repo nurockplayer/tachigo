@@ -15,6 +15,7 @@ type mockBurnCaller struct {
 	txHash string
 	err    error
 	calls  []burnCall
+	after  func()
 }
 
 type burnCall struct {
@@ -24,6 +25,9 @@ type burnCall struct {
 
 func (m *mockBurnCaller) BurnOnChain(_ context.Context, fromAddr string, amount int64) (string, error) {
 	m.calls = append(m.calls, burnCall{fromAddr: fromAddr, amount: amount})
+	if m.after != nil {
+		m.after()
+	}
 	return m.txHash, m.err
 }
 
@@ -33,6 +37,8 @@ type mockTachiyaClient struct {
 	voucherCode string
 	err         error
 	calls       []tachiyaCall
+	ctxErr      error
+	beforeReply func()
 }
 
 type tachiyaCall struct {
@@ -40,8 +46,12 @@ type tachiyaCall struct {
 	tcgCost  int64
 }
 
-func (m *mockTachiyaClient) RedeemCoupon(_ context.Context, couponID string, tcgCost int64) (string, error) {
+func (m *mockTachiyaClient) RedeemCoupon(ctx context.Context, couponID string, tcgCost int64) (string, error) {
 	m.calls = append(m.calls, tachiyaCall{couponID: couponID, tcgCost: tcgCost})
+	m.ctxErr = ctx.Err()
+	if m.beforeReply != nil {
+		m.beforeReply()
+	}
 	return m.voucherCode, m.err
 }
 
@@ -108,6 +118,59 @@ func TestRedeem_Success(t *testing.T) {
 	db.Raw("SELECT status FROM coupon_redemptions WHERE user_id = ?", userID).Scan(&redemptionStatus)
 	if redemptionStatus != "redeemed" {
 		t.Fatalf("expected coupon_redemption status=redeemed, got %q", redemptionStatus)
+	}
+
+	var voucher string
+	db.Raw("SELECT voucher_code FROM coupon_redemptions WHERE user_id = ?", userID).Scan(&voucher)
+	if voucher != "VOUCHER-XYZ" {
+		t.Fatalf("expected voucher_code=VOUCHER-XYZ, got %q", voucher)
+	}
+}
+
+func TestRedeem_SuccessPersistFailureReturnsError(t *testing.T) {
+	db := newTestDB(t)
+	sqlDB, err := db.DB()
+	if err != nil {
+		t.Fatalf("db handle: %v", err)
+	}
+	burnCaller := &mockBurnCaller{txHash: "0xburn123"}
+	tachiyaClient := &mockTachiyaClient{
+		voucherCode: "VOUCHER-XYZ",
+		beforeReply: func() {
+			_ = sqlDB.Close()
+		},
+	}
+	svc := &SpendService{db: db, burnCaller: burnCaller, tachiyaClient: tachiyaClient}
+
+	userID := userIDForClaim(t, db)
+	seedWeb3Provider(t, db, userID, "0xd8dA6BF26964aF9D7eEd9e03E53415D37aA96045")
+	seedTachiBalance(t, db, userID, 500)
+
+	_, _, err = svc.Redeem(context.Background(), userID, "coupon-123", 100)
+	if err == nil {
+		t.Fatal("expected error when redeemed voucher persistence fails, got nil")
+	}
+}
+
+func TestRedeem_TachiyaCallOutlivesRequestCancellationAfterBurn(t *testing.T) {
+	db := newTestDB(t)
+	reqCtx, cancelReq := context.WithCancel(context.Background())
+	burnCaller := &mockBurnCaller{
+		txHash: "0xburn123",
+		after:  cancelReq,
+	}
+	tachiyaClient := &mockTachiyaClient{voucherCode: "VOUCHER-XYZ"}
+	svc := &SpendService{db: db, burnCaller: burnCaller, tachiyaClient: tachiyaClient}
+
+	userID := userIDForClaim(t, db)
+	seedWeb3Provider(t, db, userID, "0xd8dA6BF26964aF9D7eEd9e03E53415D37aA96045")
+	seedTachiBalance(t, db, userID, 500)
+
+	if _, _, err := svc.Redeem(reqCtx, userID, "coupon-123", 100); err != nil {
+		t.Fatalf("unexpected error: %v", err)
+	}
+	if tachiyaClient.ctxErr != nil {
+		t.Fatalf("tachiya context should not inherit canceled request context, got %v", tachiyaClient.ctxErr)
 	}
 }
 
@@ -224,12 +287,25 @@ func TestRedeem_TachiyaFailure_ReturnsErrorAndRecordsCompensation(t *testing.T) 
 
 func TestCouponRedemptionSchema(t *testing.T) {
 	db := newTestDB(t)
+	userID := userIDForClaim(t, db)
 	err := db.Exec(`
 		INSERT INTO coupon_redemptions (id, user_id, coupon_id, amount, tx_hash, status, created_at, updated_at)
-		VALUES ('test-id-1', 'user-id-1', 'coupon-123', 100, '0xabc', 'pending',
+		VALUES ('test-id-1', ?, 'coupon-123', 100, '0xabc', 'pending',
 		        CURRENT_TIMESTAMP, CURRENT_TIMESTAMP)
-	`).Error
+	`, userID.String()).Error
 	if err != nil {
 		t.Fatalf("coupon_redemptions table not ready: %v", err)
+	}
+}
+
+func TestCouponRedemptionSchemaRequiresExistingUser(t *testing.T) {
+	db := newTestDB(t)
+	err := db.Exec(`
+		INSERT INTO coupon_redemptions (id, user_id, coupon_id, amount, tx_hash, status, created_at, updated_at)
+		VALUES ('test-id-invalid-user', '00000000-0000-0000-0000-000000000000', 'coupon-123', 100, '0xabc', 'pending',
+		        CURRENT_TIMESTAMP, CURRENT_TIMESTAMP)
+	`).Error
+	if err == nil {
+		t.Fatal("expected coupon_redemptions.user_id to require an existing user")
 	}
 }

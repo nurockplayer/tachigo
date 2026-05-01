@@ -123,7 +123,7 @@ func (s *SpendService) Redeem(ctx context.Context, userID uuid.UUID, couponID st
 		return reservation.newBalance, "", nil
 	}
 
-	tachiyaCtx, tachiyaCancel := context.WithTimeout(ctx, 10*time.Second)
+	tachiyaCtx, tachiyaCancel := context.WithTimeout(context.Background(), 10*time.Second)
 	defer tachiyaCancel()
 	voucherCode, tachiyaErr := s.tachiyaClient.RedeemCoupon(tachiyaCtx, couponID, reservation.amount)
 	if tachiyaErr != nil {
@@ -139,14 +139,12 @@ func (s *SpendService) Redeem(ctx context.Context, userID uuid.UUID, couponID st
 		return 0, "", fmt.Errorf("%w (coupon_id=%s): %v", ErrTachiyaRedeemFailed, couponID, tachiyaErr)
 	}
 
-	if rec != nil {
-		if err := s.db.Model(rec).Updates(map[string]interface{}{
-			"status":       models.CouponRedemptionRedeemed,
-			"voucher_code": voucherCode,
-			"updated_at":   time.Now(),
-		}).Error; err != nil {
-			log.Printf("warning: failed to persist redeemed voucher id=%s: %v", rec.ID, err)
-		}
+	if err := s.db.Model(rec).Updates(map[string]interface{}{
+		"status":       models.CouponRedemptionRedeemed,
+		"voucher_code": voucherCode,
+		"updated_at":   time.Now(),
+	}).Error; err != nil {
+		return 0, "", fmt.Errorf("failed to persist redeemed voucher id=%s coupon_id=%s: %w", rec.ID, couponID, err)
 	}
 
 	return reservation.newBalance, voucherCode, nil
