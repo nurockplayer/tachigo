@@ -1,8 +1,9 @@
+import { useList } from '@refinedev/core'
 import { isAxiosError } from 'axios'
-import { useEffect, useState } from 'react'
+import { useEffect, useMemo } from 'react'
 import { useNavigate } from 'react-router'
 import { Skeleton } from '@/components/ui/skeleton'
-import { getMyChannels, getStreamers, type Streamer } from '@/services/channels'
+import type { Streamer } from '@/services/channels'
 
 function shouldFallbackToGetStreamers(error: unknown) {
   if (!isAxiosError(error)) return false
@@ -11,56 +12,39 @@ function shouldFallbackToGetStreamers(error: unknown) {
 
 export default function StreamersPage() {
   const navigate = useNavigate()
-  const [streamers, setStreamers] = useState<Streamer[]>([])
-  const [loading, setLoading] = useState(true)
-  const [error, setError] = useState(false)
-  const [shouldAutoRedirect, setShouldAutoRedirect] = useState(false)
+  const myChannelsResult = useList<Streamer>({
+    resource: 'streamer-channels',
+    queryOptions: { retry: false },
+  })
+  const myChannelsQuery = myChannelsResult.query
+  const shouldFallback = shouldFallbackToGetStreamers(myChannelsQuery.error)
+  const streamersResult = useList<Streamer>({
+    resource: 'streamers',
+    queryOptions: { enabled: shouldFallback, retry: false },
+  })
+  const streamersQuery = streamersResult.query
+  const streamers: Streamer[] = useMemo(
+    () =>
+      myChannelsQuery.data?.data
+      ?? (shouldFallback ? streamersQuery.data?.data : undefined)
+      ?? [],
+    [myChannelsQuery.data?.data, shouldFallback, streamersQuery.data?.data],
+  )
+  const loading = myChannelsQuery.isLoading || (shouldFallback && streamersQuery.isLoading)
+  const error = Boolean(
+    (myChannelsQuery.error && !shouldFallback) || (shouldFallback && streamersQuery.error),
+  )
 
   function openStreamer(streamerId: string) {
     navigate(`/streamers/${streamerId}`)
   }
 
   useEffect(() => {
-    let mounted = true
-
-    getMyChannels()
-      .then((data) => {
-        if (!mounted) return
-        setStreamers(data)
-        setShouldAutoRedirect(true)
-      })
-      .catch(async (error: unknown) => {
-        if (!shouldFallbackToGetStreamers(error)) {
-          if (!mounted) return
-          setError(true)
-          return
-        }
-
-        try {
-          const data = await getStreamers()
-          if (!mounted) return
-          setStreamers(data)
-        } catch {
-          if (!mounted) return
-          setError(true)
-        }
-      })
-      .finally(() => {
-        if (!mounted) return
-        setLoading(false)
-      })
-
-    return () => {
-      mounted = false
-    }
-  }, [])
-
-  useEffect(() => {
-    if (loading || error || !shouldAutoRedirect) return
+    if (loading || error || !myChannelsQuery.isSuccess) return
     const first = streamers[0]
     if (!first) return
     navigate(`/streamers/${first.id}`, { replace: true })
-  }, [streamers, loading, error, navigate, shouldAutoRedirect])
+  }, [streamers, loading, error, navigate, myChannelsQuery.isSuccess])
 
   return (
     <div className="space-y-6">

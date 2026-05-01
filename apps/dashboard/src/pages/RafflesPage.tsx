@@ -1,10 +1,11 @@
+import { useCreate, useList } from '@refinedev/core'
 import { isAxiosError } from 'axios'
-import { useEffect, useState } from 'react'
+import { useState } from 'react'
 import { useNavigate } from 'react-router'
 import { Button } from '@/components/ui/button'
 import { Input } from '@/components/ui/input'
 import { Skeleton } from '@/components/ui/skeleton'
-import { listRaffles, createRaffle, type Raffle, type RaffleStatus } from '@/services/raffles'
+import type { Raffle, RaffleStatus } from '@/services/raffles'
 
 const statusLabel: Record<RaffleStatus, string> = {
   draft: '草稿',
@@ -20,20 +21,17 @@ const statusClass: Record<RaffleStatus, string> = {
 
 export default function RafflesPage() {
   const navigate = useNavigate()
-  const [raffles, setRaffles] = useState<Raffle[]>([])
-  const [loading, setLoading] = useState(true)
-  const [error, setError] = useState(false)
+  const { query: { data, isLoading: loading, isError, refetch } } = useList<Raffle>({
+    resource: 'raffles',
+    queryOptions: { retry: false },
+  })
+  const { mutateAsync: createRaffle } = useCreate<Raffle>()
+  const [createdRaffles, setCreatedRaffles] = useState<Raffle[]>([])
   const [title, setTitle] = useState('')
   const [creating, setCreating] = useState(false)
   const [createError, setCreateError] = useState<string | null>(null)
-  useEffect(() => {
-    let mounted = true
-    listRaffles()
-      .then((data) => { if (mounted) setRaffles(data) })
-      .catch(() => { if (mounted) setError(true) })
-      .finally(() => { if (mounted) setLoading(false) })
-    return () => { mounted = false }
-  }, [])
+  const raffles: Raffle[] = [...createdRaffles, ...(data?.data ?? [])]
+  const error = isError && raffles.length === 0
 
   async function handleCreate(e: React.FormEvent) {
     e.preventDefault()
@@ -41,9 +39,12 @@ export default function RafflesPage() {
     setCreating(true)
     setCreateError(null)
     try {
-      const raffle = await createRaffle(title.trim())
-      setRaffles((prev) => [raffle, ...prev])
-      setError(false)
+      const { data: raffle } = await createRaffle({
+        resource: 'raffles',
+        values: { title: title.trim() },
+      })
+      setCreatedRaffles((prev) => [raffle, ...prev])
+      void refetch()
       setTitle('')
     } catch (err) {
       const apiError = isAxiosError(err) ? err.response?.data?.error : undefined
