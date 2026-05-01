@@ -153,6 +153,26 @@ func TestCompleteTPointTransaction_DuplicateTransactionID_ReturnsErrDuplicate(t 
 	}
 }
 
+func TestCompleteTPointTransaction_PointsWriteFailure_ReturnsOriginalError(t *testing.T) {
+	svc, _ := newExtSvc(t)
+	_, twitchID := seedTwitchUser(t, svc.db)
+	channelID := "channel-42"
+	extJWT := makeExtJWT(t, twitchID, channelID)
+	receipt := makeReceiptJWT(t, "tx-db-fail-001", "TPOINT100", 100, "bits")
+
+	if err := svc.db.Exec("DROP TABLE points_transactions").Error; err != nil {
+		t.Fatalf("drop points_transactions: %v", err)
+	}
+
+	_, _, err := svc.CompleteTPointTransaction(extJWT, receipt, "TPOINT100")
+	if err == nil {
+		t.Fatal("want error, got nil")
+	}
+	if errors.Is(err, ErrDuplicateTransaction) {
+		t.Fatalf("non-duplicate DB error must not map to ErrDuplicateTransaction: %v", err)
+	}
+}
+
 func TestCompleteTPointTransaction_InvalidReceipt_Errors(t *testing.T) {
 	svc, _ := newExtSvc(t)
 	_, twitchID := seedTwitchUser(t, svc.db)

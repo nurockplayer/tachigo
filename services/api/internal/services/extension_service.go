@@ -4,8 +4,10 @@ import (
 	"encoding/base64"
 	"errors"
 	"fmt"
+	"strings"
 
 	"github.com/golang-jwt/jwt/v5"
+	"github.com/jackc/pgx/v5/pgconn"
 	"gorm.io/gorm"
 
 	"github.com/tachigo/tachigo/internal/config"
@@ -191,11 +193,27 @@ func (s *ExtensionService) CompleteTPointTransaction(extJWT, receipt, sku string
 		},
 	)
 	if err != nil {
-		if errors.Is(err, gorm.ErrDuplicatedKey) {
+		if isDuplicateExternalTransactionError(err) {
 			return nil, nil, ErrDuplicateTransaction
 		}
 		return nil, nil, err
 	}
 
 	return user, tokens, nil
+}
+
+func isDuplicateExternalTransactionError(err error) bool {
+	if errors.Is(err, gorm.ErrDuplicatedKey) {
+		return true
+	}
+
+	var pgErr *pgconn.PgError
+	if errors.As(err, &pgErr) {
+		return pgErr.Code == "23505" &&
+			pgErr.ConstraintName == "idx_points_transactions_external_transaction_id"
+	}
+
+	errText := err.Error()
+	return strings.Contains(errText, "UNIQUE constraint failed") &&
+		strings.Contains(errText, "points_transactions.external_transaction_id")
 }

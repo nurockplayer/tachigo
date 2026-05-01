@@ -61,6 +61,7 @@ func (h *ExtensionHandler) Login(c *gin.Context) {
 // @Success      200  {object}  Response{data=AuthResponse}
 // @Failure      400  {object}  Response
 // @Failure      401  {object}  Response
+// @Failure      409  {object}  Response
 // @Router       /extension/t-point/complete [post]
 func (h *ExtensionHandler) TPointComplete(c *gin.Context) {
 	var body struct {

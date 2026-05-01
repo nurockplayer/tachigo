@@ -1261,6 +1261,10 @@ paths:
           description: Unauthorized
           schema:
             $ref: '#/definitions/handlers.Response'
+        "409":
+          description: Conflict
+          schema:
+            $ref: '#/definitions/handlers.Response'
       summary: Complete a T-point transaction
       tags:
       - extension

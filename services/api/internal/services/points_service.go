@@ -14,11 +14,12 @@ import (
 )
 
 var (
-	ErrInsufficientBalance = errors.New("insufficient spendable balance")
-	ErrLedgerNotFound      = errors.New("points ledger not found")
-	ErrInvalidPointsAmount = errors.New("amount must be greater than zero")
-	ErrInvalidSKU          = errors.New("sku length must be <= 255 characters")
-	ErrPointsDeltaOverflow = errors.New("points delta overflow")
+	ErrInsufficientBalance          = errors.New("insufficient spendable balance")
+	ErrLedgerNotFound               = errors.New("points ledger not found")
+	ErrInvalidPointsAmount          = errors.New("amount must be greater than zero")
+	ErrInvalidSKU                   = errors.New("sku length must be <= 255 characters")
+	ErrInvalidExternalTransactionID = errors.New("external transaction id length must be <= 255 characters")
+	ErrPointsDeltaOverflow          = errors.New("points delta overflow")
 )
 
 type PointsCreditMeta struct {
@@ -150,6 +151,9 @@ func (s *PointsService) AddPointsWithMeta(
 	}
 	if meta.SKU != nil && utf8.RuneCountInString(*meta.SKU) > 255 {
 		return ErrInvalidSKU
+	}
+	if meta.ExternalTransactionID != nil && utf8.RuneCountInString(*meta.ExternalTransactionID) > 255 {
+		return ErrInvalidExternalTransactionID
 	}
 	return s.db.Transaction(func(tx *gorm.DB) error {
 		return s.addPointsWithMeta(tx, userID, channelID, source, amount, meta)

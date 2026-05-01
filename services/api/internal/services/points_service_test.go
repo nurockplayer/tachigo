@@ -229,6 +229,23 @@ func TestPointsService_AddPointsWithMeta_RejectsTooLongSKU(t *testing.T) {
 	}
 }
 
+func TestPointsService_AddPointsWithMeta_RejectsTooLongExternalTransactionID(t *testing.T) {
+	svc, _ := newPointsSvc(t)
+	userID := seedViewer(t, svc)
+	txID := strings.Repeat("x", 256)
+
+	err := svc.AddPointsWithMeta(
+		userID,
+		"ch_abc",
+		models.TxSourceTPoint,
+		100,
+		PointsCreditMeta{ExternalTransactionID: &txID},
+	)
+	if !errors.Is(err, ErrInvalidExternalTransactionID) {
+		t.Fatalf("want ErrInvalidExternalTransactionID, got %v", err)
+	}
+}
+
 func TestAddPointsWithMeta_ExternalTransactionID_Persisted(t *testing.T) {
 	svc, _ := newPointsSvc(t)
 	userID := seedViewer(t, svc)
