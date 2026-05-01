@@ -19,15 +19,10 @@ const statusClass: Record<RaffleStatus, string> = {
   completed: 'bg-destructive/10 text-destructive',
 }
 
-function mergeRafflesById(...groups: Raffle[][]): Raffle[] {
-  const seen = new Set<string>()
-  return groups.flatMap(group =>
-    group.filter((raffle) => {
-      if (seen.has(raffle.id)) return false
-      seen.add(raffle.id)
-      return true
-    }),
-  )
+function mergeRaffles(serverRaffles: Raffle[], createdRaffles: Raffle[]): Raffle[] {
+  const serverIds = new Set(serverRaffles.map(raffle => raffle.id))
+  const optimisticOnly = createdRaffles.filter(raffle => !serverIds.has(raffle.id))
+  return [...optimisticOnly, ...serverRaffles]
 }
 
 export default function RafflesPage() {
@@ -42,7 +37,7 @@ export default function RafflesPage() {
   const [creating, setCreating] = useState(false)
   const [createError, setCreateError] = useState<string | null>(null)
   const raffles: Raffle[] = useMemo(
-    () => mergeRafflesById(createdRaffles, data?.data ?? []),
+    () => mergeRaffles(data?.data ?? [], createdRaffles),
     [createdRaffles, data?.data],
   )
   const error = isError && raffles.length === 0

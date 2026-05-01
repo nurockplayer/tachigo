@@ -159,6 +159,34 @@ describe('RafflesPage', () => {
     cleanupRoot(root, container)
   })
 
+  it('prefers refetched server data over an optimistic created raffle with the same id', async () => {
+    const optimisticRaffle = { ...mockRaffle, id: 'r2', title: '夏季抽獎' }
+    const serverRaffle = { ...optimisticRaffle, title: '夏季抽獎（已同步）', status: 'active' as const }
+    const listMock = vi.fn()
+      .mockResolvedValueOnce([mockRaffle as BaseRecord])
+      .mockResolvedValue([serverRaffle as BaseRecord, mockRaffle as BaseRecord])
+    const dataProvider = createMockDataProvider({
+      getList: { 'raffles': listMock },
+      create: { 'raffles': vi.fn().mockResolvedValue(optimisticRaffle as BaseRecord) },
+    })
+    const { container, root } = await renderAt('/raffles', dataProvider)
+    await waitFor(() => expect(container.querySelector('input[name="title"]')).toBeTruthy())
+
+    const input = container.querySelector('input[name="title"]') as HTMLInputElement
+    await act(async () => {
+      const nativeInputValueSetter = Object.getOwnPropertyDescriptor(HTMLInputElement.prototype, 'value')?.set
+      nativeInputValueSetter?.call(input, '夏季抽獎')
+      input.dispatchEvent(new Event('input', { bubbles: true }))
+    })
+    const form = container.querySelector('form') as HTMLFormElement
+    await act(async () => { form.dispatchEvent(new Event('submit', { bubbles: true })) })
+
+    await waitFor(() => expect(container.textContent).toContain('夏季抽獎（已同步）'))
+    expect(container.textContent).toContain('進行中')
+
+    cleanupRoot(root, container)
+  })
+
   it('falls back to a string message when create API error is not a string', async () => {
     const dataProvider = createMockDataProvider({
       getList: { 'raffles': vi.fn().mockResolvedValue([]) },
