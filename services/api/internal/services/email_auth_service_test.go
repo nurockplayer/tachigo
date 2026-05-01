@@ -1,6 +1,7 @@
 package services
 
 import (
+	"context"
 	"testing"
 	"time"
 
@@ -14,7 +15,7 @@ type mockMailer struct {
 	sent []struct{ to, subject, body string }
 }
 
-func (m *mockMailer) Send(to, subject, body string) error {
+func (m *mockMailer) Send(_ context.Context, to, subject, body string) error {
 	m.sent = append(m.sent, struct{ to, subject, body string }{to, subject, body})
 	return nil
 }
@@ -50,7 +51,7 @@ func TestSendVerificationEmail_Success(t *testing.T) {
 	email := "user@example.com"
 	userID := seedEmailUser(t, svc, email, false)
 
-	if err := svc.SendVerificationEmail(userID); err != nil {
+	if err := svc.SendVerificationEmail(context.Background(), userID); err != nil {
 		t.Fatalf("unexpected error: %v", err)
 	}
 	if mailer.lastTo() != email {
@@ -62,7 +63,7 @@ func TestSendVerificationEmail_AlreadyVerified(t *testing.T) {
 	svc, _ := newEmailAuthSvc(t)
 	userID := seedEmailUser(t, svc, "verified@example.com", true)
 
-	err := svc.SendVerificationEmail(userID)
+	err := svc.SendVerificationEmail(context.Background(), userID)
 	if err != ErrAlreadyVerified {
 		t.Errorf("want ErrAlreadyVerified, got %v", err)
 	}
@@ -71,7 +72,7 @@ func TestSendVerificationEmail_AlreadyVerified(t *testing.T) {
 func TestSendVerificationEmail_UserNotFound(t *testing.T) {
 	svc, _ := newEmailAuthSvc(t)
 
-	err := svc.SendVerificationEmail(uuid.New())
+	err := svc.SendVerificationEmail(context.Background(), uuid.New())
 	if err != ErrUserNotFound {
 		t.Errorf("want ErrUserNotFound, got %v", err)
 	}
@@ -81,8 +82,12 @@ func TestSendVerificationEmail_ReplacesExistingToken(t *testing.T) {
 	svc, _ := newEmailAuthSvc(t)
 	userID := seedEmailUser(t, svc, "resend@example.com", false)
 
-	svc.SendVerificationEmail(userID)
-	svc.SendVerificationEmail(userID)
+	if err := svc.SendVerificationEmail(context.Background(), userID); err != nil {
+		t.Fatalf("first SendVerificationEmail failed: %v", err)
+	}
+	if err := svc.SendVerificationEmail(context.Background(), userID); err != nil {
+		t.Fatalf("second SendVerificationEmail failed: %v", err)
+	}
 
 	var count int64
 	svc.db.Model(&models.EmailVerification{}).Where("user_id = ?", userID).Count(&count)
@@ -155,7 +160,7 @@ func TestVerifyEmail_RoundTrip(t *testing.T) {
 	userID := seedEmailUser(t, svc, email, false)
 
 	// Send → extract token from DB (simulate clicking link) → confirm
-	if err := svc.SendVerificationEmail(userID); err != nil {
+	if err := svc.SendVerificationEmail(context.Background(), userID); err != nil {
 		t.Fatalf("send: %v", err)
 	}
 	if len(mailer.sent) == 0 {
@@ -193,7 +198,7 @@ func TestForgotPassword_KnownEmail_SendsEmail(t *testing.T) {
 	email := "forgot@example.com"
 	seedEmailUser(t, svc, email, true)
 
-	if err := svc.ForgotPassword(email); err != nil {
+	if err := svc.ForgotPassword(context.Background(), email); err != nil {
 		t.Fatalf("unexpected error: %v", err)
 	}
 	if mailer.lastTo() != email {
@@ -205,7 +210,7 @@ func TestForgotPassword_UnknownEmail_NoError(t *testing.T) {
 	svc, mailer := newEmailAuthSvc(t)
 
 	// Should return nil even for unknown email (no enumeration)
-	if err := svc.ForgotPassword("nobody@example.com"); err != nil {
+	if err := svc.ForgotPassword(context.Background(), "nobody@example.com"); err != nil {
 		t.Errorf("unexpected error: %v", err)
 	}
 	if len(mailer.sent) != 0 {
@@ -218,8 +223,12 @@ func TestForgotPassword_ReplacesExistingToken(t *testing.T) {
 	email := "resend_reset@example.com"
 	seedEmailUser(t, svc, email, true)
 
-	svc.ForgotPassword(email)
-	svc.ForgotPassword(email)
+	if err := svc.ForgotPassword(context.Background(), email); err != nil {
+		t.Fatalf("first ForgotPassword failed: %v", err)
+	}
+	if err := svc.ForgotPassword(context.Background(), email); err != nil {
+		t.Fatalf("second ForgotPassword failed: %v", err)
+	}
 
 	var count int64
 	svc.db.Model(&models.PasswordReset{}).Where("email = ?", email).Count(&count)

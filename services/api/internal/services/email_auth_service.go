@@ -1,6 +1,7 @@
 package services
 
 import (
+	"context"
 	"errors"
 	"fmt"
 	"time"
@@ -38,7 +39,7 @@ func NewEmailAuthService(db *gorm.DB, cfg *config.Config, mailer Mailer) *EmailA
 // ─── Email Verification ───────────────────────────────────────────────────────
 
 // SendVerificationEmail generates a token and emails a verification link to the user.
-func (s *EmailAuthService) SendVerificationEmail(userID uuid.UUID) error {
+func (s *EmailAuthService) SendVerificationEmail(ctx context.Context, userID uuid.UUID) error {
 	var user models.User
 	if err := s.db.First(&user, "id = ?", userID).Error; err != nil {
 		return ErrUserNotFound
@@ -68,7 +69,7 @@ func (s *EmailAuthService) SendVerificationEmail(userID uuid.UUID) error {
 
 	link := fmt.Sprintf("%s/verify-email?token=%s", s.cfg.App.FrontendURL, rawToken)
 	body := verificationEmailBody(link)
-	return s.mailer.Send(*user.Email, "Verify your Tachigo email", body)
+	return s.mailer.Send(ctx, *user.Email, "Verify your Tachigo email", body)
 }
 
 // VerifyEmail marks the user's email as verified using a raw token.
@@ -97,7 +98,7 @@ func (s *EmailAuthService) VerifyEmail(rawToken string) error {
 
 // ForgotPassword sends a password reset link to the given email.
 // Returns nil even when the email is not found to avoid user enumeration.
-func (s *EmailAuthService) ForgotPassword(email string) error {
+func (s *EmailAuthService) ForgotPassword(ctx context.Context, email string) error {
 	var user models.User
 	if err := s.db.Where("email = ?", email).First(&user).Error; err != nil {
 		if errors.Is(err, gorm.ErrRecordNotFound) {
@@ -125,7 +126,7 @@ func (s *EmailAuthService) ForgotPassword(email string) error {
 
 	link := fmt.Sprintf("%s/reset-password?token=%s", s.cfg.App.FrontendURL, rawToken)
 	body := passwordResetEmailBody(link)
-	if err := s.mailer.Send(email, "Reset your Tachigo password", body); err != nil {
+	if err := s.mailer.Send(ctx, email, "Reset your Tachigo password", body); err != nil {
 		return fmt.Errorf("%w: %w", ErrPasswordResetEmailSend, err)
 	}
 	return nil
