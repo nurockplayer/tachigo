@@ -1,9 +1,11 @@
 package services
 
 import (
+	"errors"
 	"testing"
 
 	"github.com/google/uuid"
+	"gorm.io/gorm"
 
 	"github.com/tachigo/tachigo/internal/models"
 )
@@ -21,6 +23,36 @@ func minimalInput() AddressInput {
 		RecipientName: "John Doe",
 		AddressLine1:  "123 Main St",
 		City:          "Taipei",
+	}
+}
+
+func failAddressBulkUpdate(t *testing.T, db *gorm.DB, name string, err error) {
+	t.Helper()
+	if callbackErr := db.Callback().Update().Before("gorm:update").Register(name, func(tx *gorm.DB) {
+		if tx.Statement.Table != "shipping_addresses" {
+			return
+		}
+		if _, ok := tx.Statement.Dest.(map[string]interface{}); !ok {
+			return
+		}
+		tx.AddError(err)
+	}); callbackErr != nil {
+		t.Fatalf("register update callback: %v", callbackErr)
+	}
+}
+
+func failAddressSave(t *testing.T, db *gorm.DB, name string, err error) {
+	t.Helper()
+	if callbackErr := db.Callback().Update().Before("gorm:update").Register(name, func(tx *gorm.DB) {
+		if tx.Statement.Table != "shipping_addresses" {
+			return
+		}
+		if _, ok := tx.Statement.Dest.(*models.ShippingAddress); !ok {
+			return
+		}
+		tx.AddError(err)
+	}); callbackErr != nil {
+		t.Fatalf("register update callback: %v", callbackErr)
 	}
 }
 
@@ -98,6 +130,34 @@ func TestCreate_SetDefaultUnsetsOthers(t *testing.T) {
 	}
 	if !second.IsDefault {
 		t.Error("second address should be default")
+	}
+}
+
+func TestCreate_DefaultClearFailureReturnsErrorAndDoesNotCreate(t *testing.T) {
+	db := newTestDB(t)
+	svc := NewAddressService(db)
+	userID := seedUser(t, svc)
+
+	input := minimalInput()
+	input.IsDefault = true
+	if _, err := svc.Create(userID, input); err != nil {
+		t.Fatalf("seed default address: %v", err)
+	}
+
+	clearErr := errors.New("clear default failed")
+	failAddressBulkUpdate(t, db, "fail_create_default_clear", clearErr)
+
+	_, err := svc.Create(userID, input)
+	if !errors.Is(err, clearErr) {
+		t.Fatalf("expected clear default error, got %v", err)
+	}
+
+	var count int64
+	if err := db.Model(&models.ShippingAddress{}).Where("user_id = ?", userID).Count(&count).Error; err != nil {
+		t.Fatalf("count addresses: %v", err)
+	}
+	if count != 1 {
+		t.Fatalf("expected failed create to roll back, got %d addresses", count)
 	}
 }
 
@@ -201,6 +261,51 @@ func TestUpdate_WrongUser(t *testing.T) {
 	}
 }
 
+func TestUpdate_DefaultClearFailureReturnsErrorAndRollsBack(t *testing.T) {
+	db := newTestDB(t)
+	svc := NewAddressService(db)
+	userID := seedUser(t, svc)
+
+	defaultInput := minimalInput()
+	defaultInput.IsDefault = true
+	currentDefault, err := svc.Create(userID, defaultInput)
+	if err != nil {
+		t.Fatalf("create default address: %v", err)
+	}
+	target, err := svc.Create(userID, minimalInput())
+	if err != nil {
+		t.Fatalf("create target address: %v", err)
+	}
+
+	clearErr := errors.New("clear other defaults failed")
+	failAddressBulkUpdate(t, db, "fail_update_default_clear", clearErr)
+
+	_, err = svc.Update(userID, target.ID, AddressInput{
+		RecipientName: "Target",
+		AddressLine1:  "456 Other St",
+		City:          "Taipei",
+		IsDefault:     true,
+	})
+	if !errors.Is(err, clearErr) {
+		t.Fatalf("expected clear default error, got %v", err)
+	}
+
+	var reloadedCurrent models.ShippingAddress
+	if err := db.First(&reloadedCurrent, "id = ?", currentDefault.ID).Error; err != nil {
+		t.Fatalf("load current default: %v", err)
+	}
+	if !reloadedCurrent.IsDefault {
+		t.Fatal("existing default should remain default after rollback")
+	}
+	var reloadedTarget models.ShippingAddress
+	if err := db.First(&reloadedTarget, "id = ?", target.ID).Error; err != nil {
+		t.Fatalf("load target address: %v", err)
+	}
+	if reloadedTarget.IsDefault || reloadedTarget.RecipientName == "Target" {
+		t.Fatal("target address should not be saved after clear failure")
+	}
+}
+
 // ─── Delete ──────────────────────────────────────────────────────────────────
 
 func TestDelete_Success(t *testing.T) {
@@ -242,6 +347,32 @@ func TestDelete_WrongUser(t *testing.T) {
 	}
 }
 
+func TestDelete_ReturnsDBErrorBeforeNotFound(t *testing.T) {
+	db := newTestDB(t)
+	svc := NewAddressService(db)
+	userID := seedUser(t, svc)
+	addr, err := svc.Create(userID, minimalInput())
+	if err != nil {
+		t.Fatalf("create address: %v", err)
+	}
+
+	sqlDB, err := db.DB()
+	if err != nil {
+		t.Fatalf("db.DB(): %v", err)
+	}
+	if err := sqlDB.Close(); err != nil {
+		t.Fatalf("close db: %v", err)
+	}
+
+	err = svc.Delete(userID, addr.ID)
+	if err == nil {
+		t.Fatal("expected DB error, got nil")
+	}
+	if errors.Is(err, ErrAddressNotFound) {
+		t.Fatalf("expected DB error before ErrAddressNotFound, got %v", err)
+	}
+}
+
 // ─── SetDefault ──────────────────────────────────────────────────────────────
 
 func TestSetDefault_Success(t *testing.T) {
@@ -275,5 +406,64 @@ func TestSetDefault_NotFound(t *testing.T) {
 	_, err := svc.SetDefault(userID, uuid.New())
 	if err != ErrAddressNotFound {
 		t.Errorf("want ErrAddressNotFound, got %v", err)
+	}
+}
+
+func TestSetDefault_ClearFailureReturnsErrorAndRollsBack(t *testing.T) {
+	db := newTestDB(t)
+	svc := NewAddressService(db)
+	userID := seedUser(t, svc)
+
+	defaultInput := minimalInput()
+	defaultInput.IsDefault = true
+	currentDefault, err := svc.Create(userID, defaultInput)
+	if err != nil {
+		t.Fatalf("create default address: %v", err)
+	}
+	target, err := svc.Create(userID, minimalInput())
+	if err != nil {
+		t.Fatalf("create target address: %v", err)
+	}
+
+	clearErr := errors.New("clear other defaults failed")
+	failAddressBulkUpdate(t, db, "fail_set_default_clear", clearErr)
+
+	_, err = svc.SetDefault(userID, target.ID)
+	if !errors.Is(err, clearErr) {
+		t.Fatalf("expected clear default error, got %v", err)
+	}
+
+	var reloadedCurrent models.ShippingAddress
+	if err := db.First(&reloadedCurrent, "id = ?", currentDefault.ID).Error; err != nil {
+		t.Fatalf("load current default: %v", err)
+	}
+	if !reloadedCurrent.IsDefault {
+		t.Fatal("existing default should remain default after rollback")
+	}
+	var reloadedTarget models.ShippingAddress
+	if err := db.First(&reloadedTarget, "id = ?", target.ID).Error; err != nil {
+		t.Fatalf("load target address: %v", err)
+	}
+	if reloadedTarget.IsDefault {
+		t.Fatal("target address should not become default after clear failure")
+	}
+}
+
+func TestSetDefault_SaveFailureReturnsError(t *testing.T) {
+	db := newTestDB(t)
+	svc := NewAddressService(db)
+	userID := seedUser(t, svc)
+
+	addr, err := svc.Create(userID, minimalInput())
+	if err != nil {
+		t.Fatalf("create address: %v", err)
+	}
+
+	saveErr := errors.New("save default failed")
+	failAddressSave(t, db, "fail_set_default_save", saveErr)
+
+	_, err = svc.SetDefault(userID, addr.ID)
+	if !errors.Is(err, saveErr) {
+		t.Fatalf("expected save error, got %v", err)
 	}
 }
