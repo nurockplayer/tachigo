@@ -129,6 +129,36 @@ describe('RafflesPage', () => {
     cleanupRoot(root, container)
   })
 
+  it('deduplicates a created raffle when refetch returns the same id', async () => {
+    const newRaffle = { ...mockRaffle, id: 'r2', title: '夏季抽獎' }
+    const listMock = vi.fn()
+      .mockResolvedValueOnce([mockRaffle as BaseRecord])
+      .mockResolvedValue([newRaffle as BaseRecord, mockRaffle as BaseRecord])
+    const dataProvider = createMockDataProvider({
+      getList: { 'raffles': listMock },
+      create: { 'raffles': vi.fn().mockResolvedValue(newRaffle as BaseRecord) },
+    })
+    const { container, root } = await renderAt('/raffles', dataProvider)
+    await waitFor(() => expect(container.querySelector('input[name="title"]')).toBeTruthy())
+
+    const input = container.querySelector('input[name="title"]') as HTMLInputElement
+    await act(async () => {
+      const nativeInputValueSetter = Object.getOwnPropertyDescriptor(HTMLInputElement.prototype, 'value')?.set
+      nativeInputValueSetter?.call(input, '夏季抽獎')
+      input.dispatchEvent(new Event('input', { bubbles: true }))
+    })
+    const form = container.querySelector('form') as HTMLFormElement
+    await act(async () => { form.dispatchEvent(new Event('submit', { bubbles: true })) })
+    await waitFor(() => expect(container.textContent).toContain('夏季抽獎'))
+
+    const matchingRows = Array
+      .from(container.querySelectorAll('tbody tr'))
+      .filter(row => row.textContent?.includes('夏季抽獎'))
+    expect(matchingRows).toHaveLength(1)
+
+    cleanupRoot(root, container)
+  })
+
   it('falls back to a string message when create API error is not a string', async () => {
     const dataProvider = createMockDataProvider({
       getList: { 'raffles': vi.fn().mockResolvedValue([]) },

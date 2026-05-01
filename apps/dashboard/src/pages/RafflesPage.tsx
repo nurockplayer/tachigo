@@ -1,6 +1,6 @@
 import { useCreate, useList } from '@refinedev/core'
 import { isAxiosError } from 'axios'
-import { useState } from 'react'
+import { useMemo, useState } from 'react'
 import { useNavigate } from 'react-router'
 import { Button } from '@/components/ui/button'
 import { Input } from '@/components/ui/input'
@@ -19,6 +19,17 @@ const statusClass: Record<RaffleStatus, string> = {
   completed: 'bg-destructive/10 text-destructive',
 }
 
+function mergeRafflesById(...groups: Raffle[][]): Raffle[] {
+  const seen = new Set<string>()
+  return groups.flatMap(group =>
+    group.filter((raffle) => {
+      if (seen.has(raffle.id)) return false
+      seen.add(raffle.id)
+      return true
+    }),
+  )
+}
+
 export default function RafflesPage() {
   const navigate = useNavigate()
   const { query: { data, isLoading: loading, isError, refetch } } = useList<Raffle>({
@@ -30,7 +41,10 @@ export default function RafflesPage() {
   const [title, setTitle] = useState('')
   const [creating, setCreating] = useState(false)
   const [createError, setCreateError] = useState<string | null>(null)
-  const raffles: Raffle[] = [...createdRaffles, ...(data?.data ?? [])]
+  const raffles: Raffle[] = useMemo(
+    () => mergeRafflesById(createdRaffles, data?.data ?? []),
+    [createdRaffles, data?.data],
+  )
   const error = isError && raffles.length === 0
 
   async function handleCreate(e: React.FormEvent) {
