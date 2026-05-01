@@ -1,6 +1,9 @@
 import axios, { type AxiosRequestConfig } from 'axios'
 
-const BASE_URL = import.meta.env.VITE_API_URL ?? 'http://localhost:8080'
+const BASE_URL =
+  import.meta.env.VITE_TACHIGO_API_URL
+  ?? import.meta.env.VITE_API_URL
+  ?? 'http://localhost:8080'
 
 const client = axios.create({
   baseURL: BASE_URL,

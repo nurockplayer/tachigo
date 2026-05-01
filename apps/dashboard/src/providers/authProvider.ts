@@ -81,7 +81,7 @@ export const authProvider: AuthProvider = {
     const status = (error as { status?: number; response?: { status?: number } }).status
       ?? (error as { response?: { status?: number } }).response?.status
 
-    if (status === 401 || status === 403) {
+    if (status === 401) {
       return { logout: true }
     }
 

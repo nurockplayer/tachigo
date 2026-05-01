@@ -36,6 +36,10 @@ function resourcePath(resource: string) {
   return resourcePaths[resource] ?? `/${resource}`
 }
 
+function apiUrl(path: string) {
+  return `${API_URL}${path}`
+}
+
 function pathWithId(resource: string, id: string | number) {
   const encodedId = encodeURIComponent(String(id))
 
@@ -123,7 +127,7 @@ export const dataProvider: DataProvider = {
     filters,
     meta,
   }: GetListParams): Promise<GetListResponse<TData>> => {
-    const { data } = await client.get(resourcePath(resource), {
+    const { data } = await client.get(apiUrl(resourcePath(resource)), {
       params: {
         ...(meta?.params as object | undefined),
         pagination,
@@ -143,7 +147,7 @@ export const dataProvider: DataProvider = {
     resource,
     id,
   }: GetOneParams): Promise<GetOneResponse<TData>> => {
-    const { data } = await client.get(pathWithId(resource, id))
+    const { data } = await client.get(apiUrl(pathWithId(resource, id)))
 
     return {
       data: unwrapOne<TData>(data, resource),
@@ -154,7 +158,7 @@ export const dataProvider: DataProvider = {
     resource,
     variables,
   }: CreateParams<TVariables>): Promise<CreateResponse<TData>> => {
-    const { data } = await client.post(resourcePath(resource), variables)
+    const { data } = await client.post(apiUrl(resourcePath(resource)), variables)
 
     return {
       data: unwrapOne<TData>(data, resource),
@@ -166,7 +170,7 @@ export const dataProvider: DataProvider = {
     id,
     variables,
   }: UpdateParams<TVariables>): Promise<UpdateResponse<TData>> => {
-    const { data } = await client.patch(pathWithId(resource, id), variables)
+    const { data } = await client.patch(apiUrl(pathWithId(resource, id)), variables)
 
     return {
       data: unwrapOne<TData>(data, resource),
@@ -177,7 +181,7 @@ export const dataProvider: DataProvider = {
     resource,
     id,
   }: DeleteOneParams<TVariables>): Promise<DeleteOneResponse<TData>> => {
-    const { data } = await client.delete(pathWithId(resource, id))
+    const { data } = await client.delete(apiUrl(pathWithId(resource, id)))
 
     return {
       data: unwrapOne<TData>(data, resource),
