@@ -14,6 +14,11 @@
   },
   "dependencies": {
     "@radix-ui/react-slot": "^1.2.3",
+    "@hookform/resolvers": "^5.2.1",
+    "@refinedev/core": "^5.0.0",
+    "@refinedev/react-hook-form": "^5.0.0",
+    "@refinedev/react-router": "^2.0.0",
+    "@refinedev/simple-rest": "^6.0.0",
     "@tailwindcss/postcss": "^4.2.4",
     "axios": "^1.15.2",
     "class-variance-authority": "^0.7.1",
@@ -22,7 +27,9 @@
     "react": "^19.2.5",
     "react-dom": "^19.2.5",
     "react-router": "^7.14.2",
-    "tailwind-merge": "^3.3.0"
+    "react-hook-form": "^7.62.0",
+    "tailwind-merge": "^3.3.0",
+    "zod": "^4.1.5"
   },
   "devDependencies": {
     "@eslint/js": "^10.0.1",
