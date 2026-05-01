@@ -144,6 +144,7 @@ func (s *SpendService) Redeem(ctx context.Context, userID uuid.UUID, couponID st
 		"voucher_code": voucherCode,
 		"updated_at":   time.Now(),
 	}).Error; err != nil {
+		// Tachiya already issued the voucher; leave the local record pending so reconciliation can resolve it.
 		return 0, "", fmt.Errorf("failed to persist redeemed voucher id=%s coupon_id=%s: %w", rec.ID, couponID, err)
 	}
 

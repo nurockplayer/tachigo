@@ -2,6 +2,7 @@ package services
 
 import (
 	"context"
+	"database/sql"
 	"errors"
 	"testing"
 
@@ -127,28 +128,44 @@ func TestRedeem_Success(t *testing.T) {
 	}
 }
 
-func TestRedeem_SuccessPersistFailureReturnsError(t *testing.T) {
+func TestRedeem_TachiyaIssuedVoucherButPersistFailureReturnsErrorAndLeavesPending(t *testing.T) {
 	db := newTestDB(t)
-	sqlDB, err := db.DB()
-	if err != nil {
-		t.Fatalf("db handle: %v", err)
+	updateErr := errors.New("forced redeemed voucher update failure")
+	if err := db.Callback().Update().Before("gorm:update").Register("fail_coupon_redemption_redeemed_update", func(tx *gorm.DB) {
+		if tx.Statement.Schema != nil && tx.Statement.Schema.Table == "coupon_redemptions" {
+			tx.AddError(updateErr)
+		}
+	}); err != nil {
+		t.Fatalf("register update callback: %v", err)
 	}
+
 	burnCaller := &mockBurnCaller{txHash: "0xburn123"}
-	tachiyaClient := &mockTachiyaClient{
-		voucherCode: "VOUCHER-XYZ",
-		beforeReply: func() {
-			_ = sqlDB.Close()
-		},
-	}
+	tachiyaClient := &mockTachiyaClient{voucherCode: "VOUCHER-XYZ"}
 	svc := &SpendService{db: db, burnCaller: burnCaller, tachiyaClient: tachiyaClient}
 
 	userID := userIDForClaim(t, db)
 	seedWeb3Provider(t, db, userID, "0xd8dA6BF26964aF9D7eEd9e03E53415D37aA96045")
 	seedTachiBalance(t, db, userID, 500)
 
-	_, _, err = svc.Redeem(context.Background(), userID, "coupon-123", 100)
-	if err == nil {
-		t.Fatal("expected error when redeemed voucher persistence fails, got nil")
+	_, _, err := svc.Redeem(context.Background(), userID, "coupon-123", 100)
+	if !errors.Is(err, updateErr) {
+		t.Fatalf("expected redeemed voucher persistence error, got %v", err)
+	}
+
+	var status string
+	var voucher sql.NullString
+	var txHash string
+	if err := db.Raw("SELECT status, voucher_code, tx_hash FROM coupon_redemptions WHERE user_id = ?", userID).Row().Scan(&status, &voucher, &txHash); err != nil {
+		t.Fatalf("scan coupon_redemption: %v", err)
+	}
+	if status != "pending" {
+		t.Fatalf("expected status to remain pending for reconciliation, got %q", status)
+	}
+	if txHash != "0xburn123" {
+		t.Fatalf("expected pending redemption to retain burn tx_hash for reconciliation, got %q", txHash)
+	}
+	if voucher.Valid {
+		t.Fatalf("expected voucher_code to remain unset after persist failure, got %q", voucher.String)
 	}
 }
 
