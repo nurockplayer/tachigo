@@ -55,6 +55,15 @@ test('frontend CI job runs the frontend test command', async () => {
   )
 })
 
+test('CI workflow uses infra script entrypoints', async () => {
+  const workflow = await readFile(workflowPath, 'utf8')
+
+  assert.match(workflow, /run: bash infra\/scripts\/check-backend-ci-cache\.sh/)
+  assert.match(workflow, /run: bash infra\/scripts\/commit-message-check\.test\.sh/)
+  assert.match(workflow, /run: bash infra\/scripts\/check-pr-commit-messages\.sh/)
+  assert.doesNotMatch(workflow, /run: bash scripts\//)
+})
+
 test('backend CI job runs go test and go vet natively from services/api', async () => {
   const workflow = await readFile(workflowPath, 'utf8')
   const backendJob = workflowJobBlock(workflow, 'backend')

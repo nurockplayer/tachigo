@@ -181,7 +181,7 @@ jobs:
       - uses: actions/checkout@v4
 
       - name: Verify Docker Buildx cache configuration
-        run: bash scripts/check-backend-ci-cache.sh
+        run: bash infra/scripts/check-backend-ci-cache.sh
 
   workflow-regression:
     timeout-minutes: 5
@@ -205,7 +205,7 @@ jobs:
       - uses: actions/checkout@v4
 
       - name: Verify commit message hook assertions
-        run: bash scripts/commit-message-check.test.sh
+        run: bash infra/scripts/commit-message-check.test.sh
 
   pr-commit-messages:
     timeout-minutes: 5
@@ -218,7 +218,7 @@ jobs:
           fetch-depth: 0
 
       - name: Validate PR commit messages
-        run: bash scripts/check-pr-commit-messages.sh "origin/${{ github.base_ref }}" "${{ github.event.pull_request.head.sha }}"
+        run: bash infra/scripts/check-pr-commit-messages.sh "origin/${{ github.base_ref }}" "${{ github.event.pull_request.head.sha }}"
 
   backend-build:
     timeout-minutes: 15

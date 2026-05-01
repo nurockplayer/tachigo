@@ -21,6 +21,9 @@ BEGIN
     END LOOP;
 END $$;
 
+ALTER TABLE claims DROP CONSTRAINT IF EXISTS claims_status_check;
+ALTER TABLE claims DROP CONSTRAINT IF EXISTS chk_claim_status;
+
 ALTER TABLE claims
     ADD CONSTRAINT chk_claim_status
     CHECK (status IN ('pending', 'broadcast', 'confirmed', 'failed', 'finalize_failed'));

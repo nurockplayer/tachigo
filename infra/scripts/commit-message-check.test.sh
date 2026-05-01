@@ -2,7 +2,7 @@
 
 set -euo pipefail
 
-root_dir="$(cd "$(dirname "$0")/.." && pwd)"
+root_dir="$(cd "$(dirname "$0")/../.." && pwd)"
 tmpdir="$(mktemp -d)"
 trap 'rm -rf "$tmpdir"' EXIT
 
@@ -15,7 +15,7 @@ run_case() {
   printf '%s\n' "$message_content" > "$message_file"
 
   set +e
-  "$root_dir/scripts/commit-message-check.sh" "$message_file" >"$tmpdir/$name.stdout" 2>"$tmpdir/$name.stderr"
+  "$root_dir/infra/scripts/commit-message-check.sh" "$message_file" >"$tmpdir/$name.stdout" 2>"$tmpdir/$name.stderr"
   exit_code=$?
   set -e
 
@@ -76,7 +76,7 @@ git checkout -q feat/commit-message-policy
 git merge --no-ff develop -m "Merge branch 'develop' into feat/commit-message-policy" >/dev/null
 
 set +e
-"$root_dir/scripts/check-pr-commit-messages.sh" develop HEAD >"$tmpdir/range-valid.stdout" 2>"$tmpdir/range-valid.stderr"
+"$root_dir/infra/scripts/check-pr-commit-messages.sh" develop HEAD >"$tmpdir/range-valid.stdout" 2>"$tmpdir/range-valid.stderr"
 range_exit=$?
 set -e
 
@@ -91,7 +91,7 @@ git add README.md
 git commit -q -m "chore: missing issue marker"
 
 set +e
-"$root_dir/scripts/check-pr-commit-messages.sh" develop HEAD >"$tmpdir/range-invalid.stdout" 2>"$tmpdir/range-invalid.stderr"
+"$root_dir/infra/scripts/check-pr-commit-messages.sh" develop HEAD >"$tmpdir/range-invalid.stdout" 2>"$tmpdir/range-invalid.stderr"
 range_exit=$?
 set -e
 

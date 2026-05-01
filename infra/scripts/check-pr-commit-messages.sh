@@ -5,7 +5,7 @@ set -euo pipefail
 usage() {
   cat <<'EOF'
 Usage:
-  scripts/check-pr-commit-messages.sh <base-ref> <head-ref>
+  infra/scripts/check-pr-commit-messages.sh <base-ref> <head-ref>
 
 Validates all non-merge commits in a PR range.
 EOF
@@ -41,13 +41,13 @@ main() {
   fi
 
   local root_dir
-  root_dir="$(cd "$(dirname "$0")/.." && pwd)"
+  root_dir="$(cd "$(dirname "$0")/../.." && pwd)"
 
   local sha failed=0
   while IFS= read -r sha; do
     [ -n "$sha" ] || continue
     git show -s --format=%B "$sha" > "$tmpdir/$sha.txt"
-    if ! "$root_dir/scripts/commit-message-check.sh" "$tmpdir/$sha.txt"; then
+    if ! "$root_dir/infra/scripts/commit-message-check.sh" "$tmpdir/$sha.txt"; then
       echo "" >&2
       echo "Commit $sha 驗證失敗" >&2
       failed=1

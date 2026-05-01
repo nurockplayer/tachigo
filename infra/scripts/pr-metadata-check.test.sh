@@ -2,7 +2,7 @@
 
 set -euo pipefail
 
-root_dir="$(cd "$(dirname "$0")/.." && pwd)"
+root_dir="$(cd "$(dirname "$0")/../.." && pwd)"
 head_branch="tmp-pr-metadata-check-test"
 
 tmpdir="$(mktemp -d)"
@@ -74,7 +74,7 @@ $extra_body
 EOF
 
   set +e
-  PATH="$fakebin:$PATH" "$root_dir/scripts/pr-metadata-check.sh" \
+  PATH="$fakebin:$PATH" "$root_dir/infra/scripts/pr-metadata-check.sh" \
     --title "$title" \
     --body-file "$body_file" \
     --base develop \

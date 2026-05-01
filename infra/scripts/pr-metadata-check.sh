@@ -5,7 +5,7 @@ set -euo pipefail
 usage() {
   cat <<'EOF'
 Usage:
-  scripts/pr-metadata-check.sh --title "<pr title>" --body-file <path> [--base develop] [--head <branch>] [--repo owner/name]
+  infra/scripts/pr-metadata-check.sh --title "<pr title>" --body-file <path> [--base develop] [--head <branch>] [--repo owner/name]
 
 Checks local PR metadata against the current PR Scope Police rules before opening a PR.
 EOF
