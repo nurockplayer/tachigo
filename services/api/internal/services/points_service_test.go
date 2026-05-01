@@ -525,7 +525,7 @@ func TestPointsService_GetBroadcastStats_TimeWindows(t *testing.T) {
 		seconds    int64
 		recordedAt time.Time
 	}{
-		{60, now.Add(-10 * time.Minute)},    // today
+		{60, now},                           // today
 		{120, startOfDay.Add(-time.Hour)},   // previous day; outside daily, in monthly unless today is the 1st
 		{180, startOfMonth.Add(-time.Hour)}, // previous month; outside monthly, in yearly unless this is January
 	}

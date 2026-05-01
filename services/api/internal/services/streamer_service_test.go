@@ -146,7 +146,7 @@ func TestGetChannelStats_OK(t *testing.T) {
 	startOfMonth := time.Date(now.Year(), now.Month(), 1, 0, 0, 0, 0, now.Location())
 	startOfYear := time.Date(now.Year(), 1, 1, 0, 0, 0, 0, now.Location())
 	entries := []time.Time{
-		now.Add(-10 * time.Minute),
+		now,
 		startOfDay.Add(-time.Hour),
 		startOfMonth.Add(-time.Hour),
 	}
