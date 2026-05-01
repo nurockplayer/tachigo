@@ -253,6 +253,45 @@ func TestLinkWallet_AddressAlreadyLinkedToOtherUser(t *testing.T) {
 	if err != ErrProviderLinked {
 		t.Errorf("want ErrProviderLinked, got %v", err)
 	}
+
+	var nonceCount int64
+	db.Model(&models.Web3Nonce{}).Where("nonce = ?", nonceB).Count(&nonceCount)
+	if nonceCount != 1 {
+		t.Errorf("nonce should remain after failed wallet link, got %d rows", nonceCount)
+	}
+}
+
+func TestLinkWallet_CreateFailureKeepsNonce(t *testing.T) {
+	db := newTestDB(t)
+	svc := NewUserService(db)
+	userID := uuid.New()
+	db.Create(&models.User{ID: userID, Role: models.RoleViewer})
+
+	key, addr := newTestWallet(t)
+	nonce := "create-failure-keeps-nonce"
+	nr := seedWalletNonce(t, db, addr, nonce)
+	msg := siweMessage(addr, nonce, nr.CreatedAt.UTC().Format(time.RFC3339))
+
+	db.Callback().Create().Before("gorm:create").Register("test:fail_auth_provider_create", func(tx *gorm.DB) {
+		if tx.Statement.Table == "auth_providers" {
+			tx.AddError(gorm.ErrDuplicatedKey)
+		}
+	})
+
+	_, err := svc.LinkWallet(userID, LinkWalletInput{
+		Address:   addr,
+		Nonce:     nonce,
+		Signature: signSIWE(t, msg, key),
+	})
+	if err != ErrProviderLinked {
+		t.Errorf("want ErrProviderLinked, got %v", err)
+	}
+
+	var nonceCount int64
+	db.Model(&models.Web3Nonce{}).Where("nonce = ?", nonce).Count(&nonceCount)
+	if nonceCount != 1 {
+		t.Errorf("nonce should remain after auth provider create failure, got %d rows", nonceCount)
+	}
 }
 
 func TestLinkWallet_ReplacesUsersExistingPrimaryWallet(t *testing.T) {
