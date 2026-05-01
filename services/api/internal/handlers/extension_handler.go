@@ -61,12 +61,13 @@ func (h *ExtensionHandler) Login(c *gin.Context) {
 // @Success      200  {object}  Response{data=AuthResponse}
 // @Failure      400  {object}  Response
 // @Failure      401  {object}  Response
+// @Failure      409  {object}  Response
 // @Router       /extension/t-point/complete [post]
 func (h *ExtensionHandler) TPointComplete(c *gin.Context) {
 	var body struct {
-		ExtensionJWT        string `json:"extension_jwt" binding:"required"`
-		TransactionReceipt  string `json:"transaction_receipt" binding:"required"`
-		SKU                 string `json:"sku" binding:"required"`
+		ExtensionJWT       string `json:"extension_jwt" binding:"required"`
+		TransactionReceipt string `json:"transaction_receipt" binding:"required"`
+		SKU                string `json:"sku" binding:"required"`
 	}
 	if err := c.ShouldBindJSON(&body); err != nil {
 		badRequest(c, err.Error())
@@ -78,8 +79,10 @@ func (h *ExtensionHandler) TPointComplete(c *gin.Context) {
 		switch err {
 		case services.ErrInvalidExtJWT:
 			unauthorized(c, "invalid extension JWT")
-		case services.ErrInvalidReceipt:
+		case services.ErrInvalidReceipt, services.ErrInvalidReceiptAmount, services.ErrInvalidReceiptType:
 			badRequest(c, "invalid transaction receipt")
+		case services.ErrDuplicateTransaction:
+			conflict(c, "transaction already processed")
 		case services.ErrExtSecretMissing:
 			internal(c)
 		default:
@@ -101,6 +104,7 @@ func (h *ExtensionHandler) TPointComplete(c *gin.Context) {
 // @Success      200  {object}  Response{data=AuthResponse}
 // @Failure      400  {object}  Response
 // @Failure      401  {object}  Response
+// @Failure      409  {object}  Response
 // @Router       /extension/bits/complete [post]
 // @Deprecated
 func (h *ExtensionHandler) BitsComplete(c *gin.Context) { h.TPointComplete(c) }

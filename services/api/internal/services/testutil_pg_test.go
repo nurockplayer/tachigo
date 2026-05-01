@@ -177,6 +177,7 @@ func migratePGTestDB(db *gorm.DB) error {
 			balance_after BIGINT NOT NULL,
 			sku TEXT,
 			note TEXT,
+			external_transaction_id VARCHAR(255) UNIQUE,
 			created_at TIMESTAMPTZ
 		)`,
 		`CREATE UNIQUE INDEX IF NOT EXISTS idx_points_transactions_id_ledger_id

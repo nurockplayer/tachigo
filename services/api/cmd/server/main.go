@@ -119,6 +119,13 @@ func main() {
 		log.Fatalf("failed to create points ledger index: %v", err)
 	}
 	if err := db.Exec(`
+		CREATE UNIQUE INDEX IF NOT EXISTS idx_points_transactions_external_transaction_id
+		ON points_transactions (external_transaction_id)
+		WHERE external_transaction_id IS NOT NULL
+	`).Error; err != nil {
+		log.Fatalf("failed to create points transaction external id index: %v", err)
+	}
+	if err := db.Exec(`
 		CREATE UNIQUE INDEX IF NOT EXISTS idx_streamers_user_channel
 		ON streamers (user_id, channel_id)
 	`).Error; err != nil {
@@ -143,12 +150,12 @@ func main() {
 	authSvc := services.NewAuthService(db, cfg)
 	userSvc := services.NewUserService(db)
 	addrSvc := services.NewAddressService(db)
-	extSvc := services.NewExtensionService(db, cfg, authSvc)
 	mailer := services.NewMailer(cfg.SMTP.Host, cfg.SMTP.Port, cfg.SMTP.Username, cfg.SMTP.Password, cfg.SMTP.From)
 	emailAuthSvc := services.NewEmailAuthService(db, cfg, mailer)
 	watchSvc := services.NewWatchService(db)
 	channelConfigSvc := services.NewChannelConfigService(db)
 	pointsSvc := services.NewPointsService(db, watchSvc)
+	extSvc := services.NewExtensionService(db, cfg, authSvc, pointsSvc)
 	streamerSvc := services.NewStreamerService(db, pointsSvc)
 	agencySvc := services.NewAgencyService(db)
 	airdropSvc := services.NewAirdropService(db, pointsSvc, channelConfigSvc)

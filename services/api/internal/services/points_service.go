@@ -14,16 +14,18 @@ import (
 )
 
 var (
-	ErrInsufficientBalance = errors.New("insufficient spendable balance")
-	ErrLedgerNotFound      = errors.New("points ledger not found")
-	ErrInvalidPointsAmount = errors.New("amount must be greater than zero")
-	ErrInvalidSKU          = errors.New("sku length must be <= 255 characters")
-	ErrPointsDeltaOverflow = errors.New("points delta overflow")
+	ErrInsufficientBalance          = errors.New("insufficient spendable balance")
+	ErrLedgerNotFound               = errors.New("points ledger not found")
+	ErrInvalidPointsAmount          = errors.New("amount must be greater than zero")
+	ErrInvalidSKU                   = errors.New("sku length must be <= 255 characters")
+	ErrInvalidExternalTransactionID = errors.New("external transaction id length must be <= 255 characters")
+	ErrPointsDeltaOverflow          = errors.New("points delta overflow")
 )
 
 type PointsCreditMeta struct {
-	SKU  *string
-	Note *string
+	SKU                   *string
+	Note                  *string
+	ExternalTransactionID *string
 }
 
 // PointsBalance holds both balance views for a viewer in a channel.
@@ -150,6 +152,9 @@ func (s *PointsService) AddPointsWithMeta(
 	if meta.SKU != nil && utf8.RuneCountInString(*meta.SKU) > 255 {
 		return ErrInvalidSKU
 	}
+	if meta.ExternalTransactionID != nil && utf8.RuneCountInString(*meta.ExternalTransactionID) > 255 {
+		return ErrInvalidExternalTransactionID
+	}
 	return s.db.Transaction(func(tx *gorm.DB) error {
 		return s.addPointsWithMeta(tx, userID, channelID, source, amount, meta)
 	})
@@ -198,13 +203,14 @@ func (s *PointsService) addPointsWithMetaAt(
 	}
 
 	txRecord := &models.PointsTransaction{
-		LedgerID:     ledger.ID,
-		Source:       source,
-		Delta:        amount,
-		BalanceAfter: ledger.SpendableBalance,
-		SKU:          meta.SKU,
-		Note:         meta.Note,
-		CreatedAt:    at,
+		LedgerID:              ledger.ID,
+		Source:                source,
+		Delta:                 amount,
+		BalanceAfter:          ledger.SpendableBalance,
+		SKU:                   meta.SKU,
+		Note:                  meta.Note,
+		ExternalTransactionID: meta.ExternalTransactionID,
+		CreatedAt:             at,
 	}
 	return tx.Create(txRecord).Error
 }

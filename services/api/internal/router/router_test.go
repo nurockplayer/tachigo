@@ -77,10 +77,10 @@ func newRouterTestEnv(t *testing.T) *routerTestEnv {
 	userSvc := services.NewUserService(db)
 	addrSvc := services.NewAddressService(db)
 	emailAuthSvc := services.NewEmailAuthService(db, cfg, &mockMailer{})
-	extSvc := services.NewExtensionService(db, cfg, authSvc)
 	watchSvc := services.NewWatchService(db)
 	channelConfigSvc := services.NewChannelConfigService(db)
 	pointsSvc := services.NewPointsService(db, watchSvc)
+	extSvc := services.NewExtensionService(db, cfg, authSvc, pointsSvc)
 	airdropSvc := services.NewAirdropService(db, pointsSvc, channelConfigSvc)
 	streamerSvc := services.NewStreamerService(db, pointsSvc)
 	agencySvc := services.NewAgencyService(db)
@@ -253,6 +253,7 @@ func migrateTestDB(db *gorm.DB) error {
 			balance_after INTEGER NOT NULL,
 			sku TEXT,
 			note TEXT,
+			external_transaction_id TEXT UNIQUE,
 			created_at DATETIME NOT NULL DEFAULT CURRENT_TIMESTAMP
 		)`,
 		`CREATE UNIQUE INDEX IF NOT EXISTS idx_points_transactions_id_ledger_id
@@ -478,10 +479,10 @@ func TestInternalRouter_SkipsRouteWhenSharedSecretMissing(t *testing.T) {
 	userSvc := services.NewUserService(db)
 	addrSvc := services.NewAddressService(db)
 	emailAuthSvc := services.NewEmailAuthService(db, cfg, &mockMailer{})
-	extSvc := services.NewExtensionService(db, cfg, authSvc)
 	watchSvc := services.NewWatchService(db)
 	channelConfigSvc := services.NewChannelConfigService(db)
 	pointsSvc := services.NewPointsService(db, watchSvc)
+	extSvc := services.NewExtensionService(db, cfg, authSvc, pointsSvc)
 	airdropSvc := services.NewAirdropService(db, pointsSvc, channelConfigSvc)
 	streamerSvc := services.NewStreamerService(db, pointsSvc)
 	agencySvc := services.NewAgencyService(db)
@@ -559,10 +560,10 @@ func TestInternalRouter_WithSecretSet_MiddlewareRejectsAndRouteRegistered(t *tes
 	userSvc := services.NewUserService(db)
 	addrSvc := services.NewAddressService(db)
 	emailAuthSvc := services.NewEmailAuthService(db, cfg, &mockMailer{})
-	extSvc := services.NewExtensionService(db, cfg, authSvc)
 	watchSvc := services.NewWatchService(db)
 	channelConfigSvc := services.NewChannelConfigService(db)
 	pointsSvc := services.NewPointsService(db, watchSvc)
+	extSvc := services.NewExtensionService(db, cfg, authSvc, pointsSvc)
 	airdropSvc := services.NewAirdropService(db, pointsSvc, channelConfigSvc)
 	streamerSvc := services.NewStreamerService(db, pointsSvc)
 	agencySvc := services.NewAgencyService(db)

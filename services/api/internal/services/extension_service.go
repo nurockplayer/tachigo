@@ -4,8 +4,10 @@ import (
 	"encoding/base64"
 	"errors"
 	"fmt"
+	"strings"
 
 	"github.com/golang-jwt/jwt/v5"
+	"github.com/jackc/pgx/v5/pgconn"
 	"gorm.io/gorm"
 
 	"github.com/tachigo/tachigo/internal/config"
@@ -13,9 +15,12 @@ import (
 )
 
 var (
-	ErrInvalidExtJWT    = errors.New("invalid extension JWT")
-	ErrInvalidReceipt   = errors.New("invalid transaction receipt")
-	ErrExtSecretMissing = errors.New("TWITCH_EXTENSION_SECRET not configured")
+	ErrInvalidExtJWT        = errors.New("invalid extension JWT")
+	ErrInvalidReceipt       = errors.New("invalid transaction receipt")
+	ErrExtSecretMissing     = errors.New("TWITCH_EXTENSION_SECRET not configured")
+	ErrDuplicateTransaction = errors.New("transaction already processed")
+	ErrInvalidReceiptAmount = errors.New("receipt amount must be greater than zero")
+	ErrInvalidReceiptType   = errors.New("receipt type must be bits")
 	// ErrUserNotFound is defined in auth_service.go (same package).
 )
 
@@ -40,13 +45,14 @@ type ReceiptClaims struct {
 }
 
 type ExtensionService struct {
-	db      *gorm.DB
-	cfg     *config.Config
-	authSvc *AuthService
+	db        *gorm.DB
+	cfg       *config.Config
+	authSvc   *AuthService
+	pointsSvc *PointsService
 }
 
-func NewExtensionService(db *gorm.DB, cfg *config.Config, authSvc *AuthService) *ExtensionService {
-	return &ExtensionService{db: db, cfg: cfg, authSvc: authSvc}
+func NewExtensionService(db *gorm.DB, cfg *config.Config, authSvc *AuthService, pointsSvc *PointsService) *ExtensionService {
+	return &ExtensionService{db: db, cfg: cfg, authSvc: authSvc, pointsSvc: pointsSvc}
 }
 
 // VerifyExtJWT verifies a Twitch Extension JWT and returns its claims.
@@ -159,6 +165,18 @@ func (s *ExtensionService) CompleteTPointTransaction(extJWT, receipt, sku string
 	if receiptClaims.Data.SKU != sku {
 		return nil, nil, ErrInvalidReceipt
 	}
+	if receiptClaims.Data.Type != "bits" {
+		return nil, nil, ErrInvalidReceiptType
+	}
+	if receiptClaims.Data.Amount <= 0 {
+		return nil, nil, ErrInvalidReceiptAmount
+	}
+	if receiptClaims.Data.TransactionID == "" {
+		return nil, nil, ErrInvalidReceipt
+	}
+	if len([]rune(sku)) > 255 || len([]rune(receiptClaims.Data.TransactionID)) > 255 {
+		return nil, nil, ErrInvalidReceipt
+	}
 
 	// Re-use the login flow to get/create the user, then issue tokens.
 	user, tokens, err := s.LoginWithExtension(extJWT)
@@ -166,7 +184,39 @@ func (s *ExtensionService) CompleteTPointTransaction(extJWT, receipt, sku string
 		return nil, nil, err
 	}
 
-	_ = extClaims // available for future logging / reward logic
+	txID := receiptClaims.Data.TransactionID
+	err = s.pointsSvc.AddPointsWithMeta(
+		user.ID,
+		extClaims.ChannelID,
+		models.TxSourceTPoint,
+		int64(receiptClaims.Data.Amount),
+		PointsCreditMeta{
+			SKU:                   &sku,
+			ExternalTransactionID: &txID,
+		},
+	)
+	if err != nil {
+		if isDuplicateExternalTransactionError(err) {
+			return nil, nil, ErrDuplicateTransaction
+		}
+		return nil, nil, err
+	}
 
 	return user, tokens, nil
+}
+
+func isDuplicateExternalTransactionError(err error) bool {
+	if errors.Is(err, gorm.ErrDuplicatedKey) {
+		return true
+	}
+
+	var pgErr *pgconn.PgError
+	if errors.As(err, &pgErr) {
+		return pgErr.Code == "23505" &&
+			pgErr.ConstraintName == "idx_points_transactions_external_transaction_id"
+	}
+
+	errText := err.Error()
+	return strings.Contains(errText, "UNIQUE constraint failed") &&
+		strings.Contains(errText, "points_transactions.external_transaction_id")
 }

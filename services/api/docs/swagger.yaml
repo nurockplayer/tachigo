@@ -1196,6 +1196,10 @@ paths:
           description: Unauthorized
           schema:
             $ref: '#/definitions/handlers.Response'
+        "409":
+          description: Conflict
+          schema:
+            $ref: '#/definitions/handlers.Response'
       summary: '[Deprecated] Complete a Bits transaction'
       tags:
       - extension
@@ -1259,6 +1263,10 @@ paths:
             $ref: '#/definitions/handlers.Response'
         "401":
           description: Unauthorized
+          schema:
+            $ref: '#/definitions/handlers.Response'
+        "409":
+          description: Conflict
           schema:
             $ref: '#/definitions/handlers.Response'
       summary: Complete a T-point transaction
