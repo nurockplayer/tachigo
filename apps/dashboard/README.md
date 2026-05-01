@@ -24,7 +24,7 @@ pnpm dev
 - `src/providers/authProvider.ts`：為 Refine `<Authenticated>` 提供 `check()` 介面；`check()` 內部同樣呼叫 `restoreSession()`，`main.tsx` 的啟動呼叫不變
 - `src/providers/dataProvider.ts`：以 `@refinedev/simple-rest` 為 base，實際 request 使用既有 axios client；`/api/v1` prefix 作為 base URL 的一部分（非中介層自動注入）
 - `src/App.tsx`：改以 `<Refine>` 包住 React Router，resources 定義 `streamers`、`raffles`、`transactions`、`settings`
-- API base URL 優先讀 `VITE_TACHIGO_API_URL`，其次 `VITE_API_URL`，最後回退到 `http://localhost:8080`
+- dataProvider base URL 使用 `VITE_API_URL`，未設定時回退到 `http://localhost:8080`，並加上 `/api/v1` 作為路徑前綴
 
 ## API response envelope
 

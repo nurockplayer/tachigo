@@ -40,8 +40,8 @@
 ### 目前技術風險
 
 - [`apps/dashboard/src/services/auth.ts`](../apps/dashboard/src/services/auth.ts)
-  - `accessToken` 僅保存在記憶體
-  - 重新整理頁面後，`isAuthenticated()` 會回傳 false
+  - `accessToken` 僅保存在記憶體；但 `main.tsx` 啟動時會 `await restoreSession()`，透過 httpOnly refresh cookie 還原 token，頁面重整不會立即掉登入
+  - Refine `authProvider` 尚未整合，目前 route guard 仍由 `ProtectedRoute` 處理
 - [`apps/dashboard/src/components/ProtectedRoute.tsx`](../apps/dashboard/src/components/ProtectedRoute.tsx)
   - 現在的 route guard 只適合非常早期原型
 - [`apps/dashboard/README.md`](../apps/dashboard/README.md)

@@ -190,11 +190,11 @@ apps/dashboard/src/
 
 ### 2. 現有 auth 設計不足以支援穩定 dashboard 體驗
 
-目前 token 僅存在記憶體，重新整理會掉登入狀態。
+access token 仍是 in-memory，但 `main.tsx` 已在啟動時 `await restoreSession()`，透過 httpOnly refresh cookie 還原 token，頁面重整不會立即掉登入狀態。
 
 影響：
 
-- 在導入 Refine 前，應先一起整理 auth flow
+- Refine `authProvider.check()` 需同樣整合 `restoreSession()`，確保 Refine auth flow 與現有 restore 機制一致
 
 ### 3. Settings 頁不一定是典型 CRUD
 
@@ -206,7 +206,7 @@ apps/dashboard/src/
 
 - [ ] `apps/dashboard/` 可正常啟動
 - [ ] 登入後可進入受保護頁面
-- [ ] 重新整理後登入狀態不會立即失效
+- [x] 重新整理後登入狀態不會立即失效（`restoreSession()` 已在 `main.tsx` 實作）
 - [ ] `streamers` resource 可顯示 list 頁
 - [ ] `transactions` resource 可顯示 list 頁
 - [ ] `settings` 頁可作為 Refine route 或整合式頁面進入
@@ -219,7 +219,7 @@ apps/dashboard/src/
 
 1. 安裝 Refine 相關套件
 2. 建立 `authProvider` / `dataProvider`
-3. 修正 token 持久化與 refresh flow
+3. ~~修正 token 持久化與 refresh flow~~（已由 `restoreSession()` + refresh cookie 處理，無需額外修正）
 4. 將路由接入 Refine
 5. 實作 `streamers`
 6. 實作 `transactions`
