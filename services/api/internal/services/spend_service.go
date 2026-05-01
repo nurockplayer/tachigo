@@ -117,33 +117,41 @@ func (s *SpendService) Redeem(ctx context.Context, userID uuid.UUID, couponID st
 
 	if s.tachiyaClient == nil {
 		if rec != nil {
-			s.db.Model(rec).Updates(map[string]interface{}{
+			if err := s.db.Model(rec).Updates(map[string]interface{}{
 				"status":     models.CouponRedemptionRedeemed,
 				"updated_at": time.Now(),
-			})
+			}).Error; err != nil {
+				log.Printf("warning: failed to mark coupon_redemption redeemed id=%s: %v", rec.ID, err)
+			}
 		}
 		return reservation.newBalance, "", nil
 	}
 
-	voucherCode, tachiyaErr := s.tachiyaClient.RedeemCoupon(ctx, couponID, reservation.amount)
+	tachiyaCtx, tachiyaCancel := context.WithTimeout(ctx, 10*time.Second)
+	defer tachiyaCancel()
+	voucherCode, tachiyaErr := s.tachiyaClient.RedeemCoupon(tachiyaCtx, couponID, reservation.amount)
 	if tachiyaErr != nil {
 		if rec != nil {
 			errMsg := tachiyaErr.Error()
-			s.db.Model(rec).Updates(map[string]interface{}{
+			if err := s.db.Model(rec).Updates(map[string]interface{}{
 				"status":        models.CouponRedemptionCompensationNeeded,
 				"error_message": errMsg,
 				"updated_at":    time.Now(),
-			})
+			}).Error; err != nil {
+				log.Printf("warning: failed to mark coupon_redemption compensation-needed id=%s: %v", rec.ID, err)
+			}
 		}
 		return 0, "", fmt.Errorf("%w (coupon_id=%s): %v", ErrTachiyaRedeemFailed, couponID, tachiyaErr)
 	}
 
 	if rec != nil {
-		s.db.Model(rec).Updates(map[string]interface{}{
+		if err := s.db.Model(rec).Updates(map[string]interface{}{
 			"status":       models.CouponRedemptionRedeemed,
 			"voucher_code": voucherCode,
 			"updated_at":   time.Now(),
-		})
+		}).Error; err != nil {
+			log.Printf("warning: failed to persist redeemed voucher id=%s: %v", rec.ID, err)
+		}
 	}
 
 	return reservation.newBalance, voucherCode, nil
