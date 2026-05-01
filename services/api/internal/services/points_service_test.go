@@ -518,13 +518,16 @@ func TestPointsService_GetBroadcastStats_TimeWindows(t *testing.T) {
 
 	// Insert log entries directly with controlled recorded_at timestamps
 	now := time.Now()
+	startOfDay := time.Date(now.Year(), now.Month(), now.Day(), 0, 0, 0, 0, now.Location())
+	startOfMonth := time.Date(now.Year(), now.Month(), 1, 0, 0, 0, 0, now.Location())
+	startOfYear := time.Date(now.Year(), 1, 1, 0, 0, 0, 0, now.Location())
 	entries := []struct {
 		seconds    int64
 		recordedAt time.Time
 	}{
-		{60, now.Add(-10 * time.Minute)}, // today
-		{120, now.Add(-25 * time.Hour)},  // yesterday (outside daily, inside monthly)
-		{180, now.AddDate(0, -1, -1)},    // last month (outside monthly, inside yearly)
+		{60, now},                           // today
+		{120, startOfDay.Add(-time.Hour)},   // previous day; outside daily, in monthly unless today is the 1st
+		{180, startOfMonth.Add(-time.Hour)}, // previous month; outside monthly, in yearly unless this is January
 	}
 	for _, e := range entries {
 		svc.db.Exec(
@@ -533,18 +536,31 @@ func TestPointsService_GetBroadcastStats_TimeWindows(t *testing.T) {
 		)
 	}
 
+	var wantDaily, wantMonthly, wantYearly int64
+	for _, e := range entries {
+		if !e.recordedAt.Before(startOfDay) {
+			wantDaily += e.seconds
+		}
+		if !e.recordedAt.Before(startOfMonth) {
+			wantMonthly += e.seconds
+		}
+		if !e.recordedAt.Before(startOfYear) {
+			wantYearly += e.seconds
+		}
+	}
+
 	stats, err := svc.GetBroadcastStats(streamerID, channelID)
 	if err != nil {
 		t.Fatalf("unexpected error: %v", err)
 	}
-	if stats.DailySeconds != 60 {
-		t.Errorf("daily: want 60, got %d", stats.DailySeconds)
+	if stats.DailySeconds != wantDaily {
+		t.Errorf("daily: want %d, got %d", wantDaily, stats.DailySeconds)
 	}
-	if stats.MonthlySeconds != 60+120 {
-		t.Errorf("monthly: want 180, got %d", stats.MonthlySeconds)
+	if stats.MonthlySeconds != wantMonthly {
+		t.Errorf("monthly: want %d, got %d", wantMonthly, stats.MonthlySeconds)
 	}
-	if stats.YearlySeconds != 60+120+180 {
-		t.Errorf("yearly: want 360, got %d", stats.YearlySeconds)
+	if stats.YearlySeconds != wantYearly {
+		t.Errorf("yearly: want %d, got %d", wantYearly, stats.YearlySeconds)
 	}
 }
 
