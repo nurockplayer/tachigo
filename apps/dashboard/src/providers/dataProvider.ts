@@ -54,6 +54,14 @@ function pathWithId(resource: string, id: string | number) {
   return `${resourcePath(resource)}/${encodedId}`
 }
 
+function updateMethod(resource: string) {
+  if (resource === 'channel-configs') {
+    return client.put.bind(client)
+  }
+
+  return client.patch.bind(client)
+}
+
 function unwrapPayload<T>(payload: unknown): T {
   if (payload && typeof payload === 'object' && 'data' in payload) {
     return (payload as { data: T }).data
@@ -170,7 +178,8 @@ export const dataProvider: DataProvider = {
     id,
     variables,
   }: UpdateParams<TVariables>): Promise<UpdateResponse<TData>> => {
-    const { data } = await client.patch(apiUrl(pathWithId(resource, id)), variables)
+    const request = updateMethod(resource)
+    const { data } = await request(apiUrl(pathWithId(resource, id)), variables)
 
     return {
       data: unwrapOne<TData>(data, resource),

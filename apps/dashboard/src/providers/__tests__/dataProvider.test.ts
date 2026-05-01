@@ -3,6 +3,7 @@ import { afterEach, beforeEach, describe, expect, it, vi } from 'vitest'
 const mockClient = vi.hoisted(() => ({
   get: vi.fn(),
   post: vi.fn(),
+  put: vi.fn(),
   patch: vi.fn(),
   delete: vi.fn(),
 }))
@@ -17,6 +18,7 @@ describe('dataProvider API URL', () => {
     vi.unstubAllEnvs()
     mockClient.get.mockReset()
     mockClient.post.mockReset()
+    mockClient.put.mockReset()
     mockClient.patch.mockReset()
     mockClient.delete.mockReset()
   })
@@ -46,5 +48,24 @@ describe('dataProvider API URL', () => {
         },
       },
     )
+  })
+
+  it('channel-configs update 走後端已註冊的 PUT config endpoint', async () => {
+    vi.stubEnv('VITE_TACHIGO_API_URL', 'https://api.example.test/')
+    mockClient.put.mockResolvedValueOnce({ data: { data: { config: { ratio: 2 } } } })
+
+    const { dataProvider } = await import('@/providers/dataProvider')
+
+    await dataProvider.update({
+      resource: 'channel-configs',
+      id: 'channel/1',
+      variables: { ratio: 2 },
+    })
+
+    expect(mockClient.put).toHaveBeenCalledWith(
+      'https://api.example.test/api/v1/dashboard/channels/channel%2F1/config',
+      { ratio: 2 },
+    )
+    expect(mockClient.patch).not.toHaveBeenCalled()
   })
 })
