@@ -142,11 +142,25 @@ func TestGetChannelStats_OK(t *testing.T) {
 	}
 
 	now := time.Now()
-	startOfDay := time.Date(now.Year(), now.Month(), now.Day(), 1, 0, 0, 0, now.Location())
-	startOfMonth := time.Date(now.Year(), now.Month(), 2, 0, 0, 0, 0, now.Location())
-	startOfYear := time.Date(now.Year(), 2, 1, 0, 0, 0, 0, now.Location())
-
-	for _, recordedAt := range []time.Time{startOfDay, startOfMonth, startOfYear} {
+	startOfDay := time.Date(now.Year(), now.Month(), now.Day(), 0, 0, 0, 0, now.Location())
+	startOfMonth := time.Date(now.Year(), now.Month(), 1, 0, 0, 0, 0, now.Location())
+	startOfYear := time.Date(now.Year(), 1, 1, 0, 0, 0, 0, now.Location())
+	entries := []time.Time{
+		now,
+		startOfDay.Add(-time.Hour),
+		startOfMonth.Add(-time.Hour),
+	}
+	var wantDaily, wantMonthly, wantYearly int64
+	for _, recordedAt := range entries {
+		if !recordedAt.Before(startOfDay) {
+			wantDaily += 30
+		}
+		if !recordedAt.Before(startOfMonth) {
+			wantMonthly += 30
+		}
+		if !recordedAt.Before(startOfYear) {
+			wantYearly += 30
+		}
 		if err := db.Create(&models.BroadcastTimeLog{
 			StreamerID: userID,
 			ChannelID:  "ch_stats",
@@ -174,13 +188,13 @@ func TestGetChannelStats_OK(t *testing.T) {
 	if stats.CurrentSessionSeconds != 45 {
 		t.Fatalf("current_session_seconds: want 45, got %d", stats.CurrentSessionSeconds)
 	}
-	if stats.DailySeconds != 30 {
-		t.Fatalf("daily_seconds: want 30, got %d", stats.DailySeconds)
+	if stats.DailySeconds != wantDaily {
+		t.Fatalf("daily_seconds: want %d, got %d", wantDaily, stats.DailySeconds)
 	}
-	if stats.MonthlySeconds != 60 {
-		t.Fatalf("monthly_seconds: want 60, got %d", stats.MonthlySeconds)
+	if stats.MonthlySeconds != wantMonthly {
+		t.Fatalf("monthly_seconds: want %d, got %d", wantMonthly, stats.MonthlySeconds)
 	}
-	if stats.YearlySeconds != 90 {
-		t.Fatalf("yearly_seconds: want 90, got %d", stats.YearlySeconds)
+	if stats.YearlySeconds != wantYearly {
+		t.Fatalf("yearly_seconds: want %d, got %d", wantYearly, stats.YearlySeconds)
 	}
 }
