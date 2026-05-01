@@ -348,6 +348,10 @@ jobs:
         working-directory: contracts
         run: forge test
 
+      - name: Format check
+        working-directory: contracts
+        run: forge fmt --check
+
   backend-ci:
     timeout-minutes: 5
     name: Backend CI (gate)
