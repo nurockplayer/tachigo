@@ -86,6 +86,8 @@ func main() {
 		&models.RaffleEntry{},
 		&models.RaffleDraw{},
 		&models.RaffleClaim{},
+		// Coupon redemption tracking — refs #423
+		&models.CouponRedemption{},
 	); err != nil {
 		log.Fatalf("migration failed: %v", err)
 	}

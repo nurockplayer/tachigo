@@ -110,19 +110,15 @@ func (s *SpendService) Redeem(ctx context.Context, userID uuid.UUID, couponID st
 		Status:   models.CouponRedemptionPending,
 	}
 	if createErr := s.db.Create(rec).Error; createErr != nil {
-		log.Printf("warning: failed to create coupon_redemption record coupon_id=%s user_id=%s: %v",
-			couponID, userID, createErr)
-		rec = nil
+		return 0, "", fmt.Errorf("failed to record coupon_redemption before tachiya call (burn tx_hash=%s coupon_id=%s): %w", txHash, couponID, createErr)
 	}
 
 	if s.tachiyaClient == nil {
-		if rec != nil {
-			if err := s.db.Model(rec).Updates(map[string]interface{}{
-				"status":     models.CouponRedemptionRedeemed,
-				"updated_at": time.Now(),
-			}).Error; err != nil {
-				log.Printf("warning: failed to mark coupon_redemption redeemed id=%s: %v", rec.ID, err)
-			}
+		if err := s.db.Model(rec).Updates(map[string]interface{}{
+			"status":     models.CouponRedemptionRedeemed,
+			"updated_at": time.Now(),
+		}).Error; err != nil {
+			log.Printf("warning: failed to mark coupon_redemption redeemed id=%s: %v", rec.ID, err)
 		}
 		return reservation.newBalance, "", nil
 	}
@@ -131,15 +127,14 @@ func (s *SpendService) Redeem(ctx context.Context, userID uuid.UUID, couponID st
 	defer tachiyaCancel()
 	voucherCode, tachiyaErr := s.tachiyaClient.RedeemCoupon(tachiyaCtx, couponID, reservation.amount)
 	if tachiyaErr != nil {
-		if rec != nil {
-			errMsg := tachiyaErr.Error()
-			if err := s.db.Model(rec).Updates(map[string]interface{}{
-				"status":        models.CouponRedemptionCompensationNeeded,
-				"error_message": errMsg,
-				"updated_at":    time.Now(),
-			}).Error; err != nil {
-				log.Printf("warning: failed to mark coupon_redemption compensation-needed id=%s: %v", rec.ID, err)
-			}
+		errMsg := tachiyaErr.Error()
+		if dbErr := s.db.Model(rec).Updates(map[string]interface{}{
+			"status":        models.CouponRedemptionCompensationNeeded,
+			"error_message": errMsg,
+			"updated_at":    time.Now(),
+		}).Error; dbErr != nil {
+			return 0, "", fmt.Errorf("%w (coupon_id=%s): tachiya_err=%v, db_update_err=%v",
+				ErrTachiyaRedeemFailed, couponID, tachiyaErr, dbErr)
 		}
 		return 0, "", fmt.Errorf("%w (coupon_id=%s): %v", ErrTachiyaRedeemFailed, couponID, tachiyaErr)
 	}
