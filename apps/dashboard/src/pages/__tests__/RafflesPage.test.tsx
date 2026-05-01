@@ -2,15 +2,9 @@ import { act } from 'react'
 import { createRoot, type Root } from 'react-dom/client'
 import { MemoryRouter, Route, Routes, useParams } from 'react-router'
 import { afterEach, beforeEach, describe, expect, it, vi } from 'vitest'
+import type { BaseRecord, DataProvider } from '@refinedev/core'
 import RafflesPage from '@/pages/RafflesPage'
-
-const listRafflesMock = vi.fn()
-const createRaffleMock = vi.fn()
-
-vi.mock('@/services/raffles', () => ({
-  listRaffles: (...a: unknown[]) => listRafflesMock(...a),
-  createRaffle: (...a: unknown[]) => createRaffleMock(...a),
-}))
+import { createMockDataProvider, RefineWrapper, waitFor } from '@/test/refine-wrapper'
 
 function DetailProbe() {
   const { raffleId } = useParams()
@@ -26,18 +20,22 @@ function RoutedApp() {
   )
 }
 
-async function renderAt(path: string) {
+async function renderAt(path: string, dataProvider: DataProvider) {
   const container = document.createElement('div')
   document.body.appendChild(container)
   const root = createRoot(container)
-  await act(async () => {
-    root.render(<MemoryRouter initialEntries={[path]}><RoutedApp /></MemoryRouter>)
-  })
-  return { container, root }
-}
 
-async function flush() {
-  await act(async () => { await Promise.resolve() })
+  await act(async () => {
+    root.render(
+      <RefineWrapper dataProvider={dataProvider}>
+        <MemoryRouter initialEntries={[path]}>
+          <RoutedApp />
+        </MemoryRouter>
+      </RefineWrapper>,
+    )
+  })
+
+  return { container, root }
 }
 
 function cleanupRoot(root: Root, container: HTMLDivElement) {
@@ -45,47 +43,62 @@ function cleanupRoot(root: Root, container: HTMLDivElement) {
   container.remove()
 }
 
-const mockRaffle = { id: 'r1', user_id: 'u1', title: '春季抽獎', status: 'draft' as const, created_at: '2026-01-01T00:00:00Z', updated_at: '2026-01-01T00:00:00Z' }
+const mockRaffle = {
+  id: 'r1',
+  user_id: 'u1',
+  title: '春季抽獎',
+  status: 'draft' as const,
+  created_at: '2026-01-01T00:00:00Z',
+  updated_at: '2026-01-01T00:00:00Z',
+}
 
 describe('RafflesPage', () => {
-  beforeEach(() => { listRafflesMock.mockReset(); createRaffleMock.mockReset() })
   afterEach(() => { document.body.innerHTML = '' })
 
   it('shows skeleton while loading', async () => {
-    listRafflesMock.mockReturnValue(new Promise(() => {}))
-    const { container, root } = await renderAt('/raffles')
+    const dataProvider = createMockDataProvider({
+      getList: {
+        'raffles': vi.fn().mockReturnValue(new Promise(() => {})),
+      },
+    })
+    const { container, root } = await renderAt('/raffles', dataProvider)
     expect(container.querySelector('[data-testid="skeleton"]')).toBeTruthy()
     cleanupRoot(root, container)
   })
 
   it('renders raffle list after load', async () => {
-    listRafflesMock.mockResolvedValue([mockRaffle])
-    const { container, root } = await renderAt('/raffles')
-    await flush()
-    expect(container.textContent).toContain('春季抽獎')
+    const dataProvider = createMockDataProvider({
+      getList: { 'raffles': vi.fn().mockResolvedValue([mockRaffle as BaseRecord]) },
+    })
+    const { container, root } = await renderAt('/raffles', dataProvider)
+    await waitFor(() => expect(container.textContent).toContain('春季抽獎'))
     cleanupRoot(root, container)
   })
 
   it('shows empty state when no raffles', async () => {
-    listRafflesMock.mockResolvedValue([])
-    const { container, root } = await renderAt('/raffles')
-    await flush()
-    expect(container.textContent).toContain('尚無')
+    const dataProvider = createMockDataProvider({
+      getList: { 'raffles': vi.fn().mockResolvedValue([]) },
+    })
+    const { container, root } = await renderAt('/raffles', dataProvider)
+    await waitFor(() => expect(container.textContent).toContain('尚無'))
     cleanupRoot(root, container)
   })
 
   it('shows error message when API fails', async () => {
-    listRafflesMock.mockRejectedValue(new Error('boom'))
-    const { container, root } = await renderAt('/raffles')
-    await flush()
-    expect(container.textContent).toContain('無法載入')
+    const dataProvider = createMockDataProvider({
+      getList: { 'raffles': vi.fn().mockRejectedValue(new Error('boom')) },
+    })
+    const { container, root } = await renderAt('/raffles', dataProvider)
+    await waitFor(() => expect(container.textContent).toContain('無法載入'))
     cleanupRoot(root, container)
   })
 
   it('navigates to detail page on row click', async () => {
-    listRafflesMock.mockResolvedValue([mockRaffle])
-    const { container, root } = await renderAt('/raffles')
-    await flush()
+    const dataProvider = createMockDataProvider({
+      getList: { 'raffles': vi.fn().mockResolvedValue([mockRaffle as BaseRecord]) },
+    })
+    const { container, root } = await renderAt('/raffles', dataProvider)
+    await waitFor(() => expect(container.querySelector('tbody tr')).toBeTruthy())
     const row = container.querySelector('tbody tr') as HTMLElement
     await act(async () => { row.click() })
     expect(container.querySelector('[data-testid="detail"]')?.textContent).toBe('r1')
@@ -94,10 +107,13 @@ describe('RafflesPage', () => {
 
   it('creates a raffle and adds it to the list', async () => {
     const newRaffle = { ...mockRaffle, id: 'r2', title: '夏季抽獎' }
-    listRafflesMock.mockResolvedValue([mockRaffle])
-    createRaffleMock.mockResolvedValue(newRaffle)
-    const { container, root } = await renderAt('/raffles')
-    await flush()
+    const createMock = vi.fn().mockResolvedValue(newRaffle as BaseRecord)
+    const dataProvider = createMockDataProvider({
+      getList: { 'raffles': vi.fn().mockResolvedValue([mockRaffle as BaseRecord]) },
+      create: { 'raffles': createMock },
+    })
+    const { container, root } = await renderAt('/raffles', dataProvider)
+    await waitFor(() => expect(container.querySelector('input[name="title"]')).toBeTruthy())
 
     const input = container.querySelector('input[name="title"]') as HTMLInputElement
     await act(async () => {
@@ -107,21 +123,82 @@ describe('RafflesPage', () => {
     })
     const form = container.querySelector('form') as HTMLFormElement
     await act(async () => { form.dispatchEvent(new Event('submit', { bubbles: true })) })
-    await flush()
+    await waitFor(() => expect(container.textContent).toContain('夏季抽獎'))
 
-    expect(createRaffleMock).toHaveBeenCalledWith('夏季抽獎')
-    expect(container.textContent).toContain('夏季抽獎')
+    expect(createMock).toHaveBeenCalledWith(expect.objectContaining({ title: '夏季抽獎' }))
+    cleanupRoot(root, container)
+  })
+
+  it('deduplicates a created raffle when refetch returns the same id', async () => {
+    const newRaffle = { ...mockRaffle, id: 'r2', title: '夏季抽獎' }
+    const listMock = vi.fn()
+      .mockResolvedValueOnce([mockRaffle as BaseRecord])
+      .mockResolvedValue([newRaffle as BaseRecord, mockRaffle as BaseRecord])
+    const dataProvider = createMockDataProvider({
+      getList: { 'raffles': listMock },
+      create: { 'raffles': vi.fn().mockResolvedValue(newRaffle as BaseRecord) },
+    })
+    const { container, root } = await renderAt('/raffles', dataProvider)
+    await waitFor(() => expect(container.querySelector('input[name="title"]')).toBeTruthy())
+
+    const input = container.querySelector('input[name="title"]') as HTMLInputElement
+    await act(async () => {
+      const nativeInputValueSetter = Object.getOwnPropertyDescriptor(HTMLInputElement.prototype, 'value')?.set
+      nativeInputValueSetter?.call(input, '夏季抽獎')
+      input.dispatchEvent(new Event('input', { bubbles: true }))
+    })
+    const form = container.querySelector('form') as HTMLFormElement
+    await act(async () => { form.dispatchEvent(new Event('submit', { bubbles: true })) })
+    await waitFor(() => expect(container.textContent).toContain('夏季抽獎'))
+
+    const matchingRows = Array
+      .from(container.querySelectorAll('tbody tr'))
+      .filter(row => row.textContent?.includes('夏季抽獎'))
+    expect(matchingRows).toHaveLength(1)
+
+    cleanupRoot(root, container)
+  })
+
+  it('prefers refetched server data over an optimistic created raffle with the same id', async () => {
+    const optimisticRaffle = { ...mockRaffle, id: 'r2', title: '夏季抽獎' }
+    const serverRaffle = { ...optimisticRaffle, title: '夏季抽獎（已同步）', status: 'active' as const }
+    const listMock = vi.fn()
+      .mockResolvedValueOnce([mockRaffle as BaseRecord])
+      .mockResolvedValue([serverRaffle as BaseRecord, mockRaffle as BaseRecord])
+    const dataProvider = createMockDataProvider({
+      getList: { 'raffles': listMock },
+      create: { 'raffles': vi.fn().mockResolvedValue(optimisticRaffle as BaseRecord) },
+    })
+    const { container, root } = await renderAt('/raffles', dataProvider)
+    await waitFor(() => expect(container.querySelector('input[name="title"]')).toBeTruthy())
+
+    const input = container.querySelector('input[name="title"]') as HTMLInputElement
+    await act(async () => {
+      const nativeInputValueSetter = Object.getOwnPropertyDescriptor(HTMLInputElement.prototype, 'value')?.set
+      nativeInputValueSetter?.call(input, '夏季抽獎')
+      input.dispatchEvent(new Event('input', { bubbles: true }))
+    })
+    const form = container.querySelector('form') as HTMLFormElement
+    await act(async () => { form.dispatchEvent(new Event('submit', { bubbles: true })) })
+
+    await waitFor(() => expect(container.textContent).toContain('夏季抽獎（已同步）'))
+    expect(container.textContent).toContain('進行中')
+
     cleanupRoot(root, container)
   })
 
   it('falls back to a string message when create API error is not a string', async () => {
-    listRafflesMock.mockResolvedValue([])
-    createRaffleMock.mockRejectedValue({
-      isAxiosError: true,
-      response: { data: { error: { message: 'invalid title' } } },
+    const dataProvider = createMockDataProvider({
+      getList: { 'raffles': vi.fn().mockResolvedValue([]) },
+      create: {
+        'raffles': vi.fn().mockRejectedValue({
+          isAxiosError: true,
+          response: { data: { error: { message: 'invalid title' } } },
+        }),
+      },
     })
-    const { container, root } = await renderAt('/raffles')
-    await flush()
+    const { container, root } = await renderAt('/raffles', dataProvider)
+    await waitFor(() => expect(container.querySelector('input[name="title"]')).toBeTruthy())
 
     const input = container.querySelector('input[name="title"]') as HTMLInputElement
     await act(async () => {
@@ -131,37 +208,46 @@ describe('RafflesPage', () => {
     })
     const form = container.querySelector('form') as HTMLFormElement
     await act(async () => { form.dispatchEvent(new Event('submit', { bubbles: true })) })
-    await flush()
+    await waitFor(() => expect(container.textContent).toContain('建立失敗'))
 
-    expect(container.textContent).toContain('建立失敗')
     cleanupRoot(root, container)
   })
 
   it('shows the created raffle after the initial list request fails', async () => {
-    listRafflesMock.mockRejectedValue(new Error('boom')); createRaffleMock.mockResolvedValue({ ...mockRaffle, id: 'r2', title: 'manual raffle' })
-    const { container, root } = await renderAt('/raffles')
-    await flush()
+    const newRaffle = { ...mockRaffle, id: 'r2', title: 'manual raffle' }
+    const dataProvider = createMockDataProvider({
+      getList: { 'raffles': vi.fn().mockRejectedValue(new Error('boom')) },
+      create: { 'raffles': vi.fn().mockResolvedValue(newRaffle as BaseRecord) },
+    })
+    const { container, root } = await renderAt('/raffles', dataProvider)
+    await waitFor(() => expect(container.querySelector('input[name="title"]')).toBeTruthy())
+
     const input = container.querySelector('input[name="title"]') as HTMLInputElement
-    Object.getOwnPropertyDescriptor(HTMLInputElement.prototype, 'value')?.set?.call(input, 'manual raffle'); await act(async () => { input.dispatchEvent(new Event('input', { bubbles: true })) })
+    Object.getOwnPropertyDescriptor(HTMLInputElement.prototype, 'value')?.set?.call(input, 'manual raffle')
+    await act(async () => { input.dispatchEvent(new Event('input', { bubbles: true })) })
     await act(async () => { container.querySelector('form')?.dispatchEvent(new Event('submit', { bubbles: true })) })
-    await flush()
-    expect(container.textContent).toContain('manual raffle')
+    await waitFor(() => expect(container.textContent).toContain('manual raffle'))
+
     cleanupRoot(root, container)
   })
 
   it('disables submit button when title is empty', async () => {
-    listRafflesMock.mockResolvedValue([])
-    const { container, root } = await renderAt('/raffles')
-    await flush()
+    const dataProvider = createMockDataProvider({
+      getList: { 'raffles': vi.fn().mockResolvedValue([]) },
+    })
+    const { container, root } = await renderAt('/raffles', dataProvider)
+    await waitFor(() => expect(container.querySelector('button[type="submit"]')).toBeTruthy())
     const btn = container.querySelector('button[type="submit"]') as HTMLButtonElement
     expect(btn.disabled).toBe(true)
     cleanupRoot(root, container)
   })
 
   it('navigates to detail page on Enter key press', async () => {
-    listRafflesMock.mockResolvedValue([mockRaffle])
-    const { container, root } = await renderAt('/raffles')
-    await flush()
+    const dataProvider = createMockDataProvider({
+      getList: { 'raffles': vi.fn().mockResolvedValue([mockRaffle as BaseRecord]) },
+    })
+    const { container, root } = await renderAt('/raffles', dataProvider)
+    await waitFor(() => expect(container.querySelector('tbody tr')).toBeTruthy())
     const row = container.querySelector('tbody tr') as HTMLElement
     await act(async () => {
       row.dispatchEvent(new KeyboardEvent('keydown', { key: 'Enter', bubbles: true }))
@@ -169,4 +255,8 @@ describe('RafflesPage', () => {
     expect(container.querySelector('[data-testid="detail"]')?.textContent).toBe('r1')
     cleanupRoot(root, container)
   })
+})
+
+beforeEach(() => {
+  vi.spyOn(console, 'error').mockImplementation(() => {})
 })
