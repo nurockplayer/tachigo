@@ -1,13 +1,8 @@
-import { useEffect, useState } from 'react'
+import { useOne } from '@refinedev/core'
 import { useNavigate, useParams } from 'react-router'
 import { Button } from '@/components/ui/button'
 import { Skeleton } from '@/components/ui/skeleton'
-import {
-  getChannelConfig,
-  getStreamerStats,
-  type ChannelConfig,
-  type StreamerStats,
-} from '@/services/channels'
+import type { ChannelConfig, StreamerStats } from '@/services/channels'
 import { getUserRole } from '@/services/auth'
 
 function formatHours(seconds?: number) {
@@ -51,64 +46,26 @@ function MetricCard({ label, value }: { label: string; value: string }) {
 export default function StreamerDetailPage() {
   const { streamerId } = useParams()
   const navigate = useNavigate()
-  const [stats, setStats] = useState<StreamerStats | null>(null)
-  const [config, setConfig] = useState<ChannelConfig | null>(null)
-  const [resolvedStreamerId, setResolvedStreamerId] = useState<string | null>(null)
-  const [failedStreamerId, setFailedStreamerId] = useState<string | null>(null)
-  const [resolvedConfigStreamerId, setResolvedConfigStreamerId] = useState<string | null>(null)
-  const [failedConfigStreamerId, setFailedConfigStreamerId] = useState<string | null>(null)
+  const statsResult = useOne<StreamerStats & { channel_id?: string }>({
+    resource: 'streamer-stats',
+    id: streamerId,
+    queryOptions: { enabled: Boolean(streamerId), retry: false },
+  })
+  const statsQuery = statsResult.query
+  const stats = statsQuery.data?.data ?? null
+  const configResult = useOne<ChannelConfig>({
+    resource: 'channel-configs',
+    id: stats?.channel_id,
+    queryOptions: { enabled: Boolean(stats?.channel_id), retry: false },
+  })
+  const configQuery = configResult.query
 
   const role = getUserRole()
   const canGoBack = role !== 'streamer'
-
-  useEffect(() => {
-    if (!streamerId) return
-
-    let mounted = true
-
-    getStreamerStats(streamerId)
-      .then(({ stats, channelId }) => {
-        if (!mounted) return
-        setStats(stats)
-        setFailedStreamerId(null)
-        setResolvedStreamerId(streamerId)
-        setConfig(null)
-        setResolvedConfigStreamerId(null)
-        setFailedConfigStreamerId(null)
-
-        getChannelConfig(channelId)
-          .then((cfg) => {
-            if (!mounted) return
-            setConfig(cfg)
-            setResolvedConfigStreamerId(streamerId)
-            setFailedConfigStreamerId(null)
-          })
-          .catch(() => {
-            if (!mounted) return
-            setConfig(null)
-            setResolvedConfigStreamerId(null)
-            setFailedConfigStreamerId(streamerId)
-          })
-      })
-      .catch(() => {
-        if (!mounted) return
-        setFailedStreamerId(streamerId)
-      })
-
-    return () => {
-      mounted = false
-    }
-  }, [streamerId])
-
-  const loading = Boolean(streamerId) && resolvedStreamerId !== streamerId && failedStreamerId !== streamerId
-  const error = failedStreamerId === streamerId
-  const configLoading =
-    Boolean(streamerId) &&
-    resolvedStreamerId === streamerId &&
-    failedStreamerId !== streamerId &&
-    resolvedConfigStreamerId !== streamerId &&
-    failedConfigStreamerId !== streamerId
-  const displayConfig = resolvedConfigStreamerId === streamerId ? config : null
+  const loading = statsQuery.isLoading
+  const error = statsQuery.isError
+  const configLoading = statsQuery.isSuccess && configQuery.isLoading
+  const displayConfig = configQuery.data?.data ?? null
 
   const timeCards = [
     { label: '本次', value: formatHours(stats?.current_session_seconds) },
