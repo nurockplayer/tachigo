@@ -198,12 +198,9 @@ run_case_body "similar_section_no_false_positive" "[backend] similar section nam
 - Backend contract already in develop:
   - [ ] yes
   - [x] no
-- If no, this PR is:
-  - [x] stacked on dependency branch
-  - [ ] intentionally blocked until dependency merges
 - 本 PR 明確不做：
   - no-op
-'
+' 1
 
 # Both yes and no checked at the same time is a conflict — must be rejected.
 run_case_body "yes_no_conflict" "[backend] yes no conflict fixture" \
