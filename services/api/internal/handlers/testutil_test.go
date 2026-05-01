@@ -242,6 +242,18 @@ func migrateTestDB(db *gorm.DB) error {
 			UNIQUE (user_id),
 			CHECK (balance >= 0)
 		)`,
+		`CREATE TABLE IF NOT EXISTS coupon_redemptions (
+			id TEXT PRIMARY KEY,
+			user_id TEXT NOT NULL REFERENCES users(id) ON DELETE CASCADE,
+			coupon_id TEXT NOT NULL,
+			amount INTEGER NOT NULL CHECK (amount > 0),
+			tx_hash TEXT NOT NULL,
+			status TEXT NOT NULL CHECK (status IN ('pending', 'redeemed', 'compensation-needed')),
+			voucher_code TEXT,
+			error_message TEXT,
+			created_at DATETIME NOT NULL DEFAULT CURRENT_TIMESTAMP,
+			updated_at DATETIME NOT NULL DEFAULT CURRENT_TIMESTAMP
+		)`,
 		`CREATE TABLE IF NOT EXISTS raffles (
 			id TEXT PRIMARY KEY,
 			user_id TEXT NOT NULL REFERENCES users(id),

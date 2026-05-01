@@ -37,6 +37,7 @@ type redeemResponse struct {
 // @Success      200 {object} Response{data=redeemResponse}
 // @Failure      400 {object} Response
 // @Failure      401 {object} Response
+// @Failure      503 {object} Response
 // @Failure      500 {object} Response
 // @Security     BearerAuth
 // @Router       /spend/redeem [post]
@@ -66,6 +67,10 @@ func (h *SpendHandler) Redeem(c *gin.Context) {
 		}
 		if errors.Is(err, services.ErrSpendAmountInvalid) {
 			badRequest(c, err.Error())
+			return
+		}
+		if errors.Is(err, services.ErrTachiyaRedeemFailed) {
+			serviceUnavailable(c, "tachiya coupon redeem failed")
 			return
 		}
 		// ErrSpendContractConfig is a server-side misconfiguration; intentionally falls through to internal(c).

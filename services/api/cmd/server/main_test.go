@@ -56,6 +56,33 @@ func TestInitializeUserRoleEnumExistingDatabase(t *testing.T) {
 	}
 }
 
+func TestEnsureCouponRedemptionRuntimeSchema(t *testing.T) {
+	var statements []string
+
+	err := ensureCouponRedemptionRuntimeSchema(func(query string) error {
+		statements = append(statements, normalizeSQL(query))
+		return nil
+	})
+	if err != nil {
+		t.Fatalf("ensureCouponRedemptionRuntimeSchema returned error: %v", err)
+	}
+
+	joined := strings.Join(statements, " ")
+	for _, want := range []string{
+		"CONSTRAINT chk_coupon_redemptions_amount_gt_0",
+		"CHECK (amount > 0)",
+		"EXCEPTION WHEN duplicate_object THEN NULL",
+		"CONSTRAINT chk_coupon_redemptions_status",
+		"status IN ('pending','redeemed','compensation-needed')",
+		"CREATE INDEX IF NOT EXISTS idx_coupon_redemptions_compensation",
+		"WHERE status = 'compensation-needed'",
+	} {
+		if !strings.Contains(joined, want) {
+			t.Fatalf("runtime schema SQL missing %q:\n%s", want, joined)
+		}
+	}
+}
+
 func normalizeSQL(query string) string {
 	return strings.Join(strings.Fields(query), " ")
 }

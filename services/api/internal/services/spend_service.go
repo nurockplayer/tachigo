@@ -23,6 +23,7 @@ var (
 	ErrSpendInsufficientBalance = errors.New("insufficient tachi balance")
 	ErrSpendWalletNotLinked     = errors.New("web3 wallet not linked")
 	ErrSpendContractConfig      = errors.New("spend contract config is incomplete")
+	ErrTachiyaRedeemFailed      = errors.New("tachiya coupon redeem failed after successful burn")
 )
 
 // BurnCaller abstracts the on-chain burn call; replaced with a mock in tests.
@@ -66,7 +67,9 @@ func NewSpendService(db *gorm.DB, contractCfg config.ContractConfig, ethClient *
 func (s *SpendService) SetBurnCallerForTest(bc BurnCaller) { s.burnCaller = bc }
 
 // Redeem burns `amount` $TACHI from the user's on-chain wallet and deducts
-// the same amount from tachi_balances. Returns the new balance.
+// the same amount from tachi_balances. Returns the new balance and voucher code.
+// If the Tachiya coupon call fails after a successful burn, returns
+// ErrTachiyaRedeemFailed and records the attempt as "compensation-needed".
 func (s *SpendService) Redeem(ctx context.Context, userID uuid.UUID, couponID string, amount int64) (int64, string, error) {
 	if amount <= 0 {
 		return 0, "", ErrSpendAmountInvalid
@@ -99,14 +102,50 @@ func (s *SpendService) Redeem(ctx context.Context, userID uuid.UUID, couponID st
 		return 0, "", err
 	}
 
-	voucherCode := ""
-	if s.tachiyaClient != nil {
-		var tachiyaErr error
-		voucherCode, tachiyaErr = s.tachiyaClient.RedeemCoupon(ctx, couponID, reservation.amount)
-		if tachiyaErr != nil {
-			log.Printf("warning: tachiya redeem coupon failed for coupon_id=%s user_id=%s: %v", couponID, userID, tachiyaErr)
-			voucherCode = ""
+	rec := &models.CouponRedemption{
+		UserID:   userID,
+		CouponID: couponID,
+		Amount:   amount,
+		TxHash:   txHash,
+		Status:   models.CouponRedemptionPending,
+	}
+	if createErr := s.db.Create(rec).Error; createErr != nil {
+		return 0, "", fmt.Errorf("failed to record coupon_redemption before tachiya call (burn tx_hash=%s coupon_id=%s): %w", txHash, couponID, createErr)
+	}
+
+	if s.tachiyaClient == nil {
+		if err := s.db.Model(rec).Updates(map[string]interface{}{
+			"status":     models.CouponRedemptionRedeemed,
+			"updated_at": time.Now(),
+		}).Error; err != nil {
+			log.Printf("warning: failed to mark coupon_redemption redeemed id=%s: %v", rec.ID, err)
 		}
+		return reservation.newBalance, "", nil
+	}
+
+	tachiyaCtx, tachiyaCancel := context.WithTimeout(context.Background(), 10*time.Second)
+	defer tachiyaCancel()
+	voucherCode, tachiyaErr := s.tachiyaClient.RedeemCoupon(tachiyaCtx, couponID, reservation.amount)
+	if tachiyaErr != nil {
+		errMsg := tachiyaErr.Error()
+		if dbErr := s.db.Model(rec).Updates(map[string]interface{}{
+			"status":        models.CouponRedemptionCompensationNeeded,
+			"error_message": errMsg,
+			"updated_at":    time.Now(),
+		}).Error; dbErr != nil {
+			return 0, "", fmt.Errorf("%w (coupon_id=%s): tachiya_err=%v, db_update_err=%v",
+				ErrTachiyaRedeemFailed, couponID, tachiyaErr, dbErr)
+		}
+		return 0, "", fmt.Errorf("%w (coupon_id=%s): %v", ErrTachiyaRedeemFailed, couponID, tachiyaErr)
+	}
+
+	if err := s.db.Model(rec).Updates(map[string]interface{}{
+		"status":       models.CouponRedemptionRedeemed,
+		"voucher_code": voucherCode,
+		"updated_at":   time.Now(),
+	}).Error; err != nil {
+		// Tachiya already issued the voucher; leave the local record pending so reconciliation can resolve it.
+		return 0, "", fmt.Errorf("failed to persist redeemed voucher id=%s coupon_id=%s: %w", rec.ID, couponID, err)
 	}
 
 	return reservation.newBalance, voucherCode, nil

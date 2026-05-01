@@ -86,6 +86,8 @@ func main() {
 		&models.RaffleEntry{},
 		&models.RaffleDraw{},
 		&models.RaffleClaim{},
+		// Coupon redemption tracking — refs #423
+		&models.CouponRedemption{},
 	); err != nil {
 		log.Fatalf("migration failed: %v", err)
 	}
@@ -100,6 +102,11 @@ func main() {
 		END $$;
 	`).Error; err != nil {
 		log.Fatalf("failed to create tachi_balances FK: %v", err)
+	}
+	if err := ensureCouponRedemptionRuntimeSchema(func(query string) error {
+		return db.Exec(query).Error
+	}); err != nil {
+		log.Fatalf("failed to create coupon_redemptions runtime schema: %v", err)
 	}
 
 	// Partial unique index: only one active session per (user_id, channel_id).
@@ -229,6 +236,35 @@ func initializeUserRoleEnum(exec func(query string) error) error {
 		return err
 	}
 
+	return nil
+}
+
+func ensureCouponRedemptionRuntimeSchema(exec func(query string) error) error {
+	if err := exec(`
+		DO $$ BEGIN
+			ALTER TABLE coupon_redemptions ADD CONSTRAINT chk_coupon_redemptions_amount_gt_0
+			CHECK (amount > 0);
+		EXCEPTION WHEN duplicate_object THEN NULL;
+		END $$;
+	`); err != nil {
+		return err
+	}
+	if err := exec(`
+		DO $$ BEGIN
+			ALTER TABLE coupon_redemptions ADD CONSTRAINT chk_coupon_redemptions_status
+			CHECK (status IN ('pending','redeemed','compensation-needed'));
+		EXCEPTION WHEN duplicate_object THEN NULL;
+		END $$;
+	`); err != nil {
+		return err
+	}
+	if err := exec(`
+		CREATE INDEX IF NOT EXISTS idx_coupon_redemptions_compensation
+		ON coupon_redemptions (status)
+		WHERE status = 'compensation-needed'
+	`); err != nil {
+		return err
+	}
 	return nil
 }
 
