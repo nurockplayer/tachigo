@@ -58,20 +58,33 @@ func (m *SMTPMailer) Send(ctx context.Context, to, subject, htmlBody string) err
 	}
 	// Propagate ctx deadline to all subsequent SMTP I/O (STARTTLS, AUTH, DATA).
 	if dl, ok := ctx.Deadline(); ok {
-		conn.SetDeadline(dl)
+		_ = conn.SetDeadline(dl)
 	}
+	// For cancel-only contexts (no deadline), close conn when ctx is done so
+	// blocked SMTP I/O (STARTTLS, AUTH, DATA) unblocks immediately.
+	watchDone := make(chan struct{})
+	go func() {
+		select {
+		case <-ctx.Done():
+			_ = conn.Close()
+		case <-watchDone:
+		}
+	}()
+	defer close(watchDone)
 
 	var client *smtp.Client
 	if m.port == 465 {
 		// Port 465: implicit TLS (SMTPS) — wrap conn before SMTP handshake.
 		client, err = smtp.NewClient(tls.Client(conn, tlsCfg), m.host)
 	} else {
-		// Other ports (587, 25): plain connection upgraded via STARTTLS.
+		// Other ports (587, 25): upgrade via STARTTLS only if server advertises it.
 		client, err = smtp.NewClient(conn, m.host)
 		if err == nil {
-			if startErr := client.StartTLS(tlsCfg); startErr != nil {
-				client.Close()
-				err = startErr
+			if ok, _ := client.Extension("STARTTLS"); ok {
+				if startErr := client.StartTLS(tlsCfg); startErr != nil {
+					client.Close()
+					err = startErr
+				}
 			}
 		}
 	}
