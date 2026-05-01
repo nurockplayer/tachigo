@@ -1,73 +1,52 @@
-# React + TypeScript + Vite
+# Tachigo Dashboard
 
-This template provides a minimal setup to get React working in Vite with HMR and some ESLint rules.
+Tachigo Dashboard 是 Vite + React + TypeScript 應用，管理介面以 Refine.dev 作為資料、認證與路由整合層，畫面仍使用專案既有 Tailwind / shadcn-style 元件。
 
-Currently, two official plugins are available:
+## 啟動方式
 
-- [@vitejs/plugin-react](https://github.com/vitejs/vite-plugin-react/blob/main/packages/plugin-react) uses [Oxc](https://oxc.rs)
-- [@vitejs/plugin-react-swc](https://github.com/vitejs/vite-plugin-react/blob/main/packages/plugin-react-swc) uses [SWC](https://swc.rs/)
-
-## React Compiler
-
-The React Compiler is not enabled on this template because of its impact on dev & build performances. To add it, see [this documentation](https://react.dev/learn/react-compiler/installation).
-
-## Expanding the ESLint configuration
-
-If you are developing a production application, we recommend updating the configuration to enable type-aware lint rules:
-
-```js
-export default defineConfig([
-  globalIgnores(['dist']),
-  {
-    files: ['**/*.{ts,tsx}'],
-    extends: [
-      // Other configs...
-
-      // Remove tseslint.configs.recommended and replace with this
-      tseslint.configs.recommendedTypeChecked,
-      // Alternatively, use this for stricter rules
-      tseslint.configs.strictTypeChecked,
-      // Optionally, add this for stylistic rules
-      tseslint.configs.stylisticTypeChecked,
-
-      // Other configs...
-    ],
-    languageOptions: {
-      parserOptions: {
-        project: ['./tsconfig.node.json', './tsconfig.app.json'],
-        tsconfigRootDir: import.meta.dirname,
-      },
-      // other options...
-    },
-  },
-])
+```bash
+pnpm install
+pnpm dev
 ```
 
-You can also install [eslint-plugin-react-x](https://github.com/Rel1cx/eslint-react/tree/main/packages/plugins/eslint-plugin-react-x) and [eslint-plugin-react-dom](https://github.com/Rel1cx/eslint-react/tree/main/packages/plugins/eslint-plugin-react-dom) for React-specific lint rules:
+預設 Vite dev server 使用 `5174`。API base URL 依序讀取：
 
-```js
-// eslint.config.js
-import reactX from 'eslint-plugin-react-x'
-import reactDom from 'eslint-plugin-react-dom'
+1. `VITE_TACHIGO_API_URL`
+2. `VITE_API_URL`
+3. `http://localhost:8080`
 
-export default defineConfig([
-  globalIgnores(['dist']),
-  {
-    files: ['**/*.{ts,tsx}'],
-    extends: [
-      // Other configs...
-      // Enable lint rules for React
-      reactX.configs['recommended-typescript'],
-      // Enable lint rules for React DOM
-      reactDom.configs.recommended,
-    ],
-    languageOptions: {
-      parserOptions: {
-        project: ['./tsconfig.node.json', './tsconfig.app.json'],
-        tsconfigRootDir: import.meta.dirname,
-      },
-      // other options...
-    },
-  },
-])
+所有 API request 會再加上 `/api/v1` prefix。
+
+## Refine 架構
+
+`src/App.tsx` 以 `<Refine>` 包住 React Router v7 `createBrowserRouter`，並傳入：
+
+- `src/providers/authProvider.ts`：橋接既有 `services/auth.ts`，登入、登出、啟動時 session restore、JWT role / identity 解析都集中在這裡。
+- `src/providers/dataProvider.ts`：以 `@refinedev/simple-rest` 為 base，實際 request 使用既有 axios client，因此會沿用 in-memory access token、httpOnly refresh cookie 與 401 refresh interceptor。
+- Refine resources：`streamers`、`raffles`、`transactions`、`settings`。首頁 `DashboardPage` 保持自寫頁面，不走 resource。
+
+受保護路由使用 Refine `<Authenticated>`，未登入會導向 `/login`。`authProvider.check()` 是 async，會呼叫 `restoreSession()` 讓 app 啟動時可以用 refresh cookie 換回 access token。
+
+## API response envelope
+
+後端 response 不是標準 simple-rest 格式，常見格式如下：
+
+```json
+{ "data": { "raffles": [] } }
+```
+
+或：
+
+```json
+{ "data": { "raffle": {} } }
+```
+
+`dataProvider` 會把 envelope 轉成 Refine hooks 需要的 `{ data, total }` 或 `{ data }`，讓 `useList` / `useOne` 可直接在頁面使用。
+
+## 常用指令
+
+```bash
+pnpm test
+pnpm lint
+pnpm build
 ```
