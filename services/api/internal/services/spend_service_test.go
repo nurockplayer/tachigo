@@ -103,6 +103,12 @@ func TestRedeem_Success(t *testing.T) {
 	if dbBal != 400 {
 		t.Fatalf("expected db balance=400, got %d", dbBal)
 	}
+
+	var redemptionStatus string
+	db.Raw("SELECT status FROM coupon_redemptions WHERE user_id = ?", userID).Scan(&redemptionStatus)
+	if redemptionStatus != "redeemed" {
+		t.Fatalf("expected coupon_redemption status=redeemed, got %q", redemptionStatus)
+	}
 }
 
 func TestRedeem_InsufficientBalance(t *testing.T) {
@@ -188,7 +194,7 @@ func TestRedeem_BurnFailureRollback(t *testing.T) {
 	}
 }
 
-func TestRedeem_TachiyaFailureIsNonBlocking(t *testing.T) {
+func TestRedeem_TachiyaFailure_ReturnsErrorAndRecordsCompensation(t *testing.T) {
 	db := newTestDB(t)
 	burnCaller := &mockBurnCaller{txHash: "0xburn123"}
 	tachiyaClient := &mockTachiyaClient{err: errors.New("tachiya unavailable")}
@@ -198,17 +204,32 @@ func TestRedeem_TachiyaFailureIsNonBlocking(t *testing.T) {
 	seedWeb3Provider(t, db, userID, "0xd8dA6BF26964aF9D7eEd9e03E53415D37aA96045")
 	seedTachiBalance(t, db, userID, 300)
 
-	newBal, voucherCode, err := svc.Redeem(context.Background(), userID, "coupon-123", 100)
+	_, _, err := svc.Redeem(context.Background(), userID, "coupon-123", 100)
+	if !errors.Is(err, ErrTachiyaRedeemFailed) {
+		t.Fatalf("expected ErrTachiyaRedeemFailed, got %v", err)
+	}
+
+	var dbBal int64
+	db.Raw("SELECT balance FROM tachi_balances WHERE user_id = ?", userID).Scan(&dbBal)
+	if dbBal != 200 {
+		t.Fatalf("expected balance=200 (burn not rolled back), got %d", dbBal)
+	}
+
+	var status string
+	db.Raw("SELECT status FROM coupon_redemptions WHERE user_id = ?", userID).Scan(&status)
+	if status != "compensation-needed" {
+		t.Fatalf("expected status=compensation-needed, got %q", status)
+	}
+}
+
+func TestCouponRedemptionSchema(t *testing.T) {
+	db := newTestDB(t)
+	err := db.Exec(`
+		INSERT INTO coupon_redemptions (id, user_id, coupon_id, amount, tx_hash, status, created_at, updated_at)
+		VALUES ('test-id-1', 'user-id-1', 'coupon-123', 100, '0xabc', 'pending',
+		        CURRENT_TIMESTAMP, CURRENT_TIMESTAMP)
+	`).Error
 	if err != nil {
-		t.Fatalf("unexpected error: %v", err)
-	}
-	if newBal != 200 {
-		t.Fatalf("expected newBalance=200, got %d", newBal)
-	}
-	if voucherCode != "" {
-		t.Fatalf("expected empty voucherCode, got %s", voucherCode)
-	}
-	if len(tachiyaClient.calls) != 1 {
-		t.Fatalf("expected 1 tachiya call, got %d", len(tachiyaClient.calls))
+		t.Fatalf("coupon_redemptions table not ready: %v", err)
 	}
 }
