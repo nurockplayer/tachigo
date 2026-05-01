@@ -154,7 +154,7 @@ export const dataProvider: DataProvider = {
     }
   },
 
-  create: async <TData extends BaseRecord = BaseRecord, TVariables = {}>({
+  create: async <TData extends BaseRecord = BaseRecord, TVariables = Record<string, unknown>>({
     resource,
     variables,
   }: CreateParams<TVariables>): Promise<CreateResponse<TData>> => {
@@ -165,7 +165,7 @@ export const dataProvider: DataProvider = {
     }
   },
 
-  update: async <TData extends BaseRecord = BaseRecord, TVariables = {}>({
+  update: async <TData extends BaseRecord = BaseRecord, TVariables = Record<string, unknown>>({
     resource,
     id,
     variables,
@@ -177,7 +177,7 @@ export const dataProvider: DataProvider = {
     }
   },
 
-  deleteOne: async <TData extends BaseRecord = BaseRecord, TVariables = {}>({
+  deleteOne: async <TData extends BaseRecord = BaseRecord, TVariables = Record<string, unknown>>({
     resource,
     id,
   }: DeleteOneParams<TVariables>): Promise<DeleteOneResponse<TData>> => {
