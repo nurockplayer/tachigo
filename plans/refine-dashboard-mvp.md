@@ -2,11 +2,11 @@
 
 ## 狀態
 
-提案中
+進行中
 
 ## 目標
 
-在不推翻既有 `dashboard/` 專案的前提下，導入 `Refine.dev` 作為 MVP 階段的 dashboard framework，快速完成：
+在不推翻既有 `apps/dashboard/` 專案的前提下，導入 `Refine.dev` 作為 MVP 階段的 dashboard framework，快速完成：
 
 - 登入後台基礎流程
 - 受保護路由
@@ -17,13 +17,13 @@
 
 ## 專案背景
 
-目前 repo 結構：
+目前 repo 結構（monorepo）：
 
-- `backend/`：Go + Gin + GORM
-- `tachimint/`：Twitch Extension 前端
-- `dashboard/`：React 後台骨架
+- `services/api/`：Go + Gin + GORM
+- `apps/extension/`：Twitch Extension 前端
+- `apps/dashboard/`：React 後台骨架
 
-目前 `dashboard/` 已經有：
+目前 `apps/dashboard/` 已經有：
 
 - React Router 路由骨架
 - 基本 Layout
@@ -80,7 +80,7 @@
 
 ### Phase 2: Auth 與 Session
 
-- 重構 [`dashboard/src/services/auth.ts`](/Users/tachikoma/Documents/Web3/tachigo/dashboard/src/services/auth.ts)
+- 重構 [`apps/dashboard/src/services/auth.ts`](../apps/dashboard/src/services/auth.ts)
 - 支援：
   - access token 持久化策略
   - refresh token 使用策略
@@ -103,13 +103,13 @@
 
 ### Phase 4: 保留式整合
 
-- 盡量保留現有 [`dashboard/src/components/Layout.tsx`](/Users/tachikoma/Documents/Web3/tachigo/dashboard/src/components/Layout.tsx)
+- 盡量保留現有 [`apps/dashboard/src/components/Layout.tsx`](../apps/dashboard/src/components/Layout.tsx)
 - 將現有 nav 與 Refine resource route 對齊
-- 保留 [`dashboard/src/pages/DashboardPage.tsx`](/Users/tachikoma/Documents/Web3/tachigo/dashboard/src/pages/DashboardPage.tsx) 作為自寫總覽頁
+- 保留 [`apps/dashboard/src/pages/DashboardPage.tsx`](../apps/dashboard/src/pages/DashboardPage.tsx) 作為自寫總覽頁
 
 ### Phase 5: 文件與驗證
 
-- 更新 `dashboard/README.md`
+- 更新 `apps/dashboard/README.md`
 - 補上 dashboard 啟動與架構說明
 - 驗證基本登入、跳轉、resource 頁面流程
 
@@ -118,7 +118,7 @@
 ## 建議檔案結構
 
 ```text
-dashboard/src/
+apps/dashboard/src/
 ├── main.tsx
 ├── App.tsx
 ├── components/
@@ -181,7 +181,7 @@ dashboard/src/
 
 目前有些 dashboard / admin / agency 路由仍回傳 `501 not implemented`：
 
-- [`backend/internal/router/router.go`](/Users/tachikoma/Documents/Web3/tachigo/backend/internal/router/router.go)
+- [`services/api/internal/router/router.go`](../services/api/internal/router/router.go)
 
 影響：
 
@@ -190,11 +190,11 @@ dashboard/src/
 
 ### 2. 現有 auth 設計不足以支援穩定 dashboard 體驗
 
-目前 token 僅存在記憶體，重新整理會掉登入狀態。
+access token 仍是 in-memory，但 `main.tsx` 已在啟動時 `await restoreSession()`，透過 httpOnly refresh cookie 還原 token，頁面重整不會立即掉登入狀態。
 
 影響：
 
-- 在導入 Refine 前，應先一起整理 auth flow
+- Refine `authProvider.check()` 需同樣整合 `restoreSession()`，確保 Refine auth flow 與現有 restore 機制一致
 
 ### 3. Settings 頁不一定是典型 CRUD
 
@@ -204,14 +204,14 @@ dashboard/src/
 
 ## 驗收標準
 
-- [ ] `dashboard/` 可正常啟動
+- [ ] `apps/dashboard/` 可正常啟動
 - [ ] 登入後可進入受保護頁面
-- [ ] 重新整理後登入狀態不會立即失效
+- [x] 重新整理後登入狀態不會立即失效（`restoreSession()` 已在 `main.tsx` 實作）
 - [ ] `streamers` resource 可顯示 list 頁
 - [ ] `transactions` resource 可顯示 list 頁
 - [ ] `settings` 頁可作為 Refine route 或整合式頁面進入
 - [ ] Layout 與側邊欄仍正常運作
-- [ ] `dashboard/README.md` 已更新
+- [ ] `apps/dashboard/README.md` 已更新
 
 ---
 
@@ -219,7 +219,7 @@ dashboard/src/
 
 1. 安裝 Refine 相關套件
 2. 建立 `authProvider` / `dataProvider`
-3. 修正 token 持久化與 refresh flow
+3. ~~修正 token 持久化與 refresh flow~~（已由 `restoreSession()` + refresh cookie 處理，無需額外修正）
 4. 將路由接入 Refine
 5. 實作 `streamers`
 6. 實作 `transactions`

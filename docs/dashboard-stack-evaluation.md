@@ -10,11 +10,9 @@
 - 手動放入的 `shadcn/ui` 基礎元件
 - 後端為 Go + Gin + GORM，提供 REST API
 
-本文件的目的是評估：
+本文件記錄 dashboard 的技術選型過程與最終決策。
 
-- 目前同事已經做的 dashboard 骨架是否適合延續
-- 針對 MVP 階段，是否適合導入 `Refine.dev`
-- 若導入，應採取什麼範圍與方式
+**決策（2026-05-01）：採用 `Refine.dev` 作為 dashboard 主框架。**
 
 ---
 
@@ -42,8 +40,8 @@
 ### 目前技術風險
 
 - [`apps/dashboard/src/services/auth.ts`](../apps/dashboard/src/services/auth.ts)
-  - `accessToken` 僅保存在記憶體
-  - 重新整理頁面後，`isAuthenticated()` 會回傳 false
+  - `accessToken` 僅保存在記憶體；但 `main.tsx` 啟動時會 `await restoreSession()`，透過 httpOnly refresh cookie 還原 token，頁面重整不會立即掉登入
+  - Refine `authProvider` 尚未整合，目前 route guard 仍由 `ProtectedRoute` 處理
 - [`apps/dashboard/src/components/ProtectedRoute.tsx`](../apps/dashboard/src/components/ProtectedRoute.tsx)
   - 現在的 route guard 只適合非常早期原型
 - [`apps/dashboard/README.md`](../apps/dashboard/README.md)
@@ -55,15 +53,16 @@
 
 ### 結論摘要
 
-在目前條件下：
+**已決定（2026-05-01）採用 `Refine.dev` 作為 dashboard framework，保留既有 React 專案與部分 UI 骨架。**
 
-- 不追求深度客製化
-- 目前還在 MVP
-- 希望盡可能有現成能力快速跑起來
+理由：dashboard 會持續成長；Refine 的 resource/provider convention 在頁面規模擴大時帶來一致性；access control、快取、分頁等功能免費獲得；複合頁面仍可在 Refine 專案內自寫，不受限制。
 
-建議採用：
+### 為什麼不是 Next.js
 
-**`Refine.dev` 作為 dashboard framework，保留既有 React 專案與部分 UI 骨架。**
+- 後端是 Go + Gin 的 API-first 架構，不需要 SSR 或 SSG
+- Dashboard 是純後台管理工具，沒有 SEO 需求，server render 的優勢無法轉化為價值
+- Next.js 帶來的複雜度（server actions、routing convention、需要 Node server 部署）在此場景沒有對應回報
+- 初始骨架已用 Vite 建立，重來成本高
 
 ### 為什麼不是 Go Admin
 
@@ -145,16 +144,16 @@
 
 ---
 
-## 推薦決策
+## 決策
 
-### 建議採納
+### 已確認採納
 
-1. 將 `Refine.dev` 視為 MVP 階段 dashboard 主框架
+1. `Refine.dev` 作為 MVP 階段 dashboard 主框架
 2. 保留既有 React 專案結構，不另起新專案
 3. 先用 `Refine` 解決 auth、resource、list/edit/create 的基本問題
 4. 自訂程度先控制在必要範圍
 
-### 不建議現在投入的方向
+### 不投入的方向
 
 - 大量手刻 table/form infra
 - 為了未來可能需求而過早最佳化 dashboard 架構
@@ -164,19 +163,6 @@
 
 ## 下一步
 
-建議接著執行：
-
-1. 建立 Refine MVP 導入計畫
-2. 決定第一波 resource：
-   - `streamers`
-   - `transactions`
-   - `settings`
-3. 重構 auth flow：
-   - token 持久化
-   - refresh 機制
-   - `authProvider`
-4. 再進行第一波頁面實作
-
-對應的實作規劃見：
+實作規劃見：
 
 - [`plans/refine-dashboard-mvp.md`](../plans/refine-dashboard-mvp.md)
