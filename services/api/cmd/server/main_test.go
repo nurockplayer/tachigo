@@ -71,6 +71,7 @@ func TestEnsureCouponRedemptionRuntimeSchema(t *testing.T) {
 	for _, want := range []string{
 		"CONSTRAINT chk_coupon_redemptions_amount_gt_0",
 		"CHECK (amount > 0)",
+		"EXCEPTION WHEN duplicate_object THEN NULL",
 		"CONSTRAINT chk_coupon_redemptions_status",
 		"status IN ('pending','redeemed','compensation-needed')",
 		"CREATE INDEX IF NOT EXISTS idx_coupon_redemptions_compensation",

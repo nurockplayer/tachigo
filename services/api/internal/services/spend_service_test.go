@@ -296,20 +296,25 @@ func TestRedeem_TachiyaFailure_ReturnsErrorAndRecordsCompensation(t *testing.T) 
 	}
 
 	var status string
-	db.Raw("SELECT status FROM coupon_redemptions WHERE user_id = ?", userID).Scan(&status)
+	var errorMessage sql.NullString
+	db.Raw("SELECT status, error_message FROM coupon_redemptions WHERE user_id = ?", userID).Row().Scan(&status, &errorMessage)
 	if status != "compensation-needed" {
 		t.Fatalf("expected status=compensation-needed, got %q", status)
+	}
+	if !errorMessage.Valid || errorMessage.String != "tachiya unavailable" {
+		t.Fatalf("expected error_message=tachiya unavailable, got valid=%v value=%q", errorMessage.Valid, errorMessage.String)
 	}
 }
 
 func TestCouponRedemptionSchema(t *testing.T) {
 	db := newTestDB(t)
 	userID := userIDForClaim(t, db)
+	redemptionID := uuid.NewString()
 	err := db.Exec(`
 		INSERT INTO coupon_redemptions (id, user_id, coupon_id, amount, tx_hash, status, created_at, updated_at)
-		VALUES ('test-id-1', ?, 'coupon-123', 100, '0xabc', 'pending',
+		VALUES (?, ?, 'coupon-123', 100, '0xabc', 'pending',
 		        CURRENT_TIMESTAMP, CURRENT_TIMESTAMP)
-	`, userID.String()).Error
+	`, redemptionID, userID.String()).Error
 	if err != nil {
 		t.Fatalf("coupon_redemptions table not ready: %v", err)
 	}
@@ -317,11 +322,13 @@ func TestCouponRedemptionSchema(t *testing.T) {
 
 func TestCouponRedemptionSchemaRequiresExistingUser(t *testing.T) {
 	db := newTestDB(t)
+	redemptionID := uuid.NewString()
+	missingUserID := uuid.NewString()
 	err := db.Exec(`
 		INSERT INTO coupon_redemptions (id, user_id, coupon_id, amount, tx_hash, status, created_at, updated_at)
-		VALUES ('test-id-invalid-user', '00000000-0000-0000-0000-000000000000', 'coupon-123', 100, '0xabc', 'pending',
+		VALUES (?, ?, 'coupon-123', 100, '0xabc', 'pending',
 		        CURRENT_TIMESTAMP, CURRENT_TIMESTAMP)
-	`).Error
+	`, redemptionID, missingUserID).Error
 	if err == nil {
 		t.Fatal("expected coupon_redemptions.user_id to require an existing user")
 	}
