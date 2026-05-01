@@ -280,6 +280,24 @@ func TestAddPointsWithMeta_DuplicateExternalTransactionID_Fails(t *testing.T) {
 	if !errors.Is(err, gorm.ErrDuplicatedKey) {
 		t.Errorf("want gorm.ErrDuplicatedKey, got %v", err)
 	}
+
+	bal, err := svc.GetBalance(userID, "ch1")
+	if err != nil {
+		t.Fatalf("get balance: %v", err)
+	}
+	if bal.SpendableBalance != 100 || bal.CumulativeTotal != 100 {
+		t.Fatalf("duplicate replay must not credit points, got (%d,%d)", bal.SpendableBalance, bal.CumulativeTotal)
+	}
+
+	var txCount int64
+	if err := svc.db.Model(&models.PointsTransaction{}).
+		Where("external_transaction_id = ?", txID).
+		Count(&txCount).Error; err != nil {
+		t.Fatalf("count transactions by external_transaction_id: %v", err)
+	}
+	if txCount != 1 {
+		t.Fatalf("want 1 transaction for duplicated external_transaction_id, got %d", txCount)
+	}
 }
 
 // ─── ListTransactions ────────────────────────────────────────────────────────

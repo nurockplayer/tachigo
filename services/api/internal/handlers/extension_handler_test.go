@@ -6,6 +6,7 @@ import (
 	"encoding/json"
 	"net/http"
 	"net/http/httptest"
+	"strings"
 	"testing"
 	"time"
 
@@ -180,6 +181,22 @@ func TestTPointComplete_InvalidReceiptAmount_Returns400(t *testing.T) {
 	twitchID := seedTwitchUserForHandler(t, db)
 	extJWT := signExtJWTForHandler(t, twitchID, "ch-42")
 	receipt := signReceiptJWTForHandler(t, "tx-bad-amount", "TPOINT100", 0, "bits")
+
+	req := httptest.NewRequest(http.MethodPost, "/api/v1/extension/t-point/complete",
+		tpointBody(t, extJWT, receipt, "TPOINT100"))
+	req.Header.Set("Content-Type", "application/json")
+	w := httptest.NewRecorder()
+	r.ServeHTTP(w, req)
+	if w.Code != http.StatusBadRequest {
+		t.Errorf("want 400, got %d: %s", w.Code, w.Body.String())
+	}
+}
+
+func TestTPointComplete_TooLongTransactionID_Returns400(t *testing.T) {
+	r, db := newExtHandlerEnv(t)
+	twitchID := seedTwitchUserForHandler(t, db)
+	extJWT := signExtJWTForHandler(t, twitchID, "ch-42")
+	receipt := signReceiptJWTForHandler(t, strings.Repeat("x", 256), "TPOINT100", 100, "bits")
 
 	req := httptest.NewRequest(http.MethodPost, "/api/v1/extension/t-point/complete",
 		tpointBody(t, extJWT, receipt, "TPOINT100"))

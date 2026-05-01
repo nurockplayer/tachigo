@@ -174,6 +174,9 @@ func (s *ExtensionService) CompleteTPointTransaction(extJWT, receipt, sku string
 	if receiptClaims.Data.TransactionID == "" {
 		return nil, nil, ErrInvalidReceipt
 	}
+	if len([]rune(sku)) > 255 || len([]rune(receiptClaims.Data.TransactionID)) > 255 {
+		return nil, nil, ErrInvalidReceipt
+	}
 
 	// Re-use the login flow to get/create the user, then issue tokens.
 	user, tokens, err := s.LoginWithExtension(extJWT)
