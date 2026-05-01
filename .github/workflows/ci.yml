@@ -305,6 +305,9 @@ jobs:
       - name: Build
         run: docker compose run --no-deps --rm frontend pnpm build
 
+      - name: i18n check
+        run: docker compose run --no-deps --rm frontend pnpm check:i18n
+
   dashboard:
     timeout-minutes: 15
     name: Dashboard build
