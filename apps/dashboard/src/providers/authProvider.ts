@@ -51,6 +51,10 @@ export const authProvider: AuthProvider = {
   },
 
   check: async () => {
+    if (isAuthenticated()) {
+      return { authenticated: true }
+    }
+
     await restoreSession()
 
     if (isAuthenticated()) {
@@ -70,7 +74,7 @@ export const authProvider: AuthProvider = {
     if (!payload) return null
 
     return {
-      id: payload.user_id ?? payload.sub ?? '',
+      id: payload.user_id ?? payload.sub ?? null,
       name: payload.name ?? payload.email ?? payload.sub ?? 'Dashboard user',
       email: payload.email,
       role: payload.role,
