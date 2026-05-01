@@ -1419,6 +1419,12 @@ const docTemplate = `{
                         "schema": {
                             "$ref": "#/definitions/handlers.Response"
                         }
+                    },
+                    "409": {
+                        "description": "Conflict",
+                        "schema": {
+                            "$ref": "#/definitions/handlers.Response"
+                        }
                     }
                 }
             }

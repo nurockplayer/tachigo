@@ -187,3 +187,32 @@ func TestSwaggerDoc_TPointCompleteDocumentsConflict(t *testing.T) {
 		t.Fatalf("post /extension/t-point/complete: missing 409 response, got %#v", responses)
 	}
 }
+
+func TestSwaggerDoc_BitsCompleteAliasDocumentsConflict(t *testing.T) {
+	raw := SwaggerInfo.ReadDoc()
+
+	var doc map[string]any
+	if err := json.Unmarshal([]byte(raw), &doc); err != nil {
+		t.Fatalf("unmarshal doc: %v", err)
+	}
+
+	paths, ok := doc["paths"].(map[string]any)
+	if !ok {
+		t.Fatalf("paths: got %#v", doc["paths"])
+	}
+	pathItem, ok := paths["/extension/bits/complete"].(map[string]any)
+	if !ok {
+		t.Fatalf("/extension/bits/complete: path item missing, got %#v", paths["/extension/bits/complete"])
+	}
+	op, ok := pathItem["post"].(map[string]any)
+	if !ok {
+		t.Fatalf("post /extension/bits/complete: operation missing, got %#v", pathItem["post"])
+	}
+	responses, ok := op["responses"].(map[string]any)
+	if !ok {
+		t.Fatalf("post /extension/bits/complete: responses invalid, got %#v", op["responses"])
+	}
+	if _, ok := responses["409"]; !ok {
+		t.Fatalf("post /extension/bits/complete: missing 409 response, got %#v", responses)
+	}
+}

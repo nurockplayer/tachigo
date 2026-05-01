@@ -104,6 +104,7 @@ func (h *ExtensionHandler) TPointComplete(c *gin.Context) {
 // @Success      200  {object}  Response{data=AuthResponse}
 // @Failure      400  {object}  Response
 // @Failure      401  {object}  Response
+// @Failure      409  {object}  Response
 // @Router       /extension/bits/complete [post]
 // @Deprecated
 func (h *ExtensionHandler) BitsComplete(c *gin.Context) { h.TPointComplete(c) }
