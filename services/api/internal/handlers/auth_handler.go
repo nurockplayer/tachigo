@@ -107,7 +107,11 @@ func (h *AuthHandler) Login(c *gin.Context) {
 
 	user, tokens, err := h.auth.Login(input)
 	if err != nil {
-		unauthorized(c, "invalid email or password")
+		if errors.Is(err, services.ErrInvalidCredentials) {
+			unauthorized(c, "invalid email or password")
+			return
+		}
+		internal(c)
 		return
 	}
 
@@ -134,7 +138,11 @@ func (h *AuthHandler) Refresh(c *gin.Context) {
 
 	tokens, err := h.auth.Refresh(refreshToken)
 	if err != nil {
-		unauthorized(c, "invalid or expired refresh token")
+		if errors.Is(err, services.ErrInvalidToken) || errors.Is(err, services.ErrUserNotFound) {
+			unauthorized(c, "invalid or expired refresh token")
+			return
+		}
+		internal(c)
 		return
 	}
 
@@ -194,7 +202,7 @@ func (h *AuthHandler) TwitchCallback(c *gin.Context) {
 	code := c.Query("code")
 	user, tokens, err := h.auth.TwitchCallback(c.Request.Context(), code)
 	if err != nil {
-		unauthorized(c, "twitch authentication failed")
+		internal(c)
 		return
 	}
 
@@ -233,7 +241,7 @@ func (h *AuthHandler) GoogleCallback(c *gin.Context) {
 	code := c.Query("code")
 	user, tokens, err := h.auth.GoogleCallback(c.Request.Context(), code)
 	if err != nil {
-		unauthorized(c, "google authentication failed")
+		internal(c)
 		return
 	}
 
