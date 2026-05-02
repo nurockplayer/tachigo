@@ -1,5 +1,6 @@
 import { useList } from '@refinedev/core'
 import { Skeleton } from '@/components/ui/skeleton'
+import type { Streamer } from '@/services/channels'
 
 type Transaction = {
   id?: string
@@ -12,11 +13,25 @@ type Transaction = {
   created_at?: string
 }
 
+function formatTransactionAmount(transaction: Transaction) {
+  const value = transaction.amount ?? transaction.delta
+  return typeof value === 'number' ? value.toLocaleString() : '—'
+}
+
 export default function TransactionsPage() {
-  const { query: { data, isLoading, isError } } = useList<Transaction>({
-    resource: 'transactions',
+  const channelsResult = useList<Streamer>({
+    resource: 'streamer-channels',
     queryOptions: { retry: false },
   })
+  const channelsQuery = channelsResult.query
+  const channelId = channelsQuery.data?.data[0]?.channel_id
+  const { query: { data, isLoading: transactionsLoading, isError: transactionsError } } = useList<Transaction>({
+    resource: 'transactions',
+    meta: { params: { channel_id: channelId } },
+    queryOptions: { enabled: Boolean(channelId), retry: false },
+  })
+  const isLoading = channelsQuery.isLoading || (Boolean(channelId) && transactionsLoading)
+  const isError = channelsQuery.isError || transactionsError
   const transactions: Transaction[] = data?.data ?? []
 
   return (
@@ -51,14 +66,14 @@ export default function TransactionsPage() {
             <tbody>
               {transactions.map((transaction, index) => (
                 <tr
-                  key={transaction.id ?? `${transaction.created_at}-${index}`}
+                  key={transaction.id ?? `${transaction.created_at ?? '?'}-${index}`}
                   className={`border-b border-border last:border-0 ${index % 2 === 0 ? '' : 'bg-secondary/20'}`}
                 >
                   <td className="px-4 py-3 font-medium text-foreground">
                     {transaction.type ?? transaction.source ?? '—'}
                   </td>
                   <td className="px-4 py-3 text-right text-muted-foreground">
-                    {(transaction.amount ?? transaction.delta ?? 0).toLocaleString()}
+                    {formatTransactionAmount(transaction)}
                   </td>
                   <td className="px-4 py-3 text-muted-foreground">{transaction.note ?? '—'}</td>
                   <td className="px-4 py-3 text-muted-foreground">
