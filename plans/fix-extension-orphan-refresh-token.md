@@ -14,7 +14,7 @@
 
 `CompleteTPointTransaction` 的現行呼叫順序：
 
-```
+```text
 VerifyExtJWT + VerifyReceiptJWT
   → LoginWithExtension          ← issueTokenPair 在此呼叫，refresh_token 寫入 DB
     → AddPointsWithMeta         ← 如果這裡失敗
@@ -24,7 +24,7 @@ VerifyExtJWT + VerifyReceiptJWT
 
 修正後順序：
 
-```
+```text
 VerifyExtJWT + VerifyReceiptJWT
   → lookupExtensionUser         ← 只找 user，不發 token
     → AddPointsWithMeta         ← 先寫 points
@@ -260,11 +260,11 @@ func TestDeleteExpiredRefreshTokens_RemovesExpiredOnly(t *testing.T) {
 	svc := NewAuthService(newTestDB(t), testConfig())
 
 	// Register a user to get valid tokens.
-	_, err := svc.Register("del_exp@example.com", "username_del_exp", "Password1!")
+	_, _, err := svc.Register(RegisterInput{Email: "del_exp@example.com", Username: "username_del_exp", Password: "Password1!"})
 	if err != nil {
 		t.Fatalf("Register: %v", err)
 	}
-	tokens, err := svc.Login("del_exp@example.com", "Password1!")
+	_, tokens, err := svc.Login(LoginInput{Email: "del_exp@example.com", Password: "Password1!"})
 	if err != nil {
 		t.Fatalf("Login: %v", err)
 	}
@@ -370,7 +370,7 @@ refs #452"
 ```go
 func TestLogin_RefreshTokensTableGone_ReturnsError(t *testing.T) {
 	svc := NewAuthService(newTestDB(t), testConfig())
-	if _, err := svc.Register("rt_gone@example.com", "username_rt_gone", "Password1!"); err != nil {
+	if _, _, err := svc.Register(RegisterInput{Email: "rt_gone@example.com", Username: "username_rt_gone", Password: "Password1!"}); err != nil {
 		t.Fatalf("Register: %v", err)
 	}
 	// Drop refresh_tokens after Register (which already wrote one) to isolate Login.
@@ -379,7 +379,7 @@ func TestLogin_RefreshTokensTableGone_ReturnsError(t *testing.T) {
 	}
 	// Before fix: Login silently ignores the db.Create error and returns tokens.
 	// After fix:  Login propagates the error and returns nil tokens.
-	_, err := svc.Login("rt_gone@example.com", "Password1!")
+	_, _, err := svc.Login(LoginInput{Email: "rt_gone@example.com", Password: "Password1!"})
 	if err == nil {
 		t.Fatal("want error when refresh_tokens table is gone, got nil")
 	}
