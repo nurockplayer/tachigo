@@ -1,0 +1,222 @@
+name: Auto-ready draft PR
+
+on:
+  pull_request:
+    types: [opened, synchronize, reopened, labeled]
+    branches: [main, develop]
+  check_suite:
+    types: [completed]
+  schedule:
+    - cron: '*/10 * * * *'
+  workflow_dispatch:
+
+permissions:
+  contents: read
+  checks: read
+  statuses: read
+  pull-requests: write
+
+jobs:
+  auto-ready:
+    name: Mark draft PR ready when checks pass
+    runs-on: ubuntu-latest
+    timeout-minutes: 5
+    steps:
+      - name: Mark eligible draft PRs ready
+        uses: actions/github-script@v7
+        with:
+          script: |
+            const owner = context.repo.owner
+            const repo = context.repo.repo
+            const autoReadyLabel = 'auto-ready'
+            const targetBaseBranches = new Set(['main', 'develop'])
+            const requiredSuccessConclusions = new Set(['success', 'neutral'])
+            const fallbackSuccessConclusions = new Set(['success', 'neutral', 'skipped'])
+            const ownCheckNames = new Set([
+              'Auto-ready draft PR',
+              'Mark draft PR ready when checks pass',
+            ])
+
+            const hasAutoReadyLabel = (pr) =>
+              (pr.labels || []).some((label) => label.name === autoReadyLabel)
+
+            const isEligibleDraftPr = (pr) => {
+              if (!targetBaseBranches.has(pr.base?.ref)) return false
+              if (pr.draft !== true) return false
+              if (pr.user?.login === 'dependabot[bot]') return false
+              if (!hasAutoReadyLabel(pr)) return false
+              return true
+            }
+
+            const listPrsForEvent = async () => {
+              if (context.eventName === 'pull_request') {
+                return [context.payload.pull_request]
+              }
+
+              if (context.eventName === 'check_suite') {
+                const headSha = context.payload.check_suite?.head_sha
+                if (!headSha) return []
+                const response = await github.rest.repos.listPullRequestsAssociatedWithCommit({
+                  owner,
+                  repo,
+                  commit_sha: headSha,
+                })
+                return response.data
+              }
+
+              return github.paginate(github.rest.pulls.list, {
+                owner,
+                repo,
+                state: 'open',
+                per_page: 100,
+              })
+            }
+
+            const getRequiredContexts = async (baseBranch) => {
+              try {
+                const response = await github.rest.repos.getBranchProtection({
+                  owner,
+                  repo,
+                  branch: baseBranch,
+                })
+                const requiredChecks = response.data.required_status_checks
+                const contexts = new Set(requiredChecks?.contexts || [])
+                for (const check of requiredChecks?.checks || []) {
+                  if (check.context) contexts.add(check.context)
+                }
+                return [...contexts]
+              } catch (error) {
+                if (error.status === 404 || error.status === 403) {
+                  core.notice(
+                    `Required status checks are not readable for ${baseBranch}; falling back to all visible checks.`,
+                  )
+                  return []
+                }
+                throw error
+              }
+            }
+
+            const listCheckRuns = async (headSha) =>
+              github.paginate(github.rest.checks.listForRef, {
+                owner,
+                repo,
+                ref: headSha,
+                per_page: 100,
+              })
+
+            const listStatuses = async (headSha) => {
+              const response = await github.rest.repos.getCombinedStatusForRef({
+                owner,
+                repo,
+                ref: headSha,
+              })
+              return response.data.statuses || []
+            }
+
+            const checkRunPassed = (run, allowedConclusions) =>
+              run.status === 'completed' && allowedConclusions.has(run.conclusion)
+
+            const statusPassed = (status) => status.state === 'success'
+
+            const checkNameCandidates = (run) => [
+              run.name,
+              run.check_suite?.workflow_run?.name
+                ? `${run.check_suite.workflow_run.name} / ${run.name}`
+                : undefined,
+            ].filter(Boolean)
+
+            const buildObservedContexts = (checkRuns, statuses) => {
+              const observed = new Map()
+
+              for (const status of statuses) {
+                observed.set(status.context, statusPassed(status))
+              }
+
+              for (const run of checkRuns) {
+                if (ownCheckNames.has(run.name)) continue
+                for (const name of checkNameCandidates(run)) {
+                  observed.set(name, checkRunPassed(run, requiredSuccessConclusions))
+                }
+              }
+
+              return observed
+            }
+
+            const requiredContextsPassed = (requiredContexts, observed) => {
+              for (const requiredContext of requiredContexts) {
+                if (ownCheckNames.has(requiredContext)) continue
+                if (observed.get(requiredContext) !== true) {
+                  core.notice(`Required context is not successful yet: ${requiredContext}`)
+                  return false
+                }
+              }
+              return true
+            }
+
+            const fallbackChecksPassed = (checkRuns, statuses) => {
+              const visibleRuns = checkRuns.filter((run) => !ownCheckNames.has(run.name))
+              if (visibleRuns.length === 0 && statuses.length === 0) {
+                core.notice('No visible checks found yet.')
+                return false
+              }
+
+              const checksComplete = visibleRuns.every((run) =>
+                checkRunPassed(run, fallbackSuccessConclusions),
+              )
+              const statusesComplete = statuses.every(statusPassed)
+              if (!checksComplete || !statusesComplete) {
+                core.notice('At least one visible check or status is not successful yet.')
+              }
+              return checksComplete && statusesComplete
+            }
+
+            const readyForReview = async (pr) => {
+              const mutation = `
+                mutation($pullRequestId: ID!) {
+                  markPullRequestReadyForReview(input: { pullRequestId: $pullRequestId }) {
+                    pullRequest {
+                      number
+                      isDraft
+                    }
+                  }
+                }
+              `
+              await github.graphql(mutation, { pullRequestId: pr.node_id })
+            }
+
+            const prs = await listPrsForEvent()
+            const seen = new Set()
+
+            for (const pr of prs) {
+              if (seen.has(pr.number)) continue
+              seen.add(pr.number)
+
+              if (!isEligibleDraftPr(pr)) {
+                core.notice(`Skipping PR #${pr.number}: not an eligible ${autoReadyLabel} draft PR.`)
+                continue
+              }
+
+              const headSha = pr.head?.sha
+              if (!headSha) {
+                core.notice(`Skipping PR #${pr.number}: missing head SHA.`)
+                continue
+              }
+
+              const [requiredContexts, checkRuns, statuses] = await Promise.all([
+                getRequiredContexts(pr.base.ref),
+                listCheckRuns(headSha),
+                listStatuses(headSha),
+              ])
+              const observed = buildObservedContexts(checkRuns, statuses)
+              const passed = requiredContexts.length > 0
+                ? requiredContextsPassed(requiredContexts, observed)
+                : fallbackChecksPassed(checkRuns, statuses)
+
+              if (!passed) {
+                core.notice(`PR #${pr.number} remains draft until checks pass.`)
+                continue
+              }
+
+              await readyForReview(pr)
+              core.notice(`PR #${pr.number} marked ready for review.`)
+            }

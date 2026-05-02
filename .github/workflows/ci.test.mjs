@@ -10,6 +10,7 @@ const repoRoot = path.join(currentDir, '..', '..')
 const workflowPath = path.join(currentDir, 'ci.yml')
 const scopePolicePath = path.join(currentDir, 'pr-scope-police.yml')
 const autoMergeWorkflowPath = path.join(currentDir, 'auto-merge.yml')
+const autoReadyWorkflowPath = path.join(currentDir, 'auto-ready-pr.yml')
 const claudePath = path.join(repoRoot, 'CLAUDE.md')
 
 function parseYaml(filePath) {
@@ -260,4 +261,39 @@ test('global auto-merge workflow excludes Dependabot PRs', async () => {
     "github.event.pull_request.draft == false && github.event.pull_request.user.login != 'dependabot[bot]'",
   )
   assert.doesNotMatch(workflow, /if: github\.event\.pull_request\.draft == false\s*$/m)
+})
+
+test('auto-ready workflow is opt-in for draft PRs on protected base branches', async () => {
+  const workflow = await readFile(autoReadyWorkflowPath, 'utf8')
+  const parsedWorkflow = parseYaml(autoReadyWorkflowPath)
+
+  assert.deepEqual(parsedWorkflow.on.pull_request.branches, ['main', 'develop'])
+  assert.deepEqual(parsedWorkflow.on.pull_request.types, [
+    'opened',
+    'synchronize',
+    'reopened',
+    'labeled',
+  ])
+  assert.deepEqual(parsedWorkflow.on.check_suite.types, ['completed'])
+  assert.equal(parsedWorkflow.permissions['pull-requests'], 'write')
+  assert.equal(parsedWorkflow.permissions.checks, 'read')
+  assert.equal(parsedWorkflow.permissions.statuses, 'read')
+  assert.match(workflow, /const autoReadyLabel = 'auto-ready'/)
+  assert.match(workflow, /pr\.draft !== true/)
+  assert.match(workflow, /pr\.user\?\.login === 'dependabot\[bot\]'/)
+  assert.match(workflow, /targetBaseBranches\.has\(pr\.base\?\.ref\)/)
+})
+
+test('auto-ready workflow checks required contexts and excludes its own run', async () => {
+  const workflow = await readFile(autoReadyWorkflowPath, 'utf8')
+
+  assert.match(workflow, /getBranchProtection/)
+  assert.match(workflow, /listForRef/)
+  assert.match(workflow, /getCombinedStatusForRef/)
+  assert.match(workflow, /const ownCheckNames = new Set\(\[/)
+  assert.match(workflow, /requiredContexts/)
+  assert.match(workflow, /const requiredSuccessConclusions = new Set\(\['success', 'neutral'\]\)/)
+  assert.match(workflow, /const fallbackSuccessConclusions = new Set\(\['success', 'neutral', 'skipped'\]\)/)
+  assert.match(workflow, /markPullRequestReadyForReview/)
+  assert.doesNotMatch(workflow, /gh pr ready/)
 })
