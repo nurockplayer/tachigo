@@ -4,7 +4,7 @@ import type { BaseRecord, CreateParams, DeleteOneParams, DataProvider, GetListPa
 import { Refine } from '@refinedev/core'
 import type { ReactNode } from 'react'
 
-export type MockGetListFn = () => Promise<BaseRecord[]>
+export type MockGetListFn = (params: GetListParams) => Promise<BaseRecord[]>
 export type MockGetOneFn = (id: string | number) => Promise<BaseRecord>
 export type MockCreateFn = (variables: unknown) => Promise<BaseRecord>
 
@@ -16,10 +16,11 @@ export interface MockDataConfig {
 
 export function createMockDataProvider(config: MockDataConfig): DataProvider {
   return {
-    getList: async <TData extends BaseRecord = BaseRecord>({ resource }: GetListParams) => {
+    getList: async <TData extends BaseRecord = BaseRecord>(params: GetListParams) => {
+      const { resource } = params
       const handler = config.getList?.[resource]
       if (!handler) return { data: [], total: 0 }
-      const data = await handler()
+      const data = await handler(params)
       return { data: data as TData[], total: data.length }
     },
     getOne: async <TData extends BaseRecord = BaseRecord>({ resource, id }: GetOneParams) => {
