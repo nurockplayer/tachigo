@@ -30,7 +30,7 @@ jobs:
             const repo = context.repo.repo
             const autoReadyLabel = 'auto-ready'
             const targetBaseBranches = new Set(['main', 'develop'])
-            const requiredSuccessConclusions = new Set(['success', 'neutral'])
+            const requiredSuccessConclusions = new Set(['success', 'neutral', 'skipped'])
             const fallbackSuccessConclusions = new Set(['success', 'neutral', 'skipped'])
             const ownCheckNames = new Set([
               'Auto-ready draft PR',
@@ -87,7 +87,7 @@ jobs:
                 return [...contexts]
               } catch (error) {
                 if (error.status === 404 || error.status === 403) {
-                  core.notice(
+                  core.info(
                     `Required status checks are not readable for ${baseBranch}; falling back to all visible checks.`,
                   )
                   return []
@@ -118,12 +118,7 @@ jobs:
 
             const statusPassed = (status) => status.state === 'success'
 
-            const checkNameCandidates = (run) => [
-              run.name,
-              run.check_suite?.workflow_run?.name
-                ? `${run.check_suite.workflow_run.name} / ${run.name}`
-                : undefined,
-            ].filter(Boolean)
+            const checkNameCandidates = (run) => [run.name]
 
             const buildObservedContexts = (checkRuns, statuses) => {
               const observed = new Map()
@@ -135,7 +130,9 @@ jobs:
               for (const run of checkRuns) {
                 if (ownCheckNames.has(run.name)) continue
                 for (const name of checkNameCandidates(run)) {
-                  observed.set(name, checkRunPassed(run, requiredSuccessConclusions))
+                  if (!observed.has(name)) {
+                    observed.set(name, checkRunPassed(run, requiredSuccessConclusions))
+                  }
                 }
               }
 
@@ -146,7 +143,7 @@ jobs:
               for (const requiredContext of requiredContexts) {
                 if (ownCheckNames.has(requiredContext)) continue
                 if (observed.get(requiredContext) !== true) {
-                  core.notice(`Required context is not successful yet: ${requiredContext}`)
+                  core.info(`Required context is not successful yet: ${requiredContext}`)
                   return false
                 }
               }
@@ -156,7 +153,7 @@ jobs:
             const fallbackChecksPassed = (checkRuns, statuses) => {
               const visibleRuns = checkRuns.filter((run) => !ownCheckNames.has(run.name))
               if (visibleRuns.length === 0 && statuses.length === 0) {
-                core.notice('No visible checks found yet.')
+                core.info('No visible checks found yet.')
                 return false
               }
 
@@ -165,7 +162,7 @@ jobs:
               )
               const statusesComplete = statuses.every(statusPassed)
               if (!checksComplete || !statusesComplete) {
-                core.notice('At least one visible check or status is not successful yet.')
+                core.info('At least one visible check or status is not successful yet.')
               }
               return checksComplete && statusesComplete
             }
@@ -192,13 +189,13 @@ jobs:
               seen.add(pr.number)
 
               if (!isEligibleDraftPr(pr)) {
-                core.notice(`Skipping PR #${pr.number}: not an eligible ${autoReadyLabel} draft PR.`)
+                core.info(`Skipping PR #${pr.number}: not an eligible ${autoReadyLabel} draft PR.`)
                 continue
               }
 
               const headSha = pr.head?.sha
               if (!headSha) {
-                core.notice(`Skipping PR #${pr.number}: missing head SHA.`)
+                core.info(`Skipping PR #${pr.number}: missing head SHA.`)
                 continue
               }
 
@@ -213,7 +210,7 @@ jobs:
                 : fallbackChecksPassed(checkRuns, statuses)
 
               if (!passed) {
-                core.notice(`PR #${pr.number} remains draft until checks pass.`)
+                core.info(`PR #${pr.number} remains draft until checks pass.`)
                 continue
               }
 
