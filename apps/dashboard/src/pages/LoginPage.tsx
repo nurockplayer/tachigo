@@ -1,7 +1,6 @@
+import { useLogin } from '@refinedev/core'
 import { useState } from 'react'
-import { useNavigate } from 'react-router'
 import { isAxiosError } from 'axios'
-import { login } from '@/services/auth'
 import { Button } from '@/components/ui/button'
 import { Input } from '@/components/ui/input'
 import { Label } from '@/components/ui/label'
@@ -95,7 +94,7 @@ function getMessages() {
 }
 
 export default function LoginPage() {
-  const navigate = useNavigate()
+  const { mutateAsync: refineLogin } = useLogin<{ email: string; password: string }>()
   const [email, setEmail] = useState('')
   const [password, setPassword] = useState('')
   const [isLoading, setIsLoading] = useState(false)
@@ -108,8 +107,7 @@ export default function LoginPage() {
     setError('')
 
     try {
-      await login(email, password)
-      navigate('/')
+      await refineLogin({ email, password })
     } catch (err) {
       if (isAxiosError(err) && err.response?.status === 401) {
         setError(t.errorInvalidCredentials)
