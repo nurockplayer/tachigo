@@ -175,6 +175,13 @@ func (s *AuthService) Logout(rawRefreshToken string) error {
 	return s.db.Where("token_hash = ?", hash).Delete(&models.RefreshToken{}).Error
 }
 
+// DeleteExpiredRefreshTokens removes all expired refresh token records.
+// Returns the number of rows deleted.
+func (s *AuthService) DeleteExpiredRefreshTokens() (int64, error) {
+	result := s.db.Where("expires_at < ?", time.Now()).Delete(&models.RefreshToken{})
+	return result.RowsAffected, result.Error
+}
+
 // ─── Twitch OAuth ────────────────────────────────────────────────────────────
 
 func (s *AuthService) TwitchAuthURL(state string) string {
@@ -348,11 +355,13 @@ func (s *AuthService) issueTokenPair(user *models.User) (*TokenPair, error) {
 	if err != nil {
 		return nil, err
 	}
-	s.db.Create(&models.RefreshToken{
+	if err := s.db.Create(&models.RefreshToken{
 		UserID:    user.ID,
 		TokenHash: hashToken(rawRefresh),
 		ExpiresAt: time.Now().Add(s.cfg.JWT.RefreshTTL),
-	})
+	}).Error; err != nil {
+		return nil, err
+	}
 
 	return &TokenPair{
 		AccessToken:  accessToken,
