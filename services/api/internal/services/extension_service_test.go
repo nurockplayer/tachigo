@@ -226,3 +226,30 @@ func TestCompleteTPointTransaction_InvalidReceipt_Errors(t *testing.T) {
 		})
 	}
 }
+
+func TestCompleteTPointTransaction_PointsWriteFailure_NoOrphanRefreshToken(t *testing.T) {
+	svc, _ := newExtSvc(t)
+	_, twitchID := seedTwitchUser(t, svc.db)
+	extJWT := makeExtJWT(t, twitchID, "channel-42")
+	receipt := makeReceiptJWT(t, "tx-orphan-001", "TPOINT100", 100, "bits")
+
+	// newTestDB provides per-test DB isolation: DROP TABLE here only affects this test.
+	// RefreshToken has no DeletedAt, so Count() is a direct row count.
+	var countBefore int64
+	svc.db.Model(&models.RefreshToken{}).Count(&countBefore)
+
+	if err := svc.db.Exec("DROP TABLE points_transactions").Error; err != nil {
+		t.Fatalf("drop points_transactions: %v", err)
+	}
+
+	_, _, err := svc.CompleteTPointTransaction(extJWT, receipt, "TPOINT100")
+	if err == nil {
+		t.Fatal("want error, got nil")
+	}
+
+	var countAfter int64
+	svc.db.Model(&models.RefreshToken{}).Count(&countAfter)
+	if countAfter != countBefore {
+		t.Errorf("points write failure must not create refresh tokens: got %d new record(s)", countAfter-countBefore)
+	}
+}
