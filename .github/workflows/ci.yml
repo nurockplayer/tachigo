@@ -207,6 +207,18 @@ jobs:
       - name: Verify commit message hook assertions
         run: bash infra/scripts/commit-message-check.test.sh
 
+  pr-metadata-regression:
+    timeout-minutes: 5
+    name: PR metadata check regression tests
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+        with:
+          fetch-depth: 0
+
+      - name: Verify PR metadata check assertions
+        run: bash infra/scripts/pr-metadata-check.test.sh
+
   pr-commit-messages:
     timeout-minutes: 5
     name: PR commit messages
@@ -378,7 +390,7 @@ jobs:
   notify-discord:
     timeout-minutes: 5
     name: Notify Discord on failure
-    needs: [workflow-regression, commit-message-regression, check-cache-wiring, backend-ci, frontend, dashboard, contracts]
+    needs: [workflow-regression, commit-message-regression, pr-metadata-regression, check-cache-wiring, backend-ci, frontend, dashboard, contracts]
     if: failure()
     runs-on: ubuntu-latest
     steps:

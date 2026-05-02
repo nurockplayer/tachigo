@@ -121,6 +121,16 @@ run_case frontend_apps_single_surface "[frontend] update both frontend apps" "De
 git branch -f "$head_branch" "$base_ref" >/dev/null 2>&1
 
 # ── checked_item robustness fixtures ─────────────────────────────────────────
+# Add one non-docs commit to head_branch so docs_only=0 when run_case_body runs.
+# Using infra/ path: not a product surface, so no [frontend]/[backend] surface
+# violation fires, but docs_only=0 causes the backend contract block to execute.
+_item_wt="$tmpdir/item-wt"
+git worktree add -q "$_item_wt" "$head_branch"
+mkdir -p "$_item_wt/infra/scripts"
+printf '# checked_item surface marker\n' > "$_item_wt/infra/scripts/_checked_item_surface.sh"
+git -C "$_item_wt" add infra/scripts/_checked_item_surface.sh
+git -C "$_item_wt" commit -q -m "test: surface marker for checked_item fixtures"
+git worktree remove -f "$_item_wt"
 
 run_case_body() {
   local name="$1" title="$2" body="$3" expected_exit="${4:-0}"
@@ -184,7 +194,10 @@ run_case_body "blank_between_checkboxes" "[frontend] blank between checkboxes fi
 '
 
 # Section with extra text in name must not false-positive match.
-# "Backend contract already in develop (notes):" should NOT count as the section.
+# Only the "(notes):" variant is present — no exact section.
+# A correct parser finds nothing → "必須標記" failure → exit 1.
+# A buggy parser that matches "(notes):" would see [x] yes → no failure → exit 0,
+# which would cause this case to fail and reveal the bug.
 run_case_body "similar_section_no_false_positive" "[backend] similar section name fixture" \
 'refs #123
 
@@ -195,9 +208,6 @@ run_case_body "similar_section_no_false_positive" "[backend] similar section nam
 - Backend contract already in develop (notes):
   - [x] yes
   - [ ] no
-- Backend contract already in develop:
-  - [ ] yes
-  - [x] no
 - 本 PR 明確不做：
   - no-op
 ' 1
@@ -216,5 +226,7 @@ run_case_body "yes_no_conflict" "[backend] yes no conflict fixture" \
 - 本 PR 明確不做：
   - no-op
 ' 1
+
+git branch -f "$head_branch" "$base_ref" >/dev/null 2>&1
 
 echo "pr-metadata-check regression tests passed"
