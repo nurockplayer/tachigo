@@ -216,6 +216,11 @@ jobs:
         with:
           fetch-depth: 0
 
+      - name: Configure git identity for test commits
+        run: |
+          git config user.email "ci@test.local"
+          git config user.name "CI Test"
+
       - name: Verify PR metadata check assertions
         run: bash infra/scripts/pr-metadata-check.test.sh
 
