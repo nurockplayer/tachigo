@@ -48,6 +48,9 @@ Expected flow:
 - The mark-ready action must verify the PR number, current head SHA, base branch,
   draft state, label state, and author deny-list state at execution time before
   mutating PR state.
+- `workflow_run` events must resolve a single PR number before loading or
+  mutating PR state. Ambiguous or missing PR associations must be treated as a
+  no-op.
 - Completion events must be treated as hints only. Never assume a
   `check_suite` or `workflow_run` completion still describes the PR's current
   head SHA.
@@ -76,19 +79,32 @@ re-query the live PR state because `workflow_run` can also be stale.
 
 The job should:
 
-1. Load the PR metadata from the GitHub API using the PR number.
-2. Exit if the PR is not from the same repository as the base branch.
-3. Exit if the PR is not targeting `develop` or `main`.
-4. Exit if the PR is not draft.
-5. Exit if the PR does not have the `auto-ready` label.
-6. Exit if the author is in the dependency-bot deny list.
-7. For event triggers that include a source SHA, compare the live PR head SHA
-   with the source SHA; exit if they differ.
-8. Query branch-protection required check runs / status contexts for the live
+1. Resolve the PR number safely:
+   - For `pull_request` events, use `github.event.pull_request.number`.
+   - For `workflow_run` events, first inspect
+     `github.event.workflow_run.pull_requests`; if it contains exactly one item,
+     use that PR number.
+   - If `workflow_run.pull_requests` is empty or contains multiple items, query
+     the GitHub REST API for open PRs by the workflow run's head branch, using
+     the head owner and branch from the event payload. Use the result only if it
+     resolves to exactly one same-repository PR.
+   - If no unique same-repository PR can be resolved, exit without changing
+     state.
+2. Load the PR metadata from the GitHub API using the resolved PR number.
+3. Exit if the PR is not from the same repository as the base branch.
+4. Exit if the PR is not targeting `develop` or `main`.
+5. Exit if the PR is not draft.
+6. Exit if the PR does not have the `auto-ready` label.
+7. Exit if the author is in the dependency-bot deny list.
+8. For event triggers that include a source SHA, compare the live PR head SHA
+   with the source SHA; exit if they differ. For `workflow_run`, use
+   `github.event.workflow_run.head_sha` as the source SHA only after resolving a
+   unique PR.
+9. Query branch-protection required check runs / status contexts for the live
    current head SHA.
-9. Filter out the auto-ready workflow's own check run.
-10. Confirm every required context is successful.
-11. Mark the PR ready with either:
+10. Filter out the auto-ready workflow's own check run.
+11. Confirm every required context is successful.
+12. Mark the PR ready with either:
    - `gh pr ready <number> --repo <owner>/<repo>`
    - GraphQL `markPullRequestReadyForReview`
 
