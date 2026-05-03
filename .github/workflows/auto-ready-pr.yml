@@ -72,28 +72,58 @@ jobs:
               })
             }
 
-            const getRequiredContexts = async (baseBranch) => {
-              try {
-                const response = await github.rest.repos.getBranchProtection({
-                  owner,
-                  repo,
-                  branch: baseBranch,
-                })
-                const requiredChecks = response.data.required_status_checks
-                const contexts = new Set(requiredChecks?.contexts || [])
-                for (const check of requiredChecks?.checks || []) {
-                  if (check.context) contexts.add(check.context)
+            const requiredCheckKey = (contextName, appId) =>
+              appId ? `check:${contextName}:${appId}` : `context:${contextName}`
+
+            const requiredCheckLabel = (check) =>
+              check.appId ? `${check.context} from app ${check.appId}` : check.context
+
+            const getRequiredChecks = async (baseBranch) => {
+              const query = `
+                query($owner: String!, $repo: String!, $baseBranch: String!) {
+                  repository(owner: $owner, name: $repo) {
+                    ref(qualifiedName: $baseBranch) {
+                      branchProtectionRule {
+                        requiredStatusCheckContexts
+                        requiredStatusChecks {
+                          context
+                          app {
+                            databaseId
+                          }
+                        }
+                      }
+                    }
+                  }
                 }
-                return [...contexts]
-              } catch (error) {
-                if (error.status === 404 || error.status === 403) {
-                  core.info(
-                    `Required status checks are not readable for ${baseBranch}; falling back to all visible checks.`,
-                  )
-                  return []
+              `
+              const response = await github.graphql(query, { owner, repo, baseBranch })
+              const requiredStatusChecks =
+                response.repository?.ref?.branchProtectionRule?.requiredStatusChecks || []
+              const requiredStatusCheckContexts =
+                response.repository?.ref?.branchProtectionRule?.requiredStatusCheckContexts || []
+              const requiredChecks = []
+              const seen = new Set()
+
+              for (const check of requiredStatusChecks) {
+                if (!check.context) continue
+                const requiredCheck = {
+                  context: check.context,
+                  appId: check.app?.databaseId || null,
                 }
-                throw error
+                const key = requiredCheckKey(requiredCheck.context, requiredCheck.appId)
+                if (seen.has(key)) continue
+                seen.add(key)
+                requiredChecks.push(requiredCheck)
               }
+
+              for (const contextName of requiredStatusCheckContexts) {
+                const key = requiredCheckKey(contextName, null)
+                if (seen.has(key)) continue
+                seen.add(key)
+                requiredChecks.push({ context: contextName, appId: null })
+              }
+
+              return requiredChecks
             }
 
             const listCheckRuns = async (headSha) =>
@@ -124,14 +154,20 @@ jobs:
               const observed = new Map()
 
               for (const status of statuses) {
-                observed.set(status.context, statusPassed(status))
+                observed.set(requiredCheckKey(status.context, null), statusPassed(status))
               }
 
               for (const run of checkRuns) {
                 if (ownCheckNames.has(run.name)) continue
                 for (const name of checkNameCandidates(run)) {
-                  if (!observed.has(name)) {
-                    observed.set(name, checkRunPassed(run, requiredSuccessConclusions))
+                  const passed = checkRunPassed(run, requiredSuccessConclusions)
+                  const legacyKey = requiredCheckKey(name, null)
+                  const appKey = requiredCheckKey(name, run.app?.id)
+                  if (!observed.has(legacyKey)) {
+                    observed.set(legacyKey, passed)
+                  }
+                  if (run.app?.id && !observed.has(appKey)) {
+                    observed.set(appKey, passed)
                   }
                 }
               }
@@ -139,11 +175,11 @@ jobs:
               return observed
             }
 
-            const requiredContextsPassed = (requiredContexts, observed) => {
-              for (const requiredContext of requiredContexts) {
-                if (ownCheckNames.has(requiredContext)) continue
-                if (observed.get(requiredContext) !== true) {
-                  core.info(`Required context is not successful yet: ${requiredContext}`)
+            const requiredChecksPassed = (requiredChecks, observed) => {
+              for (const requiredCheck of requiredChecks) {
+                if (ownCheckNames.has(requiredCheck.context)) continue
+                if (observed.get(requiredCheckKey(requiredCheck.context, requiredCheck.appId)) !== true) {
+                  core.info(`Required context is not successful yet: ${requiredCheckLabel(requiredCheck)}`)
                   return false
                 }
               }
@@ -199,14 +235,14 @@ jobs:
                 continue
               }
 
-              const [requiredContexts, checkRuns, statuses] = await Promise.all([
-                getRequiredContexts(pr.base.ref),
+              const [requiredChecks, checkRuns, statuses] = await Promise.all([
+                getRequiredChecks(pr.base.ref),
                 listCheckRuns(headSha),
                 listStatuses(headSha),
               ])
               const observed = buildObservedContexts(checkRuns, statuses)
-              const passed = requiredContexts.length > 0
-                ? requiredContextsPassed(requiredContexts, observed)
+              const passed = requiredChecks.length > 0
+                ? requiredChecksPassed(requiredChecks, observed)
                 : fallbackChecksPassed(checkRuns, statuses)
 
               if (!passed) {
