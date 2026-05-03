@@ -18,7 +18,7 @@
 
 | Runtime Behavior | Current Code | Reconciliation Decision |
 |---|---|---|
-| 建立 `user_role` enum | `initializeUserRoleEnum` 建立 `('viewer', 'streamer', 'agency', 'admin')`，並在缺少時補上 `agency`。 | 必須保留。Atlas loader 與 migrations 必須使用相同 label set 與 ordering。 |
+| 建立 `user_role` enum | `initializeUserRoleEnum` fresh-create 目前建立 `('viewer', 'streamer', 'agency', 'admin')`，但既有資料庫若由 `001_init.sql` 建立後再跑 `004_rbac_roles.sql`，實際 order 是 `('viewer', 'streamer', 'admin', 'agency')`；型別已存在時只會補 `agency`，不會重排。 | 必須保留 label set。Atlas reconciliation 不得把 enum order mismatch 視為必須重建 enum 的 drift；baseline 應以 production/migrated order 為準，或明確接受雙態。 |
 | 執行 GORM `AutoMigrate` | `db.AutoMigrate(...)` 套用所有 models。 | 只能在 Atlas baseline 已於 staging 驗證後移除。 |
 | 補 `tachi_balances.user_id` FK | 手寫 `ALTER TABLE tachi_balances ADD CONSTRAINT fk_tachi_balances_user_id`。 | 必須以 Atlas migration 或 model association 保留。 |
 | 補 coupon redemption checks | `ensureCouponRedemptionRuntimeSchema` 增加 amount/status constraints。 | 必須保留於 Atlas migration。 |
@@ -37,7 +37,7 @@
 | `001_init.sql` | `user_role`、`users`、`auth_providers`、`shipping_addresses`、`refresh_tokens`、`web3_nonces` | Enum 最初只有 `viewer`、`streamer`、`admin`；目前 runtime 另補 `agency`。 |
 | `002_email_auth.sql` | Email verification 與 password reset tables | 比對 unique constraints 與 token indexes 是否符合 GORM tags。 |
 | `003_watch_points.sql` | `watch_sessions`、`points_ledgers`、`points_transactions` | 包含 active-session partial unique index 與 ledger uniqueness，都是必須保留的 invariants。 |
-| `004_rbac_roles.sql` | Role 相關變更 | 確認它是否已由目前 enum handling 表達。 |
+| `004_rbac_roles.sql` | Role 相關變更 | 以 `ALTER TYPE ... ADD VALUE 'agency'` append 到既有 enum 後方；production/migrated order 會是 `viewer`、`streamer`、`admin`、`agency`。 |
 | `005_channel_config.sql` | `channel_configs` | 比對 numeric defaults 與 timestamp nullability。 |
 | `006_streamers.sql` | `streamers` | Runtime 也建立 `idx_streamers_user_channel`；需確認最終 desired uniqueness。 |
 | `007_click_boost.sql` | Watch session click boost fields | 與 `WatchSession` model 比對。 |
@@ -61,7 +61,7 @@
 | Raffle tables | Models 包含 `Raffle`、`RaffleEntry`、`RaffleDraw`、`RaffleClaim`；`001-019` 沒有建立 raffle tables。 | Baseline 若產生裸 `CREATE TABLE`，在 AutoMigrate 已建表的環境會失敗。 | 決定採 import baseline，或產生 apply-safe guarded SQL。 |
 | Watch and broadcast stats | Models 包含 `WatchTimeStat`、`BroadcastTimeStat`、`BroadcastTimeLog`；`001-019` 沒有 dedicated SQL migration。 | 與 raffle tables 有相同 table-exists risk。 | 產生 SQL 前先決定 baseline strategy。 |
 | Partial unique indexes | 多個 invariants 以 raw SQL 存在，因 GORM tags 無法完整表達。 | Atlas provider 若沒有看到 desired schema，可能產生 drop。 | 用 Atlas desired schema 或手寫 migration 明確保留。 |
-| Enum ordering | Historical SQL、runtime enum creation、Atlas loader 必須一致。 | PostgreSQL enum ordering 影響 comparison 與 drift detection。 | 使用 canonical order：`viewer`、`streamer`、`agency`、`admin`，對齊目前 runtime code。 |
+| Enum ordering | Historical SQL migration path 與 runtime fresh-create path 目前可能不同序。 | PostgreSQL enum ordering 影響 comparison 與 drift detection；若誤把 runtime fresh-create order 當唯一 canonical order，可能產生假性 drift，甚至導向高風險 enum 重建。 | 以 production/migrated order `viewer`、`streamer`、`admin`、`agency` 為準，或在 reconciliation 中明確記錄並接受雙態；不得只為重排 enum 建 migration。 |
 | Runtime data migration | Server 啟動時會 hash 36-char raffle claim tokens。 | Schema migration 工作可能讓不相關 data repair 永遠留在 runtime。 | 另行判斷 production 是否仍需要；不得藏在 Atlas tooling PR。 |
 | Dependency anchoring | Atlas provider 可能只被 loader command import。 | 若只存在 build-ignored loader，`go mod tidy` 可能移除 tool dependency。 | Tooling PR 新增 `services/api/tools.go`。 |
 
