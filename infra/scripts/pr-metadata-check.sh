@@ -63,7 +63,6 @@ checked_item() {
       next
     }
     in_section && $0 ~ /^##[[:space:]]/ { exit }
-    in_section && $0 ~ /^[[:space:]]*$/ { exit }
     in_section && $0 ~ pattern {
       found = 1
       exit
