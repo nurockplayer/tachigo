@@ -235,11 +235,25 @@ jobs:
                 continue
               }
 
-              const [requiredChecks, checkRuns, statuses] = await Promise.all([
-                getRequiredChecks(pr.base.ref),
-                listCheckRuns(headSha),
-                listStatuses(headSha),
-              ])
+              let requiredChecks = []
+              let checkRuns = []
+              let statuses = []
+              try {
+                const fetchedChecks = await Promise.all([
+                  getRequiredChecks(pr.base.ref),
+                  listCheckRuns(headSha),
+                  listStatuses(headSha),
+                ])
+                requiredChecks = fetchedChecks[0]
+                checkRuns = fetchedChecks[1]
+                statuses = fetchedChecks[2]
+              } catch (error) {
+                core.warning(
+                  `Skipping PR #${pr.number} at ${headSha}: failed to fetch checks/statuses (${error?.message || error}).`,
+                )
+                continue
+              }
+
               const observed = buildObservedContexts(checkRuns, statuses)
               const passed = requiredChecks.length > 0
                 ? requiredChecksPassed(requiredChecks, observed)

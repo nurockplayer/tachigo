@@ -303,6 +303,8 @@ test('auto-ready workflow checks required contexts and excludes its own run', as
   assert.match(workflow, /appId \? `check:\$\{contextName\}:\$\{appId\}` : `context:\$\{contextName\}`/)
   assert.match(workflow, /const appKey = requiredCheckKey\(name, run\.app\?\.id\)/)
   assert.match(workflow, /observed\.get\(requiredCheckKey\(requiredCheck\.context, requiredCheck\.appId\)\)/)
+  assert.match(workflow, /try \{\s+const fetchedChecks = await Promise\.all\(\[/)
+  assert.match(workflow, /core\.warning\(\s+`Skipping PR #\$\{pr\.number\} at \$\{headSha\}: failed to fetch checks\/statuses/)
   assert.match(workflow, /markPullRequestReadyForReview/)
   assert.doesNotMatch(workflow, /gh pr ready/)
 })
