@@ -2,7 +2,7 @@ import type { AppLanguage } from '../i18n'
 
 export type DemoScreen = 'login' | 'loading' | 'hud' | 'claim' | 'coupon' | 'raffle'
 
-export interface RaffleResultEntry {
+interface RaffleResultEntry {
   id: string
   twitch_login: string
   display_name: string
@@ -49,7 +49,7 @@ export const defaultDemoState: DemoState = {
   redeemedCouponIds: [],
 }
 
-export function createDefaultHudDemoState(): HudDemoState {
+function createDefaultHudDemoState(): HudDemoState {
   return { ...defaultHudDemoState }
 }
 
