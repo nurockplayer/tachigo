@@ -39,11 +39,11 @@ Expected flow:
 - Do not mark a PR ready if any required check is pending, failing, cancelled, or
   skipped when it should be required.
 - Do not wait on the auto-ready workflow itself.
-- Treat GitHub branch-protection required checks as the readiness gate.
-  CodeRabbit is not a required auto-ready gate unless it is later added as a
-  branch-protection required status check.
-- Use `pull-requests: write` permission only in the workflow that marks the PR
-  ready.
+- Treat GitHub branch-protection and active branch-ruleset required checks as
+  the readiness gate. CodeRabbit is not a required auto-ready gate unless it is
+  later added as a required status check by branch protection or a ruleset.
+- The workflow that marks the PR ready must use the narrow permissions it needs:
+  `pull-requests: write`, `checks: read`, and `statuses: read`.
 - Prefer GitHub API / GraphQL over browser automation.
 - The mark-ready action must verify the PR number, current head SHA, base branch,
   draft state, label state, and author deny-list state at execution time before
@@ -68,9 +68,18 @@ Create `.github/workflows/auto-ready-pr.yml`.
 
 Selected triggers:
 
-- `pull_request` on `opened`, `synchronize`, and `reopened`
+- `pull_request` on `opened`, `synchronize`, `reopened`, `labeled`, and
+  `edited`
 - `workflow_run` completion for the required CI workflow
-- optional `schedule` fallback to catch missed completion events
+- required `schedule` fallback to catch required checks whose completion does
+  not emit a monitored `workflow_run` event
+
+The `labeled` trigger is required because adding `auto-ready` after CI has
+already completed is a supported opt-in path. The `edited` trigger is required
+to re-evaluate draft PRs after a base branch change into `develop` or `main`.
+The scheduled fallback is required because required checks may be spread across
+multiple workflows or external status contexts; the last required context to
+finish may not be the single monitored CI workflow.
 
 Do not use `check_suite` as the primary trigger. `workflow_run` can scope the
 event to the CI workflow name, while `check_suite` is broader and increases the
@@ -100,11 +109,21 @@ The job should:
    with the source SHA; exit if they differ. For `workflow_run`, use
    `github.event.workflow_run.head_sha` as the source SHA only after resolving a
    unique PR.
-9. Query branch-protection required check runs / status contexts for the live
-   current head SHA.
-10. Filter out the auto-ready workflow's own check run.
-11. Confirm every required context is successful.
-12. Mark the PR ready with either:
+9. Resolve the required check contexts for the live base branch:
+   - Query branch protection with
+     `GET /repos/{owner}/{repo}/branches/{base}/protection` and read
+     `required_status_checks.checks` / `required_status_checks.contexts`.
+   - Query active branch rules with
+     `GET /repos/{owner}/{repo}/rules/branches/{base}` and read any active
+     `required_status_checks` rules that apply to the base branch.
+   - Treat the readiness gate as the union of branch-protection and active
+     ruleset required contexts.
+   - If the workflow cannot read either required-check source, fail closed and
+     exit without marking the PR ready.
+10. Query check runs / status contexts for the live current head SHA.
+11. Filter out the auto-ready workflow's own check run.
+12. Confirm every required context is successful.
+13. Mark the PR ready with either:
    - `gh pr ready <number> --repo <owner>/<repo>`
    - GraphQL `markPullRequestReadyForReview`
 
@@ -117,9 +136,13 @@ The job should:
   draft PRs.
 - Human-created draft PRs must opt in explicitly. Long-running WIP drafts should
   remain draft until a human marks them ready or adds the label intentionally.
-- Trigger choice: use `pull_request` plus `workflow_run` for the required CI
-  workflow, with an optional scheduled fallback. Do not leave the trigger choice
+- Trigger choice: use `pull_request`, `workflow_run` for the required CI
+  workflow, and a required scheduled fallback. Do not leave the trigger choice
   to implementation-time preference.
+- The monitored workflow name must be kept in sync with branch-protection and
+  ruleset required checks. If required checks are renamed, split, or moved to an
+  external status provider, update the workflow trigger and keep the scheduled
+  fallback enabled so the automation does not silently stop re-evaluating PRs.
 
 ## Open questions
 
