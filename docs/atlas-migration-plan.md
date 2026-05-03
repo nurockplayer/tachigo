@@ -225,6 +225,6 @@ Co-Authored-By: Codex <codex[bot]@openai.com>
 - [ ] PR diff 沒超過專案 scope limit；若超過，PR body 有有效 scope exception 理由。
 - [ ] PR 沒混合 schema migration、service logic、handler/router、frontend changes。
 - [ ] Partial unique indexes 被保留，或有 issue-backed decision 說明為何移除。
-- [ ] Custom PostgreSQL enum definitions 與 server/model contract 使用相同 labels 與 ordering。
+- [ ] Custom PostgreSQL enum definitions 保留相同 label set，並依 `docs/atlas-schema-reconciliation.md` 的 enum ordering decision 處理；不得只因 runtime fresh-create order 與 production/migrated order 不同，就產生 enum rebuild 或 false-drift migration。
 - [ ] `go mod tidy` 不會移除 Atlas tooling dependencies。
 - [ ] CI lint 驗證 migration directory；本地驗證另行驗證 GORM loader path。
