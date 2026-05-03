@@ -27,7 +27,7 @@ const resourcePaths: Record<string, string> = {
   'streamer-channels': '/dashboard/streamers/channels',
   'streamer-stats': '/dashboard/streamers',
   raffles: '/dashboard/raffles',
-  transactions: '/transactions',
+  transactions: '/users/me/points/history',
   settings: '/dashboard/settings',
   'channel-configs': '/dashboard/channels',
 }

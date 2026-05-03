@@ -112,40 +112,43 @@ func (s *ExtensionService) VerifyReceiptJWT(receiptStr string) (*ReceiptClaims, 
 // Returns ErrInvalidExtJWT if the JWT is invalid or the viewer has not authorized
 // the Extension (UserID is empty). Returns ErrUserNotFound if no tachigo account
 // is linked to the Twitch identity.
+// lookupExtensionUser resolves a Twitch identity to a tachigo User.
+// It does not issue tokens; call issueTokenPair separately.
+func (s *ExtensionService) lookupExtensionUser(claims *ExtensionClaims) (*models.User, error) {
+	if claims.UserID == "" {
+		return nil, ErrInvalidExtJWT
+	}
+	var provider models.AuthProvider
+	err := s.db.Where("provider = ? AND provider_id = ?", models.ProviderTwitch, claims.UserID).
+		First(&provider).Error
+	if errors.Is(err, gorm.ErrRecordNotFound) {
+		return nil, ErrUserNotFound
+	}
+	if err != nil {
+		return nil, err
+	}
+	var user models.User
+	if err := s.db.First(&user, provider.UserID).Error; err != nil {
+		return nil, err
+	}
+	return &user, nil
+}
+
 func (s *ExtensionService) LoginWithExtension(extJWT string) (*models.User, *TokenPair, error) {
 	claims, err := s.VerifyExtJWT(extJWT)
 	if err != nil {
 		return nil, nil, err
 	}
-
-	// Require the viewer to have authorized the Extension (shared their identity).
-	// ExtensionScopedUserID is always present in the Twitch JWT payload, but it is
-	// extension-scoped and not a stable Twitch account identifier.
-	if claims.UserID == "" {
-		return nil, nil, ErrInvalidExtJWT
-	}
-
-	// Find the tachigo account linked to this Twitch user ID.
-	var provider models.AuthProvider
-	err = s.db.Where("provider = ? AND provider_id = ?", models.ProviderTwitch, claims.UserID).
-		First(&provider).Error
-	if errors.Is(err, gorm.ErrRecordNotFound) {
-		return nil, nil, ErrUserNotFound
-	}
+	user, err := s.lookupExtensionUser(claims)
 	if err != nil {
 		return nil, nil, err
 	}
 
-	var user models.User
-	if err := s.db.First(&user, provider.UserID).Error; err != nil {
-		return nil, nil, err
-	}
-
-	tokens, err := s.authSvc.issueTokenPair(&user)
+	tokens, err := s.authSvc.issueTokenPair(user)
 	if err != nil {
 		return nil, nil, err
 	}
-	return &user, tokens, nil
+	return user, tokens, nil
 }
 
 // CompleteTPointTransaction verifies the Extension JWT + receipt, then issues a
@@ -161,7 +164,6 @@ func (s *ExtensionService) CompleteTPointTransaction(extJWT, receipt, sku string
 		return nil, nil, err
 	}
 
-	// Validate that the SKU in the receipt matches what was requested.
 	if receiptClaims.Data.SKU != sku {
 		return nil, nil, ErrInvalidReceipt
 	}
@@ -178,12 +180,14 @@ func (s *ExtensionService) CompleteTPointTransaction(extJWT, receipt, sku string
 		return nil, nil, ErrInvalidReceipt
 	}
 
-	// Re-use the login flow to get/create the user, then issue tokens.
-	user, tokens, err := s.LoginWithExtension(extJWT)
+	// Resolve user before touching any write path.
+	user, err := s.lookupExtensionUser(extClaims)
 	if err != nil {
 		return nil, nil, err
 	}
 
+	// Write points first; tokens are issued only on success to avoid orphan
+	// refresh token records when the points write fails.
 	txID := receiptClaims.Data.TransactionID
 	err = s.pointsSvc.AddPointsWithMeta(
 		user.ID,
@@ -197,8 +201,19 @@ func (s *ExtensionService) CompleteTPointTransaction(extJWT, receipt, sku string
 	)
 	if err != nil {
 		if isDuplicateExternalTransactionError(err) {
+			// ErrDuplicateTransaction also covers the retry case where points were
+			// credited in a prior call but token issuance failed. The client should
+			// call LoginWithExtension separately to obtain a token.
 			return nil, nil, ErrDuplicateTransaction
 		}
+		return nil, nil, err
+	}
+
+	// Points are now committed. If issueTokenPair fails here, points remain credited
+	// and the client will receive an error. On retry, AddPointsWithMeta returns
+	// ErrDuplicateTransaction — the client should call LoginWithExtension to get tokens.
+	tokens, err := s.authSvc.issueTokenPair(user)
+	if err != nil {
 		return nil, nil, err
 	}
 

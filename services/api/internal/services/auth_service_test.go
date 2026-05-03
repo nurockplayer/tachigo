@@ -320,3 +320,77 @@ func TestVerifyEthSignature_WrongLength(t *testing.T) {
 		t.Error("expected false for wrong-length signature")
 	}
 }
+
+func TestDeleteExpiredRefreshTokens_RemovesExpiredOnly(t *testing.T) {
+	svc := NewAuthService(newTestDB(t), testConfig())
+
+	// Register a user to get valid tokens.
+	_, _, err := svc.Register(RegisterInput{
+		Username: "username_del_exp",
+		Email:    "del_exp@example.com",
+		Password: "Password1!",
+	})
+	if err != nil {
+		t.Fatalf("Register: %v", err)
+	}
+	_, tokens, err := svc.Login(LoginInput{
+		Email:    "del_exp@example.com",
+		Password: "Password1!",
+	})
+	if err != nil {
+		t.Fatalf("Login: %v", err)
+	}
+
+	// Manually insert an already-expired refresh token for the same user.
+	hash := hashToken(tokens.RefreshToken + "-expired-sentinel")
+	var stored models.RefreshToken
+	if err := svc.db.Where("token_hash = ?", hashToken(tokens.RefreshToken)).First(&stored).Error; err != nil {
+		t.Fatalf("find stored token: %v", err)
+	}
+	if err := svc.db.Create(&models.RefreshToken{
+		UserID:    stored.UserID,
+		TokenHash: hash,
+		ExpiresAt: time.Now().Add(-time.Minute), // already expired
+	}).Error; err != nil {
+		t.Fatalf("insert expired token: %v", err)
+	}
+
+	deleted, err := svc.DeleteExpiredRefreshTokens()
+	if err != nil {
+		t.Fatalf("DeleteExpiredRefreshTokens: %v", err)
+	}
+	if deleted != 1 {
+		t.Errorf("want 1 deleted, got %d", deleted)
+	}
+
+	// Valid token must still exist.
+	var count int64
+	svc.db.Model(&models.RefreshToken{}).Where("token_hash = ?", hashToken(tokens.RefreshToken)).Count(&count)
+	if count != 1 {
+		t.Errorf("valid token should still exist, got count=%d", count)
+	}
+}
+
+func TestLogin_RefreshTokensTableGone_ReturnsError(t *testing.T) {
+	svc := NewAuthService(newTestDB(t), testConfig())
+	if _, _, err := svc.Register(RegisterInput{
+		Username: "username_rt_gone",
+		Email:    "rt_gone@example.com",
+		Password: "Password1!",
+	}); err != nil {
+		t.Fatalf("Register: %v", err)
+	}
+	// Drop refresh_tokens after Register (which already wrote one) to isolate Login.
+	if err := svc.db.Exec("DROP TABLE refresh_tokens").Error; err != nil {
+		t.Fatalf("drop refresh_tokens: %v", err)
+	}
+	// Before fix: Login silently ignores the db.Create error and returns tokens.
+	// After fix:  Login propagates the error and returns nil tokens.
+	_, _, err := svc.Login(LoginInput{
+		Email:    "rt_gone@example.com",
+		Password: "Password1!",
+	})
+	if err == nil {
+		t.Fatal("want error when refresh_tokens table is gone, got nil")
+	}
+}

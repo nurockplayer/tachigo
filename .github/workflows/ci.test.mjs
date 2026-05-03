@@ -11,6 +11,7 @@ const workflowPath = path.join(currentDir, 'ci.yml')
 const scopePolicePath = path.join(currentDir, 'pr-scope-police.yml')
 const autoMergeWorkflowPath = path.join(currentDir, 'auto-merge.yml')
 const autoReadyWorkflowPath = path.join(currentDir, 'auto-ready-pr.yml')
+const codexReviewRerequestWorkflowPath = path.join(currentDir, 'codex-review-rerequest.yml')
 const claudePath = path.join(repoRoot, 'CLAUDE.md')
 const AsyncFunction = Object.getPrototypeOf(async function () {}).constructor
 
@@ -568,4 +569,30 @@ test('auto-ready workflow skips instead of falling back when branch protection f
   assert.equal(result.mutations.length, 0)
   assert.equal(result.warnings.length, 1)
   assert.match(result.warnings[0], /failed to fetch checks\/statuses/)
+})
+
+test('Codex review re-request workflow requests reviewer and notifies Discord', async () => {
+  const workflow = await readFile(codexReviewRerequestWorkflowPath, 'utf8')
+  const parsedWorkflow = parseYaml(codexReviewRerequestWorkflowPath)
+
+  assert.equal(parsedWorkflow.name, 'Auto re-request Codex review')
+  assert.equal(parsedWorkflow.permissions['pull-requests'], 'write')
+  assert.match(workflow, /github\.rest\.pulls\.listReviews/)
+  assert.match(workflow, /github\.rest\.pulls\.requestReviewers/)
+  assert.match(workflow, /for \(const reviewer of reviewers\)/)
+  assert.match(workflow, /reviewers: \[reviewer\]/)
+  assert.match(workflow, /has_requested_reviewers/)
+  assert.match(
+    workflow,
+    /if: steps\.dedup-cache\.outputs\.cache-hit != 'true' && steps\.rerequest-review\.outputs\.has_requested_reviewers == 'true'/,
+  )
+  assert.match(
+    workflow,
+    /PR #\$\{fullPr\.number\} has no previous reviewers to re-request\.`\)\n\s+return null/,
+  )
+  assert.match(workflow, /Previous reviewers/)
+  assert.match(workflow, /DISCORD_CODEX_REVIEW_WEBHOOK_URL/)
+  assert.match(workflow, /codex-review-rerequest/)
+  assert.doesNotMatch(workflow, /nurockplayer/)
+  assert.doesNotMatch(workflow, /Slack|SLACK|slack/)
 })
