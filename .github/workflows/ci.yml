@@ -282,6 +282,44 @@ jobs:
         working-directory: services/api
         run: go test -tags integration -v ./... -count=1
 
+  atlas-lint:
+    timeout-minutes: 10
+    name: Atlas migrate lint
+    needs: [scope-gate]
+    if: github.event_name == 'pull_request' && needs.scope-gate.outputs.run_ci == 'true'
+    runs-on: ubuntu-latest
+    services:
+      postgres:
+        image: postgres:15
+        env:
+          POSTGRES_USER: postgres
+          POSTGRES_PASSWORD: postgres
+          POSTGRES_DB: atlas_dev
+        ports:
+          - 5432:5432
+        options: >-
+          --health-cmd pg_isready
+          --health-interval 10s
+          --health-timeout 5s
+          --health-retries 5
+    steps:
+      - uses: actions/checkout@v4
+        with:
+          fetch-depth: 0
+      - name: Install Atlas CLI
+        run: curl -sSf https://atlasgo.sh | sh
+      - uses: actions/setup-go@v6
+        with:
+          go-version-file: services/api/go.mod
+          cache-dependency-path: services/api/go.sum
+      - name: Atlas migrate lint
+        working-directory: services/api
+        run: |
+          atlas migrate lint \
+            --dev-url "postgres://postgres:postgres@localhost:5432/atlas_dev?sslmode=disable" \
+            --dir "file://migrations" \
+            --git-base "origin/${{ github.base_ref }}"
+
   frontend:
     timeout-minutes: 15
     name: Frontend build
