@@ -375,9 +375,10 @@ test('auto-ready workflow checks required contexts and excludes its own run', as
   assert.doesNotMatch(workflow, /workflow_run\?\.name/)
   assert.match(workflow, /const requiredCheckKey = \(contextName, appId\) =>/)
   assert.match(workflow, /appId \? `check:\$\{contextName\}:\$\{appId\}` : `context:\$\{contextName\}`/)
-  assert.match(workflow, /const recordObservedContext = \(observed, key, passed\) =>/)
+  assert.match(workflow, /const observedAt = \(item\) =>/)
+  assert.match(workflow, /const recordObservedContext = \(observed, key, passed, item\) =>/)
   assert.match(workflow, /const appKey = requiredCheckKey\(name, run\.app\?\.id\)/)
-  assert.match(workflow, /observed\.get\(requiredCheckKey\(requiredCheck\.context, requiredCheck\.appId\)\)/)
+  assert.match(workflow, /observed\.get\(requiredCheckKey\(requiredCheck\.context, requiredCheck\.appId\)\)\?\.passed/)
   assert.match(workflow, /try \{\s+const fetchedChecks = await Promise\.all\(\[/)
   assert.match(workflow, /core\.warning\(\s+`Skipping PR #\$\{pr\.number\} at \$\{headSha\}: failed to fetch checks\/statuses/)
   assert.match(workflow, /markPullRequestReadyForReview/)
@@ -422,18 +423,63 @@ test('auto-ready workflow treats skipped required checks as passing', async () =
 test('auto-ready workflow does not let a successful status mask a failed check run with the same name', async () => {
   const result = await runAutoReadyWorkflow({
     requiredStatusCheckContexts: ['Deploy'],
-    statuses: [{ context: 'Deploy', state: 'success' }],
+    statuses: [{ context: 'Deploy', state: 'success', updated_at: '2026-05-03T00:00:00Z' }],
     checkRuns: [
       {
         name: 'Deploy',
         status: 'completed',
         conclusion: 'failure',
         app: { id: 15368 },
+        completed_at: '2026-05-03T00:01:00Z',
       },
     ],
   })
 
   assert.equal(result.mutations.length, 0)
+})
+
+test('auto-ready workflow uses the latest rerun result for a required check', async () => {
+  const failedThenPassed = await runAutoReadyWorkflow({
+    requiredStatusChecks: [{ context: 'CI gate', app: { databaseId: 15368 } }],
+    checkRuns: [
+      {
+        name: 'CI gate',
+        status: 'completed',
+        conclusion: 'failure',
+        app: { id: 15368 },
+        completed_at: '2026-05-03T00:00:00Z',
+      },
+      {
+        name: 'CI gate',
+        status: 'completed',
+        conclusion: 'success',
+        app: { id: 15368 },
+        completed_at: '2026-05-03T00:01:00Z',
+      },
+    ],
+  })
+  const passedThenFailed = await runAutoReadyWorkflow({
+    requiredStatusChecks: [{ context: 'CI gate', app: { databaseId: 15368 } }],
+    checkRuns: [
+      {
+        name: 'CI gate',
+        status: 'completed',
+        conclusion: 'success',
+        app: { id: 15368 },
+        completed_at: '2026-05-03T00:00:00Z',
+      },
+      {
+        name: 'CI gate',
+        status: 'completed',
+        conclusion: 'failure',
+        app: { id: 15368 },
+        completed_at: '2026-05-03T00:01:00Z',
+      },
+    ],
+  })
+
+  assert.equal(failedThenPassed.mutations.length, 1)
+  assert.equal(passedThenFailed.mutations.length, 0)
 })
 
 test('auto-ready workflow requires matching app id for app-scoped checks', async () => {
