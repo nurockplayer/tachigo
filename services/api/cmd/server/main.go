@@ -56,7 +56,14 @@ func main() {
 		log.Fatalf("failed to create user_role enum: %v", err)
 	}
 
-	// Auto-migrate all models
+	// Auto-migrate all models.
+	// TODO(#463): Replace with `atlas migrate apply` once Atlas baseline is validated in staging.
+	// Migration strategy:
+	//   1. Atlas manages schema via migrations/ directory (020+ files).
+	//   2. Remove this AutoMigrate call and the manual patches below (FK, partial index,
+	//      ensureCouponRedemptionRuntimeSchema) once 020_atlas_baseline.sql is confirmed
+	//      idempotent in production.
+	//   3. Track removal in a follow-up issue.
 	if err := db.AutoMigrate(
 		&models.User{},
 		&models.AuthProvider{},
