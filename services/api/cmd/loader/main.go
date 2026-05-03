@@ -1,7 +1,10 @@
+//go:build ignore
+
 package main
 
 import (
 	"fmt"
+	"io"
 	"os"
 
 	"ariga.io/atlas-provider-gorm/gormschema"
@@ -39,5 +42,5 @@ func main() {
 		fmt.Fprintf(os.Stderr, "failed to load gorm schema: %v\n", err)
 		os.Exit(1)
 	}
-	fmt.Print(stmts)
+	io.WriteString(os.Stdout, stmts)
 }
