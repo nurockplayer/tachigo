@@ -13,7 +13,7 @@ repo 目前已有 9 個 `.github/workflows` 檔案，其中 8 個是 GitHub Acti
 | `.github/workflows/ci.test.mjs` | `ci.yml` / scope policy / auto-merge 等 workflow 行為的 Node regression test |
 | `.github/workflows/pr-scope-police.yml` | PR metadata、diff 大小、product surface、dependency gate 檢查 |
 | `.github/workflows/codex-review-flag.yml` | 管理 `needs-codex-review` / `changes-requested` label |
-| `.github/workflows/codex-review-rerequest.yml` | CI 成功後重新 request review 並通知 Discord |
+| `.github/workflows/codex-review-slack.yml` | CI 成功且 PR 有 `needs-codex-review` label 時通知 Slack review queue |
 | `.github/workflows/auto-merge.yml` | 非 Dependabot PR opened/reopened/ready_for_review 時啟用 GitHub auto-merge |
 | `.github/workflows/dependabot-automerge.yml` | Dependabot PR 的保守 auto-merge policy |
 | `.github/workflows/notify-rebase-needed.yml` | PR merge 後通知其他有 conflict 的 PR rebase |
@@ -161,7 +161,7 @@ repo 目前已有 9 個 `.github/workflows` 檔案，其中 8 個是 GitHub Acti
 |---|---|---|
 | `pr-scope-police.yml` | `pull-requests: write` / `issues: write` | 只跑 `pull_request` 到 `main` / `develop`，sticky comment、label、嚴重違規 close 都必須基於同一份 scope evaluation |
 | `codex-review-flag.yml` | `pull-requests: write` / `issues: write` | 只處理 `main` / `develop` PR；review event 只接受指定 reviewer；draft PR 不加 review label |
-| `codex-review-rerequest.yml` | `actions: write` / `pull-requests: write` | 只在 CI success 或 `needs-codex-review` label 後處理；必須驗證 PR open、非 draft、base branch、label、head SHA、dedup cache |
+| `codex-review-slack.yml` | `actions: write` | 只在 CI success 或 `needs-codex-review` label 後通知 Slack；必須驗證 PR open、非 draft、base branch、label、head SHA、dedup cache |
 | `auto-merge.yml` | `contents: write` / `pull-requests: write` | 排除 draft 與 Dependabot；只啟用 GitHub auto-merge，不直接 merge |
 | `dependabot-automerge.yml` | `contents: write` / `pull-requests: write` | 只允許 `dependabot[bot]` actor；必須通過 metadata policy 或 `safe-to-automerge` label |
 | `notify-rebase-needed.yml` | `pull-requests: write` / `issues: write` | 只在 merge 到 `develop` 後留言；不得修改 PR branch |
