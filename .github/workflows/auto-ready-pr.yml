@@ -203,21 +203,18 @@ jobs:
               return true
             }
 
-            const fallbackChecksPassed = (checkRuns, statuses) => {
-              const visibleRuns = checkRuns.filter((run) => !ownCheckNames.has(run.name))
-              if (visibleRuns.length === 0 && statuses.length === 0) {
+            const fallbackChecksPassed = (observed) => {
+              const visibleResults = [...observed.values()]
+              if (visibleResults.length === 0) {
                 core.info('No visible checks found yet.')
                 return false
               }
 
-              const checksComplete = visibleRuns.every((run) =>
-                checkRunPassed(run, successConclusions),
-              )
-              const statusesComplete = statuses.every(statusPassed)
-              if (!checksComplete || !statusesComplete) {
+              const checksComplete = visibleResults.every((result) => result.passed)
+              if (!checksComplete) {
                 core.info('At least one visible check or status is not successful yet.')
               }
-              return checksComplete && statusesComplete
+              return checksComplete
             }
 
             const readyForReview = async (pr) => {
@@ -274,7 +271,7 @@ jobs:
               const observed = buildObservedContexts(checkRuns, statuses)
               const passed = requiredChecks.length > 0
                 ? requiredChecksPassed(requiredChecks, observed)
-                : fallbackChecksPassed(checkRuns, statuses)
+                : fallbackChecksPassed(observed)
 
               if (!passed) {
                 core.info(`PR #${pr.number} remains draft until checks pass.`)

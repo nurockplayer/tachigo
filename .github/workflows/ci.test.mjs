@@ -482,6 +482,48 @@ test('auto-ready workflow uses the latest rerun result for a required check', as
   assert.equal(passedThenFailed.mutations.length, 0)
 })
 
+test('auto-ready workflow uses the latest rerun result when no required checks are configured', async () => {
+  const failedThenPassed = await runAutoReadyWorkflow({
+    checkRuns: [
+      {
+        name: 'CI gate',
+        status: 'completed',
+        conclusion: 'failure',
+        app: { id: 15368 },
+        completed_at: '2026-05-03T00:00:00Z',
+      },
+      {
+        name: 'CI gate',
+        status: 'completed',
+        conclusion: 'success',
+        app: { id: 15368 },
+        completed_at: '2026-05-03T00:01:00Z',
+      },
+    ],
+  })
+  const passedThenFailed = await runAutoReadyWorkflow({
+    checkRuns: [
+      {
+        name: 'CI gate',
+        status: 'completed',
+        conclusion: 'success',
+        app: { id: 15368 },
+        completed_at: '2026-05-03T00:00:00Z',
+      },
+      {
+        name: 'CI gate',
+        status: 'completed',
+        conclusion: 'failure',
+        app: { id: 15368 },
+        completed_at: '2026-05-03T00:01:00Z',
+      },
+    ],
+  })
+
+  assert.equal(failedThenPassed.mutations.length, 1)
+  assert.equal(passedThenFailed.mutations.length, 0)
+})
+
 test('auto-ready workflow requires matching app id for app-scoped checks', async () => {
   const wrongApp = await runAutoReadyWorkflow({
     requiredStatusChecks: [{ context: 'CI gate', app: { databaseId: 15368 } }],
