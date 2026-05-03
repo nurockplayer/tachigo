@@ -68,10 +68,10 @@
 cd services/api
 go mod tidy
 go run ./cmd/loader/main.go > /tmp/tachigo-gorm-schema.sql
-atlas migrate diff smoke --env gorm
+atlas schema inspect --env gorm --url env://src --format '{{ sql . }}' > /tmp/tachigo-atlas-inspect-schema.sql
 ```
 
-Expected：loader 可編譯、可輸出 PostgreSQL DDL，且 `atlas migrate diff` 可使用 GORM schema source。
+Expected：loader 可編譯、可輸出 PostgreSQL DDL，且 Atlas 可用 `env://src` 讀取 GORM schema source；這個 smoke test 不應寫入 migration file 或 `atlas.sum`。
 
 **Commit Message：**
 
