@@ -226,3 +226,64 @@ func TestCompleteTPointTransaction_InvalidReceipt_Errors(t *testing.T) {
 		})
 	}
 }
+
+func TestCompleteTPointTransaction_TokenIssueFailure_PointsCreditedOnce_RetryErrDuplicate(t *testing.T) {
+	svc, pointsSvc := newExtSvc(t)
+	userID, twitchID := seedTwitchUser(t, svc.db)
+	channelID := "channel-retry"
+	extJWT := makeExtJWT(t, twitchID, channelID)
+	receipt := makeReceiptJWT(t, "tx-retry-001", "TPOINT100", 100, "bits")
+
+	// Drop refresh_tokens so issueTokenPair fails after points are written.
+	if err := svc.db.Exec("DROP TABLE refresh_tokens").Error; err != nil {
+		t.Fatalf("drop refresh_tokens: %v", err)
+	}
+
+	_, _, err := svc.CompleteTPointTransaction(extJWT, receipt, "TPOINT100")
+	if err == nil {
+		t.Fatal("want error when refresh_tokens is gone, got nil")
+	}
+
+	// Points must be credited despite token issuance failure.
+	bal, err := pointsSvc.GetBalance(userID, channelID)
+	if err != nil {
+		t.Fatalf("GetBalance: %v", err)
+	}
+	if bal.SpendableBalance != 100 {
+		t.Errorf("want balance=100 after token failure, got %d", bal.SpendableBalance)
+	}
+
+	// Retry with same receipt: AddPointsWithMeta fails before reaching issueTokenPair,
+	// so ErrDuplicateTransaction is returned — the documented retry contract.
+	_, _, err = svc.CompleteTPointTransaction(extJWT, receipt, "TPOINT100")
+	if !errors.Is(err, ErrDuplicateTransaction) {
+		t.Errorf("want ErrDuplicateTransaction on retry, got %v", err)
+	}
+}
+
+func TestCompleteTPointTransaction_PointsWriteFailure_NoOrphanRefreshToken(t *testing.T) {
+	svc, _ := newExtSvc(t)
+	_, twitchID := seedTwitchUser(t, svc.db)
+	extJWT := makeExtJWT(t, twitchID, "channel-42")
+	receipt := makeReceiptJWT(t, "tx-orphan-001", "TPOINT100", 100, "bits")
+
+	// newTestDB provides per-test DB isolation: DROP TABLE here only affects this test.
+	// RefreshToken has no DeletedAt, so Count() is a direct row count.
+	var countBefore int64
+	svc.db.Model(&models.RefreshToken{}).Count(&countBefore)
+
+	if err := svc.db.Exec("DROP TABLE points_transactions").Error; err != nil {
+		t.Fatalf("drop points_transactions: %v", err)
+	}
+
+	_, _, err := svc.CompleteTPointTransaction(extJWT, receipt, "TPOINT100")
+	if err == nil {
+		t.Fatal("want error, got nil")
+	}
+
+	var countAfter int64
+	svc.db.Model(&models.RefreshToken{}).Count(&countAfter)
+	if countAfter != countBefore {
+		t.Errorf("points write failure must not create refresh tokens: got %d new record(s)", countAfter-countBefore)
+	}
+}
