@@ -18,7 +18,7 @@ Do not change these entries to a non-existent `pnpm` ecosystem name.
 
 Version updates target `develop` and run on Monday morning in `Asia/Taipei`:
 
-- `/backend`: 09:00
+- `/services/api`: 09:00
 - `/apps/dashboard`: 09:30
 - `/apps/extension`: 10:00
 
@@ -29,7 +29,7 @@ queue when many packages release close together.
 
 Dependency updates are grouped by review shape:
 
-- Go modules in `/backend` are grouped into `backend-go-deps`.
+- Go modules in `/services/api` are grouped into `backend-go-deps`.
 - Dashboard pnpm updates are split into production and development groups.
 - Tachimint pnpm updates are split into production and development groups.
 

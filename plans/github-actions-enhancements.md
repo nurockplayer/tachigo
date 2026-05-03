@@ -38,12 +38,12 @@ repo 目前已有 9 個 `.github/workflows` 檔案，其中 8 個是 GitHub Acti
 
 ### Dependabot Go module 路徑
 
-目前 `.github/dependabot.yml` 與 `docs/dependabot-update-policy.md` 還寫 Go module directory 為 `/backend`，但 repo 現況是：
+PR A 修正前，`.github/dependabot.yml` 與 `docs/dependabot-update-policy.md` 還寫 Go module directory 為 `/backend`，但 repo 現況是：
 
 - Go module：`services/api/go.mod`
 - 舊路徑 `backend/` 不存在
 
-這會讓 Go Dependabot update 無法正確掃描。這不是新增 workflow，而是應先修正的既有 automation drift。
+這會讓 Go Dependabot update 無法正確掃描。這不是新增 workflow，而是應先修正的既有 automation drift。PR A 完成後，這段可視為已處理的背景紀錄。
 
 建議先開一個小 PR：
 
