@@ -77,7 +77,7 @@ repo 目前已有 9 個 `.github/workflows` 檔案，其中 8 個是 GitHub Acti
 
 目的：讓 Codex task PR 可以先用 draft 發出跑 CI，CI 綠後自動轉 ready for review，再交給既有 `needs-codex-review` 流程。
 
-既有設計文件：
+Repo 內既有設計文件（目前存在於 `develop`；若後續搬移或改名，PR B 必須同步更新本 reference）：
 
 - `docs/draft-pr-auto-ready.md`
 
@@ -103,22 +103,18 @@ repo 目前已有 9 個 `.github/workflows` 檔案，其中 8 個是 GitHub Acti
 - 不讀 fork 產物、不 checkout PR head。
 - mark ready 前再次驗證 PR number、head SHA、base branch、draft state、label state、author deny-list。
 
-`required_checks` 初版必須在 PR B 內明確寫入，不留給實作時臨場判斷。以目前 workflow job `name` 欄位推定，第一版候選清單如下；實作 PR 前必須用 GitHub UI 或 `gh pr checks` 對一個最新 PR 驗證 exact context name，若 GitHub 顯示含 workflow prefix，需以實際顯示字串為準：
+`required_checks` 初版必須在 PR B 內明確寫入，不留給實作時臨場判斷。以下清單以 2026-05-04 重新查詢 GitHub branch protection API 的 live required contexts 為準；實作 PR 前仍必須再用 GitHub UI、`gh pr checks`，或 branch protection API 驗證 exact context name，若 GitHub 顯示含 workflow prefix，需以實際顯示字串為準：
 
 | Branch | Required check contexts |
 |---|---|
-| `develop` | `Scope police` |
-| `develop` | `Workflow regression tests` |
-| `develop` | `Commit message regression tests` |
-| `develop` | `PR commit messages` |
-| `develop` | `Check backend CI cache wiring` |
+| `develop` | `Scope gate` |
 | `develop` | `Backend CI (gate)` |
 | `develop` | `Frontend build` |
 | `develop` | `Dashboard build` |
 | `develop` | `Contracts build` |
-| `main` | 同 `develop`，除非 branch ruleset 對 release PR 有不同 required checks；若不同，需在 config 中分開列出 |
+| `main` | `Scope police` |
 
-不要把 `Notify Discord on failure`、auto-ready 自己的 check、或非 required 的外部 review/status 放進第一版 readiness gate。CodeRabbit 只有在 branch protection / ruleset 也設成 required 時，才可同步加入。
+不要把 `Workflow regression tests`、`Commit message regression tests`、`PR commit messages`、`Check backend CI cache wiring`、`Notify Discord on failure`、auto-ready 自己的 check、或非 required 的外部 review/status 放進第一版 readiness gate。CodeRabbit 只有在 branch protection / ruleset 也設成 required 時，才可同步加入。
 
 驗收方式：
 
