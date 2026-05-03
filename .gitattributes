@@ -1,3 +1,7 @@
+# Atlas migration files — force LF so atlas.sum checksums are consistent across platforms
+services/api/migrations/*.sql text eol=lf
+services/api/migrations/*.sum text eol=lf
+
 # Tachimint binary assets
 apps/extension/src/assets/**/*.png filter=lfs diff=lfs merge=lfs -text
 apps/extension/src/assets/**/*.jpg filter=lfs diff=lfs merge=lfs -text
