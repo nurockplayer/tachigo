@@ -10,6 +10,10 @@ on:
     - cron: '*/10 * * * *'
   workflow_dispatch:
 
+concurrency:
+  group: auto-ready-pr-${{ github.repository }}
+  cancel-in-progress: false
+
 permissions:
   contents: read
   checks: read
@@ -30,8 +34,7 @@ jobs:
             const repo = context.repo.repo
             const autoReadyLabel = 'auto-ready'
             const targetBaseBranches = new Set(['main', 'develop'])
-            const requiredSuccessConclusions = new Set(['success', 'neutral', 'skipped'])
-            const fallbackSuccessConclusions = new Set(['success', 'neutral', 'skipped'])
+            const successConclusions = new Set(['success', 'neutral', 'skipped'])
             const ownCheckNames = new Set([
               'Auto-ready draft PR',
               'Mark draft PR ready when checks pass',
@@ -150,24 +153,30 @@ jobs:
 
             const checkNameCandidates = (run) => [run.name]
 
+            const recordObservedContext = (observed, key, passed) => {
+              observed.set(key, (observed.get(key) ?? true) && passed)
+            }
+
             const buildObservedContexts = (checkRuns, statuses) => {
               const observed = new Map()
 
               for (const status of statuses) {
-                observed.set(requiredCheckKey(status.context, null), statusPassed(status))
+                recordObservedContext(
+                  observed,
+                  requiredCheckKey(status.context, null),
+                  statusPassed(status),
+                )
               }
 
               for (const run of checkRuns) {
                 if (ownCheckNames.has(run.name)) continue
                 for (const name of checkNameCandidates(run)) {
-                  const passed = checkRunPassed(run, requiredSuccessConclusions)
+                  const passed = checkRunPassed(run, successConclusions)
                   const legacyKey = requiredCheckKey(name, null)
                   const appKey = requiredCheckKey(name, run.app?.id)
-                  if (!observed.has(legacyKey)) {
-                    observed.set(legacyKey, passed)
-                  }
-                  if (run.app?.id && !observed.has(appKey)) {
-                    observed.set(appKey, passed)
+                  recordObservedContext(observed, legacyKey, passed)
+                  if (run.app?.id) {
+                    recordObservedContext(observed, appKey, passed)
                   }
                 }
               }
@@ -194,7 +203,7 @@ jobs:
               }
 
               const checksComplete = visibleRuns.every((run) =>
-                checkRunPassed(run, fallbackSuccessConclusions),
+                checkRunPassed(run, successConclusions),
               )
               const statusesComplete = statuses.every(statusPassed)
               if (!checksComplete || !statusesComplete) {

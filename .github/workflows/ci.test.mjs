@@ -12,6 +12,7 @@ const scopePolicePath = path.join(currentDir, 'pr-scope-police.yml')
 const autoMergeWorkflowPath = path.join(currentDir, 'auto-merge.yml')
 const autoReadyWorkflowPath = path.join(currentDir, 'auto-ready-pr.yml')
 const claudePath = path.join(repoRoot, 'CLAUDE.md')
+const AsyncFunction = Object.getPrototypeOf(async function () {}).constructor
 
 function parseYaml(filePath) {
   const script = `
@@ -40,6 +41,78 @@ function workflowJobBlock(workflow, jobName) {
   const match = workflow.match(pattern)
   assert.ok(match, `expected workflow to include ${jobName} job`)
   return match[0]
+}
+
+async function runAutoReadyWorkflow({
+  requiredStatusChecks = [],
+  requiredStatusCheckContexts = [],
+  checkRuns = [],
+  statuses = [],
+  graphqlError = null,
+} = {}) {
+  const parsedWorkflow = parseYaml(autoReadyWorkflowPath)
+  const script = parsedWorkflow.jobs['auto-ready'].steps[0].with.script
+  const pr = {
+    number: 472,
+    node_id: 'PR_node_id',
+    base: { ref: 'develop' },
+    draft: true,
+    head: { sha: 'head_sha' },
+    labels: [{ name: 'auto-ready' }],
+    user: { login: 'nurockplayer' },
+  }
+  const notices = []
+  const warnings = []
+  const mutations = []
+  const github = {
+    rest: {
+      checks: {
+        listForRef: async () => checkRuns,
+      },
+      pulls: {
+        list: async () => ({ data: [pr] }),
+      },
+      repos: {
+        getCombinedStatusForRef: async () => ({ data: { statuses } }),
+        listPullRequestsAssociatedWithCommit: async () => ({ data: [pr] }),
+      },
+    },
+    paginate: async (fn, args) => {
+      const result = await fn(args)
+      return result.data || result
+    },
+    graphql: async (query, variables) => {
+      if (query.includes('markPullRequestReadyForReview')) {
+        mutations.push(variables)
+        return { markPullRequestReadyForReview: { pullRequest: { number: pr.number, isDraft: false } } }
+      }
+
+      if (graphqlError) throw graphqlError
+      return {
+        repository: {
+          ref: {
+            branchProtectionRule: {
+              requiredStatusChecks,
+              requiredStatusCheckContexts,
+            },
+          },
+        },
+      }
+    },
+  }
+  const core = {
+    info: () => {},
+    notice: (message) => notices.push(message),
+    warning: (message) => warnings.push(message),
+  }
+  const context = {
+    repo: { owner: 'nurockplayer', repo: 'tachigo' },
+    eventName: 'pull_request',
+    payload: { pull_request: pr },
+  }
+
+  await AsyncFunction('context', 'github', 'core', script)(context, github, core)
+  return { mutations, notices, warnings }
 }
 
 test('frontend CI job runs the frontend test command', async () => {
@@ -295,12 +368,14 @@ test('auto-ready workflow checks required contexts and excludes its own run', as
   assert.match(workflow, /getCombinedStatusForRef/)
   assert.match(workflow, /const ownCheckNames = new Set\(\[/)
   assert.match(workflow, /requiredChecks/)
-  assert.match(workflow, /const requiredSuccessConclusions = new Set\(\['success', 'neutral', 'skipped'\]\)/)
-  assert.match(workflow, /const fallbackSuccessConclusions = new Set\(\['success', 'neutral', 'skipped'\]\)/)
+  assert.match(workflow, /const successConclusions = new Set\(\['success', 'neutral', 'skipped'\]\)/)
+  assert.doesNotMatch(workflow, /requiredSuccessConclusions/)
+  assert.doesNotMatch(workflow, /fallbackSuccessConclusions/)
   assert.match(workflow, /const checkNameCandidates = \(run\) => \[run\.name\]/)
   assert.doesNotMatch(workflow, /workflow_run\?\.name/)
   assert.match(workflow, /const requiredCheckKey = \(contextName, appId\) =>/)
   assert.match(workflow, /appId \? `check:\$\{contextName\}:\$\{appId\}` : `context:\$\{contextName\}`/)
+  assert.match(workflow, /const recordObservedContext = \(observed, key, passed\) =>/)
   assert.match(workflow, /const appKey = requiredCheckKey\(name, run\.app\?\.id\)/)
   assert.match(workflow, /observed\.get\(requiredCheckKey\(requiredCheck\.context, requiredCheck\.appId\)\)/)
   assert.match(workflow, /try \{\s+const fetchedChecks = await Promise\.all\(\[/)
@@ -319,4 +394,90 @@ test('auto-ready workflow uses routine logs for skipped PRs', async () => {
   assert.doesNotMatch(workflow, /core\.notice\(`Skipping PR #/)
   assert.doesNotMatch(workflow, /core\.notice\(`PR #\$\{pr\.number\} remains draft until checks pass\.`\)/)
   assert.match(workflow, /core\.notice\(`PR #\$\{pr\.number\} marked ready for review\.`\)/)
+})
+
+test('auto-ready workflow serializes concurrent runs', async () => {
+  const parsedWorkflow = parseYaml(autoReadyWorkflowPath)
+
+  assert.equal(parsedWorkflow.concurrency.group, 'auto-ready-pr-${{ github.repository }}')
+  assert.equal(parsedWorkflow.concurrency['cancel-in-progress'], false)
+})
+
+test('auto-ready workflow treats skipped required checks as passing', async () => {
+  const result = await runAutoReadyWorkflow({
+    requiredStatusChecks: [{ context: 'Docs only', app: { databaseId: 15368 } }],
+    checkRuns: [
+      {
+        name: 'Docs only',
+        status: 'completed',
+        conclusion: 'skipped',
+        app: { id: 15368 },
+      },
+    ],
+  })
+
+  assert.equal(result.mutations.length, 1)
+})
+
+test('auto-ready workflow does not let a successful status mask a failed check run with the same name', async () => {
+  const result = await runAutoReadyWorkflow({
+    requiredStatusCheckContexts: ['Deploy'],
+    statuses: [{ context: 'Deploy', state: 'success' }],
+    checkRuns: [
+      {
+        name: 'Deploy',
+        status: 'completed',
+        conclusion: 'failure',
+        app: { id: 15368 },
+      },
+    ],
+  })
+
+  assert.equal(result.mutations.length, 0)
+})
+
+test('auto-ready workflow requires matching app id for app-scoped checks', async () => {
+  const wrongApp = await runAutoReadyWorkflow({
+    requiredStatusChecks: [{ context: 'CI gate', app: { databaseId: 15368 } }],
+    checkRuns: [
+      {
+        name: 'CI gate',
+        status: 'completed',
+        conclusion: 'success',
+        app: { id: 99999 },
+      },
+    ],
+  })
+  const matchingApp = await runAutoReadyWorkflow({
+    requiredStatusChecks: [{ context: 'CI gate', app: { databaseId: 15368 } }],
+    checkRuns: [
+      {
+        name: 'CI gate',
+        status: 'completed',
+        conclusion: 'success',
+        app: { id: 15368 },
+      },
+    ],
+  })
+
+  assert.equal(wrongApp.mutations.length, 0)
+  assert.equal(matchingApp.mutations.length, 1)
+})
+
+test('auto-ready workflow skips instead of falling back when branch protection fetch fails', async () => {
+  const result = await runAutoReadyWorkflow({
+    graphqlError: new Error('Resource not accessible by integration'),
+    checkRuns: [
+      {
+        name: 'CI gate',
+        status: 'completed',
+        conclusion: 'success',
+        app: { id: 15368 },
+      },
+    ],
+  })
+
+  assert.equal(result.mutations.length, 0)
+  assert.equal(result.warnings.length, 1)
+  assert.match(result.warnings[0], /failed to fetch checks\/statuses/)
 })
