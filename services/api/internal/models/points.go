@@ -26,8 +26,8 @@ const (
 // Each viewer has one ledger per channel; balances are not shared across channels.
 type PointsLedger struct {
 	ID               uuid.UUID `gorm:"type:uuid;primaryKey;default:gen_random_uuid()" json:"id"`
-	UserID           uuid.UUID `gorm:"type:uuid;not null;index"                       json:"user_id"`
-	ChannelID        string    `gorm:"type:varchar(255);not null;index"               json:"channel_id"`
+	UserID           uuid.UUID `gorm:"type:uuid;not null;uniqueIndex:idx_points_ledgers_user_channel" json:"user_id"`
+	ChannelID        string    `gorm:"type:varchar(255);not null;uniqueIndex:idx_points_ledgers_user_channel" json:"channel_id"`
 	CumulativeTotal  int64     `gorm:"not null;default:0"                             json:"cumulative_total"`
 	SpendableBalance int64     `gorm:"not null;default:0"                             json:"spendable_balance"`
 	CreatedAt        time.Time `                                                      json:"created_at"`

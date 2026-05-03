@@ -65,6 +65,10 @@ CREATE INDEX "idx_broadcast_time_logs_streamer_id" ON "public"."broadcast_time_l
 DROP INDEX "public"."idx_watch_sessions_active_user_channel";
 -- Modify "watch_sessions" table
 ALTER TABLE "public"."watch_sessions" DROP CONSTRAINT "watch_sessions_user_id_fkey", ALTER COLUMN "created_at" DROP NOT NULL, ALTER COLUMN "created_at" DROP DEFAULT, ALTER COLUMN "updated_at" DROP NOT NULL, ALTER COLUMN "updated_at" DROP DEFAULT;
+-- Recreate partial unique index: one active session per (user_id, channel_id).
+-- GORM struct tags cannot express partial indexes; this index must be preserved manually.
+-- StartSession relies on this invariant for concurrent-safe session creation (watch_service.go).
+CREATE UNIQUE INDEX "idx_watch_sessions_active_user_channel" ON "public"."watch_sessions" ("user_id", "channel_id") WHERE (is_active = true);
 -- Modify "password_resets" table
 ALTER TABLE "public"."password_resets" DROP CONSTRAINT "password_resets_token_hash_key", ALTER COLUMN "created_at" DROP NOT NULL, ALTER COLUMN "created_at" DROP DEFAULT;
 -- Create index "idx_password_resets_token_hash" to table: "password_resets"
@@ -89,6 +93,11 @@ DROP INDEX "public"."idx_auth_providers_provider_provider_id_active";
 DROP INDEX "public"."idx_auth_providers_web3_user_active";
 -- Modify "auth_providers" table
 ALTER TABLE "public"."auth_providers" DROP CONSTRAINT "auth_providers_user_id_fkey", ALTER COLUMN "created_at" DROP NOT NULL, ALTER COLUMN "created_at" DROP DEFAULT, ALTER COLUMN "updated_at" DROP NOT NULL, ALTER COLUMN "updated_at" DROP DEFAULT, ADD CONSTRAINT "fk_users_auth_providers" FOREIGN KEY ("user_id") REFERENCES "public"."users" ("id") ON UPDATE NO ACTION ON DELETE NO ACTION;
+-- Recreate partial unique indexes from migration 014 (soft-delete aware uniqueness).
+-- GORM struct tags cannot express partial indexes; these must be preserved manually.
+-- user_service.go treats ErrDuplicatedKey from these as a race-safe guard for web3 relink.
+CREATE UNIQUE INDEX "idx_auth_providers_provider_provider_id_active" ON "public"."auth_providers" ("provider", "provider_id") WHERE (deleted_at IS NULL);
+CREATE UNIQUE INDEX "idx_auth_providers_web3_user_active" ON "public"."auth_providers" ("user_id", "provider") WHERE (provider = 'web3' AND deleted_at IS NULL);
 -- Modify "points_ledgers" table
 ALTER TABLE "public"."points_ledgers" DROP CONSTRAINT "points_ledgers_user_id_fkey", ALTER COLUMN "created_at" DROP NOT NULL, ALTER COLUMN "created_at" DROP DEFAULT, ALTER COLUMN "updated_at" DROP NOT NULL, ALTER COLUMN "updated_at" DROP DEFAULT;
 -- Create index "idx_points_ledgers_channel_id" to table: "points_ledgers"
@@ -125,6 +134,9 @@ DROP INDEX "public"."idx_claims_id_user_id";
 DROP INDEX "public"."idx_points_ledgers_id_user_id";
 -- Drop index "idx_points_ledgers_user_channel" from table: "points_ledgers"
 DROP INDEX "public"."idx_points_ledgers_user_channel";
+-- Recreate as unique index: required for ON CONFLICT (user_id, channel_id) in heartbeat upsert.
+-- watch_service.go relies on this constraint for atomic ledger upsert (watch_service.go).
+CREATE UNIQUE INDEX "idx_points_ledgers_user_channel" ON "public"."points_ledgers" ("user_id", "channel_id");
 -- Drop index "idx_coupon_redemptions_compensation" from table: "coupon_redemptions"
 DROP INDEX "public"."idx_coupon_redemptions_compensation";
 -- Modify "coupon_redemptions" table

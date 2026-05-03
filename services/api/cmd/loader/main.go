@@ -47,4 +47,13 @@ func main() {
 		os.Exit(1)
 	}
 	io.WriteString(os.Stdout, stmts)
+
+	// Partial unique indexes that GORM struct tags cannot express.
+	// Declared here so Atlas treats them as desired schema state and does not drop them.
+	fmt.Println(`CREATE UNIQUE INDEX IF NOT EXISTS "idx_watch_sessions_active_user_channel"
+    ON watch_sessions (user_id, channel_id) WHERE (is_active = true);`)
+	fmt.Println(`CREATE UNIQUE INDEX IF NOT EXISTS "idx_auth_providers_provider_provider_id_active"
+    ON auth_providers (provider, provider_id) WHERE (deleted_at IS NULL);`)
+	fmt.Println(`CREATE UNIQUE INDEX IF NOT EXISTS "idx_auth_providers_web3_user_active"
+    ON auth_providers (user_id, provider) WHERE (provider = 'web3' AND deleted_at IS NULL);`)
 }
