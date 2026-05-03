@@ -8,10 +8,10 @@
 
 你同時承擔兩種模式，依任務性質切換：
 
-- **探索 / 分析**：快速摸清程式結構、收斂問題原因、評估方案可行性，輸出精簡摘要給使用者決策
-- **執行**：實際寫程式、改檔案、跑測試、執行指令，依照使用者明確授權或當輪任務要求執行
+- **探索 / 分析**：快速摸清程式結構、收斂問題原因、評估方案可行性，輸出精簡摘要給 Claude Code 決策
+- **執行**：實際寫程式、改檔案、跑測試、執行指令，依照 Claude Code 給的計畫做
 
-收到任務時判斷是哪種模式，若不確定就直接問。遇到需要架構決策的岔路，先回報使用者，不要自行決定。
+收到任務時判斷是哪種模式，若不確定就直接問。遇到需要架構決策的岔路，先回報給 Claude Code，不要自行決定。
 
 ## 專案結構
 
@@ -36,16 +36,6 @@ make down   # 停止所有服務
 # 執行後端測試
 docker compose run --no-deps --rm app go test ./...
 ```
-
-## RTK / Token 節省工具
-
-RTK 是全域 token 節省工具，不是 tachigo repo 的專案規範來源。
-
-- tachigo repo 內不需要放 `RTK.md`
-- 若 session context 出現 `@RTK.md`，視為全域設定（例如 `~/.claude/RTK.md`）的 include，不代表 AGENTS.md 依賴 repo 內同名檔案
-- 若環境有 RTK hook，可讓 hook 自動 rewrite 指令；不要為了使用 RTK 改寫專案文件或硬性要求所有人安裝
-- 若 RTK 不可用，直接使用原生命令，不應阻塞開發或 review
-- troubleshooting / analytics 類命令可直接使用 `rtk gain`、`rtk --version`；其餘專案操作仍遵守本文件的 git / gh 權限邊界
 
 ## Git 規範
 
@@ -87,17 +77,16 @@ Type：`feat` / `fix` / `docs` / `chore` / `refactor` / `test`
 
   ```bash
   cp .github/PULL_REQUEST_TEMPLATE.md /tmp/pr_body.md
-  # 填妥 /tmp/pr_body.md 所有欄位，不得留空或刪除 section；不適用欄位填 `N/A - <理由>`
+  # 填妥 /tmp/pr_body.md 所有欄位，不得留空或刪除 section
   gh pr create --title "[type] ..." --base develop --body-file /tmp/pr_body.md
   ```
 
 ### 操作權限邊界
 
 - **Read-only** 可直接執行：讀檔、搜尋、PR / issue metadata、diff、CI 狀態、本機分析
-- 本機改檔：若使用者在當輪訊息已明確要求修改檔案，視為已授權該次 Edit
-- 本機 git 狀態變更：branch switch / rebase / merge / commit 必須先詢問並取得明確同意
-- 遠端或公開可見操作：push、GitHub comment / review / CR / Approve / Merge、issue / PR 建立或編輯，一律再次確認
-- 讀取型 git 指令可依目前工具權限直接執行；若 sandbox 擋住，再依工具機制提權
+- **狀態變更**必須先詢問並取得明確同意：Edit / 寫檔、commit、push、branch switch / rebase / merge、GitHub comment / review / CR / Approve / Merge、issue / PR 建立或編輯
+- 若使用者在當輪訊息已明確要求修改檔案，視為已授權該次 Edit；但公開可見操作仍需再次確認
+- 在 Codex sandbox 中執行任何 `git` 指令時，預設直接使用提權執行
 
 ### Non-interactive 指令規則
 
@@ -120,7 +109,7 @@ Type：`feat` / `fix` / `docs` / `chore` / `refactor` / `test`
 - PR 只應包含該 issue 明確列出的任務、規格與完成條件
 - 若在實作途中發現額外想做的功能、重構、future work，必須另開 issue / PR
 - docs / research draft 不能自動視為 implementation source of truth
-- 遇到岔路：是必要前置條件 → 先回報使用者；不是 → 開新 issue
+- 遇到岔路：是必要前置條件 → 先回報 Claude Code；不是 → 開新 issue
 
 ### 拆分邊界
 
