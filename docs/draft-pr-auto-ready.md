@@ -39,9 +39,16 @@ Expected flow:
 - Do not mark a PR ready if any required check is pending, failing, cancelled, or
   skipped when it should be required.
 - Do not wait on the auto-ready workflow itself.
-- Treat GitHub branch-protection and active branch-ruleset required checks as
-  the readiness gate. CodeRabbit is not a required auto-ready gate unless it is
-  later added as a required status check by branch protection or a ruleset.
+- Treat the repo-maintained `required_checks` configuration in the auto-ready
+  workflow as the readiness gate. That configuration must mirror the required
+  checks currently enforced by branch protection or active branch rulesets.
+  CodeRabbit is not a required auto-ready gate unless it is later added to both
+  branch protection / rulesets and the repo-maintained `required_checks` list.
+- Do not discover branch-protection or branch-ruleset required checks at
+  runtime. Those APIs require repository Administration read permission, which
+  is not available through the workflow `GITHUB_TOKEN` permissions used by this
+  proposal. Using those APIs would require a separate high-privilege token or
+  GitHub App and is out of scope here.
 - The workflow that marks the PR ready must use the narrow permissions it needs:
   `pull-requests: write`, `checks: read`, and `statuses: read`.
 - Prefer GitHub API / GraphQL over browser automation.
@@ -65,6 +72,12 @@ Expected flow:
 ## Candidate implementation
 
 Create `.github/workflows/auto-ready-pr.yml`.
+
+Define `required_checks` as a centralized configuration block in the workflow,
+keyed by base branch (`develop` and `main`). The workflow implementation PR must
+set this list to the same required check contexts currently enforced by branch
+protection or active rulesets, and any later change to those repository rules
+must update this config in the same PR.
 
 Selected triggers:
 
@@ -109,17 +122,15 @@ The job should:
    with the source SHA; exit if they differ. For `workflow_run`, use
    `github.event.workflow_run.head_sha` as the source SHA only after resolving a
    unique PR.
-9. Resolve the required check contexts for the live base branch:
-   - Query branch protection with
-     `GET /repos/{owner}/{repo}/branches/{base}/protection` and read
-     `required_status_checks.checks` / `required_status_checks.contexts`.
-   - Query active branch rules with
-     `GET /repos/{owner}/{repo}/rules/branches/{base}` and read any active
-     `required_status_checks` rules that apply to the base branch.
-   - Treat the readiness gate as the union of branch-protection and active
-     ruleset required contexts.
-   - If the workflow cannot read either required-check source, fail closed and
-     exit without marking the PR ready.
+9. Resolve the required check contexts for the live base branch from the
+   workflow's repo-maintained `required_checks` configuration:
+   - Load the exact contexts for the live base branch (`develop` or `main`) from
+     the workflow configuration.
+   - Treat that list as the full readiness gate for auto-ready.
+   - Do not query branch protection or active branch rulesets at runtime.
+   - If the live base branch has no configured required-check list, or if the
+     list is empty or invalid, fail closed and exit without marking the PR
+     ready.
 10. Query check runs / status contexts for the live current head SHA.
 11. Filter out the auto-ready workflow's own check run.
 12. Confirm every required context is successful.
@@ -139,10 +150,14 @@ The job should:
 - Trigger choice: use `pull_request`, `workflow_run` for the required CI
   workflow, and a required scheduled fallback. Do not leave the trigger choice
   to implementation-time preference.
-- The monitored workflow name must be kept in sync with branch-protection and
-  ruleset required checks. If required checks are renamed, split, or moved to an
-  external status provider, update the workflow trigger and keep the scheduled
-  fallback enabled so the automation does not silently stop re-evaluating PRs.
+- Gate source choice: do not use runtime branch-protection or branch-ruleset
+  discovery. Keep the workflow on `GITHUB_TOKEN`-compatible narrow permissions
+  and use the repo-maintained `required_checks` configuration instead.
+- The monitored workflow name and `required_checks` configuration must be kept
+  in sync with branch-protection and ruleset required checks. If required checks
+  are renamed, split, or moved to an external status provider, update the config,
+  update the workflow trigger when needed, and keep the scheduled fallback
+  enabled so the automation does not silently stop re-evaluating PRs.
 
 ## Open questions
 
