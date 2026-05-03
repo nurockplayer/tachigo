@@ -1,4 +1,4 @@
-h1:JMHA106zaUineLX87pvCvUfolba8ehp76/PXjit4S6s=
+h1:aboNxhN1DneaUfNy73iDrntAWSc9jZOm5t3zRluVPkA=
 001_init.sql h1:JT4tdpWqURuUh7Xl6J21O+mxOiXyd8k10vPwy66pLhU=
 002_email_auth.sql h1:cbzH9tcUAlNUy9LMImc7eVz7zE/vdo6dwezR3fh2C2w=
 003_watch_points.sql h1:0rJXUzeYkReZFZdcrgRrCeUH2wMeaJTAEVMP9OypJqo=
@@ -18,4 +18,4 @@ h1:JMHA106zaUineLX87pvCvUfolba8ehp76/PXjit4S6s=
 017_claim_finalize_failed.sql h1:x6gIn6MV94N6jGcZP/+Jlq7BpqDbop1Wh9GvhfVM1DY=
 018_points_transaction_external_id.sql h1:o154DoNuUYO1setZPkxwSLsN2xvnVKhW9fb3Yh1L0Dc=
 019_coupon_redemptions.sql h1:RCW9l+Ge1iTZYFnMRlEy4wU5ZFtXRnePcRXbmuBHO2c=
-020_atlas_baseline.sql h1:HOS98/sZv4Ui3W4kTzkFmVZiEe4rZhDPVUf3WU9YErU=
+020_atlas_baseline.sql h1:4Uv+YWDJixBsZHfiaPNKPH1vmjZ3zDMrSyNcu3Gb3OU=

@@ -1,3 +1,15 @@
+-- Atlas baseline migration: captures schema divergence between SQL migrations 001-019 and GORM models.
+--
+-- Safety notes before applying to production:
+-- 1. Unique index operations are SAFE — all new unique indexes replace existing unique constraints
+--    on the same columns; no data cleanup required.
+-- 2. ALTER COLUMN DROP NOT NULL — multiple columns (created_at, updated_at, etc.) change from
+--    NOT NULL to nullable to align with GORM defaults. Verify application code handles NULLs.
+-- 3. FK constraint renames — old hand-written constraint names are dropped and GORM-generated
+--    names are added; functionally equivalent, but update any monitoring/alerts that reference names.
+-- 4. New tables (raffles, watch_time_stats, broadcast_time_stats, broadcast_time_logs) are added
+--    idempotently — AutoMigrate already created them in production; this makes Atlas aware.
+
 -- Modify "streamers" table
 ALTER TABLE "public"."streamers" DROP CONSTRAINT "streamers_user_id_channel_id_key", DROP CONSTRAINT "fk_streamers_agency_user_id", DROP CONSTRAINT "streamers_user_id_fkey", ALTER COLUMN "created_at" DROP NOT NULL, ALTER COLUMN "created_at" DROP DEFAULT, ALTER COLUMN "updated_at" DROP NOT NULL, ALTER COLUMN "updated_at" DROP DEFAULT;
 -- Create index "idx_streamers_user_channel" to table: "streamers"

@@ -1,3 +1,5 @@
+// Requires Go toolchain: atlas migrate diff --env gorm calls go run ./cmd/loader/main.go locally.
+// CI lint uses atlas-community without --env, so Go is not required in CI.
 data "external_schema" "gorm" {
   program = [
     "go",
