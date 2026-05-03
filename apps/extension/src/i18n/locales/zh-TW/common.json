@@ -22,12 +22,6 @@
     "clicksLeft": "剩 {{count}} 次",
     "clicksExhausted": "本輪已達上限"
   },
-  "nonViewer": {
-    "titleLine1": "您的觀眾正在此頻道",
-    "titleHighlight": "累積觀看點數",
-    "hintLine1": "觀眾只要觀看直播",
-    "hintLine2": "即可自動累積挖礦點數"
-  },
   "contextLoading": {
     "title": "載入中...",
     "subtitle": "正在啟動 extension"
@@ -101,22 +95,5 @@
     "no_winners": "尚未抽出中獎者",
     "error_load_failed": "載入失敗",
     "back": "返回"
-  },
-  "error": {
-    "account": {
-      "title": "尚未建立帳號",
-      "message": "請先建立 tachigo 帳號",
-      "hint": "前往 tachigo.gg 建立帳號後，重新整理即可開始挖礦"
-    },
-    "backend": {
-      "title": "服務暫時無法使用",
-      "message": "服務暫時無法使用，請稍後再試",
-      "hint": "我們正在處理問題，請稍等幾分鐘後重新整理"
-    },
-    "session": {
-      "title": "連線建立失敗",
-      "message": "觀看連線建立失敗，請重新整理",
-      "hint": "請確認網路連線是否正常後重新整理頁面"
-    }
   }
 }

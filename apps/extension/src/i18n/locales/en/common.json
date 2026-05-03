@@ -22,12 +22,6 @@
     "clicksLeft": "{{count}} / 30 CLICKS",
     "clicksExhausted": "LIMIT REACHED"
   },
-  "nonViewer": {
-    "titleLine1": "Your audience is on this channel",
-    "titleHighlight": "accumulating watch points",
-    "hintLine1": "Viewers just need to watch the stream",
-    "hintLine2": "to automatically earn mining points"
-  },
   "contextLoading": {
     "title": "Loading...",
     "subtitle": "Starting extension"
@@ -101,22 +95,5 @@
     "no_winners": "No winners yet.",
     "error_load_failed": "Failed to load results.",
     "back": "BACK"
-  },
-  "error": {
-    "account": {
-      "title": "Account Not Found",
-      "message": "Please create a tachigo account first",
-      "hint": "Visit tachigo.gg to create an account, then refresh to start mining"
-    },
-    "backend": {
-      "title": "Service Unavailable",
-      "message": "Service temporarily unavailable, please try again later",
-      "hint": "We are working on the issue, please refresh in a few minutes"
-    },
-    "session": {
-      "title": "Connection Failed",
-      "message": "Watch connection failed, please refresh",
-      "hint": "Please check your network connection and refresh the page"
-    }
   }
 }
