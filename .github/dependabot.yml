@@ -1,7 +1,7 @@
 version: 2
 updates:
   - package-ecosystem: gomod
-    directory: /backend
+    directory: /services/api
     schedule:
       interval: weekly
       day: monday
