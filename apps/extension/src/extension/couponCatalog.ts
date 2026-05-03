@@ -1,4 +1,4 @@
-export type CouponItemKey = 'tachiya95' | 'freeShip' | 'bundle120'
+type CouponItemKey = 'tachiya95' | 'freeShip' | 'bundle120'
 
 export interface DemoCouponMeta {
   id: string
@@ -27,7 +27,3 @@ export const demoCouponMetas: DemoCouponMeta[] = [
     code: 'DROP120',
   },
 ]
-
-export function findCouponMetaById(couponId: string): DemoCouponMeta | undefined {
-  return demoCouponMetas.find((coupon) => coupon.id === couponId)
-}

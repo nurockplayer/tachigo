@@ -8,7 +8,7 @@ import {
 } from '../services/api'
 import i18n, { mapTwitchLocaleToAppLanguage } from '../i18n'
 
-export interface TwitchTPointProduct {
+interface TwitchTPointProduct {
   sku: string
   displayName: string
   cost: { amount: number; type: 'bits' }
