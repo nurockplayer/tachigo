@@ -10,6 +10,7 @@ const repoRoot = path.join(currentDir, '..', '..')
 const workflowPath = path.join(currentDir, 'ci.yml')
 const scopePolicePath = path.join(currentDir, 'pr-scope-police.yml')
 const autoMergeWorkflowPath = path.join(currentDir, 'auto-merge.yml')
+const codexReviewRerequestWorkflowPath = path.join(currentDir, 'codex-review-rerequest.yml')
 const claudePath = path.join(repoRoot, 'CLAUDE.md')
 
 function parseYaml(filePath) {
@@ -260,4 +261,19 @@ test('global auto-merge workflow excludes Dependabot PRs', async () => {
     "github.event.pull_request.draft == false && github.event.pull_request.user.login != 'dependabot[bot]'",
   )
   assert.doesNotMatch(workflow, /if: github\.event\.pull_request\.draft == false\s*$/m)
+})
+
+test('Codex review re-request workflow requests reviewer and notifies Discord', async () => {
+  const workflow = await readFile(codexReviewRerequestWorkflowPath, 'utf8')
+  const parsedWorkflow = parseYaml(codexReviewRerequestWorkflowPath)
+
+  assert.equal(parsedWorkflow.name, 'Auto re-request Codex review')
+  assert.equal(parsedWorkflow.permissions['pull-requests'], 'write')
+  assert.match(workflow, /github\.rest\.pulls\.listReviews/)
+  assert.match(workflow, /github\.rest\.pulls\.requestReviewers/)
+  assert.match(workflow, /Previous reviewers/)
+  assert.match(workflow, /DISCORD_CODEX_REVIEW_WEBHOOK_URL/)
+  assert.match(workflow, /codex-review-rerequest/)
+  assert.doesNotMatch(workflow, /nurockplayer/)
+  assert.doesNotMatch(workflow, /Slack|SLACK|slack/)
 })

@@ -1,0 +1,273 @@
+name: Auto re-request Codex review
+
+on:
+  workflow_run:
+    workflows: ["CI"]
+    types: [completed]
+  pull_request:
+    types: [labeled]
+
+permissions:
+  actions: write
+  pull-requests: write
+  issues: read
+
+jobs:
+  evaluate:
+    name: Evaluate Codex review re-request
+    runs-on: ubuntu-latest
+    outputs:
+      has_review_requests: ${{ steps.evaluate.outputs.has_review_requests }}
+      review_requests: ${{ steps.evaluate.outputs.review_requests }}
+    steps:
+      - name: Evaluate PR readiness
+        id: evaluate
+        uses: actions/github-script@v7
+        with:
+          script: |
+            const owner = context.repo.owner
+            const repo = context.repo.repo
+            const reviewLabel = 'needs-codex-review'
+            const changesLabel = 'changes-requested'
+            const targetBaseBranches = new Set(['main', 'develop'])
+            async function getFullPr(pullNumber) {
+              const { data } = await github.rest.pulls.get({
+                owner,
+                repo,
+                pull_number: pullNumber,
+              })
+              return data
+            }
+
+            async function getSuccessfulCiRun(headSha) {
+              const { data } = await github.rest.actions.listWorkflowRunsForRepo({
+                owner,
+                repo,
+                head_sha: headSha,
+                status: 'completed',
+                per_page: 100,
+              })
+
+              return data.workflow_runs.find((workflowRun) =>
+                workflowRun.name === 'CI' && workflowRun.conclusion === 'success'
+              )
+            }
+
+            async function getPreviousReviewers(fullPr) {
+              const reviews = await github.paginate(github.rest.pulls.listReviews, {
+                owner,
+                repo,
+                pull_number: fullPr.number,
+                per_page: 100,
+              })
+              const latestReviewByUser = new Map()
+
+              for (const review of reviews) {
+                const login = review.user?.login
+                if (!login || login === fullPr.user?.login || login.endsWith('[bot]')) {
+                  continue
+                }
+                latestReviewByUser.set(login, review)
+              }
+
+              return [...latestReviewByUser.entries()]
+                .filter(([, review]) => {
+                  const state = (review.state || '').toUpperCase()
+                  return state === 'APPROVED' || state === 'CHANGES_REQUESTED' || state === 'COMMENTED'
+                })
+                .map(([login]) => login)
+                .sort()
+            }
+
+            function buildDiscordPayload(fullPr, sourceRun, reviewers) {
+              const shortSha = (fullPr.head?.sha || sourceRun.head_sha || '').slice(0, 7)
+              const lines = [
+                `Codex review re-requested for PR #${fullPr.number}`,
+                `**${fullPr.title}**`,
+                fullPr.html_url,
+                `Author: ${fullPr.user?.login || 'unknown'}`,
+                `Base: ${fullPr.base?.ref || 'unknown'}`,
+                `Head: ${shortSha || 'unknown'}`,
+                `CI: ${sourceRun.html_url}`,
+                `Previous reviewers: ${reviewers.length > 0 ? reviewers.join(', ') : 'none found'}`,
+              ]
+
+              return {
+                content: lines.join('\n'),
+              }
+            }
+
+            async function collectReviewRequest(fullPr, sourceRun) {
+              if (fullPr.state !== 'open') {
+                core.notice(`Skipping PR #${fullPr.number}: PR is not open.`)
+                return null
+              }
+
+              const labels = (fullPr.labels || []).map((label) => label.name)
+              const hasReviewLabel = labels.includes(reviewLabel)
+              const hasChangesRequestedLabel = labels.includes(changesLabel)
+              const isTargetBase = targetBaseBranches.has(fullPr.base?.ref)
+
+              if (!isTargetBase) {
+                core.notice(`Skipping PR #${fullPr.number}: unsupported base branch ${fullPr.base?.ref || 'unknown'}.`)
+                return null
+              }
+
+              if (fullPr.draft) {
+                core.notice(`Skipping PR #${fullPr.number}: draft PR.`)
+                return null
+              }
+
+              if (!hasReviewLabel) {
+                core.notice(`Skipping PR #${fullPr.number}: missing ${reviewLabel} label.`)
+                return null
+              }
+
+              if (hasChangesRequestedLabel) {
+                core.notice(`Skipping PR #${fullPr.number}: ${changesLabel} label is still present.`)
+                return null
+              }
+
+              if (sourceRun.head_sha !== fullPr.head.sha) {
+                core.notice(`Skipping PR #${fullPr.number}: CI run head_sha (${sourceRun.head_sha}) does not match PR latest sha (${fullPr.head.sha}); re-request suppressed for stale commit.`)
+                return null
+              }
+
+              const reviewers = await getPreviousReviewers(fullPr)
+              if (reviewers.length === 0) {
+                core.notice(`PR #${fullPr.number} has no previous reviewers to re-request.`)
+              }
+
+              return {
+                dedup_key: `${sourceRun.id}-${fullPr.number}`,
+                pull_number: fullPr.number,
+                reviewers,
+                payload: JSON.stringify(buildDiscordPayload(fullPr, sourceRun, reviewers)),
+              }
+            }
+
+            const reviewRequests = []
+
+            if (context.eventName === 'workflow_run') {
+              const run = context.payload.workflow_run
+              if (run.conclusion !== 'success') {
+                core.notice(`Skipping workflow_run ${run.id}: conclusion is ${run.conclusion || 'unknown'}.`)
+              } else {
+                const pullNumbers = [...new Set((run.pull_requests || []).map((pr) => pr.number).filter(Boolean))]
+                if (pullNumbers.length === 0) {
+                  core.notice('No pull requests are associated with this CI run.')
+                }
+
+                for (const pullNumber of pullNumbers) {
+                  const fullPr = await getFullPr(pullNumber)
+                  const reviewRequest = await collectReviewRequest(fullPr, run)
+                  if (reviewRequest) {
+                    reviewRequests.push(reviewRequest)
+                  }
+                }
+              }
+            } else if (context.eventName === 'pull_request') {
+              const labelName = context.payload.label?.name
+              if (labelName !== reviewLabel) {
+                core.notice(`Skipping pull_request labeled event: label ${labelName || 'unknown'} is not ${reviewLabel}.`)
+              } else {
+                const fullPr = await getFullPr(context.payload.pull_request.number)
+                const sourceRun = await getSuccessfulCiRun(fullPr.head.sha)
+
+                if (!sourceRun) {
+                  core.notice(`Skipping PR #${fullPr.number}: no successful CI workflow run found for head sha ${fullPr.head.sha}.`)
+                } else {
+                  const reviewRequest = await collectReviewRequest(fullPr, sourceRun)
+                  if (reviewRequest) {
+                    reviewRequests.push(reviewRequest)
+                  }
+                }
+              }
+            } else {
+              core.notice(`Unsupported event: ${context.eventName}`)
+            }
+
+            core.setOutput('has_review_requests', reviewRequests.length > 0 ? 'true' : 'false')
+            core.setOutput('review_requests', JSON.stringify(reviewRequests))
+
+  rerequest:
+    name: Re-request Codex review and notify Discord
+    needs: evaluate
+    if: needs.evaluate.outputs.has_review_requests == 'true'
+    runs-on: ubuntu-latest
+    strategy:
+      fail-fast: false
+      matrix:
+        review_request: ${{ fromJson(needs.evaluate.outputs.review_requests) }}
+    steps:
+      - name: Restore review request dedup cache
+        id: dedup-cache
+        uses: actions/cache/restore@v4
+        with:
+          path: ${{ runner.temp }}/codex-review-rerequest/${{ matrix.review_request.dedup_key }}
+          key: codex-review-rerequest-${{ github.repository }}-${{ matrix.review_request.dedup_key }}
+
+      - name: Re-request Codex review
+        if: steps.dedup-cache.outputs.cache-hit != 'true'
+        uses: actions/github-script@v7
+        env:
+          PULL_NUMBER: ${{ matrix.review_request.pull_number }}
+          CODEX_REVIEWERS_JSON: ${{ toJson(matrix.review_request.reviewers) }}
+        with:
+          script: |
+            const pullNumber = Number(process.env.PULL_NUMBER)
+            const reviewers = JSON.parse(process.env.CODEX_REVIEWERS_JSON || '[]')
+
+            if (reviewers.length === 0) {
+              core.notice(`No previous reviewers found for PR #${pullNumber}; skipping GitHub review request.`)
+              return
+            }
+
+            try {
+              await github.rest.pulls.requestReviewers({
+                owner: context.repo.owner,
+                repo: context.repo.repo,
+                pull_number: pullNumber,
+                reviewers,
+              })
+              core.notice(`Requested review from ${reviewers.join(', ')} on PR #${pullNumber}.`)
+            } catch (e) {
+              if (e.status === 422) {
+                core.notice(`Review request for PR #${pullNumber} was skipped: ${e.message}`)
+                return
+              }
+              throw e
+            }
+
+      - name: Notify Discord
+        if: steps.dedup-cache.outputs.cache-hit != 'true'
+        env:
+          DISCORD_WEBHOOK_URL: ${{ secrets.DISCORD_CODEX_REVIEW_WEBHOOK_URL }}
+          DISCORD_PAYLOAD: ${{ matrix.review_request.payload }}
+        run: |
+          if [ -z "$DISCORD_WEBHOOK_URL" ]; then
+            echo "DISCORD_CODEX_REVIEW_WEBHOOK_URL is not configured; skipping Discord notification."
+            exit 0
+          fi
+
+          RESPONSE=$(curl -sS --fail-with-body -X POST \
+            -H 'Content-Type: application/json' \
+            --data "$DISCORD_PAYLOAD" \
+            "$DISCORD_WEBHOOK_URL") || {
+            echo "Discord webhook POST failed (non-2xx response): $RESPONSE"
+            exit 1
+          }
+          echo "Discord webhook response: $RESPONSE"
+
+      - name: Mark review request dedup cache
+        if: steps.dedup-cache.outputs.cache-hit != 'true'
+        run: |
+          mkdir -p "${RUNNER_TEMP}/codex-review-rerequest/${{ matrix.review_request.dedup_key }}"
+          touch "${RUNNER_TEMP}/codex-review-rerequest/${{ matrix.review_request.dedup_key }}/sent"
+
+      - name: Persist review request dedup cache
+        if: steps.dedup-cache.outputs.cache-hit != 'true'
+        uses: actions/cache/save@v4
+        with:
+          path: ${{ runner.temp }}/codex-review-rerequest/${{ matrix.review_request.dedup_key }}
+          key: codex-review-rerequest-${{ github.repository }}-${{ matrix.review_request.dedup_key }}
