@@ -278,20 +278,6 @@ func (s *AuthService) Web3Verify(input Web3VerifyInput) (*models.User, *TokenPai
 	return s.upsertOAuthUser(context.Background(), models.ProviderWeb3, checksumAddr, "", "", nil, nil)
 }
 
-// ─── Provider Link (attach to existing account) ──────────────────────────────
-
-func (s *AuthService) LinkTwitch(ctx context.Context, userID uuid.UUID, code string) error {
-	token, err := s.twitchOAuth.Exchange(ctx, code)
-	if err != nil {
-		return err
-	}
-	info, err := fetchTwitchUser(ctx, s.twitchOAuth, token, s.cfg.OAuth.Twitch.ClientID)
-	if err != nil {
-		return err
-	}
-	return s.linkProvider(userID, models.ProviderTwitch, info.ID, token)
-}
-
 func (s *AuthService) UnlinkProvider(userID uuid.UUID, provider models.ProviderType) error {
 	// Ensure the user still has at least one other way to log in
 	var count int64
@@ -438,31 +424,6 @@ func (s *AuthService) upsertOAuthUser(
 
 	tokens, err := s.issueTokenPair(&user)
 	return &user, tokens, err
-}
-
-func (s *AuthService) linkProvider(userID uuid.UUID, provider models.ProviderType, providerID string, token *oauth2.Token) error {
-	// Check not already linked to someone else
-	var count int64
-	s.db.Model(&models.AuthProvider{}).
-		Where("provider = ? AND provider_id = ? AND user_id != ?", provider, providerID, userID).
-		Count(&count)
-	if count > 0 {
-		return ErrProviderLinked
-	}
-
-	ap := models.AuthProvider{
-		UserID:     userID,
-		Provider:   provider,
-		ProviderID: providerID,
-	}
-	if token != nil {
-		at := token.AccessToken
-		rt := token.RefreshToken
-		ap.AccessToken = &at
-		ap.RefreshToken = &rt
-		ap.TokenExpiresAt = &token.Expiry
-	}
-	return s.db.Save(&ap).Error
 }
 
 // ─── Utility ─────────────────────────────────────────────────────────────────
