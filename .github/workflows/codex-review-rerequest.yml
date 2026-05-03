@@ -136,6 +136,7 @@ jobs:
               const reviewers = await getPreviousReviewers(fullPr)
               if (reviewers.length === 0) {
                 core.notice(`PR #${fullPr.number} has no previous reviewers to re-request.`)
+                return null
               }
 
               return {
@@ -208,6 +209,7 @@ jobs:
           key: codex-review-rerequest-${{ github.repository }}-${{ matrix.review_request.dedup_key }}
 
       - name: Re-request Codex review
+        id: rerequest-review
         if: steps.dedup-cache.outputs.cache-hit != 'true'
         uses: actions/github-script@v7
         env:
@@ -220,27 +222,37 @@ jobs:
 
             if (reviewers.length === 0) {
               core.notice(`No previous reviewers found for PR #${pullNumber}; skipping GitHub review request.`)
+              core.setOutput('has_requested_reviewers', 'false')
+              core.setOutput('requested_reviewers', JSON.stringify([]))
               return
             }
 
-            try {
-              await github.rest.pulls.requestReviewers({
-                owner: context.repo.owner,
-                repo: context.repo.repo,
-                pull_number: pullNumber,
-                reviewers,
-              })
-              core.notice(`Requested review from ${reviewers.join(', ')} on PR #${pullNumber}.`)
-            } catch (e) {
-              if (e.status === 422) {
-                core.notice(`Review request for PR #${pullNumber} was skipped: ${e.message}`)
-                return
+            const requestedReviewers = []
+
+            for (const reviewer of reviewers) {
+              try {
+                await github.rest.pulls.requestReviewers({
+                  owner: context.repo.owner,
+                  repo: context.repo.repo,
+                  pull_number: pullNumber,
+                  reviewers: [reviewer],
+                })
+                requestedReviewers.push(reviewer)
+                core.notice(`Requested review from ${reviewer} on PR #${pullNumber}.`)
+              } catch (e) {
+                if (e.status === 422) {
+                  core.notice(`Review request for ${reviewer} on PR #${pullNumber} was skipped: ${e.message}`)
+                  continue
+                }
+                throw e
               }
-              throw e
             }
 
+            core.setOutput('has_requested_reviewers', requestedReviewers.length > 0 ? 'true' : 'false')
+            core.setOutput('requested_reviewers', JSON.stringify(requestedReviewers))
+
       - name: Notify Discord
-        if: steps.dedup-cache.outputs.cache-hit != 'true'
+        if: steps.dedup-cache.outputs.cache-hit != 'true' && steps.rerequest-review.outputs.has_requested_reviewers == 'true'
         env:
           DISCORD_WEBHOOK_URL: ${{ secrets.DISCORD_CODEX_REVIEW_WEBHOOK_URL }}
           DISCORD_PAYLOAD: ${{ matrix.review_request.payload }}
@@ -260,13 +272,13 @@ jobs:
           echo "Discord webhook response: $RESPONSE"
 
       - name: Mark review request dedup cache
-        if: steps.dedup-cache.outputs.cache-hit != 'true'
+        if: steps.dedup-cache.outputs.cache-hit != 'true' && steps.rerequest-review.outputs.has_requested_reviewers == 'true'
         run: |
           mkdir -p "${RUNNER_TEMP}/codex-review-rerequest/${{ matrix.review_request.dedup_key }}"
           touch "${RUNNER_TEMP}/codex-review-rerequest/${{ matrix.review_request.dedup_key }}/sent"
 
       - name: Persist review request dedup cache
-        if: steps.dedup-cache.outputs.cache-hit != 'true'
+        if: steps.dedup-cache.outputs.cache-hit != 'true' && steps.rerequest-review.outputs.has_requested_reviewers == 'true'
         uses: actions/cache/save@v4
         with:
           path: ${{ runner.temp }}/codex-review-rerequest/${{ matrix.review_request.dedup_key }}

@@ -271,6 +271,17 @@ test('Codex review re-request workflow requests reviewer and notifies Discord', 
   assert.equal(parsedWorkflow.permissions['pull-requests'], 'write')
   assert.match(workflow, /github\.rest\.pulls\.listReviews/)
   assert.match(workflow, /github\.rest\.pulls\.requestReviewers/)
+  assert.match(workflow, /for \(const reviewer of reviewers\)/)
+  assert.match(workflow, /reviewers: \[reviewer\]/)
+  assert.match(workflow, /has_requested_reviewers/)
+  assert.match(
+    workflow,
+    /if: steps\.dedup-cache\.outputs\.cache-hit != 'true' && steps\.rerequest-review\.outputs\.has_requested_reviewers == 'true'/,
+  )
+  assert.match(
+    workflow,
+    /PR #\$\{fullPr\.number\} has no previous reviewers to re-request\.`\)\n\s+return null/,
+  )
   assert.match(workflow, /Previous reviewers/)
   assert.match(workflow, /DISCORD_CODEX_REVIEW_WEBHOOK_URL/)
   assert.match(workflow, /codex-review-rerequest/)
