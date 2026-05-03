@@ -306,12 +306,10 @@ jobs:
       - uses: actions/checkout@v4
         with:
           fetch-depth: 0
-      - name: Install Atlas CLI
-        run: curl -sSf https://atlasgo.sh | sh
-      - uses: actions/setup-go@v6
-        with:
-          go-version-file: services/api/go.mod
-          cache-dependency-path: services/api/go.sum
+      - name: Install Atlas CLI (community edition)
+        run: |
+          curl -sSfL https://release.ariga.io/atlas/atlas-community-linux-amd64-latest -o /usr/local/bin/atlas
+          chmod +x /usr/local/bin/atlas
       - name: Atlas migrate lint
         working-directory: services/api
         run: |
