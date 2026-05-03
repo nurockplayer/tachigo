@@ -59,7 +59,7 @@ tachigo/                        tachigo/
 |---|---|---|
 | #399 | 整合 monorepo 遷移後的 infra assets 與 AI instructions | 已關閉（2026-05-02） |
 | #400 | 統一前端 API base URL env 命名 | 已關閉（2026-05-02） |
-| #385 | check-backend-ci-cache.sh artifact pipeline 補強 | 仍 open；artifact roundtrip 已由 PR #438 移除，需另行判斷是否 close 或 retitle |
+| #385 | check-backend-ci-cache.sh artifact pipeline 補強 | 2026-05-03 快照：仍 open；artifact roundtrip 已由 PR #438 移除 |
 
 ## 不變的事項
 
