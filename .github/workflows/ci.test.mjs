@@ -14,6 +14,23 @@ const autoReadyWorkflowPath = path.join(currentDir, 'auto-ready-pr.yml')
 const codexReviewRerequestWorkflowPath = path.join(currentDir, 'codex-review-rerequest.yml')
 const claudePath = path.join(repoRoot, 'CLAUDE.md')
 const AsyncFunction = Object.getPrototypeOf(async function () {}).constructor
+const developRequiredCheckRuns = [
+  'Scope gate',
+  'Frontend build',
+  'Dashboard build',
+  'Contracts build',
+  'Backend CI (gate)',
+].map((name, index) => ({
+  name,
+  status: 'completed',
+  conclusion: 'success',
+  app: { id: 15368 },
+  completed_at: `2026-05-02T00:00:0${index}Z`,
+}))
+
+function successfulDevelopRequiredCheckRuns(...overrides) {
+  return [...developRequiredCheckRuns, ...overrides]
+}
 
 function parseYaml(filePath) {
   const script = `
@@ -45,11 +62,12 @@ function workflowJobBlock(workflow, jobName) {
 }
 
 async function runAutoReadyWorkflow({
-  requiredStatusChecks = [],
-  requiredStatusCheckContexts = [],
   checkRuns = [],
   statuses = [],
+  checkRunsError = null,
+  statusesError = null,
   graphqlError = null,
+  livePrOverrides = {},
 } = {}) {
   const parsedWorkflow = parseYaml(autoReadyWorkflowPath)
   const script = parsedWorkflow.jobs['auto-ready'].steps[0].with.script
@@ -58,23 +76,56 @@ async function runAutoReadyWorkflow({
     node_id: 'PR_node_id',
     base: { ref: 'develop' },
     draft: true,
-    head: { sha: 'head_sha' },
+    head: { sha: 'head_sha', repo: { full_name: 'nurockplayer/tachigo' } },
     labels: [{ name: 'auto-ready' }],
     user: { login: 'nurockplayer' },
+  }
+  const livePr = {
+    ...pr,
+    ...livePrOverrides,
+    base: { ...pr.base, ...(livePrOverrides.base || {}) },
+    head: { ...pr.head, ...(livePrOverrides.head || {}) },
+    user: { ...pr.user, ...(livePrOverrides.user || {}) },
+    labels: livePrOverrides.labels || pr.labels,
   }
   const notices = []
   const warnings = []
   const mutations = []
+  const labelsAdded = []
+  const labelsRemoved = []
+  const labelsCreated = []
   const github = {
     rest: {
       checks: {
-        listForRef: async () => checkRuns,
+        listForRef: async () => {
+          if (checkRunsError) throw checkRunsError
+          return checkRuns
+        },
       },
       pulls: {
         list: async () => ({ data: [pr] }),
+        get: async () => ({ data: livePr }),
+      },
+      issues: {
+        getLabel: async ({ name }) => ({ data: { name } }),
+        createLabel: async (args) => {
+          labelsCreated.push(args)
+          return { data: { name: args.name } }
+        },
+        addLabels: async ({ issue_number, labels }) => {
+          labelsAdded.push({ issue_number, labels })
+          return { data: labels.map((name) => ({ name })) }
+        },
+        removeLabel: async ({ issue_number, name }) => {
+          labelsRemoved.push({ issue_number, name })
+          return { data: { name } }
+        },
       },
       repos: {
-        getCombinedStatusForRef: async () => ({ data: { statuses } }),
+        getCombinedStatusForRef: async () => {
+          if (statusesError) throw statusesError
+          return { data: { statuses } }
+        },
         listPullRequestsAssociatedWithCommit: async () => ({ data: [pr] }),
       },
     },
@@ -83,22 +134,13 @@ async function runAutoReadyWorkflow({
       return result.data || result
     },
     graphql: async (query, variables) => {
+      if (graphqlError) throw graphqlError
       if (query.includes('markPullRequestReadyForReview')) {
         mutations.push(variables)
         return { markPullRequestReadyForReview: { pullRequest: { number: pr.number, isDraft: false } } }
       }
 
-      if (graphqlError) throw graphqlError
-      return {
-        repository: {
-          ref: {
-            branchProtectionRule: {
-              requiredStatusChecks,
-              requiredStatusCheckContexts,
-            },
-          },
-        },
-      }
+      throw new Error('unexpected graphql query')
     },
   }
   const core = {
@@ -113,7 +155,7 @@ async function runAutoReadyWorkflow({
   }
 
   await AsyncFunction('context', 'github', 'core', script)(context, github, core)
-  return { mutations, notices, warnings }
+  return { labelsAdded, labelsCreated, labelsRemoved, mutations, notices, warnings }
 }
 
 test('frontend CI job runs the frontend test command', async () => {
@@ -350,20 +392,36 @@ test('auto-ready workflow is opt-in for draft PRs on protected base branches', a
   ])
   assert.deepEqual(parsedWorkflow.on.check_suite.types, ['completed'])
   assert.equal(parsedWorkflow.permissions['pull-requests'], 'write')
+  assert.equal(parsedWorkflow.permissions.contents, 'write')
+  assert.equal(parsedWorkflow.permissions.issues, 'write')
   assert.equal(parsedWorkflow.permissions.checks, 'read')
   assert.equal(parsedWorkflow.permissions.statuses, 'read')
   assert.match(workflow, /const autoReadyLabel = 'auto-ready'/)
   assert.match(workflow, /pr\.draft !== true/)
   assert.match(workflow, /pr\.user\?\.login === 'dependabot\[bot\]'/)
+  assert.match(workflow, /pr\.head\?\.repo\?\.full_name !== `\$\{owner\}\/\$\{repo\}`/)
+  assert.match(workflow, /github\.rest\.pulls\.get/)
+  assert.match(workflow, /pr\.head\?\.sha !== headSha/)
   assert.match(workflow, /targetBaseBranches\.has\(pr\.base\?\.ref\)/)
+  assert.match(workflow, /const reviewLabel = 'needs-codex-review'/)
+  assert.match(workflow, /const changesLabel = 'changes-requested'/)
 })
 
 test('auto-ready workflow checks required contexts and excludes its own run', async () => {
   const workflow = await readFile(autoReadyWorkflowPath, 'utf8')
 
-  assert.match(workflow, /branchProtectionRule/)
-  assert.match(workflow, /requiredStatusChecks/)
-  assert.match(workflow, /requiredStatusCheckContexts/)
+  assert.match(workflow, /const requiredCheckSnapshots = \{/)
+  assert.match(workflow, /develop: \[/)
+  assert.match(workflow, /\{ context: 'Scope gate', appId: 15368 \}/)
+  assert.match(workflow, /\{ context: 'Frontend build', appId: 15368 \}/)
+  assert.match(workflow, /\{ context: 'Dashboard build', appId: 15368 \}/)
+  assert.match(workflow, /\{ context: 'Contracts build', appId: 15368 \}/)
+  assert.match(workflow, /\{ context: 'Backend CI \(gate\)', appId: 15368 \}/)
+  assert.match(workflow, /main: \[/)
+  assert.match(workflow, /\{ context: 'Scope police', appId: 15368 \}/)
+  assert.doesNotMatch(workflow, /branchProtectionRule/)
+  assert.doesNotMatch(workflow, /requiredStatusChecks/)
+  assert.doesNotMatch(workflow, /requiredStatusCheckContexts/)
   assert.doesNotMatch(workflow, /getBranchProtection/)
   assert.match(workflow, /listForRef/)
   assert.match(workflow, /getCombinedStatusForRef/)
@@ -395,7 +453,57 @@ test('auto-ready workflow uses routine logs for skipped PRs', async () => {
   assert.doesNotMatch(workflow, /core\.notice\('At least one visible check or status is not successful yet\.'\)/)
   assert.doesNotMatch(workflow, /core\.notice\(`Skipping PR #/)
   assert.doesNotMatch(workflow, /core\.notice\(`PR #\$\{pr\.number\} remains draft until checks pass\.`\)/)
-  assert.match(workflow, /core\.notice\(`PR #\$\{pr\.number\} marked ready for review\.`\)/)
+  assert.match(workflow, /core\.notice\(`PR #\$\{pr\.number\} marked ready for review and flagged for Codex review\.`\)/)
+})
+
+test('CI workflow wakes auto-ready draft PRs after required CI jobs finish', async () => {
+  const workflow = await readFile(workflowPath, 'utf8')
+  const parsedWorkflow = parseYaml(workflowPath)
+  const job = parsedWorkflow.jobs['auto-ready-after-ci']
+  const jobBlock = workflowJobBlock(workflow, 'auto-ready-after-ci')
+
+  assert.equal(job.name, 'Auto-ready draft PR after CI')
+  assert.equal(job.if, "always() && github.event_name == 'pull_request'")
+  assert.deepEqual(job.needs, ['scope-gate', 'backend-ci', 'frontend', 'dashboard', 'contracts'])
+  assert.equal(job.permissions['pull-requests'], 'write')
+  assert.equal(job.permissions.contents, 'write')
+  assert.equal(job.permissions.issues, 'write')
+  assert.equal(job.permissions.checks, 'read')
+  assert.equal(job.permissions.statuses, 'read')
+
+  assert.match(jobBlock, /const autoReadyLabel = 'auto-ready'/)
+  assert.match(jobBlock, /const targetBaseBranches = new Set\(\['main', 'develop'\]\)/)
+  assert.match(jobBlock, /const allowedJobResults = new Set\(\['success', 'skipped'\]\)/)
+  assert.match(jobBlock, /const successConclusions = new Set\(\['success', 'neutral', 'skipped'\]\)/)
+  assert.match(jobBlock, /SCOPE_GATE_RESULT/)
+  assert.match(jobBlock, /BACKEND_CI_RESULT/)
+  assert.match(jobBlock, /FRONTEND_RESULT/)
+  assert.match(jobBlock, /DASHBOARD_RESULT/)
+  assert.match(jobBlock, /CONTRACTS_RESULT/)
+  assert.match(jobBlock, /pr\.draft !== true/)
+  assert.match(jobBlock, /pr\.user\?\.login === 'dependabot\[bot\]'/)
+  assert.match(jobBlock, /pr\.head\?\.repo\?\.full_name !== `\$\{owner\}\/\$\{repo\}`/)
+  assert.match(jobBlock, /pr\.head\?\.sha !== currentHeadSha/)
+  assert.match(jobBlock, /targetBaseBranches\.has\(pr\.base\?\.ref\)/)
+  assert.match(jobBlock, /hasAutoReadyLabel\(pr\)/)
+  assert.match(jobBlock, /const reviewLabel = 'needs-codex-review'/)
+  assert.match(jobBlock, /const changesLabel = 'changes-requested'/)
+  assert.match(jobBlock, /github\.rest\.issues\.addLabels/)
+  assert.match(jobBlock, /github\.rest\.issues\.removeLabel/)
+  assert.match(jobBlock, /github\.rest\.pulls\.get/)
+  assert.match(jobBlock, /const requiredCheckSnapshots = \{/)
+  assert.match(jobBlock, /\{ context: 'Scope gate', appId: 15368 \}/)
+  assert.match(jobBlock, /\{ context: 'Frontend build', appId: 15368 \}/)
+  assert.match(jobBlock, /\{ context: 'Dashboard build', appId: 15368 \}/)
+  assert.match(jobBlock, /\{ context: 'Contracts build', appId: 15368 \}/)
+  assert.match(jobBlock, /\{ context: 'Backend CI \(gate\)', appId: 15368 \}/)
+  assert.match(jobBlock, /\{ context: 'Scope police', appId: 15368 \}/)
+  assert.doesNotMatch(jobBlock, /branchProtectionRule/)
+  assert.doesNotMatch(jobBlock, /requiredStatusChecks/)
+  assert.doesNotMatch(jobBlock, /requiredStatusCheckContexts/)
+  assert.match(jobBlock, /listForRef/)
+  assert.match(jobBlock, /getCombinedStatusForRef/)
+  assert.match(jobBlock, /markPullRequestReadyForReview/)
 })
 
 test('auto-ready workflow serializes concurrent runs', async () => {
@@ -407,33 +515,62 @@ test('auto-ready workflow serializes concurrent runs', async () => {
 
 test('auto-ready workflow treats skipped required checks as passing', async () => {
   const result = await runAutoReadyWorkflow({
-    requiredStatusChecks: [{ context: 'Docs only', app: { databaseId: 15368 } }],
-    checkRuns: [
+    checkRuns: successfulDevelopRequiredCheckRuns(
       {
-        name: 'Docs only',
+        name: 'Scope gate',
         status: 'completed',
         conclusion: 'skipped',
         app: { id: 15368 },
+        completed_at: '2026-05-03T00:00:00Z',
       },
-    ],
+    ),
   })
 
   assert.equal(result.mutations.length, 1)
 })
 
+test('auto-ready workflow flags ready PRs for Codex review', async () => {
+  const result = await runAutoReadyWorkflow({
+    checkRuns: successfulDevelopRequiredCheckRuns(),
+  })
+
+  assert.equal(result.mutations.length, 1)
+  assert.deepEqual(result.labelsAdded, [
+    { issue_number: 472, labels: ['needs-codex-review'] },
+  ])
+  assert.deepEqual(result.labelsRemoved, [
+    { issue_number: 472, name: 'changes-requested' },
+  ])
+})
+
+test('auto-ready workflow refreshes live PR state before marking ready', async () => {
+  const staleHead = await runAutoReadyWorkflow({
+    checkRuns: successfulDevelopRequiredCheckRuns(),
+    livePrOverrides: { head: { sha: 'new_head_sha' } },
+  })
+  const labelRemoved = await runAutoReadyWorkflow({
+    checkRuns: successfulDevelopRequiredCheckRuns(),
+    livePrOverrides: { labels: [] },
+  })
+
+  assert.equal(staleHead.mutations.length, 0)
+  assert.equal(staleHead.labelsAdded.length, 0)
+  assert.equal(labelRemoved.mutations.length, 0)
+  assert.equal(labelRemoved.labelsAdded.length, 0)
+})
+
 test('auto-ready workflow does not let a successful status mask a failed check run with the same name', async () => {
   const result = await runAutoReadyWorkflow({
-    requiredStatusCheckContexts: ['Deploy'],
-    statuses: [{ context: 'Deploy', state: 'success', updated_at: '2026-05-03T00:00:00Z' }],
-    checkRuns: [
+    statuses: [{ context: 'Scope gate', state: 'success', updated_at: '2026-05-03T00:00:00Z' }],
+    checkRuns: successfulDevelopRequiredCheckRuns(
       {
-        name: 'Deploy',
+        name: 'Scope gate',
         status: 'completed',
         conclusion: 'failure',
         app: { id: 15368 },
         completed_at: '2026-05-03T00:01:00Z',
       },
-    ],
+    ),
   })
 
   assert.equal(result.mutations.length, 0)
@@ -441,84 +578,40 @@ test('auto-ready workflow does not let a successful status mask a failed check r
 
 test('auto-ready workflow uses the latest rerun result for a required check', async () => {
   const failedThenPassed = await runAutoReadyWorkflow({
-    requiredStatusChecks: [{ context: 'CI gate', app: { databaseId: 15368 } }],
-    checkRuns: [
+    checkRuns: successfulDevelopRequiredCheckRuns(
       {
-        name: 'CI gate',
+        name: 'Backend CI (gate)',
         status: 'completed',
         conclusion: 'failure',
         app: { id: 15368 },
         completed_at: '2026-05-03T00:00:00Z',
       },
       {
-        name: 'CI gate',
+        name: 'Backend CI (gate)',
         status: 'completed',
         conclusion: 'success',
         app: { id: 15368 },
         completed_at: '2026-05-03T00:01:00Z',
       },
-    ],
+    ),
   })
   const passedThenFailed = await runAutoReadyWorkflow({
-    requiredStatusChecks: [{ context: 'CI gate', app: { databaseId: 15368 } }],
-    checkRuns: [
+    checkRuns: successfulDevelopRequiredCheckRuns(
       {
-        name: 'CI gate',
+        name: 'Backend CI (gate)',
         status: 'completed',
         conclusion: 'success',
         app: { id: 15368 },
         completed_at: '2026-05-03T00:00:00Z',
       },
       {
-        name: 'CI gate',
+        name: 'Backend CI (gate)',
         status: 'completed',
         conclusion: 'failure',
         app: { id: 15368 },
         completed_at: '2026-05-03T00:01:00Z',
       },
-    ],
-  })
-
-  assert.equal(failedThenPassed.mutations.length, 1)
-  assert.equal(passedThenFailed.mutations.length, 0)
-})
-
-test('auto-ready workflow uses the latest rerun result when no required checks are configured', async () => {
-  const failedThenPassed = await runAutoReadyWorkflow({
-    checkRuns: [
-      {
-        name: 'CI gate',
-        status: 'completed',
-        conclusion: 'failure',
-        app: { id: 15368 },
-        completed_at: '2026-05-03T00:00:00Z',
-      },
-      {
-        name: 'CI gate',
-        status: 'completed',
-        conclusion: 'success',
-        app: { id: 15368 },
-        completed_at: '2026-05-03T00:01:00Z',
-      },
-    ],
-  })
-  const passedThenFailed = await runAutoReadyWorkflow({
-    checkRuns: [
-      {
-        name: 'CI gate',
-        status: 'completed',
-        conclusion: 'success',
-        app: { id: 15368 },
-        completed_at: '2026-05-03T00:00:00Z',
-      },
-      {
-        name: 'CI gate',
-        status: 'completed',
-        conclusion: 'failure',
-        app: { id: 15368 },
-        completed_at: '2026-05-03T00:01:00Z',
-      },
-    ],
+    ),
   })
 
   assert.equal(failedThenPassed.mutations.length, 1)
@@ -527,10 +620,10 @@ test('auto-ready workflow uses the latest rerun result when no required checks a
 
 test('auto-ready workflow requires matching app id for app-scoped checks', async () => {
   const wrongApp = await runAutoReadyWorkflow({
-    requiredStatusChecks: [{ context: 'CI gate', app: { databaseId: 15368 } }],
     checkRuns: [
+      ...successfulDevelopRequiredCheckRuns().filter((run) => run.name !== 'Backend CI (gate)'),
       {
-        name: 'CI gate',
+        name: 'Backend CI (gate)',
         status: 'completed',
         conclusion: 'success',
         app: { id: 99999 },
@@ -538,32 +631,23 @@ test('auto-ready workflow requires matching app id for app-scoped checks', async
     ],
   })
   const matchingApp = await runAutoReadyWorkflow({
-    requiredStatusChecks: [{ context: 'CI gate', app: { databaseId: 15368 } }],
-    checkRuns: [
+    checkRuns: successfulDevelopRequiredCheckRuns(
       {
-        name: 'CI gate',
+        name: 'Backend CI (gate)',
         status: 'completed',
         conclusion: 'success',
         app: { id: 15368 },
       },
-    ],
+    ),
   })
 
   assert.equal(wrongApp.mutations.length, 0)
   assert.equal(matchingApp.mutations.length, 1)
 })
 
-test('auto-ready workflow skips instead of falling back when branch protection fetch fails', async () => {
+test('auto-ready workflow skips when check/status lookup fails', async () => {
   const result = await runAutoReadyWorkflow({
-    graphqlError: new Error('Resource not accessible by integration'),
-    checkRuns: [
-      {
-        name: 'CI gate',
-        status: 'completed',
-        conclusion: 'success',
-        app: { id: 15368 },
-      },
-    ],
+    checkRunsError: new Error('checks unavailable'),
   })
 
   assert.equal(result.mutations.length, 0)

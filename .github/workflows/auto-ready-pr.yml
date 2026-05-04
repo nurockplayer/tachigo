@@ -15,10 +15,11 @@ concurrency:
   cancel-in-progress: false
 
 permissions:
-  contents: read
+  contents: write
   checks: read
   statuses: read
   pull-requests: write
+  issues: write
 
 jobs:
   auto-ready:
@@ -33,20 +34,67 @@ jobs:
             const owner = context.repo.owner
             const repo = context.repo.repo
             const autoReadyLabel = 'auto-ready'
+            const reviewLabel = 'needs-codex-review'
+            const changesLabel = 'changes-requested'
             const targetBaseBranches = new Set(['main', 'develop'])
             const successConclusions = new Set(['success', 'neutral', 'skipped'])
             const ownCheckNames = new Set([
               'Auto-ready draft PR',
               'Mark draft PR ready when checks pass',
             ])
+            const requiredCheckSnapshots = {
+              develop: [
+                { context: 'Scope gate', appId: 15368 },
+                { context: 'Frontend build', appId: 15368 },
+                { context: 'Dashboard build', appId: 15368 },
+                { context: 'Contracts build', appId: 15368 },
+                { context: 'Backend CI (gate)', appId: 15368 },
+              ],
+              main: [
+                { context: 'Scope police', appId: 15368 },
+              ],
+            }
 
             const hasAutoReadyLabel = (pr) =>
               (pr.labels || []).some((label) => label.name === autoReadyLabel)
+
+            const ensureLabel = async (name, color, description) => {
+              try {
+                await github.rest.issues.getLabel({ owner, repo, name })
+              } catch (error) {
+                if (error.status !== 404) throw error
+                await github.rest.issues.createLabel({ owner, repo, name, color, description })
+              }
+            }
+
+            const removeLabel = async (issue_number, name) => {
+              try {
+                await github.rest.issues.removeLabel({ owner, repo, issue_number, name })
+              } catch (error) {
+                if (error.status !== 404) throw error
+              }
+            }
+
+            const flagForCodexReview = async (pr) => {
+              await ensureLabel(
+                reviewLabel,
+                '0075ca',
+                'New PR opened or new commits pushed after the latest Codex review — pending Codex review',
+              )
+              await ensureLabel(
+                changesLabel,
+                'd73a4a',
+                'Codex has requested changes — author should update the PR',
+              )
+              await github.rest.issues.addLabels({ owner, repo, issue_number: pr.number, labels: [reviewLabel] })
+              await removeLabel(pr.number, changesLabel)
+            }
 
             const isEligibleDraftPr = (pr) => {
               if (!targetBaseBranches.has(pr.base?.ref)) return false
               if (pr.draft !== true) return false
               if (pr.user?.login === 'dependabot[bot]') return false
+              if (pr.head?.repo?.full_name !== `${owner}/${repo}`) return false
               if (!hasAutoReadyLabel(pr)) return false
               return true
             }
@@ -81,53 +129,7 @@ jobs:
             const requiredCheckLabel = (check) =>
               check.appId ? `${check.context} from app ${check.appId}` : check.context
 
-            const getRequiredChecks = async (baseBranch) => {
-              const query = `
-                query($owner: String!, $repo: String!, $baseBranch: String!) {
-                  repository(owner: $owner, name: $repo) {
-                    ref(qualifiedName: $baseBranch) {
-                      branchProtectionRule {
-                        requiredStatusCheckContexts
-                        requiredStatusChecks {
-                          context
-                          app {
-                            databaseId
-                          }
-                        }
-                      }
-                    }
-                  }
-                }
-              `
-              const response = await github.graphql(query, { owner, repo, baseBranch })
-              const requiredStatusChecks =
-                response.repository?.ref?.branchProtectionRule?.requiredStatusChecks || []
-              const requiredStatusCheckContexts =
-                response.repository?.ref?.branchProtectionRule?.requiredStatusCheckContexts || []
-              const requiredChecks = []
-              const seen = new Set()
-
-              for (const check of requiredStatusChecks) {
-                if (!check.context) continue
-                const requiredCheck = {
-                  context: check.context,
-                  appId: check.app?.databaseId || null,
-                }
-                const key = requiredCheckKey(requiredCheck.context, requiredCheck.appId)
-                if (seen.has(key)) continue
-                seen.add(key)
-                requiredChecks.push(requiredCheck)
-              }
-
-              for (const contextName of requiredStatusCheckContexts) {
-                const key = requiredCheckKey(contextName, null)
-                if (seen.has(key)) continue
-                seen.add(key)
-                requiredChecks.push({ context: contextName, appId: null })
-              }
-
-              return requiredChecks
-            }
+            const getRequiredChecks = (baseBranch) => requiredCheckSnapshots[baseBranch] || []
 
             const listCheckRuns = async (headSha) =>
               github.paginate(github.rest.checks.listForRef, {
@@ -203,20 +205,6 @@ jobs:
               return true
             }
 
-            const fallbackChecksPassed = (observed) => {
-              const visibleResults = [...observed.values()]
-              if (visibleResults.length === 0) {
-                core.info('No visible checks found yet.')
-                return false
-              }
-
-              const checksComplete = visibleResults.every((result) => result.passed)
-              if (!checksComplete) {
-                core.info('At least one visible check or status is not successful yet.')
-              }
-              return checksComplete
-            }
-
             const readyForReview = async (pr) => {
               const mutation = `
                 mutation($pullRequestId: ID!) {
@@ -234,7 +222,7 @@ jobs:
             const prs = await listPrsForEvent()
             const seen = new Set()
 
-            for (const pr of prs) {
+            for (let pr of prs) {
               if (seen.has(pr.number)) continue
               seen.add(pr.number)
 
@@ -249,18 +237,42 @@ jobs:
                 continue
               }
 
-              let requiredChecks = []
+              try {
+                const response = await github.rest.pulls.get({
+                  owner,
+                  repo,
+                  pull_number: pr.number,
+                })
+                pr = response.data
+              } catch (error) {
+                core.warning(`Skipping PR #${pr.number}: failed to refresh PR state (${error?.message || error}).`)
+                continue
+              }
+
+              if (pr.head?.sha !== headSha) {
+                core.info(`Skipping PR #${pr.number}: head SHA changed while auto-ready was running.`)
+                continue
+              }
+              if (!isEligibleDraftPr(pr)) {
+                core.info(`Skipping PR #${pr.number}: live PR state is no longer eligible.`)
+                continue
+              }
+
+              const requiredChecks = getRequiredChecks(pr.base.ref)
+              if (requiredChecks.length === 0) {
+                core.warning(`Skipping PR #${pr.number}: no required-check snapshot for base ${pr.base.ref}.`)
+                continue
+              }
+
               let checkRuns = []
               let statuses = []
               try {
                 const fetchedChecks = await Promise.all([
-                  getRequiredChecks(pr.base.ref),
                   listCheckRuns(headSha),
                   listStatuses(headSha),
                 ])
-                requiredChecks = fetchedChecks[0]
-                checkRuns = fetchedChecks[1]
-                statuses = fetchedChecks[2]
+                checkRuns = fetchedChecks[0]
+                statuses = fetchedChecks[1]
               } catch (error) {
                 core.warning(
                   `Skipping PR #${pr.number} at ${headSha}: failed to fetch checks/statuses (${error?.message || error}).`,
@@ -269,9 +281,7 @@ jobs:
               }
 
               const observed = buildObservedContexts(checkRuns, statuses)
-              const passed = requiredChecks.length > 0
-                ? requiredChecksPassed(requiredChecks, observed)
-                : fallbackChecksPassed(observed)
+              const passed = requiredChecksPassed(requiredChecks, observed)
 
               if (!passed) {
                 core.info(`PR #${pr.number} remains draft until checks pass.`)
@@ -279,5 +289,6 @@ jobs:
               }
 
               await readyForReview(pr)
-              core.notice(`PR #${pr.number} marked ready for review.`)
+              await flagForCodexReview(pr)
+              core.notice(`PR #${pr.number} marked ready for review and flagged for Codex review.`)
             }
