@@ -78,18 +78,12 @@ Type：`feat` / `fix` / `docs` / `chore` / `refactor` / `test`
   ```bash
   cp .github/PULL_REQUEST_TEMPLATE.md /tmp/pr_body.md
   # 填妥 /tmp/pr_body.md 所有欄位，不得留空或刪除 section
-  gh pr create --title "[type] ..." --base develop --body-file /tmp/pr_body.md
+  make pr-open TITLE="[type] ..." BODY_FILE=/tmp/pr_body.md AUTO_READY=1
   ```
 
-  Codex task PR 在 auto-ready workflow 已進 `develop` 後，預設以 draft 開出並加上
-  `auto-ready` label，讓 required checks 全綠後自動轉為 ready for review：
-
-  ```bash
-  gh pr create --draft --label auto-ready --title "[type] ..." --base develop --body-file /tmp/pr_body.md
-  ```
-
-  非 Codex task、人工長期 WIP draft、或不想自動進 review queue 的 PR，不要加
-  `auto-ready` label。
+  Codex task PR 預設使用 `AUTO_READY=1`：PR 會以 draft 建立並加上
+  `auto-ready` label，等 required checks 通過後再由 workflow 自動轉成
+  Ready for review。非 Codex task 或長期 WIP draft 不應加 `auto-ready`。
 
 ### 操作權限邊界
 

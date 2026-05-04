@@ -180,7 +180,6 @@ async function runAutoReadyWorkflow({
         mutations.push(variables)
         return { markPullRequestReadyForReview: { pullRequest: { number: pr.number, isDraft: false } } }
       }
-
       throw new Error('unexpected graphql query')
     },
   }
@@ -218,6 +217,7 @@ test('CI workflow uses infra script entrypoints', async () => {
 
   assert.match(workflow, /run: bash infra\/scripts\/check-backend-ci-cache\.sh/)
   assert.match(workflow, /run: bash infra\/scripts\/commit-message-check\.test\.sh/)
+  assert.match(workflow, /run: bash infra\/scripts\/pr-open\.test\.sh/)
   assert.match(workflow, /run: bash infra\/scripts\/check-pr-commit-messages\.sh/)
   assert.doesNotMatch(workflow, /run: bash scripts\//)
 })
@@ -508,6 +508,8 @@ test('auto-ready workflow checks required contexts and excludes its own run', as
   assert.match(workflow, /try \{\s+const fetchedChecks = await Promise\.all\(\[/)
   assert.match(workflow, /core\.warning\(\s+`Skipping PR #\$\{pr\.number\} at \$\{headSha\}: failed to fetch checks\/statuses/)
   assert.match(workflow, /markPullRequestReadyForReview/)
+  assert.doesNotMatch(workflow, /enablePullRequestAutoMerge/)
+  assert.doesNotMatch(workflow, /mergeMethod: MERGE/)
   assert.doesNotMatch(workflow, /gh pr ready/)
 })
 
@@ -571,6 +573,8 @@ test('CI workflow wakes auto-ready draft PRs after required CI jobs finish', asy
   assert.match(jobBlock, /listForRef/)
   assert.match(jobBlock, /getCombinedStatusForRef/)
   assert.match(jobBlock, /markPullRequestReadyForReview/)
+  assert.doesNotMatch(jobBlock, /enablePullRequestAutoMerge/)
+  assert.doesNotMatch(jobBlock, /mergeMethod: MERGE/)
 })
 
 test('auto-ready required-check snapshots stay aligned across workflows', () => {

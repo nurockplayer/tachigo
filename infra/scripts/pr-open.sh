@@ -5,7 +5,7 @@ set -euo pipefail
 usage() {
   cat <<'EOF'
 Usage:
-  infra/scripts/pr-open.sh --title "<pr title>" --body-file <path> [--base develop] [--head <branch>] [--draft]
+  infra/scripts/pr-open.sh --title "<pr title>" --body-file <path> [--base develop] [--head <branch>] [--draft] [--auto-ready]
 
 Runs local PR metadata checks, then opens a PR with gh.
 EOF
@@ -17,6 +17,7 @@ main() {
   local base_branch="develop"
   local head_branch=""
   local draft=0
+  local auto_ready=0
 
   while [ "$#" -gt 0 ]; do
     case "$1" in
@@ -38,6 +39,10 @@ main() {
         ;;
       --draft)
         draft=1
+        shift
+        ;;
+      --auto-ready)
+        auto_ready=1
         shift
         ;;
       -h|--help)
@@ -74,8 +79,11 @@ main() {
     --head "$head_branch"
 
   local cmd=(gh pr create --base "$base_branch" --head "$head_branch" --title "$title" --body-file "$body_file")
-  if [ "$draft" -eq 1 ]; then
+  if [ "$draft" -eq 1 ] || [ "$auto_ready" -eq 1 ]; then
     cmd+=(--draft)
+  fi
+  if [ "$auto_ready" -eq 1 ]; then
+    cmd+=(--label auto-ready)
   fi
 
   echo "Opening PR with gh..."

@@ -152,8 +152,10 @@ mutation path.
 Codex task PRs should now be opened as draft and labeled `auto-ready`:
 
 ```bash
-gh pr create --draft --label auto-ready --title "[type] ..." --base develop --body-file /tmp/pr_body.md
+make pr-open TITLE="[type] ..." BODY_FILE=/tmp/pr_body.md AUTO_READY=1
 ```
+
+If opening a PR directly with `gh pr create`, use `--draft --label auto-ready`.
 
 Non-Codex tasks, human WIP drafts, and PRs that should not enter the review queue
 automatically should not use the `auto-ready` label.

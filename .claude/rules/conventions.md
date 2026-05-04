@@ -35,6 +35,9 @@ Type：`feat` / `fix` / `docs` / `chore` / `refactor` / `test`
 
 - 日常 feature PR 目標分支：`develop`
 - `main` 不接受日常 feature PR；正式 release 由 `develop → main` 的 promotion PR 合入
+- Codex task PR 預設以 draft 建立並加上 `auto-ready` label；required
+  checks 通過後由 workflow 自動轉成 Ready for review。非 Codex task 或長期
+  WIP draft 不應加 `auto-ready`。
 
 ## Codex task PR auto-ready
 
