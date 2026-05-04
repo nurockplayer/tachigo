@@ -219,6 +219,22 @@ jobs:
               await github.graphql(mutation, { pullRequestId: pr.node_id })
             }
 
+            const enableAutoMerge = async (pr) => {
+              const mutation = `
+                mutation($pullRequestId: ID!) {
+                  enablePullRequestAutoMerge(input: { pullRequestId: $pullRequestId, mergeMethod: MERGE }) {
+                    pullRequest {
+                      number
+                      autoMergeRequest {
+                        mergeMethod
+                      }
+                    }
+                  }
+                }
+              `
+              await github.graphql(mutation, { pullRequestId: pr.node_id })
+            }
+
             const prs = await listPrsForEvent()
             const seen = new Set()
 
@@ -289,6 +305,7 @@ jobs:
               }
 
               await readyForReview(pr)
+              await enableAutoMerge(pr)
               await flagForCodexReview(pr)
-              core.notice(`PR #${pr.number} marked ready for review and flagged for Codex review.`)
+              core.notice(`PR #${pr.number} marked ready for review, armed auto-merge, and flagged for Codex review.`)
             }

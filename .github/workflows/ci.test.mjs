@@ -132,6 +132,8 @@ async function runAutoReadyWorkflow({
   const notices = []
   const warnings = []
   const mutations = []
+  const autoMergeMutations = []
+  const graphqlCalls = []
   const labelsAdded = []
   const labelsRemoved = []
   const labelsCreated = []
@@ -177,8 +179,21 @@ async function runAutoReadyWorkflow({
     graphql: async (query, variables) => {
       if (graphqlError) throw graphqlError
       if (query.includes('markPullRequestReadyForReview')) {
+        graphqlCalls.push('ready')
         mutations.push(variables)
         return { markPullRequestReadyForReview: { pullRequest: { number: pr.number, isDraft: false } } }
+      }
+      if (query.includes('enablePullRequestAutoMerge')) {
+        graphqlCalls.push('auto-merge')
+        autoMergeMutations.push(variables)
+        return {
+          enablePullRequestAutoMerge: {
+            pullRequest: {
+              number: pr.number,
+              autoMergeRequest: { mergeMethod: 'MERGE' },
+            },
+          },
+        }
       }
 
       throw new Error('unexpected graphql query')
@@ -196,7 +211,7 @@ async function runAutoReadyWorkflow({
   }
 
   await AsyncFunction('context', 'github', 'core', script)(context, github, core)
-  return { labelsAdded, labelsCreated, labelsRemoved, mutations, notices, warnings }
+  return { autoMergeMutations, graphqlCalls, labelsAdded, labelsCreated, labelsRemoved, mutations, notices, warnings }
 }
 
 test('frontend CI job runs the frontend test command', async () => {
@@ -508,6 +523,7 @@ test('auto-ready workflow checks required contexts and excludes its own run', as
   assert.match(workflow, /try \{\s+const fetchedChecks = await Promise\.all\(\[/)
   assert.match(workflow, /core\.warning\(\s+`Skipping PR #\$\{pr\.number\} at \$\{headSha\}: failed to fetch checks\/statuses/)
   assert.match(workflow, /markPullRequestReadyForReview/)
+  assert.match(workflow, /enablePullRequestAutoMerge/)
   assert.doesNotMatch(workflow, /gh pr ready/)
 })
 
@@ -520,7 +536,7 @@ test('auto-ready workflow uses routine logs for skipped PRs', async () => {
   assert.doesNotMatch(workflow, /core\.notice\('At least one visible check or status is not successful yet\.'\)/)
   assert.doesNotMatch(workflow, /core\.notice\(`Skipping PR #/)
   assert.doesNotMatch(workflow, /core\.notice\(`PR #\$\{pr\.number\} remains draft until checks pass\.`\)/)
-  assert.match(workflow, /core\.notice\(`PR #\$\{pr\.number\} marked ready for review and flagged for Codex review\.`\)/)
+  assert.match(workflow, /core\.notice\(`PR #\$\{pr\.number\} marked ready for review, armed auto-merge, and flagged for Codex review\.`\)/)
 })
 
 test('CI workflow wakes auto-ready draft PRs after required CI jobs finish', async () => {
@@ -571,6 +587,17 @@ test('CI workflow wakes auto-ready draft PRs after required CI jobs finish', asy
   assert.match(jobBlock, /listForRef/)
   assert.match(jobBlock, /getCombinedStatusForRef/)
   assert.match(jobBlock, /markPullRequestReadyForReview/)
+  assert.match(jobBlock, /enablePullRequestAutoMerge/)
+})
+
+test('auto-ready workflow arms native auto-merge after marking a PR ready', async () => {
+  const result = await runAutoReadyWorkflow({
+    checkRuns: successfulDevelopRequiredCheckRuns(),
+  })
+
+  assert.equal(result.mutations.length, 1)
+  assert.deepEqual(result.graphqlCalls, ['ready', 'auto-merge'])
+  assert.deepEqual(result.autoMergeMutations, [{ pullRequestId: 'PR_node_id' }])
 })
 
 test('auto-ready required-check snapshots stay aligned across workflows', () => {

@@ -542,6 +542,24 @@ jobs:
               await removeLabel(pr.number, changesLabel)
             }
 
+            const enableAutoMerge = async (pr) => {
+              await github.graphql(
+                `
+                  mutation($pullRequestId: ID!) {
+                    enablePullRequestAutoMerge(input: { pullRequestId: $pullRequestId, mergeMethod: MERGE }) {
+                      pullRequest {
+                        number
+                        autoMergeRequest {
+                          mergeMethod
+                        }
+                      }
+                    }
+                  }
+                `,
+                { pullRequestId: pr.node_id },
+              )
+            }
+
             const isEligibleDraftPr = (pr) => {
               if (!targetBaseBranches.has(pr.base?.ref)) return false
               if (pr.draft !== true) return false
@@ -702,13 +720,14 @@ jobs:
                 `,
                 { pullRequestId: pr.node_id },
               )
+              await enableAutoMerge(pr)
               await flagForCodexReview(pr)
             } catch (error) {
-              core.warning(`Failed to mark PR #${pr.number} ready for review or flag it for Codex review (${error?.message || error}).`)
+              core.warning(`Failed to mark PR #${pr.number} ready for review, arm auto-merge, or flag it for Codex review (${error?.message || error}).`)
               return
             }
 
-            core.notice(`PR #${pr.number} marked ready for review and flagged for Codex review.`)
+            core.notice(`PR #${pr.number} marked ready for review, armed auto-merge, and flagged for Codex review.`)
 
   notify-discord:
     timeout-minutes: 5
