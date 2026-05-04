@@ -81,6 +81,16 @@ Type：`feat` / `fix` / `docs` / `chore` / `refactor` / `test`
   gh pr create --title "[type] ..." --base develop --body-file /tmp/pr_body.md
   ```
 
+  Codex task PR 在 auto-ready workflow 已進 `develop` 後，預設以 draft 開出並加上
+  `auto-ready` label，讓 required checks 全綠後自動轉為 ready for review：
+
+  ```bash
+  gh pr create --draft --label auto-ready --title "[type] ..." --base develop --body-file /tmp/pr_body.md
+  ```
+
+  非 Codex task、人工長期 WIP draft、或不想自動進 review queue 的 PR，不要加
+  `auto-ready` label。
+
 ### 操作權限邊界
 
 - **Read-only** 可直接執行：讀檔、搜尋、PR / issue metadata、diff、CI 狀態、本機分析
@@ -101,6 +111,7 @@ Type：`feat` / `fix` / `docs` / `chore` / `refactor` / `test`
 |---|---|
 | `needs-codex-review` | PR 有新 commit，輪到 Codex 重新審查 |
 | `changes-requested` | Codex 已提出 blocker，輪到作者修正 |
+| `auto-ready` | Codex task draft PR 的 opt-in label；required checks 全綠後由 workflow 自動轉 ready |
 
 ## Scope 邊界
 
