@@ -1,8 +1,9 @@
 import assert from 'node:assert/strict'
-import test from 'node:test'
+import { test, vi } from 'vitest'
 
 async function importTypesModule() {
-  return import(`./types.ts?test=${Date.now()}-${Math.random()}`)
+  vi.resetModules()
+  return import('./types.ts')
 }
 
 test('sanitizeDemoState returns fresh default objects instead of shared references', async () => {

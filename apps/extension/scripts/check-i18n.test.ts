@@ -1,8 +1,8 @@
 import assert from 'node:assert/strict'
-import test from 'node:test'
+import { test } from 'vitest'
 
 async function importCheckI18nModule() {
-  return import(`./check-i18n.ts?test=${Date.now()}-${Math.random()}`)
+  return import('./check-i18n.ts')
 }
 
 test('extractInterpolationTokens returns sorted unique tokens', async () => {

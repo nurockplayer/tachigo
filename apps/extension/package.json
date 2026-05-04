@@ -13,7 +13,7 @@
     "build": "tsc -b && vite build",
     "check:i18n": "node --experimental-strip-types scripts/check-i18n.ts",
     "lint": "eslint .",
-    "test": "node --experimental-strip-types --test src/extension/*.test.ts scripts/*.test.ts",
+    "test": "vitest run",
     "preview": "vite preview"
   },
   "dependencies": {
@@ -26,6 +26,7 @@
   },
   "devDependencies": {
     "@eslint/js": "^10.0.1",
+    "@testing-library/react": "^16.3.2",
     "@types/chrome": "^0.1.40",
     "@types/node": "^25.6.0",
     "@types/react": "^19.2.14",
@@ -35,8 +36,10 @@
     "eslint-plugin-react-hooks": "^7.1.1",
     "eslint-plugin-react-refresh": "^0.5.2",
     "globals": "^17.5.0",
+    "jsdom": "^29.1.1",
     "typescript": "~6.0.3",
     "typescript-eslint": "^8.59.0",
-    "vite": "^8.0.9"
+    "vite": "^8.0.9",
+    "vitest": "^4.1.5"
   }
 }

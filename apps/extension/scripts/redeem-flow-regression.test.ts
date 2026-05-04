@@ -1,6 +1,6 @@
 import assert from 'node:assert/strict'
 import http from 'node:http'
-import test from 'node:test'
+import { test, vi } from 'vitest'
 import i18next from 'i18next'
 import { renderToStaticMarkup } from 'react-dom/server'
 
@@ -88,7 +88,8 @@ test('redeemCoupon unwraps nested ok() response data', async () => {
       process.env.VITE_TACHIGO_API_URL = baseUrl
 
       try {
-        const api = await import(`../src/services/api.ts?redeem=${Date.now()}`)
+        vi.resetModules()
+        const api = await import('../src/services/api.ts')
         const result = await api.redeemCoupon('tachiya-95', 18, 'coupon-jwt-token')
 
         assert.deepEqual(result, { balance: 24, voucher_code: 'REAL-VOUCHER-24' })
