@@ -39,6 +39,18 @@ jobs:
               'Auto-ready draft PR',
               'Mark draft PR ready when checks pass',
             ])
+            const requiredCheckSnapshots = {
+              develop: [
+                { context: 'Scope gate', appId: 15368 },
+                { context: 'Frontend build', appId: 15368 },
+                { context: 'Dashboard build', appId: 15368 },
+                { context: 'Contracts build', appId: 15368 },
+                { context: 'Backend CI (gate)', appId: 15368 },
+              ],
+              main: [
+                { context: 'Scope police', appId: 15368 },
+              ],
+            }
 
             const hasAutoReadyLabel = (pr) =>
               (pr.labels || []).some((label) => label.name === autoReadyLabel)
@@ -81,53 +93,7 @@ jobs:
             const requiredCheckLabel = (check) =>
               check.appId ? `${check.context} from app ${check.appId}` : check.context
 
-            const getRequiredChecks = async (baseBranch) => {
-              const query = `
-                query($owner: String!, $repo: String!, $baseBranch: String!) {
-                  repository(owner: $owner, name: $repo) {
-                    ref(qualifiedName: $baseBranch) {
-                      branchProtectionRule {
-                        requiredStatusCheckContexts
-                        requiredStatusChecks {
-                          context
-                          app {
-                            databaseId
-                          }
-                        }
-                      }
-                    }
-                  }
-                }
-              `
-              const response = await github.graphql(query, { owner, repo, baseBranch })
-              const requiredStatusChecks =
-                response.repository?.ref?.branchProtectionRule?.requiredStatusChecks || []
-              const requiredStatusCheckContexts =
-                response.repository?.ref?.branchProtectionRule?.requiredStatusCheckContexts || []
-              const requiredChecks = []
-              const seen = new Set()
-
-              for (const check of requiredStatusChecks) {
-                if (!check.context) continue
-                const requiredCheck = {
-                  context: check.context,
-                  appId: check.app?.databaseId || null,
-                }
-                const key = requiredCheckKey(requiredCheck.context, requiredCheck.appId)
-                if (seen.has(key)) continue
-                seen.add(key)
-                requiredChecks.push(requiredCheck)
-              }
-
-              for (const contextName of requiredStatusCheckContexts) {
-                const key = requiredCheckKey(contextName, null)
-                if (seen.has(key)) continue
-                seen.add(key)
-                requiredChecks.push({ context: contextName, appId: null })
-              }
-
-              return requiredChecks
-            }
+            const getRequiredChecks = (baseBranch) => requiredCheckSnapshots[baseBranch] || []
 
             const listCheckRuns = async (headSha) =>
               github.paginate(github.rest.checks.listForRef, {
@@ -203,20 +169,6 @@ jobs:
               return true
             }
 
-            const fallbackChecksPassed = (observed) => {
-              const visibleResults = [...observed.values()]
-              if (visibleResults.length === 0) {
-                core.info('No visible checks found yet.')
-                return false
-              }
-
-              const checksComplete = visibleResults.every((result) => result.passed)
-              if (!checksComplete) {
-                core.info('At least one visible check or status is not successful yet.')
-              }
-              return checksComplete
-            }
-
             const readyForReview = async (pr) => {
               const mutation = `
                 mutation($pullRequestId: ID!) {
@@ -249,18 +201,21 @@ jobs:
                 continue
               }
 
-              let requiredChecks = []
+              const requiredChecks = getRequiredChecks(pr.base.ref)
+              if (requiredChecks.length === 0) {
+                core.warning(`Skipping PR #${pr.number}: no required-check snapshot for base ${pr.base.ref}.`)
+                continue
+              }
+
               let checkRuns = []
               let statuses = []
               try {
                 const fetchedChecks = await Promise.all([
-                  getRequiredChecks(pr.base.ref),
                   listCheckRuns(headSha),
                   listStatuses(headSha),
                 ])
-                requiredChecks = fetchedChecks[0]
-                checkRuns = fetchedChecks[1]
-                statuses = fetchedChecks[2]
+                checkRuns = fetchedChecks[0]
+                statuses = fetchedChecks[1]
               } catch (error) {
                 core.warning(
                   `Skipping PR #${pr.number} at ${headSha}: failed to fetch checks/statuses (${error?.message || error}).`,
@@ -269,9 +224,7 @@ jobs:
               }
 
               const observed = buildObservedContexts(checkRuns, statuses)
-              const passed = requiredChecks.length > 0
-                ? requiredChecksPassed(requiredChecks, observed)
-                : fallbackChecksPassed(observed)
+              const passed = requiredChecksPassed(requiredChecks, observed)
 
               if (!passed) {
                 core.info(`PR #${pr.number} remains draft until checks pass.`)

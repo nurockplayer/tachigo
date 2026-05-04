@@ -22,8 +22,8 @@ review, while auto-merge happens after approval.
 2. CI and required checks run normally.
 3. `.github/workflows/ci.yml` runs `auto-ready-after-ci` after the protected CI
    gate jobs finish.
-4. The auto-ready job verifies the PR is still eligible and all live required
-   checks for the base branch are successful.
+4. The auto-ready job verifies the PR is still eligible and all required checks
+   in the maintained snapshot for the base branch are successful.
 5. The workflow marks the PR ready for review.
 6. Existing review-label automation handles the `ready_for_review` event.
 
@@ -35,6 +35,9 @@ review, while auto-merge happens after approval.
   as draft and labeled `auto-ready` by default.
 - PR #488 adds the same-PR CI completion hook after rollout validation showed
   the standalone workflow could run before GitHub Actions checks were complete.
+- PR #488 also switches the readiness gate to a tested required-check snapshot
+  after rollout validation showed the Actions `GITHUB_TOKEN` cannot read
+  GraphQL `branchProtectionRule`.
 - The remaining validation step is to observe PR #488: draft -> checks pass ->
   auto-ready marks ready -> `needs-codex-review` flow takes over.
 
@@ -63,8 +66,7 @@ CI completion hook:
   `dashboard`, and `contracts` finish.
 - Allows required CI jobs with result `success` or `skipped`.
 - Refreshes live PR state before mutating the PR.
-- Reuses the same live branch-protection required-check gate before marking the
-  draft ready.
+- Reuses the same required-check snapshot gate before marking the draft ready.
 
 ## Eligibility rules
 
@@ -76,23 +78,38 @@ The workflow only marks a PR ready when all of these are true at execution time:
 - The author is not `dependabot[bot]`.
 - The PR head is in the same repository.
 - The PR has a live head SHA.
-- The current required checks for the base branch are successful.
+- The required checks in the base branch snapshot are successful.
 
 Human-created draft PRs remain opt-in. Long-running WIP drafts should stay draft
 until a human marks them ready or intentionally adds the `auto-ready` label.
 
 ## Readiness gate
 
-The implementation queries GitHub's GraphQL `branchProtectionRule` for the live
-base branch and reads:
+Rollout validation showed GitHub Actions `GITHUB_TOKEN` cannot read GraphQL
+`branchProtectionRule` for this repository; the API returns `Resource not
+accessible by integration`. To avoid introducing a higher-privilege secret, the
+workflow keeps a small required-check snapshot in:
 
-- `requiredStatusChecks`
-- `requiredStatusCheckContexts`
+- `.github/workflows/auto-ready-pr.yml`
+- `.github/workflows/ci.yml`, job `auto-ready-after-ci`
+
+Snapshot as of 2026-05-04:
+
+| Branch | Required check contexts |
+|---|---|
+| `develop` | `Scope gate` |
+| `develop` | `Backend CI (gate)` |
+| `develop` | `Frontend build` |
+| `develop` | `Dashboard build` |
+| `develop` | `Contracts build` |
+| `main` | `Scope police` |
 
 Required checks with an associated GitHub App are matched by `context + app id`.
-Legacy required status contexts are matched by context name. The workflow also
-records the latest visible result for each context/app key so a successful rerun
-can replace an earlier failed result.
+The current GitHub Actions app id in the snapshot is `15368`. Legacy required
+status contexts can still be matched by context name if they are added to the
+snapshot with a `null` app id. The workflow also records the latest visible
+result for each context/app key so a successful rerun can replace an earlier
+failed result.
 
 Allowed completed check-run conclusions:
 
@@ -104,10 +121,12 @@ Commit statuses must have state `success`.
 
 The auto-ready workflow's own check run is excluded from the gate. CodeRabbit is
 not part of the auto-ready readiness gate unless repository branch protection
-later makes it required.
+later makes it required and the snapshot is updated in the same PR.
 
-If branch-protection or check/status lookups fail for a PR, the workflow skips
-that PR for that run instead of falling back to an unsafe or overbroad check.
+If check/status lookups fail for a PR, the workflow skips that PR for that run
+instead of falling back to an unsafe or overbroad check. If a base branch has no
+snapshot entry, the workflow also skips rather than using visible checks as a
+fallback.
 
 ## PR creation default
 
@@ -126,11 +145,13 @@ automatically should not use the `auto-ready` label.
   with both `.github/workflows/auto-ready-pr.yml` and the
   `auto-ready-after-ci` job in `.github/workflows/ci.yml`.
 - If required checks are renamed, split, moved to another app, or added to
-  branch protection, update the workflow and tests in the same PR.
+  branch protection, update the workflow snapshot, this document, and tests in
+  the same PR.
 - If Renovate is introduced in this repository, add `renovate[bot]` to the
   dependency-bot deny list before relying on auto-ready for Renovate PRs.
-- If GraphQL branch-protection access changes, update the readiness-gate design
-  rather than silently broadening the fallback behavior.
+- If GraphQL branch-protection access becomes available to the Actions token,
+  the readiness-gate design can move back to live branch protection lookup, but
+  only with regression tests covering the new behavior.
 
 ## Non-goals
 
