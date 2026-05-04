@@ -211,10 +211,6 @@ func (s *AirdropService) activeViewersInTx(db *gorm.DB, channelID string) ([]air
 	return viewers, err
 }
 
-func (s *AirdropService) dailyLimit(channelID string) (int64, error) {
-	return s.dailyLimitInTx(s.db, channelID)
-}
-
 func (s *AirdropService) dailyLimitInTx(db *gorm.DB, channelID string) (int64, error) {
 	var cfg models.ChannelConfig
 	err := db.Where("channel_id = ?", channelID).First(&cfg).Error

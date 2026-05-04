@@ -75,19 +75,6 @@ func NewTachiToken(address common.Address, client *ethclient.Client) (*TachiToke
 	}, nil
 }
 
-func (t *TachiToken) Mint(ctx context.Context, toAddr common.Address, amount *big.Int, signerKey *ecdsa.PrivateKey) (string, error) {
-	txHash, err := t.MintBroadcast(ctx, toAddr, amount, signerKey)
-	if err != nil {
-		return "", err
-	}
-	if err := t.WaitMintReceipt(ctx, txHash); err != nil {
-		// Preserve backward-compatible wrapper behavior while exposing tx hash
-		// when receipt is unknown.
-		return txHash, err
-	}
-	return txHash, nil
-}
-
 // MintBroadcast signs and sends the mint tx without waiting for receipt.
 func (t *TachiToken) MintBroadcast(ctx context.Context, toAddr common.Address, amount *big.Int, signerKey *ecdsa.PrivateKey) (string, error) {
 	t.mu.Lock()
