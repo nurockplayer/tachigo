@@ -364,6 +364,7 @@ test('auto-ready workflow is opt-in for draft PRs on protected base branches', a
   ])
   assert.deepEqual(parsedWorkflow.on.check_suite.types, ['completed'])
   assert.equal(parsedWorkflow.permissions['pull-requests'], 'write')
+  assert.equal(parsedWorkflow.permissions.contents, 'write')
   assert.equal(parsedWorkflow.permissions.checks, 'read')
   assert.equal(parsedWorkflow.permissions.statuses, 'read')
   assert.match(workflow, /const autoReadyLabel = 'auto-ready'/)
@@ -431,6 +432,7 @@ test('CI workflow wakes auto-ready draft PRs after required CI jobs finish', asy
   assert.equal(job.if, "always() && github.event_name == 'pull_request'")
   assert.deepEqual(job.needs, ['scope-gate', 'backend-ci', 'frontend', 'dashboard', 'contracts'])
   assert.equal(job.permissions['pull-requests'], 'write')
+  assert.equal(job.permissions.contents, 'write')
   assert.equal(job.permissions.checks, 'read')
   assert.equal(job.permissions.statuses, 'read')
 

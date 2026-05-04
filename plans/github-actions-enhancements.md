@@ -94,6 +94,10 @@ rollout PR 補上：
 - required-check snapshot gate：rollout validation 發現 Actions `GITHUB_TOKEN`
   無法讀 GraphQL `branchProtectionRule`，因此不引入高權限 secret，改由
   workflow 內受測 snapshot 固定目前 branch protection required checks。
+- `markPullRequestReadyForReview` 權限：rollout validation 發現只有
+  `pull-requests: write` / `contents: read` 時 mutation 仍會被 GitHub 拒絕；
+  因此 auto-ready 路徑需要 `contents: write`，但限制在 auto-ready workflow
+  或 `ci.yml` 的 `auto-ready-after-ci` job。
 
 目前 workflow 觸發：
 
@@ -169,14 +173,14 @@ rollout PR 補上：
 | Workflow | Write permission | 必要 guard |
 |---|---|---|
 | `pr-scope-police.yml` | `pull-requests: write` / `issues: write` | 只跑 `pull_request` 到 `main` / `develop`，sticky comment、label、嚴重違規 close 都必須基於同一份 scope evaluation |
-| `ci.yml` | `pull-requests: write` / `checks: read` / `statuses: read` | 只限 `auto-ready-after-ci` job；只跑 `pull_request`；必須等 protected CI gate jobs 完成，並驗證同 repo draft PR、`auto-ready` label、非 dependency bot、live head SHA 與 snapshot required checks 全部成功 |
+| `ci.yml` | `contents: write` / `pull-requests: write` / `checks: read` / `statuses: read` | 只限 `auto-ready-after-ci` job；只跑 `pull_request`；必須等 protected CI gate jobs 完成，並驗證同 repo draft PR、`auto-ready` label、非 dependency bot、live head SHA 與 snapshot required checks 全部成功；`contents: write` 只用於 ready-for-review mutation 權限需求 |
 | `codex-review-flag.yml` | `pull-requests: write` / `issues: write` | 只處理 `main` / `develop` PR；review event 只接受指定 reviewer；draft PR 不加 review label |
 | `codex-review-slack.yml` | `actions: write` | 只在 CI success 或 `needs-codex-review` label 後通知 Slack；必須驗證 PR open、非 draft、base branch、label、head SHA、dedup cache |
 | `auto-merge.yml` | `contents: write` / `pull-requests: write` | 排除 draft 與 Dependabot；只啟用 GitHub auto-merge，不直接 merge |
 | `dependabot-automerge.yml` | `contents: write` / `pull-requests: write` | 只允許 `dependabot[bot]` actor；必須通過 metadata policy 或 `safe-to-automerge` label |
 | `notify-rebase-needed.yml` | `pull-requests: write` / `issues: write` | 只在 merge 到 `develop` 後留言；不得修改 PR branch |
 | `weekly-release-pr.yml` | `pull-requests: write` / `actions: write` | 只建立 `develop -> main` release PR；若已存在 open release PR 就 no-op |
-| `auto-ready-pr.yml` | `pull-requests: write` / `checks: read` / `statuses: read` | 只處理同 repo draft PR、`auto-ready` label、非 dependency bot、live head SHA 與 snapshot required checks 全部成功 |
+| `auto-ready-pr.yml` | `contents: write` / `pull-requests: write` / `checks: read` / `statuses: read` | 只處理同 repo draft PR、`auto-ready` label、非 dependency bot、live head SHA 與 snapshot required checks 全部成功；`contents: write` 只用於 ready-for-review mutation 權限需求 |
 
 明確禁止第一版 workflow health check 接受未審查的 `pull_request_target`、repo-wide `contents: write`，或沒有 base branch / actor / label guard 的 public mutation workflow。
 

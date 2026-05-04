@@ -406,7 +406,7 @@ jobs:
     if: always() && github.event_name == 'pull_request'
     runs-on: ubuntu-latest
     permissions:
-      contents: read
+      contents: write
       checks: read
       statuses: read
       pull-requests: write

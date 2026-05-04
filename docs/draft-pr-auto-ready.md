@@ -67,6 +67,8 @@ CI completion hook:
 - Allows required CI jobs with result `success` or `skipped`.
 - Refreshes live PR state before mutating the PR.
 - Reuses the same required-check snapshot gate before marking the draft ready.
+- Uses `contents: write` and `pull-requests: write` only for the auto-ready
+  mutation path; the main CI workflow's top-level permissions remain read-only.
 
 ## Eligibility rules
 
@@ -127,6 +129,11 @@ If check/status lookups fail for a PR, the workflow skips that PR for that run
 instead of falling back to an unsafe or overbroad check. If a base branch has no
 snapshot entry, the workflow also skips rather than using visible checks as a
 fallback.
+
+Rollout validation also showed `markPullRequestReadyForReview` fails for this
+repository when the Actions token only has `contents: read`, even with
+`pull-requests: write`. The auto-ready paths therefore grant `contents: write`
+only where the ready-for-review mutation can run.
 
 ## PR creation default
 
