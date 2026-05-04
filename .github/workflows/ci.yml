@@ -224,6 +224,9 @@ jobs:
       - name: Verify PR metadata check assertions
         run: bash infra/scripts/pr-metadata-check.test.sh
 
+      - name: Verify PR open assertions
+        run: bash infra/scripts/pr-open.test.sh
+
   pr-commit-messages:
     timeout-minutes: 5
     name: PR commit messages

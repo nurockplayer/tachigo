@@ -198,16 +198,23 @@ make pr-meta-check TITLE="[chore] Example title" BODY_FILE=/tmp/pr-body.md
 make pr-open TITLE="[chore] Example title" BODY_FILE=/tmp/pr-body.md
 ```
 
+Codex task PR 預設應使用 auto-ready 流程：
+
+```bash
+make pr-open TITLE="[chore] Example title" BODY_FILE=/tmp/pr-body.md AUTO_READY=1
+```
+
 可選參數：
 
 - `BASE`：預設 `develop`
 - `HEAD`：預設目前 branch
 - `DRAFT=1`：建立 draft PR
+- `AUTO_READY=1`：建立 draft PR 並加上 `auto-ready` label，等 required
+  checks 通過後由 workflow 自動轉成 Ready for review
 
-Codex task PR 在 auto-ready workflow 已進 `develop` 後，應建立為 draft 並加上
-`auto-ready` label。若使用本地 `make pr-open`，先用 `DRAFT=1` 開出 PR，再用
-`gh pr edit <number> --add-label auto-ready` 加 label；若直接使用 `gh pr create`，
-則使用 `--draft --label auto-ready`。
+Codex task PR 應使用 `AUTO_READY=1`，讓 wrapper 一次建立 draft PR 並加上
+`auto-ready` label。若直接使用 `gh pr create`，則使用
+`--draft --label auto-ready`。
 
 底層腳本：
 

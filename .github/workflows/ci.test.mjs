@@ -218,6 +218,7 @@ test('CI workflow uses infra script entrypoints', async () => {
 
   assert.match(workflow, /run: bash infra\/scripts\/check-backend-ci-cache\.sh/)
   assert.match(workflow, /run: bash infra\/scripts\/commit-message-check\.test\.sh/)
+  assert.match(workflow, /run: bash infra\/scripts\/pr-open\.test\.sh/)
   assert.match(workflow, /run: bash infra\/scripts\/check-pr-commit-messages\.sh/)
   assert.doesNotMatch(workflow, /run: bash scripts\//)
 })
