@@ -103,16 +103,63 @@ function extractRequiredCheckSnapshots(script) {
 }
 
 async function runAutoReadyWorkflow({
+  eventName = 'pull_request',
   checkRuns = [],
   statuses = [],
   checkRunsError = null,
   statusesError = null,
   graphqlError = null,
+  prOverrides = {},
   livePrOverrides = {},
 } = {}) {
   const parsedWorkflow = parseYaml(autoReadyWorkflowPath)
   const script = parsedWorkflow.jobs['auto-ready'].steps[0].with.script
-  const pr = {
+  return runAutoReadyScript({
+    script,
+    eventName,
+    checkRuns,
+    statuses,
+    checkRunsError,
+    statusesError,
+    graphqlError,
+    prOverrides,
+    livePrOverrides,
+  })
+}
+
+async function runCiAutoReadyAfterCiWorkflow({
+  env = {},
+  ...options
+} = {}) {
+  const parsedWorkflow = parseYaml(workflowPath)
+  const script = parsedWorkflow.jobs['auto-ready-after-ci'].steps[0].with.script
+  return runAutoReadyScript({
+    script,
+    env: {
+      SCOPE_GATE_RESULT: 'success',
+      BACKEND_CI_RESULT: 'success',
+      FRONTEND_RESULT: 'success',
+      DASHBOARD_RESULT: 'success',
+      CONTRACTS_RESULT: 'success',
+      ...env,
+    },
+    ...options,
+  })
+}
+
+async function runAutoReadyScript({
+  script,
+  eventName = 'pull_request',
+  checkRuns = [],
+  statuses = [],
+  checkRunsError = null,
+  statusesError = null,
+  graphqlError = null,
+  prOverrides = {},
+  livePrOverrides = {},
+  env = {},
+} = {}) {
+  const basePr = {
     number: 472,
     node_id: 'PR_node_id',
     base: { ref: 'develop' },
@@ -121,17 +168,27 @@ async function runAutoReadyWorkflow({
     labels: [{ name: 'auto-ready' }],
     user: { login: 'nurockplayer' },
   }
-  const livePr = {
+
+  const mergePr = (pr, overrides) => ({
     ...pr,
-    ...livePrOverrides,
-    base: { ...pr.base, ...(livePrOverrides.base || {}) },
-    head: { ...pr.head, ...(livePrOverrides.head || {}) },
-    user: { ...pr.user, ...(livePrOverrides.user || {}) },
-    labels: livePrOverrides.labels || pr.labels,
-  }
+    ...overrides,
+    base: { ...pr.base, ...(overrides.base || {}) },
+    head: {
+      ...pr.head,
+      ...(overrides.head || {}),
+      repo: { ...pr.head?.repo, ...(overrides.head?.repo || {}) },
+    },
+    user: { ...pr.user, ...(overrides.user || {}) },
+    labels: overrides.labels || pr.labels,
+  })
+
+  const pr = mergePr(basePr, prOverrides)
+  const livePr = mergePr(pr, livePrOverrides)
   const notices = []
   const warnings = []
   const mutations = []
+  const autoMergeMutations = []
+  const graphqlCalls = []
   const labelsAdded = []
   const labelsRemoved = []
   const labelsCreated = []
@@ -177,9 +234,23 @@ async function runAutoReadyWorkflow({
     graphql: async (query, variables) => {
       if (graphqlError) throw graphqlError
       if (query.includes('markPullRequestReadyForReview')) {
+        graphqlCalls.push('ready')
         mutations.push(variables)
         return { markPullRequestReadyForReview: { pullRequest: { number: pr.number, isDraft: false } } }
       }
+      if (query.includes('enablePullRequestAutoMerge')) {
+        graphqlCalls.push('auto-merge')
+        autoMergeMutations.push(variables)
+        return {
+          enablePullRequestAutoMerge: {
+            pullRequest: {
+              number: pr.number,
+              autoMergeRequest: { mergeMethod: 'MERGE' },
+            },
+          },
+        }
+      }
+
       throw new Error('unexpected graphql query')
     },
   }
@@ -190,12 +261,28 @@ async function runAutoReadyWorkflow({
   }
   const context = {
     repo: { owner: 'nurockplayer', repo: 'tachigo' },
-    eventName: 'pull_request',
+    eventName,
     payload: { pull_request: pr },
   }
 
-  await AsyncFunction('context', 'github', 'core', script)(context, github, core)
-  return { labelsAdded, labelsCreated, labelsRemoved, mutations, notices, warnings }
+  const previousEnv = new Map()
+  for (const [key, value] of Object.entries(env)) {
+    previousEnv.set(key, process.env[key])
+    process.env[key] = value
+  }
+
+  try {
+    await AsyncFunction('context', 'github', 'core', script)(context, github, core)
+  } finally {
+    for (const [key, value] of previousEnv.entries()) {
+      if (value === undefined) {
+        delete process.env[key]
+      } else {
+        process.env[key] = value
+      }
+    }
+  }
+  return { autoMergeMutations, graphqlCalls, labelsAdded, labelsCreated, labelsRemoved, mutations, notices, warnings }
 }
 
 test('frontend CI job runs the frontend test command', async () => {
@@ -446,7 +533,7 @@ test('global auto-merge workflow excludes Dependabot PRs', async () => {
   assert.doesNotMatch(workflow, /if: github\.event\.pull_request\.draft == false\s*$/m)
 })
 
-test('auto-ready workflow is opt-in for draft PRs on protected base branches', async () => {
+test('auto-ready workflow is opt-in for auto-ready PRs on protected base branches', async () => {
   const workflow = await readFile(autoReadyWorkflowPath, 'utf8')
   const parsedWorkflow = parseYaml(autoReadyWorkflowPath)
 
@@ -464,7 +551,8 @@ test('auto-ready workflow is opt-in for draft PRs on protected base branches', a
   assert.equal(parsedWorkflow.permissions.checks, 'read')
   assert.equal(parsedWorkflow.permissions.statuses, 'read')
   assert.match(workflow, /const autoReadyLabel = 'auto-ready'/)
-  assert.match(workflow, /pr\.draft !== true/)
+  assert.match(workflow, /const markedReady = pr\.draft === true/)
+  assert.match(workflow, /if \(markedReady\) \{[\s\S]*await readyForReview\(pr\)/)
   assert.match(workflow, /pr\.user\?\.login === 'dependabot\[bot\]'/)
   assert.match(workflow, /pr\.head\?\.repo\?\.full_name !== `\$\{owner\}\/\$\{repo\}`/)
   assert.match(workflow, /github\.rest\.pulls\.get/)
@@ -508,8 +596,7 @@ test('auto-ready workflow checks required contexts and excludes its own run', as
   assert.match(workflow, /try \{\s+const fetchedChecks = await Promise\.all\(\[/)
   assert.match(workflow, /core\.warning\(\s+`Skipping PR #\$\{pr\.number\} at \$\{headSha\}: failed to fetch checks\/statuses/)
   assert.match(workflow, /markPullRequestReadyForReview/)
-  assert.doesNotMatch(workflow, /enablePullRequestAutoMerge/)
-  assert.doesNotMatch(workflow, /mergeMethod: MERGE/)
+  assert.match(workflow, /enablePullRequestAutoMerge/)
   assert.doesNotMatch(workflow, /gh pr ready/)
 })
 
@@ -522,7 +609,8 @@ test('auto-ready workflow uses routine logs for skipped PRs', async () => {
   assert.doesNotMatch(workflow, /core\.notice\('At least one visible check or status is not successful yet\.'\)/)
   assert.doesNotMatch(workflow, /core\.notice\(`Skipping PR #/)
   assert.doesNotMatch(workflow, /core\.notice\(`PR #\$\{pr\.number\} remains draft until checks pass\.`\)/)
-  assert.match(workflow, /core\.notice\(`PR #\$\{pr\.number\} marked ready for review and flagged for Codex review\.`\)/)
+  assert.match(workflow, /const readyMessage = markedReady \? 'marked ready for review, ' : ''/)
+  assert.match(workflow, /core\.notice\(`PR #\$\{pr\.number\} \$\{readyMessage\}armed auto-merge, and flagged for Codex review\.`\)/)
 })
 
 test('CI workflow wakes auto-ready draft PRs after required CI jobs finish', async () => {
@@ -549,7 +637,8 @@ test('CI workflow wakes auto-ready draft PRs after required CI jobs finish', asy
   assert.match(jobBlock, /FRONTEND_RESULT/)
   assert.match(jobBlock, /DASHBOARD_RESULT/)
   assert.match(jobBlock, /CONTRACTS_RESULT/)
-  assert.match(jobBlock, /pr\.draft !== true/)
+  assert.match(jobBlock, /const markedReady = pr\.draft === true/)
+  assert.match(jobBlock, /if \(markedReady\) \{[\s\S]*markPullRequestReadyForReview/)
   assert.match(jobBlock, /pr\.user\?\.login === 'dependabot\[bot\]'/)
   assert.match(jobBlock, /pr\.head\?\.repo\?\.full_name !== `\$\{owner\}\/\$\{repo\}`/)
   assert.match(jobBlock, /pr\.head\?\.sha !== currentHeadSha/)
@@ -573,8 +662,69 @@ test('CI workflow wakes auto-ready draft PRs after required CI jobs finish', asy
   assert.match(jobBlock, /listForRef/)
   assert.match(jobBlock, /getCombinedStatusForRef/)
   assert.match(jobBlock, /markPullRequestReadyForReview/)
-  assert.doesNotMatch(jobBlock, /enablePullRequestAutoMerge/)
-  assert.doesNotMatch(jobBlock, /mergeMethod: MERGE/)
+  assert.match(jobBlock, /enablePullRequestAutoMerge/)
+})
+
+test('CI auto-ready job marks ready before arming native auto-merge', async () => {
+  const result = await runCiAutoReadyAfterCiWorkflow({
+    checkRuns: successfulDevelopRequiredCheckRuns(),
+  })
+
+  assert.deepEqual(result.graphqlCalls, ['ready', 'auto-merge'])
+  assert.deepEqual(result.autoMergeMutations, [{ pullRequestId: 'PR_node_id' }])
+  assert.deepEqual(result.labelsAdded, [
+    { issue_number: 472, labels: ['needs-codex-review'] },
+  ])
+  assert.deepEqual(result.labelsRemoved, [
+    { issue_number: 472, name: 'changes-requested' },
+  ])
+})
+
+test('CI auto-ready job retries auto-merge for already-ready auto-ready PRs', async () => {
+  const result = await runCiAutoReadyAfterCiWorkflow({
+    checkRuns: successfulDevelopRequiredCheckRuns(),
+    prOverrides: { draft: false },
+    livePrOverrides: { draft: false },
+  })
+
+  assert.deepEqual(result.graphqlCalls, ['auto-merge'])
+  assert.equal(result.mutations.length, 0)
+  assert.deepEqual(result.autoMergeMutations, [{ pullRequestId: 'PR_node_id' }])
+  assert.deepEqual(result.labelsAdded, [
+    { issue_number: 472, labels: ['needs-codex-review'] },
+  ])
+  assert.deepEqual(result.labelsRemoved, [
+    { issue_number: 472, name: 'changes-requested' },
+  ])
+})
+
+test('auto-ready workflow arms native auto-merge after marking a PR ready', async () => {
+  const result = await runAutoReadyWorkflow({
+    checkRuns: successfulDevelopRequiredCheckRuns(),
+  })
+
+  assert.equal(result.mutations.length, 1)
+  assert.deepEqual(result.graphqlCalls, ['ready', 'auto-merge'])
+  assert.deepEqual(result.autoMergeMutations, [{ pullRequestId: 'PR_node_id' }])
+})
+
+test('auto-ready workflow retries auto-merge for already-ready auto-ready PRs', async () => {
+  const result = await runAutoReadyWorkflow({
+    eventName: 'schedule',
+    checkRuns: successfulDevelopRequiredCheckRuns(),
+    prOverrides: { draft: false },
+    livePrOverrides: { draft: false },
+  })
+
+  assert.deepEqual(result.graphqlCalls, ['auto-merge'])
+  assert.equal(result.mutations.length, 0)
+  assert.deepEqual(result.autoMergeMutations, [{ pullRequestId: 'PR_node_id' }])
+  assert.deepEqual(result.labelsAdded, [
+    { issue_number: 472, labels: ['needs-codex-review'] },
+  ])
+  assert.deepEqual(result.labelsRemoved, [
+    { issue_number: 472, name: 'changes-requested' },
+  ])
 })
 
 test('auto-ready required-check snapshots stay aligned across workflows', () => {

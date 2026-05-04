@@ -90,9 +90,8 @@ jobs:
               await removeLabel(pr.number, changesLabel)
             }
 
-            const isEligibleDraftPr = (pr) => {
+            const isEligibleAutoReadyPr = (pr) => {
               if (!targetBaseBranches.has(pr.base?.ref)) return false
-              if (pr.draft !== true) return false
               if (pr.user?.login === 'dependabot[bot]') return false
               if (pr.head?.repo?.full_name !== `${owner}/${repo}`) return false
               if (!hasAutoReadyLabel(pr)) return false
@@ -219,6 +218,22 @@ jobs:
               await github.graphql(mutation, { pullRequestId: pr.node_id })
             }
 
+            const enableAutoMerge = async (pr) => {
+              const mutation = `
+                mutation($pullRequestId: ID!) {
+                  enablePullRequestAutoMerge(input: { pullRequestId: $pullRequestId, mergeMethod: MERGE }) {
+                    pullRequest {
+                      number
+                      autoMergeRequest {
+                        mergeMethod
+                      }
+                    }
+                  }
+                }
+              `
+              await github.graphql(mutation, { pullRequestId: pr.node_id })
+            }
+
             const prs = await listPrsForEvent()
             const seen = new Set()
 
@@ -226,8 +241,8 @@ jobs:
               if (seen.has(pr.number)) continue
               seen.add(pr.number)
 
-              if (!isEligibleDraftPr(pr)) {
-                core.info(`Skipping PR #${pr.number}: not an eligible ${autoReadyLabel} draft PR.`)
+              if (!isEligibleAutoReadyPr(pr)) {
+                core.info(`Skipping PR #${pr.number}: not an eligible ${autoReadyLabel} PR.`)
                 continue
               }
 
@@ -253,7 +268,7 @@ jobs:
                 core.info(`Skipping PR #${pr.number}: head SHA changed while auto-ready was running.`)
                 continue
               }
-              if (!isEligibleDraftPr(pr)) {
+              if (!isEligibleAutoReadyPr(pr)) {
                 core.info(`Skipping PR #${pr.number}: live PR state is no longer eligible.`)
                 continue
               }
@@ -284,11 +299,38 @@ jobs:
               const passed = requiredChecksPassed(requiredChecks, observed)
 
               if (!passed) {
-                core.info(`PR #${pr.number} remains draft until checks pass.`)
+                core.info(`PR #${pr.number} waits until checks pass.`)
                 continue
               }
 
-              await readyForReview(pr)
-              await flagForCodexReview(pr)
-              core.notice(`PR #${pr.number} marked ready for review and flagged for Codex review.`)
+              const markedReady = pr.draft === true
+              if (markedReady) {
+                try {
+                  await readyForReview(pr)
+                } catch (error) {
+                  core.warning(`Failed to mark PR #${pr.number} ready for review (${error?.message || error}).`)
+                  continue
+                }
+              }
+
+              try {
+                await enableAutoMerge(pr)
+              } catch (error) {
+                core.warning(
+                  `Failed to arm auto-merge for PR #${pr.number}; ${autoReadyLabel} will retry while the label remains (${error?.message || error}).`,
+                )
+                continue
+              }
+
+              try {
+                await flagForCodexReview(pr)
+              } catch (error) {
+                core.warning(
+                  `Failed to flag PR #${pr.number} for Codex review; ${autoReadyLabel} will retry while the label remains (${error?.message || error}).`,
+                )
+                continue
+              }
+
+              const readyMessage = markedReady ? 'marked ready for review, ' : ''
+              core.notice(`PR #${pr.number} ${readyMessage}armed auto-merge, and flagged for Codex review.`)
             }
