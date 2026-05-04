@@ -204,6 +204,11 @@ make pr-open TITLE="[chore] Example title" BODY_FILE=/tmp/pr-body.md
 - `HEAD`：預設目前 branch
 - `DRAFT=1`：建立 draft PR
 
+Codex task PR 在 auto-ready workflow 已進 `develop` 後，應建立為 draft 並加上
+`auto-ready` label。若使用本地 `make pr-open`，先用 `DRAFT=1` 開出 PR，再用
+`gh pr edit <number> --add-label auto-ready` 加 label；若直接使用 `gh pr create`，
+則使用 `--draft --label auto-ready`。
+
 底層腳本：
 
 - `infra/scripts/pr-metadata-check.sh`

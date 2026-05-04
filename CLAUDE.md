@@ -33,6 +33,7 @@
 | `discussion` | 討論票（搭配 `[discussion]` 前綴使用） |
 | `needs-codex-review` | PR 有新 commit，輪到 Codex 重新審查 |
 | `changes-requested` | Codex 已提出 blocker，輪到作者修正 |
+| `auto-ready` | Codex task draft PR 的 opt-in label；required checks 全綠後由 workflow 自動轉 ready |
 
 ### Issue 內容格式
 
@@ -75,6 +76,16 @@
    # 填妥 /tmp/pr_body.md 所有欄位，不得留空或刪除 section
    gh pr create --title "[type] ..." --base develop --body-file /tmp/pr_body.md
    ```
+
+   Codex task PR 在 auto-ready workflow 已進 `develop` 後，預設以 draft 開出並加上
+   `auto-ready` label，讓 required checks 全綠後自動轉為 ready for review：
+
+   ```bash
+   gh pr create --draft --label auto-ready --title "[type] ..." --base develop --body-file /tmp/pr_body.md
+   ```
+
+   非 Codex task、人工長期 WIP draft、或不想自動進 review queue 的 PR，不要加
+   `auto-ready` label。
 
 4. 正式 release 流程走 Git Flow：
 

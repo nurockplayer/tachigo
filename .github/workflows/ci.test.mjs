@@ -14,6 +14,23 @@ const autoReadyWorkflowPath = path.join(currentDir, 'auto-ready-pr.yml')
 const codexReviewRerequestWorkflowPath = path.join(currentDir, 'codex-review-rerequest.yml')
 const claudePath = path.join(repoRoot, 'CLAUDE.md')
 const AsyncFunction = Object.getPrototypeOf(async function () {}).constructor
+const developRequiredCheckRuns = [
+  'Scope gate',
+  'Frontend build',
+  'Dashboard build',
+  'Contracts build',
+  'Backend CI (gate)',
+].map((name, index) => ({
+  name,
+  status: 'completed',
+  conclusion: 'success',
+  app: { id: 15368 },
+  completed_at: `2026-05-02T00:00:0${index}Z`,
+}))
+
+function successfulDevelopRequiredCheckRuns(...overrides) {
+  return [...developRequiredCheckRuns, ...overrides]
+}
 
 function parseYaml(filePath) {
   const script = `
@@ -44,35 +61,112 @@ function workflowJobBlock(workflow, jobName) {
   return match[0]
 }
 
+function extractRequiredCheckSnapshots(script) {
+  const marker = 'const requiredCheckSnapshots ='
+  const markerIndex = script.indexOf(marker)
+  assert.notEqual(markerIndex, -1, 'expected script to define requiredCheckSnapshots')
+
+  const objectStart = script.indexOf('{', markerIndex)
+  assert.notEqual(objectStart, -1, 'expected requiredCheckSnapshots to start with an object')
+
+  let depth = 0
+  let quote = null
+  let escaping = false
+  for (let index = objectStart; index < script.length; index += 1) {
+    const char = script[index]
+
+    if (quote) {
+      if (escaping) {
+        escaping = false
+      } else if (char === '\\') {
+        escaping = true
+      } else if (char === quote) {
+        quote = null
+      }
+      continue
+    }
+
+    if (char === "'" || char === '"' || char === '`') {
+      quote = char
+    } else if (char === '{') {
+      depth += 1
+    } else if (char === '}') {
+      depth -= 1
+      if (depth === 0) {
+        const objectLiteral = script.slice(objectStart, index + 1)
+        return Function(`'use strict'; return (${objectLiteral})`)()
+      }
+    }
+  }
+
+  assert.fail('expected requiredCheckSnapshots object to close')
+}
+
 async function runAutoReadyWorkflow({
   checkRuns = [],
   statuses = [],
-  baseRef = 'develop',
+  checkRunsError = null,
+  statusesError = null,
+  graphqlError = null,
+  livePrOverrides = {},
 } = {}) {
   const parsedWorkflow = parseYaml(autoReadyWorkflowPath)
   const script = parsedWorkflow.jobs['auto-ready'].steps[0].with.script
   const pr = {
     number: 472,
     node_id: 'PR_node_id',
-    base: { ref: baseRef },
+    base: { ref: 'develop' },
     draft: true,
-    head: { sha: 'head_sha' },
+    head: { sha: 'head_sha', repo: { full_name: 'nurockplayer/tachigo' } },
     labels: [{ name: 'auto-ready' }],
     user: { login: 'nurockplayer' },
+  }
+  const livePr = {
+    ...pr,
+    ...livePrOverrides,
+    base: { ...pr.base, ...(livePrOverrides.base || {}) },
+    head: { ...pr.head, ...(livePrOverrides.head || {}) },
+    user: { ...pr.user, ...(livePrOverrides.user || {}) },
+    labels: livePrOverrides.labels || pr.labels,
   }
   const notices = []
   const warnings = []
   const mutations = []
+  const labelsAdded = []
+  const labelsRemoved = []
+  const labelsCreated = []
   const github = {
     rest: {
       checks: {
-        listForRef: async () => checkRuns,
+        listForRef: async () => {
+          if (checkRunsError) throw checkRunsError
+          return checkRuns
+        },
       },
       pulls: {
         list: async () => ({ data: [pr] }),
+        get: async () => ({ data: livePr }),
+      },
+      issues: {
+        getLabel: async ({ name }) => ({ data: { name } }),
+        createLabel: async (args) => {
+          labelsCreated.push(args)
+          return { data: { name: args.name } }
+        },
+        addLabels: async ({ issue_number, labels }) => {
+          labelsAdded.push({ issue_number, labels })
+          return { data: labels.map((name) => ({ name })) }
+        },
+        removeLabel: async ({ issue_number, name }) => {
+          labelsRemoved.push({ issue_number, name })
+          return { data: { name } }
+        },
       },
       repos: {
-        getCombinedStatusForRef: async () => ({ data: { statuses } }),
+        getCombinedStatusForRef: async () => {
+          if (statusesError) throw statusesError
+          return { data: { statuses } }
+        },
         listPullRequestsAssociatedWithCommit: async () => ({ data: [pr] }),
       },
     },
@@ -81,12 +175,13 @@ async function runAutoReadyWorkflow({
       return result.data || result
     },
     graphql: async (query, variables) => {
+      if (graphqlError) throw graphqlError
       if (query.includes('markPullRequestReadyForReview')) {
         mutations.push(variables)
         return { markPullRequestReadyForReview: { pullRequest: { number: pr.number, isDraft: false } } }
       }
 
-      throw new Error(`Unexpected GraphQL query: ${query}`)
+      throw new Error('unexpected graphql query')
     },
   }
   const core = {
@@ -101,46 +196,7 @@ async function runAutoReadyWorkflow({
   }
 
   await AsyncFunction('context', 'github', 'core', script)(context, github, core)
-  return { mutations, notices, warnings }
-}
-
-function requiredAutoReadyCheckRuns(overrides = {}) {
-  const defaults = {
-    'Scope police': {
-      name: 'Scope police',
-      status: 'completed',
-      conclusion: 'success',
-      app: { id: 15368 },
-      completed_at: '2026-05-03T00:00:00Z',
-    },
-    'Backend CI (gate)': {
-      name: 'Backend CI (gate)',
-      status: 'completed',
-      conclusion: 'success',
-      app: { id: 15368 },
-      completed_at: '2026-05-03T00:00:00Z',
-    },
-    'Frontend build': {
-      name: 'Frontend build',
-      status: 'completed',
-      conclusion: 'success',
-      app: { id: 15368 },
-      completed_at: '2026-05-03T00:00:00Z',
-    },
-    'Dashboard build': {
-      name: 'Dashboard build',
-      status: 'completed',
-      conclusion: 'success',
-      app: { id: 15368 },
-      completed_at: '2026-05-03T00:00:00Z',
-    },
-  }
-
-  for (const [name, override] of Object.entries(overrides)) {
-    defaults[name] = { ...defaults[name], ...override }
-  }
-
-  return Object.values(defaults)
+  return { labelsAdded, labelsCreated, labelsRemoved, mutations, notices, warnings }
 }
 
 test('frontend CI job runs the frontend test command', async () => {
@@ -377,18 +433,33 @@ test('auto-ready workflow is opt-in for draft PRs on protected base branches', a
   ])
   assert.deepEqual(parsedWorkflow.on.check_suite.types, ['completed'])
   assert.equal(parsedWorkflow.permissions['pull-requests'], 'write')
+  assert.equal(parsedWorkflow.permissions.contents, 'write')
+  assert.equal(parsedWorkflow.permissions.issues, 'write')
   assert.equal(parsedWorkflow.permissions.checks, 'read')
   assert.equal(parsedWorkflow.permissions.statuses, 'read')
   assert.match(workflow, /const autoReadyLabel = 'auto-ready'/)
   assert.match(workflow, /pr\.draft !== true/)
   assert.match(workflow, /pr\.user\?\.login === 'dependabot\[bot\]'/)
+  assert.match(workflow, /pr\.head\?\.repo\?\.full_name !== `\$\{owner\}\/\$\{repo\}`/)
+  assert.match(workflow, /github\.rest\.pulls\.get/)
+  assert.match(workflow, /pr\.head\?\.sha !== headSha/)
   assert.match(workflow, /targetBaseBranches\.has\(pr\.base\?\.ref\)/)
+  assert.match(workflow, /const reviewLabel = 'needs-codex-review'/)
+  assert.match(workflow, /const changesLabel = 'changes-requested'/)
 })
 
 test('auto-ready workflow checks required contexts and excludes its own run', async () => {
   const workflow = await readFile(autoReadyWorkflowPath, 'utf8')
 
-  assert.match(workflow, /const requiredChecksByBase = \{/)
+  assert.match(workflow, /const requiredCheckSnapshots = \{/)
+  assert.match(workflow, /develop: \[/)
+  assert.match(workflow, /\{ context: 'Scope gate', appId: 15368 \}/)
+  assert.match(workflow, /\{ context: 'Frontend build', appId: 15368 \}/)
+  assert.match(workflow, /\{ context: 'Dashboard build', appId: 15368 \}/)
+  assert.match(workflow, /\{ context: 'Contracts build', appId: 15368 \}/)
+  assert.match(workflow, /\{ context: 'Backend CI \(gate\)', appId: 15368 \}/)
+  assert.match(workflow, /main: \[/)
+  assert.match(workflow, /\{ context: 'Scope police', appId: 15368 \}/)
   assert.doesNotMatch(workflow, /branchProtectionRule/)
   assert.doesNotMatch(workflow, /requiredStatusChecks/)
   assert.doesNotMatch(workflow, /requiredStatusCheckContexts/)
@@ -400,7 +471,6 @@ test('auto-ready workflow checks required contexts and excludes its own run', as
   assert.match(workflow, /const successConclusions = new Set\(\['success', 'neutral', 'skipped'\]\)/)
   assert.doesNotMatch(workflow, /requiredSuccessConclusions/)
   assert.doesNotMatch(workflow, /fallbackSuccessConclusions/)
-  assert.doesNotMatch(workflow, /fallbackChecksPassed/)
   assert.match(workflow, /const checkNameCandidates = \(run\) => \[run\.name\]/)
   assert.doesNotMatch(workflow, /workflow_run\?\.name/)
   assert.match(workflow, /const requiredCheckKey = \(contextName, appId\) =>/)
@@ -424,7 +494,69 @@ test('auto-ready workflow uses routine logs for skipped PRs', async () => {
   assert.doesNotMatch(workflow, /core\.notice\('At least one visible check or status is not successful yet\.'\)/)
   assert.doesNotMatch(workflow, /core\.notice\(`Skipping PR #/)
   assert.doesNotMatch(workflow, /core\.notice\(`PR #\$\{pr\.number\} remains draft until checks pass\.`\)/)
-  assert.match(workflow, /core\.notice\(`PR #\$\{pr\.number\} marked ready for review\.`\)/)
+  assert.match(workflow, /core\.notice\(`PR #\$\{pr\.number\} marked ready for review and flagged for Codex review\.`\)/)
+})
+
+test('CI workflow wakes auto-ready draft PRs after required CI jobs finish', async () => {
+  const workflow = await readFile(workflowPath, 'utf8')
+  const parsedWorkflow = parseYaml(workflowPath)
+  const job = parsedWorkflow.jobs['auto-ready-after-ci']
+  const jobBlock = workflowJobBlock(workflow, 'auto-ready-after-ci')
+
+  assert.equal(job.name, 'Auto-ready draft PR after CI')
+  assert.equal(job.if, "always() && github.event_name == 'pull_request'")
+  assert.deepEqual(job.needs, ['scope-gate', 'backend-ci', 'frontend', 'dashboard', 'contracts'])
+  assert.equal(job.permissions['pull-requests'], 'write')
+  assert.equal(job.permissions.contents, 'write')
+  assert.equal(job.permissions.issues, 'write')
+  assert.equal(job.permissions.checks, 'read')
+  assert.equal(job.permissions.statuses, 'read')
+
+  assert.match(jobBlock, /const autoReadyLabel = 'auto-ready'/)
+  assert.match(jobBlock, /const targetBaseBranches = new Set\(\['main', 'develop'\]\)/)
+  assert.match(jobBlock, /const allowedJobResults = new Set\(\['success', 'skipped'\]\)/)
+  assert.match(jobBlock, /const successConclusions = new Set\(\['success', 'neutral', 'skipped'\]\)/)
+  assert.match(jobBlock, /SCOPE_GATE_RESULT/)
+  assert.match(jobBlock, /BACKEND_CI_RESULT/)
+  assert.match(jobBlock, /FRONTEND_RESULT/)
+  assert.match(jobBlock, /DASHBOARD_RESULT/)
+  assert.match(jobBlock, /CONTRACTS_RESULT/)
+  assert.match(jobBlock, /pr\.draft !== true/)
+  assert.match(jobBlock, /pr\.user\?\.login === 'dependabot\[bot\]'/)
+  assert.match(jobBlock, /pr\.head\?\.repo\?\.full_name !== `\$\{owner\}\/\$\{repo\}`/)
+  assert.match(jobBlock, /pr\.head\?\.sha !== currentHeadSha/)
+  assert.match(jobBlock, /targetBaseBranches\.has\(pr\.base\?\.ref\)/)
+  assert.match(jobBlock, /hasAutoReadyLabel\(pr\)/)
+  assert.match(jobBlock, /const reviewLabel = 'needs-codex-review'/)
+  assert.match(jobBlock, /const changesLabel = 'changes-requested'/)
+  assert.match(jobBlock, /github\.rest\.issues\.addLabels/)
+  assert.match(jobBlock, /github\.rest\.issues\.removeLabel/)
+  assert.match(jobBlock, /github\.rest\.pulls\.get/)
+  assert.match(jobBlock, /const requiredCheckSnapshots = \{/)
+  assert.match(jobBlock, /\{ context: 'Scope gate', appId: 15368 \}/)
+  assert.match(jobBlock, /\{ context: 'Frontend build', appId: 15368 \}/)
+  assert.match(jobBlock, /\{ context: 'Dashboard build', appId: 15368 \}/)
+  assert.match(jobBlock, /\{ context: 'Contracts build', appId: 15368 \}/)
+  assert.match(jobBlock, /\{ context: 'Backend CI \(gate\)', appId: 15368 \}/)
+  assert.match(jobBlock, /\{ context: 'Scope police', appId: 15368 \}/)
+  assert.doesNotMatch(jobBlock, /branchProtectionRule/)
+  assert.doesNotMatch(jobBlock, /requiredStatusChecks/)
+  assert.doesNotMatch(jobBlock, /requiredStatusCheckContexts/)
+  assert.match(jobBlock, /listForRef/)
+  assert.match(jobBlock, /getCombinedStatusForRef/)
+  assert.match(jobBlock, /markPullRequestReadyForReview/)
+})
+
+test('auto-ready required-check snapshots stay aligned across workflows', () => {
+  const standaloneScript =
+    parseYaml(autoReadyWorkflowPath).jobs['auto-ready'].steps[0].with.script
+  const ciScript =
+    parseYaml(workflowPath).jobs['auto-ready-after-ci'].steps[0].with.script
+
+  assert.deepEqual(
+    extractRequiredCheckSnapshots(standaloneScript),
+    extractRequiredCheckSnapshots(ciScript),
+  )
 })
 
 test('auto-ready workflow serializes concurrent runs', async () => {
@@ -436,34 +568,62 @@ test('auto-ready workflow serializes concurrent runs', async () => {
 
 test('auto-ready workflow treats skipped required checks as passing', async () => {
   const result = await runAutoReadyWorkflow({
-    checkRuns: requiredAutoReadyCheckRuns({
-      'Frontend build': { conclusion: 'skipped' },
-    }),
+    checkRuns: successfulDevelopRequiredCheckRuns(
+      {
+        name: 'Scope gate',
+        status: 'completed',
+        conclusion: 'skipped',
+        app: { id: 15368 },
+        completed_at: '2026-05-03T00:00:00Z',
+      },
+    ),
   })
 
   assert.equal(result.mutations.length, 1)
 })
 
+test('auto-ready workflow flags ready PRs for Codex review', async () => {
+  const result = await runAutoReadyWorkflow({
+    checkRuns: successfulDevelopRequiredCheckRuns(),
+  })
+
+  assert.equal(result.mutations.length, 1)
+  assert.deepEqual(result.labelsAdded, [
+    { issue_number: 472, labels: ['needs-codex-review'] },
+  ])
+  assert.deepEqual(result.labelsRemoved, [
+    { issue_number: 472, name: 'changes-requested' },
+  ])
+})
+
+test('auto-ready workflow refreshes live PR state before marking ready', async () => {
+  const staleHead = await runAutoReadyWorkflow({
+    checkRuns: successfulDevelopRequiredCheckRuns(),
+    livePrOverrides: { head: { sha: 'new_head_sha' } },
+  })
+  const labelRemoved = await runAutoReadyWorkflow({
+    checkRuns: successfulDevelopRequiredCheckRuns(),
+    livePrOverrides: { labels: [] },
+  })
+
+  assert.equal(staleHead.mutations.length, 0)
+  assert.equal(staleHead.labelsAdded.length, 0)
+  assert.equal(labelRemoved.mutations.length, 0)
+  assert.equal(labelRemoved.labelsAdded.length, 0)
+})
+
 test('auto-ready workflow does not let a successful status mask a failed check run with the same name', async () => {
   const result = await runAutoReadyWorkflow({
-    statuses: [{ context: 'Backend CI (gate)', state: 'success', updated_at: '2026-05-03T00:00:00Z' }],
-    checkRuns: [
-      ...requiredAutoReadyCheckRuns({
-        'Backend CI (gate)': {
-          status: 'completed',
-          conclusion: 'failure',
-          app: { id: 15368 },
-          completed_at: '2026-05-03T00:01:00Z',
-        },
-      }).filter((run) => run.name !== 'Backend CI (gate)'),
+    statuses: [{ context: 'Scope gate', state: 'success', updated_at: '2026-05-03T00:00:00Z' }],
+    checkRuns: successfulDevelopRequiredCheckRuns(
       {
-        name: 'Backend CI (gate)',
+        name: 'Scope gate',
         status: 'completed',
         conclusion: 'failure',
         app: { id: 15368 },
         completed_at: '2026-05-03T00:01:00Z',
       },
-    ],
+    ),
   })
 
   assert.equal(result.mutations.length, 0)
@@ -471,8 +631,7 @@ test('auto-ready workflow does not let a successful status mask a failed check r
 
 test('auto-ready workflow uses the latest rerun result for a required check', async () => {
   const failedThenPassed = await runAutoReadyWorkflow({
-    checkRuns: [
-      ...requiredAutoReadyCheckRuns().filter((run) => run.name !== 'Backend CI (gate)'),
+    checkRuns: successfulDevelopRequiredCheckRuns(
       {
         name: 'Backend CI (gate)',
         status: 'completed',
@@ -487,11 +646,10 @@ test('auto-ready workflow uses the latest rerun result for a required check', as
         app: { id: 15368 },
         completed_at: '2026-05-03T00:01:00Z',
       },
-    ],
+    ),
   })
   const passedThenFailed = await runAutoReadyWorkflow({
-    checkRuns: [
-      ...requiredAutoReadyCheckRuns().filter((run) => run.name !== 'Backend CI (gate)'),
+    checkRuns: successfulDevelopRequiredCheckRuns(
       {
         name: 'Backend CI (gate)',
         status: 'completed',
@@ -506,42 +664,48 @@ test('auto-ready workflow uses the latest rerun result for a required check', as
         app: { id: 15368 },
         completed_at: '2026-05-03T00:01:00Z',
       },
-    ],
+    ),
   })
 
   assert.equal(failedThenPassed.mutations.length, 1)
   assert.equal(passedThenFailed.mutations.length, 0)
 })
 
-test('auto-ready workflow declares required checks for main and develop', async () => {
-  const workflow = await readFile(autoReadyWorkflowPath, 'utf8')
-
-  for (const branch of ['develop', 'main']) {
-    assert.match(workflow, new RegExp(`${branch}: \\[`))
-  }
-
-  for (const context of ['Scope police', 'Backend CI \\(gate\\)', 'Frontend build', 'Dashboard build']) {
-    assert.match(workflow, new RegExp(`context: '${context}'`))
-  }
-})
-
-test('auto-ready workflow uses unscoped configured contexts across check-run apps', async () => {
-  const result = await runAutoReadyWorkflow({
-    checkRuns: requiredAutoReadyCheckRuns({
-      'Backend CI (gate)': { app: { id: 99999 } },
-    }),
+test('auto-ready workflow requires matching app id for app-scoped checks', async () => {
+  const wrongApp = await runAutoReadyWorkflow({
+    checkRuns: [
+      ...successfulDevelopRequiredCheckRuns().filter((run) => run.name !== 'Backend CI (gate)'),
+      {
+        name: 'Backend CI (gate)',
+        status: 'completed',
+        conclusion: 'success',
+        app: { id: 99999 },
+      },
+    ],
+  })
+  const matchingApp = await runAutoReadyWorkflow({
+    checkRuns: successfulDevelopRequiredCheckRuns(
+      {
+        name: 'Backend CI (gate)',
+        status: 'completed',
+        conclusion: 'success',
+        app: { id: 15368 },
+      },
+    ),
   })
 
-  assert.equal(result.mutations.length, 1)
+  assert.equal(wrongApp.mutations.length, 0)
+  assert.equal(matchingApp.mutations.length, 1)
 })
 
-test('auto-ready workflow does not query branch protection before marking ready', async () => {
+test('auto-ready workflow skips when check/status lookup fails', async () => {
   const result = await runAutoReadyWorkflow({
-    checkRuns: requiredAutoReadyCheckRuns(),
+    checkRunsError: new Error('checks unavailable'),
   })
 
-  assert.equal(result.mutations.length, 1)
-  assert.equal(result.warnings.length, 0)
+  assert.equal(result.mutations.length, 0)
+  assert.equal(result.warnings.length, 1)
+  assert.match(result.warnings[0], /failed to fetch checks\/statuses/)
 })
 
 test('Codex review re-request workflow requests reviewer and notifies Discord', async () => {
