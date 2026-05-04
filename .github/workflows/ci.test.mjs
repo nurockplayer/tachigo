@@ -398,6 +398,43 @@ test('auto-ready workflow uses routine logs for skipped PRs', async () => {
   assert.match(workflow, /core\.notice\(`PR #\$\{pr\.number\} marked ready for review\.`\)/)
 })
 
+test('CI workflow wakes auto-ready draft PRs after required CI jobs finish', async () => {
+  const workflow = await readFile(workflowPath, 'utf8')
+  const parsedWorkflow = parseYaml(workflowPath)
+  const job = parsedWorkflow.jobs['auto-ready-after-ci']
+  const jobBlock = workflowJobBlock(workflow, 'auto-ready-after-ci')
+
+  assert.equal(job.name, 'Auto-ready draft PR after CI')
+  assert.equal(job.if, "always() && github.event_name == 'pull_request'")
+  assert.deepEqual(job.needs, ['scope-gate', 'backend-ci', 'frontend', 'dashboard', 'contracts'])
+  assert.equal(job.permissions['pull-requests'], 'write')
+  assert.equal(job.permissions.checks, 'read')
+  assert.equal(job.permissions.statuses, 'read')
+
+  assert.match(jobBlock, /const autoReadyLabel = 'auto-ready'/)
+  assert.match(jobBlock, /const targetBaseBranches = new Set\(\['main', 'develop'\]\)/)
+  assert.match(jobBlock, /const allowedJobResults = new Set\(\['success', 'skipped'\]\)/)
+  assert.match(jobBlock, /const successConclusions = new Set\(\['success', 'neutral', 'skipped'\]\)/)
+  assert.match(jobBlock, /SCOPE_GATE_RESULT/)
+  assert.match(jobBlock, /BACKEND_CI_RESULT/)
+  assert.match(jobBlock, /FRONTEND_RESULT/)
+  assert.match(jobBlock, /DASHBOARD_RESULT/)
+  assert.match(jobBlock, /CONTRACTS_RESULT/)
+  assert.match(jobBlock, /pr\.draft !== true/)
+  assert.match(jobBlock, /pr\.user\?\.login === 'dependabot\[bot\]'/)
+  assert.match(jobBlock, /pr\.head\?\.repo\?\.full_name !== `\$\{owner\}\/\$\{repo\}`/)
+  assert.match(jobBlock, /pr\.head\?\.sha !== currentHeadSha/)
+  assert.match(jobBlock, /targetBaseBranches\.has\(pr\.base\?\.ref\)/)
+  assert.match(jobBlock, /hasAutoReadyLabel\(pr\)/)
+  assert.match(jobBlock, /github\.rest\.pulls\.get/)
+  assert.match(jobBlock, /branchProtectionRule/)
+  assert.match(jobBlock, /requiredStatusChecks/)
+  assert.match(jobBlock, /requiredStatusCheckContexts/)
+  assert.match(jobBlock, /listForRef/)
+  assert.match(jobBlock, /getCombinedStatusForRef/)
+  assert.match(jobBlock, /markPullRequestReadyForReview/)
+})
+
 test('auto-ready workflow serializes concurrent runs', async () => {
   const parsedWorkflow = parseYaml(autoReadyWorkflowPath)
 

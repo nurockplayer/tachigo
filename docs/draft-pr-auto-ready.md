@@ -1,9 +1,9 @@
 # Draft PR auto-ready
 
-**Status**: implemented; rollout in progress
+**Status**: implemented; rollout validation in progress
 **Created**: 2026-05-02
 **Issue**: https://github.com/nurockplayer/tachigo/issues/470
-**Implementation PR**: https://github.com/nurockplayer/tachigo/pull/472
+**Implementation PRs**: https://github.com/nurockplayer/tachigo/pull/472, https://github.com/nurockplayer/tachigo/pull/488
 
 ## Context
 
@@ -20,10 +20,12 @@ review, while auto-merge happens after approval.
 
 1. A Codex-authored PR is opened as draft with the `auto-ready` label.
 2. CI and required checks run normally.
-3. `.github/workflows/auto-ready-pr.yml` verifies the PR is still eligible and
-   all required checks are successful.
-4. The workflow marks the PR ready for review.
-5. Existing review-label automation handles the `ready_for_review` event.
+3. `.github/workflows/ci.yml` runs `auto-ready-after-ci` after the protected CI
+   gate jobs finish.
+4. The auto-ready job verifies the PR is still eligible and all live required
+   checks for the base branch are successful.
+5. The workflow marks the PR ready for review.
+6. Existing review-label automation handles the `ready_for_review` event.
 
 ## Rollout state
 
@@ -31,17 +33,19 @@ review, while auto-merge happens after approval.
 - The repository label `auto-ready` has been created.
 - Codex / Claude PR creation guidance now says Codex task PRs should be opened
   as draft and labeled `auto-ready` by default.
-- The remaining validation step is to observe the next real Codex-authored PR:
-  draft -> checks pass -> auto-ready marks ready -> `needs-codex-review` flow
-  takes over.
+- PR #488 adds the same-PR CI completion hook after rollout validation showed
+  the standalone workflow could run before GitHub Actions checks were complete.
+- The remaining validation step is to observe PR #488: draft -> checks pass ->
+  auto-ready marks ready -> `needs-codex-review` flow takes over.
 
 ## Implemented workflow
 
 Workflow file:
 
 - `.github/workflows/auto-ready-pr.yml`
+- `.github/workflows/ci.yml`, job `auto-ready-after-ci`
 
-Triggers:
+Standalone workflow triggers:
 
 - `pull_request` on `opened`, `synchronize`, `reopened`, and `labeled`
 - `check_suite` on `completed`
@@ -50,7 +54,17 @@ Triggers:
 
 The `labeled` trigger supports adding `auto-ready` after CI has already
 completed. The scheduled fallback catches required checks whose completion does
-not emit a useful event for this workflow.
+not emit a useful event for this workflow after the workflow exists on the
+default branch.
+
+CI completion hook:
+
+- Runs on `pull_request` after `scope-gate`, `backend-ci`, `frontend`,
+  `dashboard`, and `contracts` finish.
+- Allows required CI jobs with result `success` or `skipped`.
+- Refreshes live PR state before mutating the PR.
+- Reuses the same live branch-protection required-check gate before marking the
+  draft ready.
 
 ## Eligibility rules
 
@@ -60,6 +74,7 @@ The workflow only marks a PR ready when all of these are true at execution time:
 - The PR is still a draft.
 - The PR has the `auto-ready` label.
 - The author is not `dependabot[bot]`.
+- The PR head is in the same repository.
 - The PR has a live head SHA.
 - The current required checks for the base branch are successful.
 
@@ -108,7 +123,8 @@ automatically should not use the `auto-ready` label.
 ## Maintenance notes
 
 - Keep the workflow regression tests in `.github/workflows/ci.test.mjs` aligned
-  with the workflow behavior.
+  with both `.github/workflows/auto-ready-pr.yml` and the
+  `auto-ready-after-ci` job in `.github/workflows/ci.yml`.
 - If required checks are renamed, split, moved to another app, or added to
   branch protection, update the workflow and tests in the same PR.
 - If Renovate is introduced in this repository, add `renovate[bot]` to the

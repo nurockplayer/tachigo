@@ -399,6 +399,275 @@ jobs:
           done
           echo "✓ Backend CI passed"
 
+  auto-ready-after-ci:
+    timeout-minutes: 5
+    name: Auto-ready draft PR after CI
+    needs: [scope-gate, backend-ci, frontend, dashboard, contracts]
+    if: always() && github.event_name == 'pull_request'
+    runs-on: ubuntu-latest
+    permissions:
+      contents: read
+      checks: read
+      statuses: read
+      pull-requests: write
+    steps:
+      - name: Mark auto-ready draft PR ready
+        uses: actions/github-script@v7
+        env:
+          SCOPE_GATE_RESULT: ${{ needs.scope-gate.result }}
+          BACKEND_CI_RESULT: ${{ needs.backend-ci.result }}
+          FRONTEND_RESULT: ${{ needs.frontend.result }}
+          DASHBOARD_RESULT: ${{ needs.dashboard.result }}
+          CONTRACTS_RESULT: ${{ needs.contracts.result }}
+        with:
+          script: |
+            const owner = context.repo.owner
+            const repo = context.repo.repo
+            const autoReadyLabel = 'auto-ready'
+            const targetBaseBranches = new Set(['main', 'develop'])
+            const allowedJobResults = new Set(['success', 'skipped'])
+            const successConclusions = new Set(['success', 'neutral', 'skipped'])
+            const ownCheckNames = new Set(['Auto-ready draft PR after CI'])
+            const currentHeadSha = context.payload.pull_request?.head?.sha
+            const requiredJobResults = [
+              ['scope-gate', process.env.SCOPE_GATE_RESULT],
+              ['backend-ci', process.env.BACKEND_CI_RESULT],
+              ['frontend', process.env.FRONTEND_RESULT],
+              ['dashboard', process.env.DASHBOARD_RESULT],
+              ['contracts', process.env.CONTRACTS_RESULT],
+            ]
+
+            for (const [job, result] of requiredJobResults) {
+              if (!allowedJobResults.has(result)) {
+                core.info(`Skipping auto-ready: ${job} finished with ${result}.`)
+                return
+              }
+            }
+
+            const hasAutoReadyLabel = (pr) =>
+              (pr.labels || []).some((label) => label.name === autoReadyLabel)
+
+            const isEligibleDraftPr = (pr) => {
+              if (!targetBaseBranches.has(pr.base?.ref)) return false
+              if (pr.draft !== true) return false
+              if (pr.user?.login === 'dependabot[bot]') return false
+              if (pr.head?.repo?.full_name !== `${owner}/${repo}`) return false
+              if (!hasAutoReadyLabel(pr)) return false
+              return true
+            }
+
+            let pr = context.payload.pull_request
+            if (!pr) {
+              core.info('Skipping auto-ready: not a pull_request event.')
+              return
+            }
+            if (!isEligibleDraftPr(pr)) {
+              core.info(`Skipping PR #${pr.number}: not an eligible ${autoReadyLabel} draft PR.`)
+              return
+            }
+
+            try {
+              const response = await github.rest.pulls.get({
+                owner,
+                repo,
+                pull_number: pr.number,
+              })
+              pr = response.data
+            } catch (error) {
+              core.warning(`Skipping PR #${pr.number}: failed to refresh PR state (${error?.message || error}).`)
+              return
+            }
+
+            if (pr.head?.sha !== currentHeadSha) {
+              core.info(`Skipping PR #${pr.number}: head SHA changed while CI was running.`)
+              return
+            }
+            if (!isEligibleDraftPr(pr)) {
+              core.info(`Skipping PR #${pr.number}: live PR state is no longer eligible.`)
+              return
+            }
+
+            const requiredCheckKey = (contextName, appId) =>
+              appId ? `check:${contextName}:${appId}` : `context:${contextName}`
+
+            const requiredCheckLabel = (check) =>
+              check.appId ? `${check.context} from app ${check.appId}` : check.context
+
+            const getRequiredChecks = async (baseBranch) => {
+              const query = `
+                query($owner: String!, $repo: String!, $baseBranch: String!) {
+                  repository(owner: $owner, name: $repo) {
+                    ref(qualifiedName: $baseBranch) {
+                      branchProtectionRule {
+                        requiredStatusCheckContexts
+                        requiredStatusChecks {
+                          context
+                          app {
+                            databaseId
+                          }
+                        }
+                      }
+                    }
+                  }
+                }
+              `
+              const response = await github.graphql(query, { owner, repo, baseBranch })
+              const requiredStatusChecks =
+                response.repository?.ref?.branchProtectionRule?.requiredStatusChecks || []
+              const requiredStatusCheckContexts =
+                response.repository?.ref?.branchProtectionRule?.requiredStatusCheckContexts || []
+              const requiredChecks = []
+              const seen = new Set()
+
+              for (const check of requiredStatusChecks) {
+                if (!check.context) continue
+                const requiredCheck = {
+                  context: check.context,
+                  appId: check.app?.databaseId || null,
+                }
+                const key = requiredCheckKey(requiredCheck.context, requiredCheck.appId)
+                if (seen.has(key)) continue
+                seen.add(key)
+                requiredChecks.push(requiredCheck)
+              }
+
+              for (const contextName of requiredStatusCheckContexts) {
+                const key = requiredCheckKey(contextName, null)
+                if (seen.has(key)) continue
+                seen.add(key)
+                requiredChecks.push({ context: contextName, appId: null })
+              }
+
+              return requiredChecks
+            }
+
+            const listCheckRuns = async (headSha) =>
+              github.paginate(github.rest.checks.listForRef, {
+                owner,
+                repo,
+                ref: headSha,
+                per_page: 100,
+              })
+
+            const listStatuses = async (headSha) => {
+              const response = await github.rest.repos.getCombinedStatusForRef({
+                owner,
+                repo,
+                ref: headSha,
+              })
+              return response.data.statuses || []
+            }
+
+            const checkRunPassed = (run) =>
+              run.status === 'completed' && successConclusions.has(run.conclusion)
+
+            const statusPassed = (status) => status.state === 'success'
+
+            const observedAt = (item) =>
+              Date.parse(item.completed_at || item.updated_at || item.created_at || item.started_at || '') || 0
+
+            const recordObservedContext = (observed, key, passed, item) => {
+              const timestamp = observedAt(item)
+              const previous = observed.get(key)
+              if (!previous || timestamp >= previous.timestamp) {
+                observed.set(key, { passed, timestamp })
+              }
+            }
+
+            const buildObservedContexts = (checkRuns, statuses) => {
+              const observed = new Map()
+
+              for (const status of statuses) {
+                recordObservedContext(
+                  observed,
+                  requiredCheckKey(status.context, null),
+                  statusPassed(status),
+                  status,
+                )
+              }
+
+              for (const run of checkRuns) {
+                if (ownCheckNames.has(run.name)) continue
+                const passed = checkRunPassed(run)
+                recordObservedContext(observed, requiredCheckKey(run.name, null), passed, run)
+                if (run.app?.id) {
+                  recordObservedContext(observed, requiredCheckKey(run.name, run.app.id), passed, run)
+                }
+              }
+
+              return observed
+            }
+
+            const requiredChecksPassed = (requiredChecks, observed) => {
+              for (const requiredCheck of requiredChecks) {
+                if (ownCheckNames.has(requiredCheck.context)) continue
+                if (observed.get(requiredCheckKey(requiredCheck.context, requiredCheck.appId))?.passed !== true) {
+                  core.info(`Required context is not successful yet: ${requiredCheckLabel(requiredCheck)}`)
+                  return false
+                }
+              }
+              return true
+            }
+
+            const fallbackChecksPassed = (observed) => {
+              const visibleResults = [...observed.values()]
+              if (visibleResults.length === 0) {
+                core.info('No visible checks found yet.')
+                return false
+              }
+              return visibleResults.every((result) => result.passed)
+            }
+
+            let requiredChecks = []
+            let checkRuns = []
+            let statuses = []
+            try {
+              const fetchedChecks = await Promise.all([
+                getRequiredChecks(pr.base.ref),
+                listCheckRuns(pr.head.sha),
+                listStatuses(pr.head.sha),
+              ])
+              requiredChecks = fetchedChecks[0]
+              checkRuns = fetchedChecks[1]
+              statuses = fetchedChecks[2]
+            } catch (error) {
+              core.warning(
+                `Skipping PR #${pr.number} at ${pr.head.sha}: failed to fetch checks/statuses (${error?.message || error}).`,
+              )
+              return
+            }
+
+            const observed = buildObservedContexts(checkRuns, statuses)
+            const passed = requiredChecks.length > 0
+              ? requiredChecksPassed(requiredChecks, observed)
+              : fallbackChecksPassed(observed)
+
+            if (!passed) {
+              core.info(`PR #${pr.number} remains draft until required checks pass.`)
+              return
+            }
+
+            try {
+              await github.graphql(
+                `
+                  mutation($pullRequestId: ID!) {
+                    markPullRequestReadyForReview(input: { pullRequestId: $pullRequestId }) {
+                      pullRequest {
+                        number
+                        isDraft
+                      }
+                    }
+                  }
+                `,
+                { pullRequestId: pr.node_id },
+              )
+            } catch (error) {
+              core.warning(`Failed to mark PR #${pr.number} ready for review (${error?.message || error}).`)
+              return
+            }
+
+            core.notice(`PR #${pr.number} marked ready for review.`)
+
   notify-discord:
     timeout-minutes: 5
     name: Notify Discord on failure
