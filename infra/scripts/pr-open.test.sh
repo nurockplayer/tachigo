@@ -53,4 +53,19 @@ grep -q -- '--draft' "$tmp_dir/gh-pr-create.log"
 grep -q -- '--label auto-ready' "$tmp_dir/gh-pr-create.log"
 grep -q -- '--title \[chore\] Test auto-ready PR' "$tmp_dir/pr-metadata-check.log"
 
+(
+  cd "$tmp_dir"
+
+  PATH="$tmp_dir/fakebin:$PATH" \
+    GH_PR_CREATE_LOG="$tmp_dir/gh-pr-create-default.log" \
+    PR_METADATA_CHECK_LOG="$tmp_dir/pr-metadata-check-default.log" \
+    "$tmp_dir/infra/scripts/pr-open.sh" \
+      --title "[chore] Test default PR" \
+      --body-file body.md
+)
+
+! grep -q -- '--draft' "$tmp_dir/gh-pr-create-default.log"
+! grep -q -- '--label auto-ready' "$tmp_dir/gh-pr-create-default.log"
+grep -q -- '--title \[chore\] Test default PR' "$tmp_dir/pr-metadata-check-default.log"
+
 echo "pr-open regression tests passed"
