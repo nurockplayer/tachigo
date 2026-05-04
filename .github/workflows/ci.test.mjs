@@ -12,6 +12,7 @@ const scopePolicePath = path.join(currentDir, 'pr-scope-police.yml')
 const autoMergeWorkflowPath = path.join(currentDir, 'auto-merge.yml')
 const autoReadyWorkflowPath = path.join(currentDir, 'auto-ready-pr.yml')
 const codexReviewRerequestWorkflowPath = path.join(currentDir, 'codex-review-rerequest.yml')
+const closeIssueOnDevelopMergeWorkflowPath = path.join(currentDir, 'close-issue-on-develop-merge.yml')
 const claudePath = path.join(repoRoot, 'CLAUDE.md')
 const AsyncFunction = Object.getPrototypeOf(async function () {}).constructor
 const developRequiredCheckRuns = [
@@ -285,6 +286,71 @@ async function runAutoReadyScript({
   return { autoMergeMutations, graphqlCalls, labelsAdded, labelsCreated, labelsRemoved, mutations, notices, warnings }
 }
 
+async function runCloseIssueOnDevelopMergeWorkflow({
+  body = '',
+  commits = [],
+  issueStateByNumber = {},
+} = {}) {
+  const parsedWorkflow = parseYaml(closeIssueOnDevelopMergeWorkflowPath)
+  const script = parsedWorkflow.jobs['close-linked-issues'].steps[0].with.script
+  const comments = []
+  const closed = []
+  const notices = []
+  const warnings = []
+  const requestedCommits = []
+  const errors = []
+  const failures = []
+  const context = {
+    repo: { owner: 'nurockplayer', repo: 'tachigo' },
+    payload: {
+      pull_request: {
+        number: 512,
+        body,
+      },
+    },
+  }
+  const github = {
+    rest: {
+      issues: {
+        get: async ({ issue_number }) => ({
+          data: {
+            number: issue_number,
+            state: issueStateByNumber[issue_number] || 'open',
+          },
+        }),
+        createComment: async (args) => {
+          comments.push(args)
+          return { data: { id: comments.length } }
+        },
+        update: async (args) => {
+          closed.push(args)
+          return { data: { number: args.issue_number, state: args.state } }
+        },
+      },
+      pulls: {
+        listCommits: async (args) => {
+          requestedCommits.push(args)
+          return { data: commits }
+        },
+      },
+    },
+    paginate: async (fn, args) => {
+      const result = await fn(args)
+      return result.data || result
+    },
+  }
+  const core = {
+    error: (message) => errors.push(message),
+    info: () => {},
+    notice: (message) => notices.push(message),
+    setFailed: (message) => failures.push(message),
+    warning: (message) => warnings.push(message),
+  }
+
+  await AsyncFunction('context', 'github', 'core', script)(context, github, core)
+  return { closed, comments, errors, failures, notices, requestedCommits, warnings }
+}
+
 test('frontend CI job runs the frontend test command', async () => {
   const workflow = await readFile(workflowPath, 'utf8')
 
@@ -531,6 +597,67 @@ test('global auto-merge workflow excludes Dependabot PRs', async () => {
     "github.event.pull_request.draft == false && github.event.pull_request.user.login != 'dependabot[bot]'",
   )
   assert.doesNotMatch(workflow, /if: github\.event\.pull_request\.draft == false\s*$/m)
+})
+
+test('develop merge issue closer only runs after merged PRs close into develop', async () => {
+  const parsedWorkflow = parseYaml(closeIssueOnDevelopMergeWorkflowPath)
+  const job = parsedWorkflow.jobs['close-linked-issues']
+
+  assert.deepEqual(parsedWorkflow.on.pull_request.types, ['closed'])
+  assert.deepEqual(parsedWorkflow.on.pull_request.branches, ['develop'])
+  assert.equal(parsedWorkflow.permissions.issues, 'write')
+  assert.equal(parsedWorkflow.permissions['pull-requests'], 'read')
+  assert.equal(job.if, 'github.event.pull_request.merged == true')
+})
+
+test('develop merge issue closer ignores template comments and code examples', async () => {
+  const result = await runCloseIssueOnDevelopMergeWorkflow({
+    body: [
+      '## 為什麼',
+      '<!-- 背景、需求，或關聯的 issue（e.g. closes #123） -->',
+      '',
+      '```',
+      'closes #456',
+      '```',
+      '',
+      '`fixes #789`',
+      '',
+      '實際完成 closes #494',
+    ].join('\n'),
+  })
+
+  assert.deepEqual(
+    result.closed.map((issue) => issue.issue_number),
+    [494],
+  )
+  assert.deepEqual(
+    result.comments.map((comment) => comment.issue_number),
+    [494],
+  )
+})
+
+test('develop merge issue closer reads closing keywords from PR commits', async () => {
+  const result = await runCloseIssueOnDevelopMergeWorkflow({
+    body: '## 為什麼\nrefs #111',
+    commits: [
+      { commit: { message: 'fix: old work\n\ncloses #333' } },
+      { commit: { message: 'fix: prepare workflow\n\nrefs #222' } },
+      { commit: { message: 'fix: close develop issue\n\ncloses #494' } },
+    ],
+  })
+
+  assert.deepEqual(result.requestedCommits, [
+    {
+      owner: 'nurockplayer',
+      repo: 'tachigo',
+      pull_number: 512,
+      per_page: 100,
+    },
+  ])
+  assert.deepEqual(
+    result.closed.map((issue) => issue.issue_number),
+    [494],
+  )
 })
 
 test('auto-ready workflow is opt-in for auto-ready PRs on protected base branches', async () => {
