@@ -28,9 +28,6 @@ review, while auto-merge happens after approval.
 6. The same workflow adds `needs-codex-review` and removes `changes-requested`
    because events emitted by `GITHUB_TOKEN` do not trigger the separate
    `ready_for_review` label workflow.
-7. The same guarded path enables GitHub auto-merge because the
-   `ready_for_review` event emitted by `GITHUB_TOKEN` also does not trigger the
-   separate auto-merge workflow.
 
 ## Rollout state
 
@@ -149,11 +146,6 @@ The ready-for-review mutation is executed with `GITHUB_TOKEN`, so the resulting
 The auto-ready paths therefore also use `issues: write` to add
 `needs-codex-review` and remove stale `changes-requested` in the same guarded
 mutation path.
-
-For the same reason, auto-ready paths directly call
-`enablePullRequestAutoMerge` after marking the PR ready. They do not rely on the
-separate `Enable auto-merge` workflow waking up from a `ready_for_review` event
-emitted by `GITHUB_TOKEN`.
 
 ## PR creation default
 
