@@ -281,6 +281,54 @@ jobs:
         working-directory: services/api
         run: go vet ./...
 
+  atlas-migration-tooling:
+    timeout-minutes: 10
+    name: Atlas migration tooling
+    needs: [scope-gate]
+    if: github.event_name == 'push' || needs.scope-gate.outputs.run_ci == 'true'
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+        with:
+          fetch-depth: 0
+
+      - name: Set up Go
+        uses: actions/setup-go@v6
+        with:
+          go-version-file: services/api/go.mod
+
+      - name: Set up Atlas
+        uses: ariga/setup-atlas@v0
+        with:
+          version: v1.2.0
+
+      - name: Verify GORM loader output
+        working-directory: services/api
+        run: go run ./cmd/loader/main.go > /tmp/tachigo-gorm-schema.sql
+
+      - name: Verify Atlas can inspect the GORM schema source
+        working-directory: services/api
+        run: atlas schema inspect --env gorm --url env://src --format '{{ sql . }}' > /tmp/tachigo-atlas-inspect-schema.sql
+
+      - name: Detect changed migration files
+        id: migration-changes
+        run: |
+          if [ "${{ github.event_name }}" != "pull_request" ]; then
+            echo "changed=false" >> "$GITHUB_OUTPUT"
+            exit 0
+          fi
+
+          if git diff --name-only "origin/${{ github.base_ref }}" "${{ github.event.pull_request.head.sha }}" -- 'services/api/migrations/*.sql' | grep -q .; then
+            echo "changed=true" >> "$GITHUB_OUTPUT"
+          else
+            echo "changed=false" >> "$GITHUB_OUTPUT"
+          fi
+
+      - name: Lint changed Atlas migrations
+        if: steps.migration-changes.outputs.changed == 'true'
+        working-directory: services/api
+        run: atlas migrate lint --env gorm --git-base "origin/${{ github.base_ref }}"
+
   backend-integration:
     timeout-minutes: 20
     name: Backend integration tests
@@ -402,7 +450,7 @@ jobs:
   notify-discord:
     timeout-minutes: 5
     name: Notify Discord on failure
-    needs: [workflow-regression, commit-message-regression, pr-metadata-regression, check-cache-wiring, backend-ci, frontend, dashboard, contracts]
+    needs: [workflow-regression, commit-message-regression, pr-metadata-regression, check-cache-wiring, atlas-migration-tooling, backend-ci, frontend, dashboard, contracts]
     if: failure()
     runs-on: ubuntu-latest
     steps:

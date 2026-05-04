@@ -255,6 +255,32 @@ test('backend CI uses services/api as the Go service root', async () => {
   )
 })
 
+test('CI workflow validates Atlas migration tooling without applying migrations', async () => {
+  const workflow = await readFile(workflowPath, 'utf8')
+  const atlasJob = workflowJobBlock(workflow, 'atlas-migration-tooling')
+
+  assert.match(
+    atlasJob,
+    /uses: actions\/setup-go@v6\n\s+with:\n\s+go-version-file: services\/api\/go\.mod/,
+  )
+  assert.match(atlasJob, /uses: ariga\/setup-atlas@v0/)
+  assert.match(atlasJob, /version: v1\.2\.0/)
+  assert.match(
+    atlasJob,
+    /working-directory: services\/api\n\s+run: go run \.\/cmd\/loader\/main\.go > \/tmp\/tachigo-gorm-schema\.sql/,
+  )
+  assert.match(
+    atlasJob,
+    /atlas schema inspect --env gorm --url env:\/\/src --format '\{\{ sql \. \}\}' > \/tmp\/tachigo-atlas-inspect-schema\.sql/,
+  )
+  assert.match(atlasJob, /services\/api\/migrations\/.*\.sql/)
+  assert.match(
+    atlasJob,
+    /atlas migrate lint --env gorm --git-base "origin\/\$\{\{ github\.base_ref \}\}"/,
+  )
+  assert.doesNotMatch(atlasJob, /atlas migrate apply|atlas schema apply|docker compose up/)
+})
+
 test('scope gate backend contract regex accepts full-width and half-width colons', async () => {
   const workflow = await readFile(workflowPath, 'utf8')
   const scopePolice = await readFile(scopePolicePath, 'utf8')
