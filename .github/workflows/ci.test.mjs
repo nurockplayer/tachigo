@@ -61,6 +61,47 @@ function workflowJobBlock(workflow, jobName) {
   return match[0]
 }
 
+function extractRequiredCheckSnapshots(script) {
+  const marker = 'const requiredCheckSnapshots ='
+  const markerIndex = script.indexOf(marker)
+  assert.notEqual(markerIndex, -1, 'expected script to define requiredCheckSnapshots')
+
+  const objectStart = script.indexOf('{', markerIndex)
+  assert.notEqual(objectStart, -1, 'expected requiredCheckSnapshots to start with an object')
+
+  let depth = 0
+  let quote = null
+  let escaping = false
+  for (let index = objectStart; index < script.length; index += 1) {
+    const char = script[index]
+
+    if (quote) {
+      if (escaping) {
+        escaping = false
+      } else if (char === '\\') {
+        escaping = true
+      } else if (char === quote) {
+        quote = null
+      }
+      continue
+    }
+
+    if (char === "'" || char === '"' || char === '`') {
+      quote = char
+    } else if (char === '{') {
+      depth += 1
+    } else if (char === '}') {
+      depth -= 1
+      if (depth === 0) {
+        const objectLiteral = script.slice(objectStart, index + 1)
+        return Function(`'use strict'; return (${objectLiteral})`)()
+      }
+    }
+  }
+
+  assert.fail('expected requiredCheckSnapshots object to close')
+}
+
 async function runAutoReadyWorkflow({
   checkRuns = [],
   statuses = [],
@@ -504,6 +545,18 @@ test('CI workflow wakes auto-ready draft PRs after required CI jobs finish', asy
   assert.match(jobBlock, /listForRef/)
   assert.match(jobBlock, /getCombinedStatusForRef/)
   assert.match(jobBlock, /markPullRequestReadyForReview/)
+})
+
+test('auto-ready required-check snapshots stay aligned across workflows', () => {
+  const standaloneScript =
+    parseYaml(autoReadyWorkflowPath).jobs['auto-ready'].steps[0].with.script
+  const ciScript =
+    parseYaml(workflowPath).jobs['auto-ready-after-ci'].steps[0].with.script
+
+  assert.deepEqual(
+    extractRequiredCheckSnapshots(standaloneScript),
+    extractRequiredCheckSnapshots(ciScript),
+  )
 })
 
 test('auto-ready workflow serializes concurrent runs', async () => {
