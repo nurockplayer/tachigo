@@ -8,7 +8,7 @@ import (
 
 	"ariga.io/atlas-provider-gorm/gormschema"
 
-	"github.com/tachigo/tachigo/internal/models"
+	"github.com/tachigo/tachigo/internal/schema"
 )
 
 func main() {
@@ -29,6 +29,7 @@ func loadAtlasSchema() (string, error) {
 	return strings.Join([]string{
 		atlasCustomPostgresTypes(),
 		stmts,
+		atlasCustomPostgresConstraints(),
 		atlasCustomPostgresIndexes(),
 	}, "\n\n"), nil
 }
@@ -38,43 +39,24 @@ func atlasDialect() string {
 }
 
 func atlasModels() []any {
-	return []any{
-		&models.User{},
-		&models.AuthProvider{},
-		&models.ShippingAddress{},
-		&models.RefreshToken{},
-		&models.Web3Nonce{},
-		&models.EmailVerification{},
-		&models.PasswordReset{},
-		&models.Streamer{},
-		&models.ChannelConfig{},
-		&models.PointsLedger{},
-		&models.PointsTransaction{},
-		&models.WatchSession{},
-		&models.WatchTimeStat{},
-		&models.BroadcastTimeStat{},
-		&models.BroadcastTimeLog{},
-		&models.TachiBalance{},
-		&models.Claim{},
-		&models.ClaimItem{},
-		&models.AgencyStreamer{},
-		&models.Raffle{},
-		&models.RaffleEntry{},
-		&models.RaffleDraw{},
-		&models.RaffleClaim{},
-		&models.CouponRedemption{},
-	}
+	return schema.AutoMigrateModels()
 }
 
 func atlasCustomPostgresSchema() string {
 	return strings.Join([]string{
 		atlasCustomPostgresTypes(),
+		atlasCustomPostgresConstraints(),
 		atlasCustomPostgresIndexes(),
 	}, "\n\n")
 }
 
 func atlasCustomPostgresTypes() string {
-	return `CREATE TYPE user_role AS ENUM ('viewer', 'streamer', 'admin', 'agency');`
+	return `CREATE TYPE user_role AS ENUM ('viewer', 'streamer', 'agency', 'admin');`
+}
+
+func atlasCustomPostgresConstraints() string {
+	return `ALTER TABLE tachi_balances ADD CONSTRAINT fk_tachi_balances_user_id
+FOREIGN KEY (user_id) REFERENCES users(id) ON DELETE CASCADE;`
 }
 
 func atlasCustomPostgresIndexes() string {
