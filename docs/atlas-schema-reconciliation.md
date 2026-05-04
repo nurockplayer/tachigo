@@ -124,11 +124,11 @@
    - `AUTOMIGRATE_DATABASE_URL`：啟動目前 server，讓 runtime `AutoMigrate` 與 patches 跑完。
    - `LOADER_DATABASE_URL`：套用 Atlas GORM loader 輸出的 desired schema SQL。
 
-2. 建立 historical migrations state。repo 目前沒有正式 migration runner；此步驟是 reconciliation 專用的手動 sequential replay：
+2. 建立 historical migrations state。repo 目前沒有正式 migration runner；此步驟是 reconciliation 專用的手動 sequential replay。此 loop 刻意只重播 `001-019`，避免未來新增 `020` 以後的 Atlas migration 污染 historical baseline：
 
    ```bash
    cd services/api
-   for file in migrations/*.sql; do
+   for file in migrations/00[1-9]_*.sql migrations/01[0-9]_*.sql; do
      psql "$MIGRATIONS_DATABASE_URL" -v ON_ERROR_STOP=1 -f "$file"
    done
    ```
