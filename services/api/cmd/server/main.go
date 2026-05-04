@@ -27,8 +27,8 @@ import (
 	"github.com/tachigo/tachigo/internal/config"
 	"github.com/tachigo/tachigo/internal/database"
 	"github.com/tachigo/tachigo/internal/handlers"
-	"github.com/tachigo/tachigo/internal/models"
 	"github.com/tachigo/tachigo/internal/router"
+	"github.com/tachigo/tachigo/internal/schema"
 	"github.com/tachigo/tachigo/internal/services"
 )
 
@@ -57,38 +57,7 @@ func main() {
 	}
 
 	// Auto-migrate all models
-	if err := db.AutoMigrate(
-		&models.User{},
-		&models.AuthProvider{},
-		&models.ShippingAddress{},
-		&models.RefreshToken{},
-		&models.Web3Nonce{},
-		&models.EmailVerification{},
-		&models.PasswordReset{},
-		// Points & watch-time
-		&models.Streamer{},
-		&models.ChannelConfig{},
-		&models.PointsLedger{},
-		&models.PointsTransaction{},
-		&models.WatchSession{},
-		&models.WatchTimeStat{},
-		&models.BroadcastTimeStat{},
-		&models.BroadcastTimeLog{},
-		// Tachi token balance — refs #103
-		&models.TachiBalance{},
-		// Claim lifecycle
-		&models.Claim{},
-		&models.ClaimItem{},
-		// Agency management — refs #99
-		&models.AgencyStreamer{},
-		// Raffle system — refs #227
-		&models.Raffle{},
-		&models.RaffleEntry{},
-		&models.RaffleDraw{},
-		&models.RaffleClaim{},
-		// Coupon redemption tracking — refs #423
-		&models.CouponRedemption{},
-	); err != nil {
+	if err := db.AutoMigrate(schema.AutoMigrateModels()...); err != nil {
 		log.Fatalf("migration failed: %v", err)
 	}
 

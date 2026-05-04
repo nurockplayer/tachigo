@@ -1,11 +1,34 @@
 package main
 
 import (
+	"os"
+	"path/filepath"
+	"runtime"
 	"strings"
 	"testing"
 
 	"github.com/jackc/pgx/v5/pgconn"
 )
+
+func TestServerAutoMigrateUsesSharedSchemaModelList(t *testing.T) {
+	_, file, _, ok := runtime.Caller(0)
+	if !ok {
+		t.Fatal("resolve current test file")
+	}
+
+	body, err := os.ReadFile(filepath.Join(filepath.Dir(file), "main.go"))
+	if err != nil {
+		t.Fatalf("read main.go: %v", err)
+	}
+
+	source := string(body)
+	if !strings.Contains(source, "db.AutoMigrate(schema.AutoMigrateModels()...)") {
+		t.Fatalf("server AutoMigrate must use shared schema.AutoMigrateModels list")
+	}
+	if strings.Contains(source, "&models.") {
+		t.Fatalf("server AutoMigrate must not keep a separate hard-coded models list")
+	}
+}
 
 func TestInitializeUserRoleEnumFreshDatabase(t *testing.T) {
 	var statements []string
