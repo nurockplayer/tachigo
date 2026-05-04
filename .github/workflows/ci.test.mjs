@@ -67,6 +67,7 @@ async function runAutoReadyWorkflow({
   checkRunsError = null,
   statusesError = null,
   graphqlError = null,
+  livePrOverrides = {},
 } = {}) {
   const parsedWorkflow = parseYaml(autoReadyWorkflowPath)
   const script = parsedWorkflow.jobs['auto-ready'].steps[0].with.script
@@ -75,9 +76,17 @@ async function runAutoReadyWorkflow({
     node_id: 'PR_node_id',
     base: { ref: 'develop' },
     draft: true,
-    head: { sha: 'head_sha' },
+    head: { sha: 'head_sha', repo: { full_name: 'nurockplayer/tachigo' } },
     labels: [{ name: 'auto-ready' }],
     user: { login: 'nurockplayer' },
+  }
+  const livePr = {
+    ...pr,
+    ...livePrOverrides,
+    base: { ...pr.base, ...(livePrOverrides.base || {}) },
+    head: { ...pr.head, ...(livePrOverrides.head || {}) },
+    user: { ...pr.user, ...(livePrOverrides.user || {}) },
+    labels: livePrOverrides.labels || pr.labels,
   }
   const notices = []
   const warnings = []
@@ -95,6 +104,7 @@ async function runAutoReadyWorkflow({
       },
       pulls: {
         list: async () => ({ data: [pr] }),
+        get: async () => ({ data: livePr }),
       },
       issues: {
         getLabel: async ({ name }) => ({ data: { name } }),
@@ -389,6 +399,9 @@ test('auto-ready workflow is opt-in for draft PRs on protected base branches', a
   assert.match(workflow, /const autoReadyLabel = 'auto-ready'/)
   assert.match(workflow, /pr\.draft !== true/)
   assert.match(workflow, /pr\.user\?\.login === 'dependabot\[bot\]'/)
+  assert.match(workflow, /pr\.head\?\.repo\?\.full_name !== `\$\{owner\}\/\$\{repo\}`/)
+  assert.match(workflow, /github\.rest\.pulls\.get/)
+  assert.match(workflow, /pr\.head\?\.sha !== headSha/)
   assert.match(workflow, /targetBaseBranches\.has\(pr\.base\?\.ref\)/)
   assert.match(workflow, /const reviewLabel = 'needs-codex-review'/)
   assert.match(workflow, /const changesLabel = 'changes-requested'/)
@@ -528,6 +541,22 @@ test('auto-ready workflow flags ready PRs for Codex review', async () => {
   assert.deepEqual(result.labelsRemoved, [
     { issue_number: 472, name: 'changes-requested' },
   ])
+})
+
+test('auto-ready workflow refreshes live PR state before marking ready', async () => {
+  const staleHead = await runAutoReadyWorkflow({
+    checkRuns: successfulDevelopRequiredCheckRuns(),
+    livePrOverrides: { head: { sha: 'new_head_sha' } },
+  })
+  const labelRemoved = await runAutoReadyWorkflow({
+    checkRuns: successfulDevelopRequiredCheckRuns(),
+    livePrOverrides: { labels: [] },
+  })
+
+  assert.equal(staleHead.mutations.length, 0)
+  assert.equal(staleHead.labelsAdded.length, 0)
+  assert.equal(labelRemoved.mutations.length, 0)
+  assert.equal(labelRemoved.labelsAdded.length, 0)
 })
 
 test('auto-ready workflow does not let a successful status mask a failed check run with the same name', async () => {

@@ -94,6 +94,7 @@ jobs:
               if (!targetBaseBranches.has(pr.base?.ref)) return false
               if (pr.draft !== true) return false
               if (pr.user?.login === 'dependabot[bot]') return false
+              if (pr.head?.repo?.full_name !== `${owner}/${repo}`) return false
               if (!hasAutoReadyLabel(pr)) return false
               return true
             }
@@ -221,7 +222,7 @@ jobs:
             const prs = await listPrsForEvent()
             const seen = new Set()
 
-            for (const pr of prs) {
+            for (let pr of prs) {
               if (seen.has(pr.number)) continue
               seen.add(pr.number)
 
@@ -233,6 +234,27 @@ jobs:
               const headSha = pr.head?.sha
               if (!headSha) {
                 core.info(`Skipping PR #${pr.number}: missing head SHA.`)
+                continue
+              }
+
+              try {
+                const response = await github.rest.pulls.get({
+                  owner,
+                  repo,
+                  pull_number: pr.number,
+                })
+                pr = response.data
+              } catch (error) {
+                core.warning(`Skipping PR #${pr.number}: failed to refresh PR state (${error?.message || error}).`)
+                continue
+              }
+
+              if (pr.head?.sha !== headSha) {
+                core.info(`Skipping PR #${pr.number}: head SHA changed while auto-ready was running.`)
+                continue
+              }
+              if (!isEligibleDraftPr(pr)) {
+                core.info(`Skipping PR #${pr.number}: live PR state is no longer eligible.`)
                 continue
               }
 
