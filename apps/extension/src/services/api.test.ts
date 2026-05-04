@@ -1,6 +1,6 @@
 import assert from 'node:assert/strict'
 import http from 'node:http'
-import test from 'node:test'
+import { test, vi } from 'vitest'
 
 type RecordedRequest = {
   method: string
@@ -94,7 +94,8 @@ test('sendHeartbeat starts a watch session, sends heartbeat, then refreshes bala
       process.env.VITE_TACHIGO_API_URL = baseUrl
 
       try {
-        const api = await import(`./api.ts?heartbeat=${Date.now()}`)
+        vi.resetModules()
+        const api = await import('./api.ts')
 
         api.setAuthToken('tachigo-access-token')
         const result = await api.sendHeartbeat('channel-123')
@@ -170,7 +171,8 @@ test('sendClick ensures the watch session exists before sending click rewards', 
       process.env.VITE_TACHIGO_API_URL = baseUrl
 
       try {
-        const api = await import(`./api.ts?click=${Date.now()}`)
+        vi.resetModules()
+        const api = await import('./api.ts')
 
         api.setAuthToken('tachigo-access-token')
         const result = await api.sendClick('channel-123')
@@ -240,7 +242,8 @@ test('claimPoints claims viewer points then refreshes tachi balance', async () =
       process.env.VITE_TACHIGO_API_URL = baseUrl
 
       try {
-        const api = await import(`./api.ts?claim=${Date.now()}`)
+        vi.resetModules()
+        const api = await import('./api.ts')
 
         api.setAuthToken('tachigo-access-token')
         const claimed = await api.claimPoints()
@@ -333,7 +336,8 @@ test('sendHeartbeat re-authenticates after 401 and falls back to previous balanc
       process.env.VITE_TACHIGO_API_URL = baseUrl
 
       try {
-        const api = await import(`./api.ts?recover=${Date.now()}`)
+        vi.resetModules()
+        const api = await import('./api.ts')
 
         api.setExtensionJwtForRecovery('extension-jwt')
         api.setAuthToken('expired-access-token')

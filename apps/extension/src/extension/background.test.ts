@@ -1,5 +1,5 @@
 import assert from 'node:assert/strict'
-import test, { afterEach } from 'node:test'
+import { afterEach, test, vi } from 'vitest'
 
 type ChromeMock = typeof globalThis & {
   chrome?: {
@@ -25,7 +25,8 @@ afterEach(() => {
 })
 
 async function importBackgroundModule() {
-  return import(`./background.ts?test=${Date.now()}-${Math.random()}`)
+  vi.resetModules()
+  return import('./background.ts')
 }
 
 test('background enables openPanelOnActionClick without registering manual action click handling', async () => {

@@ -1,5 +1,5 @@
 import assert from 'node:assert/strict'
-import test from 'node:test'
+import { afterEach, test, vi } from 'vitest'
 
 import type { DemoState } from './types.ts'
 
@@ -89,10 +89,11 @@ function setWindowLocalStorage(initialValue?: DemoState | null): MockLocalStorag
 }
 
 async function importStorageModule() {
-  return import(`./storage.ts?test=${Date.now()}-${Math.random()}`)
+  vi.resetModules()
+  return import('./storage.ts')
 }
 
-test.afterEach(() => {
+afterEach(() => {
   delete (globalThis as typeof globalThis & { chrome?: unknown }).chrome
   delete (globalThis as typeof globalThis & { window?: unknown }).window
 })
