@@ -25,7 +25,9 @@ review, while auto-merge happens after approval.
 4. The auto-ready job verifies the PR is still eligible and all required checks
    in the maintained snapshot for the base branch are successful.
 5. The workflow marks the PR ready for review.
-6. Existing review-label automation handles the `ready_for_review` event.
+6. The same workflow adds `needs-codex-review` and removes `changes-requested`
+   because events emitted by `GITHUB_TOKEN` do not trigger the separate
+   `ready_for_review` label workflow.
 
 ## Rollout state
 
@@ -38,8 +40,11 @@ review, while auto-merge happens after approval.
 - PR #488 also switches the readiness gate to a tested required-check snapshot
   after rollout validation showed the Actions `GITHUB_TOKEN` cannot read
   GraphQL `branchProtectionRule`.
-- The remaining validation step is to observe PR #488: draft -> checks pass ->
-  auto-ready marks ready -> `needs-codex-review` flow takes over.
+- PR #488 validation showed `markPullRequestReadyForReview` can transition the
+  PR from draft to ready after the `contents: write` fix.
+- PR #488 also adds direct review-label handling after rollout validation showed
+  a `ready_for_review` event emitted by `GITHUB_TOKEN` does not wake the
+  separate review-label workflow.
 
 ## Implemented workflow
 
@@ -67,8 +72,9 @@ CI completion hook:
 - Allows required CI jobs with result `success` or `skipped`.
 - Refreshes live PR state before mutating the PR.
 - Reuses the same required-check snapshot gate before marking the draft ready.
-- Uses `contents: write` and `pull-requests: write` only for the auto-ready
-  mutation path; the main CI workflow's top-level permissions remain read-only.
+- Uses `contents: write`, `pull-requests: write`, and `issues: write` only for
+  the auto-ready mutation/label path; the main CI workflow's top-level
+  permissions remain read-only.
 
 ## Eligibility rules
 
@@ -134,6 +140,12 @@ Rollout validation also showed `markPullRequestReadyForReview` fails for this
 repository when the Actions token only has `contents: read`, even with
 `pull-requests: write`. The auto-ready paths therefore grant `contents: write`
 only where the ready-for-review mutation can run.
+
+The ready-for-review mutation is executed with `GITHUB_TOKEN`, so the resulting
+`ready_for_review` event does not trigger `.github/workflows/codex-review-flag.yml`.
+The auto-ready paths therefore also use `issues: write` to add
+`needs-codex-review` and remove stale `changes-requested` in the same guarded
+mutation path.
 
 ## PR creation default
 

@@ -75,7 +75,7 @@ PR A 已處理：
 
 **優先級：P1 / workflow completed**
 
-目的：讓 Codex task PR 可以先用 draft 發出跑 CI，CI 綠後自動轉 ready for review，再交給既有 `needs-codex-review` 流程。
+目的：讓 Codex task PR 可以先用 draft 發出跑 CI，CI 綠後自動轉 ready for review，並在同一條受 guard 的 auto-ready path 加上 `needs-codex-review`。
 
 Repo 內設計 / rollout 文件：
 
@@ -98,6 +98,10 @@ rollout PR 補上：
   `pull-requests: write` / `contents: read` 時 mutation 仍會被 GitHub 拒絕；
   因此 auto-ready 路徑需要 `contents: write`，但限制在 auto-ready workflow
   或 `ci.yml` 的 `auto-ready-after-ci` job。
+- review label：rollout validation 發現由 `GITHUB_TOKEN` 觸發的
+  `ready_for_review` 不會喚醒 `codex-review-flag.yml`，因此 auto-ready
+  path 在 mark ready 後直接加 `needs-codex-review` 並移除 stale
+  `changes-requested`。
 
 目前 workflow 觸發：
 
@@ -116,6 +120,7 @@ rollout PR 補上：
 - 以 workflow 內 required-check snapshot 作為 readiness gate，並用 regression tests 固定。
 - 不讀 fork 產物、不 checkout PR head。
 - mark ready 前再次驗證 PR number、head SHA、base branch、draft state、label state、author deny-list。
+- mark ready 後在同一個 guarded path 加上 `needs-codex-review`，並移除 stale `changes-requested`。
 - CI completion hook 只在 `scope-gate`、`backend-ci`、`frontend`、`dashboard`、`contracts`
   都是 `success` 或 `skipped` 後執行，且仍以 required-check snapshot 作為最後 gate。
 
@@ -137,8 +142,8 @@ rollout PR 補上：
 - PR #472 已 merge，workflow 與 regression tests 已進 `develop`。
 - repo label `auto-ready` 已建立。
 - 本 rollout PR 更新 Codex / Claude PR 建立指引，使 Codex task PR 預設 draft + `auto-ready` label。
-- 本 rollout PR 也補上 CI completion hook 與 required-check snapshot；PR #488 是第一個實際驗收候選。
-- 剩餘驗收：PR #488 應驗證 draft + `auto-ready` label + CI 全綠後自動 ready。
+- 本 rollout PR 也補上 CI completion hook、required-check snapshot、ready mutation 權限與 direct review-label handling。
+- PR #488 已驗證 draft + `auto-ready` label + CI 全綠後可自動 ready；direct review-label handling 由 regression test 固定，避免依賴 `GITHUB_TOKEN` 產生的二次 workflow event。
 
 ### 3. Workflow health check
 
@@ -173,14 +178,14 @@ rollout PR 補上：
 | Workflow | Write permission | 必要 guard |
 |---|---|---|
 | `pr-scope-police.yml` | `pull-requests: write` / `issues: write` | 只跑 `pull_request` 到 `main` / `develop`，sticky comment、label、嚴重違規 close 都必須基於同一份 scope evaluation |
-| `ci.yml` | `contents: write` / `pull-requests: write` / `checks: read` / `statuses: read` | 只限 `auto-ready-after-ci` job；只跑 `pull_request`；必須等 protected CI gate jobs 完成，並驗證同 repo draft PR、`auto-ready` label、非 dependency bot、live head SHA 與 snapshot required checks 全部成功；`contents: write` 只用於 ready-for-review mutation 權限需求 |
+| `ci.yml` | `contents: write` / `pull-requests: write` / `issues: write` / `checks: read` / `statuses: read` | 只限 `auto-ready-after-ci` job；只跑 `pull_request`；必須等 protected CI gate jobs 完成，並驗證同 repo draft PR、`auto-ready` label、非 dependency bot、live head SHA 與 snapshot required checks 全部成功；`contents: write` 只用於 ready-for-review mutation 權限需求；`issues: write` 只用於加 `needs-codex-review` 與移除 stale `changes-requested` |
 | `codex-review-flag.yml` | `pull-requests: write` / `issues: write` | 只處理 `main` / `develop` PR；review event 只接受指定 reviewer；draft PR 不加 review label |
 | `codex-review-slack.yml` | `actions: write` | 只在 CI success 或 `needs-codex-review` label 後通知 Slack；必須驗證 PR open、非 draft、base branch、label、head SHA、dedup cache |
 | `auto-merge.yml` | `contents: write` / `pull-requests: write` | 排除 draft 與 Dependabot；只啟用 GitHub auto-merge，不直接 merge |
 | `dependabot-automerge.yml` | `contents: write` / `pull-requests: write` | 只允許 `dependabot[bot]` actor；必須通過 metadata policy 或 `safe-to-automerge` label |
 | `notify-rebase-needed.yml` | `pull-requests: write` / `issues: write` | 只在 merge 到 `develop` 後留言；不得修改 PR branch |
 | `weekly-release-pr.yml` | `pull-requests: write` / `actions: write` | 只建立 `develop -> main` release PR；若已存在 open release PR 就 no-op |
-| `auto-ready-pr.yml` | `contents: write` / `pull-requests: write` / `checks: read` / `statuses: read` | 只處理同 repo draft PR、`auto-ready` label、非 dependency bot、live head SHA 與 snapshot required checks 全部成功；`contents: write` 只用於 ready-for-review mutation 權限需求 |
+| `auto-ready-pr.yml` | `contents: write` / `pull-requests: write` / `issues: write` / `checks: read` / `statuses: read` | 只處理同 repo draft PR、`auto-ready` label、非 dependency bot、live head SHA 與 snapshot required checks 全部成功；`contents: write` 只用於 ready-for-review mutation 權限需求；`issues: write` 只用於加 `needs-codex-review` 與移除 stale `changes-requested` |
 
 明確禁止第一版 workflow health check 接受未審查的 `pull_request_target`、repo-wide `contents: write`，或沒有 base branch / actor / label guard 的 public mutation workflow。
 
@@ -331,9 +336,9 @@ rollout PR 修改：
 驗收：
 
 - workflow regression tests 覆蓋 opt-in draft PR flow、skipped checks、同名 status/check run、app-scoped checks、rerun latest result 與 fetch failure。
-- CI workflow regression tests 覆蓋 `auto-ready-after-ci` job 的 needs、permissions、eligibility guard 與 snapshot required-check gate。
+- CI workflow regression tests 覆蓋 `auto-ready-after-ci` job 的 needs、permissions、eligibility guard、snapshot required-check gate 與 direct review-label handling。
 - repo label `auto-ready` 已存在。
-- PR #488 使用 draft + `auto-ready` label 驗證實際 ready transition。
+- PR #488 使用 draft + `auto-ready` label 驗證實際 ready transition；direct review-label handling 由 regression test 固定。
 
 ### PR C：Workflow health check
 

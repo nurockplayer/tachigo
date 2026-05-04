@@ -82,6 +82,9 @@ async function runAutoReadyWorkflow({
   const notices = []
   const warnings = []
   const mutations = []
+  const labelsAdded = []
+  const labelsRemoved = []
+  const labelsCreated = []
   const github = {
     rest: {
       checks: {
@@ -92,6 +95,21 @@ async function runAutoReadyWorkflow({
       },
       pulls: {
         list: async () => ({ data: [pr] }),
+      },
+      issues: {
+        getLabel: async ({ name }) => ({ data: { name } }),
+        createLabel: async (args) => {
+          labelsCreated.push(args)
+          return { data: { name: args.name } }
+        },
+        addLabels: async ({ issue_number, labels }) => {
+          labelsAdded.push({ issue_number, labels })
+          return { data: labels.map((name) => ({ name })) }
+        },
+        removeLabel: async ({ issue_number, name }) => {
+          labelsRemoved.push({ issue_number, name })
+          return { data: { name } }
+        },
       },
       repos: {
         getCombinedStatusForRef: async () => {
@@ -127,7 +145,7 @@ async function runAutoReadyWorkflow({
   }
 
   await AsyncFunction('context', 'github', 'core', script)(context, github, core)
-  return { mutations, notices, warnings }
+  return { labelsAdded, labelsCreated, labelsRemoved, mutations, notices, warnings }
 }
 
 test('frontend CI job runs the frontend test command', async () => {
@@ -365,12 +383,15 @@ test('auto-ready workflow is opt-in for draft PRs on protected base branches', a
   assert.deepEqual(parsedWorkflow.on.check_suite.types, ['completed'])
   assert.equal(parsedWorkflow.permissions['pull-requests'], 'write')
   assert.equal(parsedWorkflow.permissions.contents, 'write')
+  assert.equal(parsedWorkflow.permissions.issues, 'write')
   assert.equal(parsedWorkflow.permissions.checks, 'read')
   assert.equal(parsedWorkflow.permissions.statuses, 'read')
   assert.match(workflow, /const autoReadyLabel = 'auto-ready'/)
   assert.match(workflow, /pr\.draft !== true/)
   assert.match(workflow, /pr\.user\?\.login === 'dependabot\[bot\]'/)
   assert.match(workflow, /targetBaseBranches\.has\(pr\.base\?\.ref\)/)
+  assert.match(workflow, /const reviewLabel = 'needs-codex-review'/)
+  assert.match(workflow, /const changesLabel = 'changes-requested'/)
 })
 
 test('auto-ready workflow checks required contexts and excludes its own run', async () => {
@@ -419,7 +440,7 @@ test('auto-ready workflow uses routine logs for skipped PRs', async () => {
   assert.doesNotMatch(workflow, /core\.notice\('At least one visible check or status is not successful yet\.'\)/)
   assert.doesNotMatch(workflow, /core\.notice\(`Skipping PR #/)
   assert.doesNotMatch(workflow, /core\.notice\(`PR #\$\{pr\.number\} remains draft until checks pass\.`\)/)
-  assert.match(workflow, /core\.notice\(`PR #\$\{pr\.number\} marked ready for review\.`\)/)
+  assert.match(workflow, /core\.notice\(`PR #\$\{pr\.number\} marked ready for review and flagged for Codex review\.`\)/)
 })
 
 test('CI workflow wakes auto-ready draft PRs after required CI jobs finish', async () => {
@@ -433,6 +454,7 @@ test('CI workflow wakes auto-ready draft PRs after required CI jobs finish', asy
   assert.deepEqual(job.needs, ['scope-gate', 'backend-ci', 'frontend', 'dashboard', 'contracts'])
   assert.equal(job.permissions['pull-requests'], 'write')
   assert.equal(job.permissions.contents, 'write')
+  assert.equal(job.permissions.issues, 'write')
   assert.equal(job.permissions.checks, 'read')
   assert.equal(job.permissions.statuses, 'read')
 
@@ -451,6 +473,10 @@ test('CI workflow wakes auto-ready draft PRs after required CI jobs finish', asy
   assert.match(jobBlock, /pr\.head\?\.sha !== currentHeadSha/)
   assert.match(jobBlock, /targetBaseBranches\.has\(pr\.base\?\.ref\)/)
   assert.match(jobBlock, /hasAutoReadyLabel\(pr\)/)
+  assert.match(jobBlock, /const reviewLabel = 'needs-codex-review'/)
+  assert.match(jobBlock, /const changesLabel = 'changes-requested'/)
+  assert.match(jobBlock, /github\.rest\.issues\.addLabels/)
+  assert.match(jobBlock, /github\.rest\.issues\.removeLabel/)
   assert.match(jobBlock, /github\.rest\.pulls\.get/)
   assert.match(jobBlock, /const requiredCheckSnapshots = \{/)
   assert.match(jobBlock, /\{ context: 'Scope gate', appId: 15368 \}/)
@@ -488,6 +514,20 @@ test('auto-ready workflow treats skipped required checks as passing', async () =
   })
 
   assert.equal(result.mutations.length, 1)
+})
+
+test('auto-ready workflow flags ready PRs for Codex review', async () => {
+  const result = await runAutoReadyWorkflow({
+    checkRuns: successfulDevelopRequiredCheckRuns(),
+  })
+
+  assert.equal(result.mutations.length, 1)
+  assert.deepEqual(result.labelsAdded, [
+    { issue_number: 472, labels: ['needs-codex-review'] },
+  ])
+  assert.deepEqual(result.labelsRemoved, [
+    { issue_number: 472, name: 'changes-requested' },
+  ])
 })
 
 test('auto-ready workflow does not let a successful status mask a failed check run with the same name', async () => {

@@ -408,6 +408,7 @@ jobs:
     permissions:
       contents: write
       checks: read
+      issues: write
       statuses: read
       pull-requests: write
     steps:
@@ -424,6 +425,8 @@ jobs:
             const owner = context.repo.owner
             const repo = context.repo.repo
             const autoReadyLabel = 'auto-ready'
+            const reviewLabel = 'needs-codex-review'
+            const changesLabel = 'changes-requested'
             const targetBaseBranches = new Set(['main', 'develop'])
             const allowedJobResults = new Set(['success', 'skipped'])
             const successConclusions = new Set(['success', 'neutral', 'skipped'])
@@ -458,6 +461,38 @@ jobs:
 
             const hasAutoReadyLabel = (pr) =>
               (pr.labels || []).some((label) => label.name === autoReadyLabel)
+
+            const ensureLabel = async (name, color, description) => {
+              try {
+                await github.rest.issues.getLabel({ owner, repo, name })
+              } catch (error) {
+                if (error.status !== 404) throw error
+                await github.rest.issues.createLabel({ owner, repo, name, color, description })
+              }
+            }
+
+            const removeLabel = async (issue_number, name) => {
+              try {
+                await github.rest.issues.removeLabel({ owner, repo, issue_number, name })
+              } catch (error) {
+                if (error.status !== 404) throw error
+              }
+            }
+
+            const flagForCodexReview = async (pr) => {
+              await ensureLabel(
+                reviewLabel,
+                '0075ca',
+                'New PR opened or new commits pushed after the latest Codex review — pending Codex review',
+              )
+              await ensureLabel(
+                changesLabel,
+                'd73a4a',
+                'Codex has requested changes — author should update the PR',
+              )
+              await github.rest.issues.addLabels({ owner, repo, issue_number: pr.number, labels: [reviewLabel] })
+              await removeLabel(pr.number, changesLabel)
+            }
 
             const isEligibleDraftPr = (pr) => {
               if (!targetBaseBranches.has(pr.base?.ref)) return false
@@ -619,12 +654,13 @@ jobs:
                 `,
                 { pullRequestId: pr.node_id },
               )
+              await flagForCodexReview(pr)
             } catch (error) {
-              core.warning(`Failed to mark PR #${pr.number} ready for review (${error?.message || error}).`)
+              core.warning(`Failed to mark PR #${pr.number} ready for review or flag it for Codex review (${error?.message || error}).`)
               return
             }
 
-            core.notice(`PR #${pr.number} marked ready for review.`)
+            core.notice(`PR #${pr.number} marked ready for review and flagged for Codex review.`)
 
   notify-discord:
     timeout-minutes: 5
