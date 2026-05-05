@@ -46,3 +46,37 @@ export async function createRaffle(title: string): Promise<Raffle> {
   return data.data.raffle
 }
 
+export async function listDraws(raffleId: string): Promise<RaffleDraw[]> {
+  const { data } = await client.get<ApiResponse<{ draws: RaffleDraw[] }>>(
+    `/api/v1/dashboard/raffles/${raffleId}/draws`,
+  )
+  return data.data.draws
+}
+
+export async function drawNext(raffleId: string): Promise<RaffleDraw> {
+  const { data } = await client.post<ApiResponse<{ draw: RaffleDraw }>>(
+    `/api/v1/dashboard/raffles/${raffleId}/draws`,
+    undefined,
+  )
+  return data.data.draw
+}
+
+export async function importCSV(
+  raffleId: string,
+  file: File,
+): Promise<{ imported: number; skipped: number }> {
+  const form = new FormData()
+  form.append('file', file)
+  const { data } = await client.post<ApiResponse<{ imported: number; skipped: number }>>(
+    `/api/v1/dashboard/raffles/${raffleId}/entries/import-csv`,
+    form,
+  )
+  return data.data
+}
+
+export async function completeRaffle(raffleId: string): Promise<void> {
+  await client.post(
+    `/api/v1/dashboard/raffles/${raffleId}/complete`,
+    undefined,
+  )
+}
