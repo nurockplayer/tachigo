@@ -25,18 +25,53 @@ jobs:
     runs-on: ubuntu-latest
     outputs:
       run_ci: ${{ steps.evaluate.outputs.run_ci }}
+      run_backend: ${{ steps.evaluate.outputs.run_backend }}
       run_backend_integration: ${{ steps.evaluate.outputs.run_backend_integration }}
+      run_frontend: ${{ steps.evaluate.outputs.run_frontend }}
+      run_dashboard: ${{ steps.evaluate.outputs.run_dashboard }}
+      run_contracts: ${{ steps.evaluate.outputs.run_contracts }}
     steps:
       - name: Evaluate PR scope for CI
         id: evaluate
         uses: actions/github-script@v7
         with:
           script: |
+            const setCiOutputs = ({
+              runCi,
+              runBackend,
+              runBackendIntegration,
+              runFrontend,
+              runDashboard,
+              runContracts,
+            }) => {
+              core.setOutput('run_ci', runCi ? 'true' : 'false')
+              core.setOutput('run_backend', runBackend ? 'true' : 'false')
+              core.setOutput('run_backend_integration', runBackendIntegration ? 'true' : 'false')
+              core.setOutput('run_frontend', runFrontend ? 'true' : 'false')
+              core.setOutput('run_dashboard', runDashboard ? 'true' : 'false')
+              core.setOutput('run_contracts', runContracts ? 'true' : 'false')
+            }
+            const setFullCiOutputs = () => setCiOutputs({
+              runCi: true,
+              runBackend: true,
+              runBackendIntegration: true,
+              runFrontend: true,
+              runDashboard: true,
+              runContracts: true,
+            })
+            const setSkippedCiOutputs = () => setCiOutputs({
+              runCi: false,
+              runBackend: false,
+              runBackendIntegration: false,
+              runFrontend: false,
+              runDashboard: false,
+              runContracts: false,
+            })
+
             const pr = context.payload.pull_request
             if (!pr) {
               core.notice('Non-PR event detected; running CI without scope gate restrictions.')
-              core.setOutput('run_ci', 'true')
-              core.setOutput('run_backend_integration', 'true')
+              setFullCiOutputs()
               return
             }
 
@@ -51,8 +86,7 @@ jobs:
             const labels = (pr.labels || []).map((label) => label.name)
             if (labels.some((label) => bypassLabels.has(label))) {
               core.notice('Scope gate bypassed by scope-exception label.')
-              core.setOutput('run_ci', 'true')
-              core.setOutput('run_backend_integration', 'true')
+              setFullCiOutputs()
               return
             }
 
@@ -94,6 +128,12 @@ jobs:
             const touches = {
               backend: allFilePaths.some((name) =>
                 name.startsWith('backend/') || name.startsWith('services/api/'),
+              ),
+              extension: allFilePaths.some((name) =>
+                name.startsWith('tachimint/') || name.startsWith('apps/extension/'),
+              ),
+              dashboard: allFilePaths.some((name) =>
+                name.startsWith('dashboard/') || name.startsWith('apps/dashboard/'),
               ),
               frontend: allFilePaths.some((name) =>
                 name.startsWith('dashboard/') ||
@@ -156,18 +196,53 @@ jobs:
               /^docker-compose(?:\..+)?\.ya?ml$/,
               /^\.github\/workflows\/ci\.yml$/,
             ]
+            const ciWorkflowPaths = [
+              /^\.github\/workflows\/ci\.yml$/,
+              /^\.github\/workflows\/ci\.test\.mjs$/,
+            ]
+            const dockerComposePaths = [/^docker-compose(?:\..+)?\.ya?ml$/]
+            const frontendWorkspacePaths = [
+              /^package\.json$/,
+              /^pnpm-lock\.yaml$/,
+              /^pnpm-workspace\.yaml$/,
+            ]
+            const runFullCi = runCi && (
+              isReleasePromotionPr ||
+              allFilePaths.some((name) => ciWorkflowPaths.some((pattern) => pattern.test(name)))
+            )
+            const touchesDockerCompose = allFilePaths.some((name) =>
+              dockerComposePaths.some((pattern) => pattern.test(name)),
+            )
+            const touchesFrontendWorkspace = allFilePaths.some((name) =>
+              frontendWorkspacePaths.some((pattern) => pattern.test(name)),
+            )
+            const runBackend = runFullCi || (runCi && (touches.backend || touchesDockerCompose))
+            const runFrontend = runFullCi || (runCi && (touches.extension || touchesFrontendWorkspace || touchesDockerCompose))
+            const runDashboard = runFullCi || (runCi && (touches.dashboard || touchesFrontendWorkspace || touchesDockerCompose))
+            const runContracts = runFullCi || (runCi && touches.contracts)
             const runBackendIntegration = allFilePaths.some((name) =>
               backendIntegrationPaths.some((pattern) => pattern.test(name)),
             )
+            const shouldRunBackendIntegration = runFullCi || (runCi && runBackendIntegration)
 
-            core.setOutput('run_ci', runCi ? 'true' : 'false')
-            core.setOutput('run_backend_integration', runBackendIntegration ? 'true' : 'false')
+            if (runCi) {
+              setCiOutputs({
+                runCi,
+                runBackend,
+                runBackendIntegration: shouldRunBackendIntegration,
+                runFrontend,
+                runDashboard,
+                runContracts,
+              })
+            } else {
+              setSkippedCiOutputs()
+            }
             if (isDocsTemplateOrMetadataOnly) {
               core.notice('Skipping heavy product CI because this PR only changes docs/templates/metadata.')
             } else if (!runCi) {
               core.notice('Skipping heavy CI because this PR does not currently pass scope rules.')
             }
-            if (runCi && !runBackendIntegration) {
+            if (runCi && !shouldRunBackendIntegration) {
               core.notice('Skipping backend integration tests because this PR does not touch backend, contracts, docker compose, or CI workflow files.')
             }
 
@@ -175,7 +250,7 @@ jobs:
     timeout-minutes: 5
     name: Check backend CI cache wiring
     needs: [scope-gate]
-    if: github.event_name == 'push' || needs.scope-gate.outputs.run_ci == 'true'
+    if: needs.scope-gate.outputs.run_backend == 'true'
     runs-on: ubuntu-latest
     steps:
       - uses: actions/checkout@v4
@@ -244,7 +319,7 @@ jobs:
     timeout-minutes: 15
     name: Build backend image
     needs: [scope-gate]
-    if: github.event_name == 'push' || needs.scope-gate.outputs.run_ci == 'true'
+    if: needs.scope-gate.outputs.run_backend == 'true'
     runs-on: ubuntu-latest
     steps:
       - uses: actions/checkout@v4
@@ -266,7 +341,7 @@ jobs:
     timeout-minutes: 10
     name: Backend tests
     needs: [scope-gate]
-    if: github.event_name == 'push' || needs.scope-gate.outputs.run_ci == 'true'
+    if: needs.scope-gate.outputs.run_backend == 'true'
     runs-on: ubuntu-latest
     steps:
       - uses: actions/checkout@v4
@@ -288,7 +363,7 @@ jobs:
     timeout-minutes: 10
     name: Atlas migration tooling
     needs: [scope-gate]
-    if: github.event_name == 'push' || needs.scope-gate.outputs.run_ci == 'true'
+    if: needs.scope-gate.outputs.run_backend == 'true'
     runs-on: ubuntu-latest
     steps:
       - uses: actions/checkout@v4
@@ -337,7 +412,7 @@ jobs:
     name: Backend integration tests
     needs: [scope-gate]
     runs-on: ubuntu-latest
-    if: github.event_name == 'push' || (needs.scope-gate.outputs.run_ci == 'true' && needs.scope-gate.outputs.run_backend_integration == 'true')
+    if: needs.scope-gate.outputs.run_backend_integration == 'true'
     steps:
       - uses: actions/checkout@v6
 
@@ -354,7 +429,7 @@ jobs:
     timeout-minutes: 15
     name: Frontend build
     needs: [scope-gate]
-    if: github.event_name == 'push' || needs.scope-gate.outputs.run_ci == 'true'
+    if: needs.scope-gate.outputs.run_frontend == 'true'
     runs-on: ubuntu-latest
     steps:
       - uses: actions/checkout@v4
@@ -380,7 +455,7 @@ jobs:
     timeout-minutes: 15
     name: Dashboard build
     needs: [scope-gate]
-    if: github.event_name == 'push' || needs.scope-gate.outputs.run_ci == 'true'
+    if: needs.scope-gate.outputs.run_dashboard == 'true'
     runs-on: ubuntu-latest
     steps:
       - uses: actions/checkout@v4
@@ -400,6 +475,8 @@ jobs:
   contracts:
     timeout-minutes: 20
     name: Contracts build
+    needs: [scope-gate]
+    if: needs.scope-gate.outputs.run_contracts == 'true'
     runs-on: ubuntu-latest
     steps:
       - uses: actions/checkout@v4

@@ -33,6 +33,21 @@ function successfulDevelopRequiredCheckRuns(...overrides) {
   return [...developRequiredCheckRuns, ...overrides]
 }
 
+const validStandardPrBody = `
+refs #209
+
+Source of truth: https://github.com/nurockplayer/tachigo/issues/209
+
+Depends on PR: none
+
+Backend contract already in develop:
+- [x] yes
+- [ ] no
+
+本 PR 明確不做
+- deploy workflow
+`
+
 function parseYaml(filePath) {
   const script = `
 require 'yaml'
@@ -146,6 +161,54 @@ async function runCiAutoReadyAfterCiWorkflow({
     },
     ...options,
   })
+}
+
+async function runCiScopeGateWorkflow({ eventName = 'pull_request', prOverrides = {}, files = [] } = {}) {
+  const parsedWorkflow = parseYaml(workflowPath)
+  const script = parsedWorkflow.jobs['scope-gate'].steps[0].with.script
+  const outputs = new Map()
+  const notices = []
+  const basePr = {
+    number: 209,
+    body: validStandardPrBody,
+    title: '[infra] Path-aware / layered CI',
+    base: { ref: 'develop' },
+    head: { ref: 'chore/path-aware-layered-ci', repo: { full_name: 'nurockplayer/tachigo' } },
+    labels: [],
+  }
+  const pr = {
+    ...basePr,
+    ...prOverrides,
+    base: { ...basePr.base, ...(prOverrides.base || {}) },
+    head: {
+      ...basePr.head,
+      ...(prOverrides.head || {}),
+      repo: { ...basePr.head.repo, ...(prOverrides.head?.repo || {}) },
+    },
+    labels: prOverrides.labels || basePr.labels,
+  }
+  const github = {
+    rest: {
+      pulls: {
+        listFiles: async () => ({ data: files }),
+      },
+    },
+    paginate: async (fn, args) => {
+      const result = await fn(args)
+      return result.data || result
+    },
+  }
+  const core = {
+    notice: (message) => notices.push(message),
+    setOutput: (name, value) => outputs.set(name, value),
+  }
+  const context = {
+    repo: { owner: 'nurockplayer', repo: 'tachigo' },
+    payload: eventName === 'pull_request' ? { pull_request: pr } : {},
+  }
+
+  await AsyncFunction('context', 'github', 'core', script)(context, github, core)
+  return { notices, outputs: Object.fromEntries(outputs) }
 }
 
 async function runAutoReadyScript({
@@ -581,6 +644,81 @@ test('docs/template-only PRs skip heavy product CI in scope gate', async () => {
     /\^\\.github\\\/workflows\\\/ci\\.yml\$/,
     'ci.yml changes must request backend integration validation',
   )
+})
+
+test('scope gate emits path-aware outputs for frontend-only PRs', async () => {
+  const result = await runCiScopeGateWorkflow({
+    files: [{ filename: 'apps/extension/src/App.tsx', additions: 12, deletions: 3, status: 'modified' }],
+  })
+
+  assert.deepEqual(result.outputs, {
+    run_ci: 'true',
+    run_backend: 'false',
+    run_backend_integration: 'false',
+    run_frontend: 'true',
+    run_dashboard: 'false',
+    run_contracts: 'false',
+  })
+})
+
+test('scope gate emits full CI outputs for push events and release promotion PRs', async () => {
+  const push = await runCiScopeGateWorkflow({ eventName: 'push' })
+  const releasePromotion = await runCiScopeGateWorkflow({
+    prOverrides: {
+      title: '[release] develop to main',
+      base: { ref: 'main' },
+      head: { ref: 'develop' },
+      body: `
+refs #209
+
+Source of truth: https://github.com/nurockplayer/tachigo/issues/209
+
+Depends on PR: none
+
+Backend contract already in develop:
+- [x] yes
+- [ ] no
+
+本 PR 明確不做
+- production deploy
+`,
+    },
+    files: [{ filename: 'docs/README.md', additions: 1, deletions: 0, status: 'modified' }],
+  })
+
+  const fullOutputs = {
+    run_ci: 'true',
+    run_backend: 'true',
+    run_backend_integration: 'true',
+    run_frontend: 'true',
+    run_dashboard: 'true',
+    run_contracts: 'true',
+  }
+  assert.deepEqual(push.outputs, fullOutputs)
+  assert.deepEqual(releasePromotion.outputs, fullOutputs)
+  assert.equal(
+    releasePromotion.notices.some((notice) => notice.includes('Skipping backend integration tests')),
+    false,
+  )
+})
+
+test('CI product jobs are gated by path-aware scope outputs', async () => {
+  const workflow = await readFile(workflowPath, 'utf8')
+  const backendBuild = workflowJobBlock(workflow, 'backend-build')
+  const backend = workflowJobBlock(workflow, 'backend')
+  const atlas = workflowJobBlock(workflow, 'atlas-migration-tooling')
+  const backendIntegration = workflowJobBlock(workflow, 'backend-integration')
+  const frontend = workflowJobBlock(workflow, 'frontend')
+  const dashboard = workflowJobBlock(workflow, 'dashboard')
+  const contracts = workflowJobBlock(workflow, 'contracts')
+
+  assert.match(backendBuild, /needs\.scope-gate\.outputs\.run_backend == 'true'/)
+  assert.match(backend, /needs\.scope-gate\.outputs\.run_backend == 'true'/)
+  assert.match(atlas, /needs\.scope-gate\.outputs\.run_backend == 'true'/)
+  assert.match(backendIntegration, /needs\.scope-gate\.outputs\.run_backend_integration == 'true'/)
+  assert.match(frontend, /needs\.scope-gate\.outputs\.run_frontend == 'true'/)
+  assert.match(dashboard, /needs\.scope-gate\.outputs\.run_dashboard == 'true'/)
+  assert.match(contracts, /needs\.scope-gate\.outputs\.run_contracts == 'true'/)
 })
 
 test('global auto-merge workflow excludes Dependabot PRs', async () => {
