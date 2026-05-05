@@ -239,7 +239,7 @@ func TestGetChannelStats_ForbiddenForOtherStreamer(t *testing.T) {
 	dashboardRequest(t, env.router, http.MethodPost, "/api/v1/dashboard/streamers/register", tokenA, `{"channel_id":"ch_A"}`)
 
 	// Streamer B — registered with a different email.
-	_, tokenB := env.registerUser(t, "streamer_b", "streamer_b@example.com", "password123")
+	_, _ = env.registerUser(t, "streamer_b", "streamer_b@example.com", "password123")
 	if err := env.db.Exec(`UPDATE users SET role = 'streamer' WHERE email = 'streamer_b@example.com'`).Error; err != nil {
 		t.Fatalf("set role: %v", err)
 	}
@@ -248,7 +248,7 @@ func TestGetChannelStats_ForbiddenForOtherStreamer(t *testing.T) {
 	if err != nil {
 		t.Fatalf("login streamer_b: %v", err)
 	}
-	tokenB = tokens.AccessToken
+	tokenB := tokens.AccessToken
 
 	w := dashboardRequest(t, env.router, http.MethodGet, "/api/v1/dashboard/channels/ch_A/stats", tokenB, "")
 	if w.Code != http.StatusForbidden {

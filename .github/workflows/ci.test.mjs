@@ -204,6 +204,7 @@ async function runCiScopeGateWorkflow({ eventName = 'pull_request', prOverrides 
   }
   const context = {
     repo: { owner: 'nurockplayer', repo: 'tachigo' },
+    eventName,
     payload: eventName === 'pull_request' ? { pull_request: pr } : {},
   }
 
@@ -655,7 +656,34 @@ test('scope gate emits path-aware outputs for frontend-only PRs', async () => {
     run_ci: 'true',
     run_backend: 'false',
     run_backend_integration: 'false',
+    run_backend_scanners: 'false',
     run_frontend: 'true',
+    run_dashboard: 'false',
+    run_contracts: 'false',
+  })
+})
+
+test('scope gate emits backend scanner outputs for backend PRs and scheduled scans', async () => {
+  const backendPr = await runCiScopeGateWorkflow({
+    files: [{ filename: 'services/api/internal/services/watch_service.go', additions: 3, deletions: 1, status: 'modified' }],
+  })
+  const scheduled = await runCiScopeGateWorkflow({ eventName: 'schedule' })
+
+  assert.deepEqual(backendPr.outputs, {
+    run_ci: 'true',
+    run_backend: 'true',
+    run_backend_integration: 'true',
+    run_backend_scanners: 'true',
+    run_frontend: 'false',
+    run_dashboard: 'false',
+    run_contracts: 'false',
+  })
+  assert.deepEqual(scheduled.outputs, {
+    run_ci: 'true',
+    run_backend: 'false',
+    run_backend_integration: 'false',
+    run_backend_scanners: 'true',
+    run_frontend: 'false',
     run_dashboard: 'false',
     run_contracts: 'false',
   })
@@ -690,6 +718,7 @@ Backend contract already in develop:
     run_ci: 'true',
     run_backend: 'true',
     run_backend_integration: 'true',
+    run_backend_scanners: 'true',
     run_frontend: 'true',
     run_dashboard: 'true',
     run_contracts: 'true',
@@ -708,6 +737,7 @@ test('CI product jobs are gated by path-aware scope outputs', async () => {
   const backend = workflowJobBlock(workflow, 'backend')
   const atlas = workflowJobBlock(workflow, 'atlas-migration-tooling')
   const backendIntegration = workflowJobBlock(workflow, 'backend-integration')
+  const backendSecurityScanners = workflowJobBlock(workflow, 'backend-security-scanners')
   const frontend = workflowJobBlock(workflow, 'frontend')
   const dashboard = workflowJobBlock(workflow, 'dashboard')
   const contracts = workflowJobBlock(workflow, 'contracts')
@@ -716,9 +746,37 @@ test('CI product jobs are gated by path-aware scope outputs', async () => {
   assert.match(backend, /needs\.scope-gate\.outputs\.run_backend == 'true'/)
   assert.match(atlas, /needs\.scope-gate\.outputs\.run_backend == 'true'/)
   assert.match(backendIntegration, /needs\.scope-gate\.outputs\.run_backend_integration == 'true'/)
+  assert.match(backendSecurityScanners, /needs\.scope-gate\.outputs\.run_backend_scanners == 'true'/)
   assert.match(frontend, /needs\.scope-gate\.outputs\.run_frontend == 'true'/)
   assert.match(dashboard, /needs\.scope-gate\.outputs\.run_dashboard == 'true'/)
   assert.match(contracts, /needs\.scope-gate\.outputs\.run_contracts == 'true'/)
+})
+
+test('backend security scanner job installs pinned staticcheck and govulncheck', async () => {
+  const workflow = await readFile(workflowPath, 'utf8')
+  const parsedWorkflow = parseYaml(workflowPath)
+  const job = parsedWorkflow.jobs['backend-security-scanners']
+  const jobBlock = workflowJobBlock(workflow, 'backend-security-scanners')
+  const backendCi = parsedWorkflow.jobs['backend-ci']
+  const backendCiBlock = workflowJobBlock(workflow, 'backend-ci')
+
+  assert.deepEqual(parsedWorkflow.on.schedule, [{ cron: '17 2 * * 1' }])
+  assert.equal(job.name, 'Backend security scanners')
+  assert.equal(job.env.STATICCHECK_VERSION, 'v0.7.0')
+  assert.equal(job.env.GOVULNCHECK_VERSION, 'v1.3.0')
+  assert.match(jobBlock, /go-version: 1\.25\.9/)
+  assert.match(jobBlock, /go install honnef\.co\/go\/tools\/cmd\/staticcheck@\$STATICCHECK_VERSION/)
+  assert.match(jobBlock, /go install golang\.org\/x\/vuln\/cmd\/govulncheck@\$GOVULNCHECK_VERSION/)
+  assert.match(jobBlock, /working-directory: services\/api\n\s+run: staticcheck \.\/\.\.\./)
+  assert.match(jobBlock, /working-directory: services\/api\n\s+run: govulncheck \.\/\.\.\./)
+  assert.deepEqual(backendCi.needs, [
+    'backend-build',
+    'backend',
+    'backend-integration',
+    'backend-security-scanners',
+  ])
+  assert.match(backendCiBlock, /BACKEND_SECURITY_SCANNERS_RESULT/)
+  assert.match(backendCiBlock, /backend-security-scanners:\$BACKEND_SECURITY_SCANNERS_RESULT/)
 })
 
 test('global auto-merge workflow excludes Dependabot PRs', async () => {

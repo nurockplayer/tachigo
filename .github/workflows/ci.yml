@@ -5,6 +5,8 @@ on:
     branches: [main, develop]
   pull_request:
     branches: [main, develop]
+  schedule:
+    - cron: "17 2 * * 1"
   workflow_dispatch:
 
 concurrency:
@@ -27,6 +29,7 @@ jobs:
       run_ci: ${{ steps.evaluate.outputs.run_ci }}
       run_backend: ${{ steps.evaluate.outputs.run_backend }}
       run_backend_integration: ${{ steps.evaluate.outputs.run_backend_integration }}
+      run_backend_scanners: ${{ steps.evaluate.outputs.run_backend_scanners }}
       run_frontend: ${{ steps.evaluate.outputs.run_frontend }}
       run_dashboard: ${{ steps.evaluate.outputs.run_dashboard }}
       run_contracts: ${{ steps.evaluate.outputs.run_contracts }}
@@ -40,6 +43,7 @@ jobs:
               runCi,
               runBackend,
               runBackendIntegration,
+              runBackendScanners,
               runFrontend,
               runDashboard,
               runContracts,
@@ -47,6 +51,7 @@ jobs:
               core.setOutput('run_ci', runCi ? 'true' : 'false')
               core.setOutput('run_backend', runBackend ? 'true' : 'false')
               core.setOutput('run_backend_integration', runBackendIntegration ? 'true' : 'false')
+              core.setOutput('run_backend_scanners', runBackendScanners ? 'true' : 'false')
               core.setOutput('run_frontend', runFrontend ? 'true' : 'false')
               core.setOutput('run_dashboard', runDashboard ? 'true' : 'false')
               core.setOutput('run_contracts', runContracts ? 'true' : 'false')
@@ -55,6 +60,7 @@ jobs:
               runCi: true,
               runBackend: true,
               runBackendIntegration: true,
+              runBackendScanners: true,
               runFrontend: true,
               runDashboard: true,
               runContracts: true,
@@ -63,6 +69,7 @@ jobs:
               runCi: false,
               runBackend: false,
               runBackendIntegration: false,
+              runBackendScanners: false,
               runFrontend: false,
               runDashboard: false,
               runContracts: false,
@@ -70,6 +77,19 @@ jobs:
 
             const pr = context.payload.pull_request
             if (!pr) {
+              if (context.eventName === 'schedule') {
+                core.notice('Scheduled backend scanner run detected; running backend scanners only.')
+                setCiOutputs({
+                  runCi: true,
+                  runBackend: false,
+                  runBackendIntegration: false,
+                  runBackendScanners: true,
+                  runFrontend: false,
+                  runDashboard: false,
+                  runContracts: false,
+                })
+                return
+              }
               core.notice('Non-PR event detected; running CI without scope gate restrictions.')
               setFullCiOutputs()
               return
@@ -220,6 +240,7 @@ jobs:
             const runFrontend = runFullCi || (runCi && (touches.extension || touchesFrontendWorkspace || touchesDockerCompose))
             const runDashboard = runFullCi || (runCi && (touches.dashboard || touchesFrontendWorkspace || touchesDockerCompose))
             const runContracts = runFullCi || (runCi && touches.contracts)
+            const runBackendScanners = runFullCi || (runCi && (touches.backend || touchesDockerCompose))
             const runBackendIntegration = allFilePaths.some((name) =>
               backendIntegrationPaths.some((pattern) => pattern.test(name)),
             )
@@ -230,6 +251,7 @@ jobs:
                 runCi,
                 runBackend,
                 runBackendIntegration: shouldRunBackendIntegration,
+                runBackendScanners,
                 runFrontend,
                 runDashboard,
                 runContracts,
@@ -425,6 +447,39 @@ jobs:
         working-directory: services/api
         run: go test -tags integration -v ./... -count=1
 
+  backend-security-scanners:
+    timeout-minutes: 10
+    name: Backend security scanners
+    needs: [scope-gate]
+    if: needs.scope-gate.outputs.run_backend_scanners == 'true'
+    runs-on: ubuntu-latest
+    env:
+      STATICCHECK_VERSION: v0.7.0
+      GOVULNCHECK_VERSION: v1.3.0
+    steps:
+      - uses: actions/checkout@v4
+
+      - name: Set up Go
+        uses: actions/setup-go@v6
+        with:
+          go-version: 1.25.9
+
+      - name: Install scanner tools
+        run: |
+          go install honnef.co/go/tools/cmd/staticcheck@$STATICCHECK_VERSION
+          go install golang.org/x/vuln/cmd/govulncheck@$GOVULNCHECK_VERSION
+
+      - name: Add Go tools to PATH
+        run: echo "$(go env GOPATH)/bin" >> "$GITHUB_PATH"
+
+      - name: Run staticcheck
+        working-directory: services/api
+        run: staticcheck ./...
+
+      - name: Run govulncheck
+        working-directory: services/api
+        run: govulncheck ./...
+
   frontend:
     timeout-minutes: 15
     name: Frontend build
@@ -503,7 +558,7 @@ jobs:
   backend-ci:
     timeout-minutes: 5
     name: Backend CI (gate)
-    needs: [backend-build, backend, backend-integration]
+    needs: [backend-build, backend, backend-integration, backend-security-scanners]
     if: always()
     runs-on: ubuntu-latest
     steps:
@@ -512,11 +567,13 @@ jobs:
           BACKEND_BUILD_RESULT: ${{ needs.backend-build.result }}
           BACKEND_RESULT: ${{ needs.backend.result }}
           BACKEND_INTEGRATION_RESULT: ${{ needs.backend-integration.result }}
+          BACKEND_SECURITY_SCANNERS_RESULT: ${{ needs.backend-security-scanners.result }}
         run: |
           for item in \
             "backend-build:$BACKEND_BUILD_RESULT" \
             "backend:$BACKEND_RESULT" \
-            "backend-integration:$BACKEND_INTEGRATION_RESULT"
+            "backend-integration:$BACKEND_INTEGRATION_RESULT" \
+            "backend-security-scanners:$BACKEND_SECURITY_SCANNERS_RESULT"
           do
             job="${item%%:*}"
             result="${item#*:}"
