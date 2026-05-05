@@ -3,6 +3,8 @@
 > **專案名稱：** tachigo、tachiya
 > **日期：** 2026-03-27
 > **參與成員：** nurockplayer、新理解、5lime、Erick、YUAN
+> **狀態：** 早期產品討論紀錄；仍保留於 `docs/` root 供背景參考，但不得單獨視為 implementation source of truth。
+> **最後校正：** 2026-05-05（#490 docs root audit）
 
 ---
 

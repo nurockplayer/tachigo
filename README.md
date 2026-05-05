@@ -104,7 +104,7 @@ Key backend variables:
 ## Architecture
 
 See [docs/architecture.md](docs/architecture.md) for the full system diagram.
-For the current frontend migration decision, see [docs/tachimint-chrome-sidepanel-migration.md](docs/tachimint-chrome-sidepanel-migration.md).
+For the frontend migration decision record, see [docs/history/2026-04-16-tachimint-chrome-sidepanel-migration.md](docs/history/2026-04-16-tachimint-chrome-sidepanel-migration.md).
 
 ## Documentation
 

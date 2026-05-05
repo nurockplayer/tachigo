@@ -51,7 +51,7 @@
 
 ## 主要資料流
 
-> 補充：`tachimint` 的前端 runtime 方向已定為 Chrome sidepanel extension；本階段 viewer identity 與既有 API contract 仍沿用 Twitch / extension auth 流程。詳見 [docs/tachimint-chrome-sidepanel-migration.md](tachimint-chrome-sidepanel-migration.md)。
+> 補充：`tachimint` 的前端 runtime 方向已定為 Chrome sidepanel extension；本階段 viewer identity 與既有 API contract 仍沿用 Twitch / extension auth 流程。詳見 [docs/history/2026-04-16-tachimint-chrome-sidepanel-migration.md](history/2026-04-16-tachimint-chrome-sidepanel-migration.md)。
 
 ```
 觀眾觀看直播（定時 Heartbeat）

@@ -1,8 +1,9 @@
 # Tachimint Chrome Sidepanel Migration Decision
 
 > 用途：記錄 `tachimint` 前端 migration 的已定案方向，作為後續 PR 的共同 source of truth。
-> 狀態：已定案的 migration decision，不是完整實作 spec。
+> 狀態：歷史 migration decision record，不是完整實作 spec。
 > 最後更新：2026-04-16
+> 最後校正：2026-05-05（#490 docs root audit）
 
 ---
 
