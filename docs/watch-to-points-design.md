@@ -297,13 +297,13 @@ ON CONFLICT (user_id, channel_id) DO UPDATE SET
 
 ### Issue #61 — UUID v7（本次已處理 watch-points 相關部分）
 
-本次已在 watch-points 相關檔案中同步改為 `uuid.New7()`（時序 UUID，降低 B-tree index fragmentation 風險）：
+本次已在 watch-points 相關檔案中同步改為 `uuid.NewV7()`（時序 UUID，降低 B-tree index fragmentation 風險）：
 
 | 檔案 | 改動點 |
 |---|---|
 | `services/api/internal/models/points.go` | `PointsLedger.BeforeCreate`、`PointsTransaction.BeforeCreate` |
 | `services/api/internal/models/watch_session.go` | `WatchSession.BeforeCreate` |
-| `services/api/internal/services/watch_service.go` | `ID: uuid.New()` for WatchSession |
+| `services/api/internal/services/watch_service.go` | `newUUID()` uses `uuid.NewV7()` with `uuid.New()` fallback |
 
 其餘 model（`user.go`、`auth_provider.go`、`address.go`、`refresh_token.go`、`email_auth.go`）與 `extension_service.go` 留給 Issue #61 獨立處理。詳見 [docs/uuid-v7.md](uuid-v7.md)。
 

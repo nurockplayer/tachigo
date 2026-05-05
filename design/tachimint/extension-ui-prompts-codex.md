@@ -295,4 +295,4 @@ viewer 畫面要有：
 - `tachimint/src/hooks/useClickBoost.ts`
 - `tachimint/src/hooks/useBits.ts`
 - `docs/watch-to-points-design.md`
-- `docs/history/2026-04-16-chrome-extension-terminology-audit.md`
+- [docs/history/2026-04-16-chrome-extension-terminology-audit.md](../../docs/history/2026-04-16-chrome-extension-terminology-audit.md)
