@@ -30,6 +30,7 @@ jobs:
       run_backend: ${{ steps.evaluate.outputs.run_backend }}
       run_backend_integration: ${{ steps.evaluate.outputs.run_backend_integration }}
       run_backend_scanners: ${{ steps.evaluate.outputs.run_backend_scanners }}
+      run_dependency_review: ${{ steps.evaluate.outputs.run_dependency_review }}
       run_frontend: ${{ steps.evaluate.outputs.run_frontend }}
       run_dashboard: ${{ steps.evaluate.outputs.run_dashboard }}
       run_contracts: ${{ steps.evaluate.outputs.run_contracts }}
@@ -44,6 +45,7 @@ jobs:
               runBackend,
               runBackendIntegration,
               runBackendScanners,
+              runDependencyReview,
               runFrontend,
               runDashboard,
               runContracts,
@@ -52,6 +54,7 @@ jobs:
               core.setOutput('run_backend', runBackend ? 'true' : 'false')
               core.setOutput('run_backend_integration', runBackendIntegration ? 'true' : 'false')
               core.setOutput('run_backend_scanners', runBackendScanners ? 'true' : 'false')
+              core.setOutput('run_dependency_review', runDependencyReview ? 'true' : 'false')
               core.setOutput('run_frontend', runFrontend ? 'true' : 'false')
               core.setOutput('run_dashboard', runDashboard ? 'true' : 'false')
               core.setOutput('run_contracts', runContracts ? 'true' : 'false')
@@ -61,6 +64,7 @@ jobs:
               runBackend: true,
               runBackendIntegration: true,
               runBackendScanners: true,
+              runDependencyReview: false,
               runFrontend: true,
               runDashboard: true,
               runContracts: true,
@@ -70,6 +74,7 @@ jobs:
               runBackend: false,
               runBackendIntegration: false,
               runBackendScanners: false,
+              runDependencyReview: false,
               runFrontend: false,
               runDashboard: false,
               runContracts: false,
@@ -84,6 +89,7 @@ jobs:
                   runBackend: false,
                   runBackendIntegration: false,
                   runBackendScanners: true,
+                  runDependencyReview: false,
                   runFrontend: false,
                   runDashboard: false,
                   runContracts: false,
@@ -226,6 +232,15 @@ jobs:
               /^pnpm-lock\.yaml$/,
               /^pnpm-workspace\.yaml$/,
             ]
+            const dependencyReviewPaths = [
+              /^apps\/dashboard\/package\.json$/,
+              /^apps\/dashboard\/pnpm-lock\.yaml$/,
+              /^apps\/extension\/package\.json$/,
+              /^apps\/extension\/pnpm-lock\.yaml$/,
+              /^package\.json$/,
+              /^pnpm-lock\.yaml$/,
+              /^pnpm-workspace\.yaml$/,
+            ]
             const runFullCi = runCi && (
               isReleasePromotionPr ||
               allFilePaths.some((name) => ciWorkflowPaths.some((pattern) => pattern.test(name)))
@@ -241,6 +256,9 @@ jobs:
             const runDashboard = runFullCi || (runCi && (touches.dashboard || touchesFrontendWorkspace || touchesDockerCompose))
             const runContracts = runFullCi || (runCi && touches.contracts)
             const runBackendScanners = runFullCi || (runCi && (touches.backend || touchesDockerCompose))
+            const runDependencyReview = runCi && allFilePaths.some((name) =>
+              dependencyReviewPaths.some((pattern) => pattern.test(name)),
+            )
             const runBackendIntegration = allFilePaths.some((name) =>
               backendIntegrationPaths.some((pattern) => pattern.test(name)),
             )
@@ -252,6 +270,7 @@ jobs:
                 runBackend,
                 runBackendIntegration: shouldRunBackendIntegration,
                 runBackendScanners,
+                runDependencyReview,
                 runFrontend,
                 runDashboard,
                 runContracts,
@@ -480,6 +499,25 @@ jobs:
         working-directory: services/api
         run: govulncheck ./...
 
+  dependency-review:
+    timeout-minutes: 10
+    name: Dependency Review
+    needs: scope-gate
+    if: github.event_name == 'pull_request' && needs.scope-gate.outputs.run_dependency_review == 'true'
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+
+      - name: Review dependency changes
+        uses: actions/dependency-review-action@v4
+        with:
+          fail-on-severity: high
+          fail-on-scopes: runtime
+          vulnerability-check: true
+          license-check: false
+          comment-summary-in-pr: never
+          show-openssf-scorecard: false
+
   frontend:
     timeout-minutes: 15
     name: Frontend build
@@ -587,7 +625,7 @@ jobs:
   auto-ready-after-ci:
     timeout-minutes: 5
     name: Auto-ready draft PR after CI
-    needs: [scope-gate, backend-ci, frontend, dashboard, contracts]
+    needs: [scope-gate, backend-ci, dependency-review, frontend, dashboard, contracts]
     if: always() && github.event_name == 'pull_request'
     runs-on: ubuntu-latest
     permissions:
@@ -602,6 +640,7 @@ jobs:
         env:
           SCOPE_GATE_RESULT: ${{ needs.scope-gate.result }}
           BACKEND_CI_RESULT: ${{ needs.backend-ci.result }}
+          DEPENDENCY_REVIEW_RESULT: ${{ needs.dependency-review.result }}
           FRONTEND_RESULT: ${{ needs.frontend.result }}
           DASHBOARD_RESULT: ${{ needs.dashboard.result }}
           CONTRACTS_RESULT: ${{ needs.contracts.result }}
@@ -632,6 +671,7 @@ jobs:
             const requiredJobResults = [
               ['scope-gate', process.env.SCOPE_GATE_RESULT],
               ['backend-ci', process.env.BACKEND_CI_RESULT],
+              ['dependency-review', process.env.DEPENDENCY_REVIEW_RESULT],
               ['frontend', process.env.FRONTEND_RESULT],
               ['dashboard', process.env.DASHBOARD_RESULT],
               ['contracts', process.env.CONTRACTS_RESULT],
@@ -888,7 +928,7 @@ jobs:
   notify-discord:
     timeout-minutes: 5
     name: Notify Discord on failure
-    needs: [workflow-regression, commit-message-regression, pr-metadata-regression, check-cache-wiring, atlas-migration-tooling, backend-ci, frontend, dashboard, contracts]
+    needs: [workflow-regression, commit-message-regression, pr-metadata-regression, check-cache-wiring, atlas-migration-tooling, backend-ci, dependency-review, frontend, dashboard, contracts]
     if: failure()
     runs-on: ubuntu-latest
     steps:

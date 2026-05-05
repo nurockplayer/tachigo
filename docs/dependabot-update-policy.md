@@ -64,3 +64,55 @@ The `dependabot-automerge.yml` workflow remains conservative:
 
 If a Dependabot PR touches runtime behavior or a production dependency, review it
 as a normal PR instead of relying on automation.
+
+## Dependency Review Gate
+
+Dependabot opens routine version and security update PRs. Dependency Review is
+the complementary PR gate for dependency changes opened by humans or automation:
+it compares the dependency diff in the PR and blocks newly introduced
+high/critical production dependency vulnerabilities before they enter
+`develop`.
+
+The gate runs only when dependency manifests or lockfiles for the frontend
+workspace change:
+
+- `apps/dashboard/package.json`
+- `apps/dashboard/pnpm-lock.yaml`
+- `apps/extension/package.json`
+- `apps/extension/pnpm-lock.yaml`
+- `package.json`
+- `pnpm-lock.yaml`
+- `pnpm-workspace.yaml`
+
+Policy:
+
+- high/critical production dependency vulnerabilities are blocking
+- development dependency findings are report-only in the first rollout
+- license findings are not part of this gate
+- broad `pnpm audit` remains out of scope because it scans the whole current
+  tree instead of focusing on dependency changes in the PR
+
+Development dependency findings can become blockers later only when the finding
+affects packaged extension code or build-time execution in a way that creates a
+real production risk.
+
+## False Positives And Waivers
+
+Do not add blanket waivers for Dependency Review. If a false positive or
+temporarily accepted finding blocks a production dependency change, document the
+exception in the PR body and create a follow-up issue before merging.
+
+Waiver notes must include:
+
+- Owner:
+- Accepted on:
+- Expires on:
+- Affected package:
+- Finding ID:
+- Why this is accepted:
+- Recheck trigger:
+
+Waivers expire by default after 90 days. Security findings related to auth,
+wallet signatures, token accounting, deploy credentials, or packaged extension
+runtime behavior require human review even when the finding appears in a
+development dependency.
