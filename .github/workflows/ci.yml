@@ -34,6 +34,7 @@ jobs:
       run_frontend: ${{ steps.evaluate.outputs.run_frontend }}
       run_dashboard: ${{ steps.evaluate.outputs.run_dashboard }}
       run_contracts: ${{ steps.evaluate.outputs.run_contracts }}
+      run_contracts_slither: ${{ steps.evaluate.outputs.run_contracts_slither }}
     steps:
       - name: Evaluate PR scope for CI
         id: evaluate
@@ -49,6 +50,7 @@ jobs:
               runFrontend,
               runDashboard,
               runContracts,
+              runContractsSlither,
             }) => {
               core.setOutput('run_ci', runCi ? 'true' : 'false')
               core.setOutput('run_backend', runBackend ? 'true' : 'false')
@@ -58,6 +60,7 @@ jobs:
               core.setOutput('run_frontend', runFrontend ? 'true' : 'false')
               core.setOutput('run_dashboard', runDashboard ? 'true' : 'false')
               core.setOutput('run_contracts', runContracts ? 'true' : 'false')
+              core.setOutput('run_contracts_slither', runContractsSlither ? 'true' : 'false')
             }
             const setFullCiOutputs = () => setCiOutputs({
               runCi: true,
@@ -68,6 +71,7 @@ jobs:
               runFrontend: true,
               runDashboard: true,
               runContracts: true,
+              runContractsSlither: true,
             })
             const setSkippedCiOutputs = () => setCiOutputs({
               runCi: false,
@@ -78,12 +82,13 @@ jobs:
               runFrontend: false,
               runDashboard: false,
               runContracts: false,
+              runContractsSlither: false,
             })
 
             const pr = context.payload.pull_request
             if (!pr) {
               if (context.eventName === 'schedule') {
-                core.notice('Scheduled backend scanner run detected; running backend scanners only.')
+                core.notice('Scheduled backend scanner and contracts Slither report run detected; running scanner jobs only.')
                 setCiOutputs({
                   runCi: true,
                   runBackend: false,
@@ -93,6 +98,7 @@ jobs:
                   runFrontend: false,
                   runDashboard: false,
                   runContracts: false,
+                  runContractsSlither: true,
                 })
                 return
               }
@@ -256,6 +262,7 @@ jobs:
             const runDashboard = runFullCi || (runCi && (touches.dashboard || touchesFrontendWorkspace || touchesDockerCompose))
             const runContracts = runFullCi || (runCi && touches.contracts)
             const runBackendScanners = runFullCi || (runCi && (touches.backend || touchesDockerCompose))
+            const runContractsSlither = runFullCi || (runCi && touches.contracts)
             const runDependencyReview = runCi && allFilePaths.some((name) =>
               dependencyReviewPaths.some((pattern) => pattern.test(name)),
             )
@@ -274,6 +281,7 @@ jobs:
                 runFrontend,
                 runDashboard,
                 runContracts,
+                runContractsSlither,
               })
             } else {
               setSkippedCiOutputs()
@@ -593,6 +601,48 @@ jobs:
         working-directory: contracts
         run: forge fmt --check
 
+  contracts-slither:
+    timeout-minutes: 20
+    name: Contracts Slither report
+    needs: [scope-gate]
+    if: needs.scope-gate.outputs.run_contracts_slither == 'true'
+    runs-on: ubuntu-latest
+    permissions:
+      contents: read
+      security-events: write
+    steps:
+      - uses: actions/checkout@v4
+
+      - name: Install Foundry
+        uses: foundry-rs/foundry-toolchain@v1
+
+      - name: Install Solidity dependencies
+        working-directory: contracts
+        run: forge install OpenZeppelin/openzeppelin-contracts@v5.6.1 --no-git
+
+      - name: Run Slither
+        id: slither
+        uses: crytic/slither-action@v0.4.2
+        with:
+          target: contracts
+          slither-version: 0.11.5
+          sarif: slither.sarif
+          fail-on: none
+
+      - name: Upload Slither SARIF
+        if: always() && steps.slither.outputs.sarif != ''
+        uses: github/codeql-action/upload-sarif@v3
+        with:
+          sarif_file: ${{ steps.slither.outputs.sarif }}
+
+      - name: Upload Slither report artifact
+        if: always() && steps.slither.outputs.sarif != ''
+        uses: actions/upload-artifact@v4
+        with:
+          name: slither-report
+          path: ${{ steps.slither.outputs.sarif }}
+          if-no-files-found: warn
+
   backend-ci:
     timeout-minutes: 5
     name: Backend CI (gate)
@@ -625,7 +675,7 @@ jobs:
   auto-ready-after-ci:
     timeout-minutes: 5
     name: Auto-ready draft PR after CI
-    needs: [scope-gate, backend-ci, dependency-review, frontend, dashboard, contracts]
+    needs: [scope-gate, backend-ci, dependency-review, frontend, dashboard, contracts, contracts-slither]
     if: always() && github.event_name == 'pull_request'
     runs-on: ubuntu-latest
     permissions:
@@ -644,6 +694,7 @@ jobs:
           FRONTEND_RESULT: ${{ needs.frontend.result }}
           DASHBOARD_RESULT: ${{ needs.dashboard.result }}
           CONTRACTS_RESULT: ${{ needs.contracts.result }}
+          CONTRACTS_SLITHER_RESULT: ${{ needs.contracts-slither.result }}
         with:
           script: |
             const owner = context.repo.owner
@@ -675,6 +726,7 @@ jobs:
               ['frontend', process.env.FRONTEND_RESULT],
               ['dashboard', process.env.DASHBOARD_RESULT],
               ['contracts', process.env.CONTRACTS_RESULT],
+              ['contracts-slither', process.env.CONTRACTS_SLITHER_RESULT],
             ]
 
             for (const [job, result] of requiredJobResults) {
@@ -928,7 +980,7 @@ jobs:
   notify-discord:
     timeout-minutes: 5
     name: Notify Discord on failure
-    needs: [workflow-regression, commit-message-regression, pr-metadata-regression, check-cache-wiring, atlas-migration-tooling, backend-ci, dependency-review, frontend, dashboard, contracts]
+    needs: [workflow-regression, commit-message-regression, pr-metadata-regression, check-cache-wiring, atlas-migration-tooling, backend-ci, dependency-review, frontend, dashboard, contracts, contracts-slither]
     if: failure()
     runs-on: ubuntu-latest
     steps:
