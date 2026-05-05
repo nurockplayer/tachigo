@@ -1,8 +1,9 @@
 # Git LFS Asset Handling Plan
 
 > 用途：記錄 `tachigo` 對大型前端 binary assets 採用 Git LFS 的決策、設定方式與 PR #265 後續修復流程。
-> 狀態：決策與操作計畫；本分支同時落地 `apps/extension/src/assets/` 的 Git LFS tracking 與 frontend CI checkout 設定。
+> 狀態：歷史決策與操作紀錄；本分支已落地 `apps/extension/src/assets/` 的 Git LFS tracking 與 frontend CI checkout 設定。
 > 最後更新：2026-04-18
+> 最後校正：2026-05-05（#490 docs root audit）
 
 ---
 

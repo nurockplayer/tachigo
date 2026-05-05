@@ -1,6 +1,6 @@
 # Draft PR auto-ready
 
-**Status**: implemented; rollout validation in progress
+**Status**: implemented; current workflow source of truth
 **Created**: 2026-05-02
 **Issue**: https://github.com/nurockplayer/tachigo/issues/470
 **Implementation PRs**: https://github.com/nurockplayer/tachigo/pull/472, https://github.com/nurockplayer/tachigo/pull/488

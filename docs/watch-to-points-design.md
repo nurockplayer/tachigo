@@ -301,15 +301,15 @@ ON CONFLICT (user_id, channel_id) DO UPDATE SET
 
 | 檔案 | 改動點 |
 |---|---|
-| `backend/internal/models/points.go` | `PointsLedger.BeforeCreate`、`PointsTransaction.BeforeCreate` |
-| `backend/internal/models/watch_session.go` | `WatchSession.BeforeCreate` |
-| `backend/internal/services/watch_service.go` | `ID: uuid.New()` for WatchSession |
+| `services/api/internal/models/points.go` | `PointsLedger.BeforeCreate`、`PointsTransaction.BeforeCreate` |
+| `services/api/internal/models/watch_session.go` | `WatchSession.BeforeCreate` |
+| `services/api/internal/services/watch_service.go` | `ID: uuid.New()` for WatchSession |
 
 其餘 model（`user.go`、`auth_provider.go`、`address.go`、`refresh_token.go`、`email_auth.go`）與 `extension_service.go` 留給 Issue #61 獨立處理。詳見 [docs/uuid-v7.md](uuid-v7.md)。
 
 ### PR #62 重疊分析
 
-PR #62（`users.role` VARCHAR → ENUM）也改動了 `backend/cmd/server/main.go`，本次計劃同樣需要修改此檔案。
+PR #62（`users.role` VARCHAR → ENUM）也改動了 `services/api/cmd/server/main.go`，本次計劃同樣需要修改此檔案。
 
 | 項目 | PR #62 改動 | 本次計劃改動 |
 |---|---|---|
@@ -340,5 +340,5 @@ PR #62（`users.role` VARCHAR → ENUM）也改動了 `backend/cmd/server/main.g
 - [Issue #58](https://github.com/nurockplayer/tachigo/issues/58) — auth_providers 設計討論
 - [PR #52](https://github.com/nurockplayer/tachigo/pull/52) — Phase 1 & 2 實作
 - [PR #64](https://github.com/nurockplayer/tachigo/pull/64) — Watch-to-Points 補強 + Channel Config
-- 實作：[backend/internal/services/watch_service.go](../backend/internal/services/watch_service.go)
-- Migration：[backend/migrations/003_watch_points.sql](../backend/migrations/003_watch_points.sql)
+- 實作：[services/api/internal/services/watch_service.go](../services/api/internal/services/watch_service.go)
+- Migration：[services/api/migrations/003_watch_points.sql](../services/api/migrations/003_watch_points.sql)

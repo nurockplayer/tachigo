@@ -1,5 +1,10 @@
 # Dashboard 技術選型評估
 
+> 用途：記錄 dashboard 技術選型評估與 Refine.dev 採納決策。
+> 狀態：歷史決策紀錄，不是 active implementation plan。
+> 最後更新：2026-05-01
+> 最後校正：2026-05-05（#490 docs root audit）
+
 ## 背景
 
 目前 `tachigo` 已有一個獨立的 `apps/dashboard/` 前端專案，技術基礎如下：
@@ -20,15 +25,15 @@
 
 ### 已有基礎
 
-- [`apps/dashboard/src/App.tsx`](../apps/dashboard/src/App.tsx)
+- [`apps/dashboard/src/App.tsx`](../../apps/dashboard/src/App.tsx)
   - 已建立登入頁、受保護路由、Layout 與幾個基礎頁面
-- [`apps/dashboard/src/components/Layout.tsx`](../apps/dashboard/src/components/Layout.tsx)
+- [`apps/dashboard/src/components/Layout.tsx`](../../apps/dashboard/src/components/Layout.tsx)
   - 已有基本側邊欄與頁面容器
-- [`apps/dashboard/src/pages/LoginPage.tsx`](../apps/dashboard/src/pages/LoginPage.tsx)
+- [`apps/dashboard/src/pages/LoginPage.tsx`](../../apps/dashboard/src/pages/LoginPage.tsx)
   - 已完成登入 UI，並串接登入 API
-- [`apps/dashboard/src/services/auth.ts`](../apps/dashboard/src/services/auth.ts)
+- [`apps/dashboard/src/services/auth.ts`](../../apps/dashboard/src/services/auth.ts)
   - 已有 login/logout 邏輯與 token 設定
-- [`services/api/internal/router/router.go`](../services/api/internal/router/router.go)
+- [`services/api/internal/router/router.go`](../../services/api/internal/router/router.go)
   - 後端已提供 auth 與部分 dashboard/API 路由骨架
 
 ### 尚未成形的部分
@@ -39,12 +44,12 @@
 
 ### 目前技術風險
 
-- [`apps/dashboard/src/services/auth.ts`](../apps/dashboard/src/services/auth.ts)
+- [`apps/dashboard/src/services/auth.ts`](../../apps/dashboard/src/services/auth.ts)
   - `accessToken` 僅保存在記憶體；但 `main.tsx` 啟動時會 `await restoreSession()`，透過 httpOnly refresh cookie 還原 token，頁面重整不會立即掉登入
   - Refine `authProvider` 尚未整合，目前 route guard 仍由 `ProtectedRoute` 處理
-- [`apps/dashboard/src/components/ProtectedRoute.tsx`](../apps/dashboard/src/components/ProtectedRoute.tsx)
+- [`apps/dashboard/src/components/ProtectedRoute.tsx`](../../apps/dashboard/src/components/ProtectedRoute.tsx)
   - 現在的 route guard 只適合非常早期原型
-- [`apps/dashboard/README.md`](../apps/dashboard/README.md)
+- [`apps/dashboard/README.md`](../../apps/dashboard/README.md)
   - 仍是 Vite 預設內容，尚未反映專案實際開發方式
 
 ---
@@ -165,4 +170,4 @@
 
 實作規劃見：
 
-- [`plans/refine-dashboard-mvp.md`](../plans/refine-dashboard-mvp.md)
+- [`plans/refine-dashboard-mvp.md`](../../plans/refine-dashboard-mvp.md)
