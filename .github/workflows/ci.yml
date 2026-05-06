@@ -35,6 +35,7 @@ jobs:
       run_dashboard: ${{ steps.evaluate.outputs.run_dashboard }}
       run_contracts: ${{ steps.evaluate.outputs.run_contracts }}
       run_contracts_slither: ${{ steps.evaluate.outputs.run_contracts_slither }}
+      run_contracts_gas_report: ${{ steps.evaluate.outputs.run_contracts_gas_report }}
     steps:
       - name: Evaluate PR scope for CI
         id: evaluate
@@ -51,6 +52,7 @@ jobs:
               runDashboard,
               runContracts,
               runContractsSlither,
+              runContractsGasReport,
             }) => {
               core.setOutput('run_ci', runCi ? 'true' : 'false')
               core.setOutput('run_backend', runBackend ? 'true' : 'false')
@@ -61,6 +63,7 @@ jobs:
               core.setOutput('run_dashboard', runDashboard ? 'true' : 'false')
               core.setOutput('run_contracts', runContracts ? 'true' : 'false')
               core.setOutput('run_contracts_slither', runContractsSlither ? 'true' : 'false')
+              core.setOutput('run_contracts_gas_report', runContractsGasReport ? 'true' : 'false')
             }
             const setFullCiOutputs = () => setCiOutputs({
               runCi: true,
@@ -72,6 +75,7 @@ jobs:
               runDashboard: true,
               runContracts: true,
               runContractsSlither: true,
+              runContractsGasReport: true,
             })
             const setSkippedCiOutputs = () => setCiOutputs({
               runCi: false,
@@ -83,6 +87,7 @@ jobs:
               runDashboard: false,
               runContracts: false,
               runContractsSlither: false,
+              runContractsGasReport: false,
             })
 
             const pr = context.payload.pull_request
@@ -99,6 +104,7 @@ jobs:
                   runDashboard: false,
                   runContracts: false,
                   runContractsSlither: true,
+                  runContractsGasReport: false,
                 })
                 return
               }
@@ -261,6 +267,7 @@ jobs:
             const runFrontend = runFullCi || (runCi && (touches.extension || touchesFrontendWorkspace || touchesDockerCompose))
             const runDashboard = runFullCi || (runCi && (touches.dashboard || touchesFrontendWorkspace || touchesDockerCompose))
             const runContracts = runFullCi || (runCi && touches.contracts)
+            const runContractsGasReport = runFullCi || (runCi && touches.contracts)
             const runBackendScanners = runFullCi || (runCi && (touches.backend || touchesDockerCompose))
             const runContractsSlither = runFullCi || (runCi && touches.contracts)
             const runDependencyReview = runCi && allFilePaths.some((name) =>
@@ -282,6 +289,7 @@ jobs:
                 runDashboard,
                 runContracts,
                 runContractsSlither,
+                runContractsGasReport,
               })
             } else {
               setSkippedCiOutputs()
@@ -643,6 +651,37 @@ jobs:
           path: ${{ steps.slither.outputs.sarif }}
           if-no-files-found: warn
 
+  contracts-gas-snapshot:
+    timeout-minutes: 20
+    name: Contracts gas snapshot report
+    needs: [scope-gate]
+    if: needs.scope-gate.outputs.run_contracts_gas_report == 'true'
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+
+      - name: Install Foundry
+        uses: foundry-rs/foundry-toolchain@v1
+
+      - name: Install dependencies
+        working-directory: contracts
+        run: forge install OpenZeppelin/openzeppelin-contracts@v5.6.1 --no-git
+
+      - name: Generate gas snapshot report
+        working-directory: contracts
+        run: forge snapshot --snap gas-snapshot.report
+
+      - name: Print gas snapshot report
+        working-directory: contracts
+        run: cat gas-snapshot.report
+
+      - name: Upload gas snapshot report artifact
+        uses: actions/upload-artifact@v4
+        with:
+          name: contracts-gas-snapshot-report
+          path: contracts/gas-snapshot.report
+          if-no-files-found: error
+
   backend-ci:
     timeout-minutes: 5
     name: Backend CI (gate)
@@ -675,7 +714,7 @@ jobs:
   auto-ready-after-ci:
     timeout-minutes: 5
     name: Auto-ready draft PR after CI
-    needs: [scope-gate, backend-ci, dependency-review, frontend, dashboard, contracts, contracts-slither]
+    needs: [scope-gate, backend-ci, dependency-review, frontend, dashboard, contracts, contracts-slither, contracts-gas-snapshot]
     if: always() && github.event_name == 'pull_request'
     runs-on: ubuntu-latest
     permissions:
@@ -695,6 +734,7 @@ jobs:
           DASHBOARD_RESULT: ${{ needs.dashboard.result }}
           CONTRACTS_RESULT: ${{ needs.contracts.result }}
           CONTRACTS_SLITHER_RESULT: ${{ needs.contracts-slither.result }}
+          CONTRACTS_GAS_SNAPSHOT_RESULT: ${{ needs.contracts-gas-snapshot.result }}
         with:
           script: |
             const owner = context.repo.owner
@@ -727,6 +767,7 @@ jobs:
               ['dashboard', process.env.DASHBOARD_RESULT],
               ['contracts', process.env.CONTRACTS_RESULT],
               ['contracts-slither', process.env.CONTRACTS_SLITHER_RESULT],
+              ['contracts-gas-snapshot', process.env.CONTRACTS_GAS_SNAPSHOT_RESULT],
             ]
 
             for (const [job, result] of requiredJobResults) {
@@ -980,7 +1021,7 @@ jobs:
   notify-discord:
     timeout-minutes: 5
     name: Notify Discord on failure
-    needs: [workflow-regression, commit-message-regression, pr-metadata-regression, check-cache-wiring, atlas-migration-tooling, backend-ci, dependency-review, frontend, dashboard, contracts, contracts-slither]
+    needs: [workflow-regression, commit-message-regression, pr-metadata-regression, check-cache-wiring, atlas-migration-tooling, backend-ci, dependency-review, frontend, dashboard, contracts, contracts-slither, contracts-gas-snapshot]
     if: failure()
     runs-on: ubuntu-latest
     steps:
