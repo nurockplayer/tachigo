@@ -15,6 +15,7 @@ const codexReviewRerequestWorkflowPath = path.join(currentDir, 'codex-review-rer
 const closeIssueOnDevelopMergeWorkflowPath = path.join(currentDir, 'close-issue-on-develop-merge.yml')
 const claudePath = path.join(repoRoot, 'CLAUDE.md')
 const dependabotPolicyPath = path.join(repoRoot, 'docs', 'dependabot-update-policy.md')
+const contractsGasSnapshotPolicyPath = path.join(repoRoot, 'docs', 'contracts-gas-snapshot-policy.md')
 const AsyncFunction = Object.getPrototypeOf(async function () {}).constructor
 const developRequiredCheckRuns = [
   'Scope gate',
@@ -159,6 +160,7 @@ async function runCiAutoReadyAfterCiWorkflow({
       FRONTEND_RESULT: 'success',
       DASHBOARD_RESULT: 'success',
       CONTRACTS_RESULT: 'success',
+      CONTRACTS_GAS_SNAPSHOT_RESULT: 'success',
       ...env,
     },
     ...options,
@@ -663,6 +665,7 @@ test('scope gate emits path-aware outputs for frontend-only PRs', async () => {
     run_frontend: 'true',
     run_dashboard: 'false',
     run_contracts: 'false',
+    run_contracts_gas_report: 'false',
   })
 })
 
@@ -697,6 +700,7 @@ test('scope gate emits backend scanner outputs for backend PRs and scheduled sca
     run_frontend: 'false',
     run_dashboard: 'false',
     run_contracts: 'false',
+    run_contracts_gas_report: 'false',
   })
   assert.deepEqual(scheduled.outputs, {
     run_ci: 'true',
@@ -707,6 +711,26 @@ test('scope gate emits backend scanner outputs for backend PRs and scheduled sca
     run_frontend: 'false',
     run_dashboard: 'false',
     run_contracts: 'false',
+    run_contracts_gas_report: 'false',
+  })
+})
+
+test('scope gate emits contracts gas report output for contracts PRs', async () => {
+  const result = await runCiScopeGateWorkflow({
+    prOverrides: { title: '[contract] Update TachiToken' },
+    files: [{ filename: 'contracts/src/TachiToken.sol', additions: 4, deletions: 1, status: 'modified' }],
+  })
+
+  assert.deepEqual(result.outputs, {
+    run_ci: 'true',
+    run_backend: 'false',
+    run_backend_integration: 'true',
+    run_backend_scanners: 'false',
+    run_dependency_review: 'false',
+    run_frontend: 'false',
+    run_dashboard: 'false',
+    run_contracts: 'true',
+    run_contracts_gas_report: 'true',
   })
 })
 
@@ -744,6 +768,7 @@ Backend contract already in develop:
     run_frontend: 'true',
     run_dashboard: 'true',
     run_contracts: 'true',
+    run_contracts_gas_report: 'true',
   }
   assert.deepEqual(push.outputs, fullOutputs)
   assert.deepEqual(releasePromotion.outputs, fullOutputs)
@@ -764,6 +789,7 @@ test('CI product jobs are gated by path-aware scope outputs', async () => {
   const frontend = workflowJobBlock(workflow, 'frontend')
   const dashboard = workflowJobBlock(workflow, 'dashboard')
   const contracts = workflowJobBlock(workflow, 'contracts')
+  const contractsGasSnapshot = workflowJobBlock(workflow, 'contracts-gas-snapshot')
 
   assert.match(backendBuild, /needs\.scope-gate\.outputs\.run_backend == 'true'/)
   assert.match(backend, /needs\.scope-gate\.outputs\.run_backend == 'true'/)
@@ -774,6 +800,7 @@ test('CI product jobs are gated by path-aware scope outputs', async () => {
   assert.match(frontend, /needs\.scope-gate\.outputs\.run_frontend == 'true'/)
   assert.match(dashboard, /needs\.scope-gate\.outputs\.run_dashboard == 'true'/)
   assert.match(contracts, /needs\.scope-gate\.outputs\.run_contracts == 'true'/)
+  assert.match(contractsGasSnapshot, /needs\.scope-gate\.outputs\.run_contracts_gas_report == 'true'/)
 })
 
 test('backend security scanner job installs pinned staticcheck and govulncheck', async () => {
@@ -833,6 +860,40 @@ test('dependency review policy documents Dependabot split and waiver handling', 
   assert.match(policy, /False Positives And Waivers/)
   assert.match(policy, /Owner:/)
   assert.match(policy, /Expires on:/)
+})
+
+test('contracts gas snapshot job publishes a report-only artifact', async () => {
+  const workflow = await readFile(workflowPath, 'utf8')
+  const parsedWorkflow = parseYaml(workflowPath)
+  const job = parsedWorkflow.jobs['contracts-gas-snapshot']
+  const jobBlock = workflowJobBlock(workflow, 'contracts-gas-snapshot')
+
+  assert.equal(job.name, 'Contracts gas snapshot report')
+  assert.equal(job['timeout-minutes'], 20)
+  assert.deepEqual(job.needs, ['scope-gate'])
+  assert.equal(job.if, "needs.scope-gate.outputs.run_contracts_gas_report == 'true'")
+  assert.match(jobBlock, /uses: actions\/checkout@v4/)
+  assert.match(jobBlock, /uses: foundry-rs\/foundry-toolchain@v1/)
+  assert.match(jobBlock, /working-directory: contracts\n\s+run: forge install OpenZeppelin\/openzeppelin-contracts@v5\.6\.1 --no-git/)
+  assert.match(jobBlock, /working-directory: contracts\n\s+run: forge snapshot --snap gas-snapshot\.report/)
+  assert.match(jobBlock, /cat gas-snapshot\.report/)
+  assert.match(jobBlock, /uses: actions\/upload-artifact@v4/)
+  assert.match(jobBlock, /name: contracts-gas-snapshot-report/)
+  assert.match(jobBlock, /path: contracts\/gas-snapshot\.report/)
+  assert.doesNotMatch(jobBlock, /--check/)
+  assert.doesNotMatch(jobBlock, /continue-on-error: true/)
+})
+
+test('contracts gas snapshot policy documents baseline and reviewer handling', async () => {
+  const policy = await readFile(contractsGasSnapshotPolicyPath, 'utf8')
+
+  assert.match(policy, /Gas Snapshot Policy/)
+  assert.match(policy, /contracts-gas-snapshot-report/)
+  assert.match(policy, /`.gas-snapshot` is not committed/)
+  assert.match(policy, /Tolerance/)
+  assert.match(policy, /Intentional gas changes checklist/)
+  assert.match(policy, /Reviewer accepted the gas impact/)
+  assert.match(policy, /forge snapshot --check/)
 })
 
 test('global auto-merge workflow excludes Dependabot PRs', async () => {
@@ -1000,7 +1061,7 @@ test('CI workflow wakes auto-ready draft PRs after required CI jobs finish', asy
 
   assert.equal(job.name, 'Auto-ready draft PR after CI')
   assert.equal(job.if, "always() && github.event_name == 'pull_request'")
-  assert.deepEqual(job.needs, ['scope-gate', 'backend-ci', 'dependency-review', 'frontend', 'dashboard', 'contracts'])
+  assert.deepEqual(job.needs, ['scope-gate', 'backend-ci', 'dependency-review', 'frontend', 'dashboard', 'contracts', 'contracts-gas-snapshot'])
   assert.equal(job.permissions['pull-requests'], 'write')
   assert.equal(job.permissions.contents, 'write')
   assert.equal(job.permissions.issues, 'write')
@@ -1017,6 +1078,7 @@ test('CI workflow wakes auto-ready draft PRs after required CI jobs finish', asy
   assert.match(jobBlock, /FRONTEND_RESULT/)
   assert.match(jobBlock, /DASHBOARD_RESULT/)
   assert.match(jobBlock, /CONTRACTS_RESULT/)
+  assert.match(jobBlock, /CONTRACTS_GAS_SNAPSHOT_RESULT/)
   assert.match(jobBlock, /const markedReady = pr\.draft === true/)
   assert.match(jobBlock, /if \(markedReady\) \{[\s\S]*markPullRequestReadyForReview/)
   assert.match(jobBlock, /pr\.user\?\.login === 'dependabot\[bot\]'/)
@@ -1081,6 +1143,16 @@ test('CI auto-ready job retries auto-merge for already-ready auto-ready PRs', as
 test('CI auto-ready job waits when dependency review fails', async () => {
   const result = await runCiAutoReadyAfterCiWorkflow({
     env: { DEPENDENCY_REVIEW_RESULT: 'failure' },
+    checkRuns: successfulDevelopRequiredCheckRuns(),
+  })
+
+  assert.deepEqual(result.graphqlCalls, [])
+  assert.deepEqual(result.labelsAdded, [])
+})
+
+test('CI auto-ready job waits when contracts gas snapshot report fails', async () => {
+  const result = await runCiAutoReadyAfterCiWorkflow({
+    env: { CONTRACTS_GAS_SNAPSHOT_RESULT: 'failure' },
     checkRuns: successfulDevelopRequiredCheckRuns(),
   })
 
