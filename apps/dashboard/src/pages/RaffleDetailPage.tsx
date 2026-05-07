@@ -461,7 +461,7 @@ export default function RaffleDetailPage() {
   const raffle = data?.data
 
   const [draws, setDraws] = useState<RaffleDraw[]>([])
-  const [csvResult, setCsvResult] = useState<{ imported: number; skipped: number } | null>(null)
+  const [totalEntries, setTotalEntries] = useState<number | null>(null)
   const [exhausted, setExhausted] = useState(false)
   const [drawing, setDrawing] = useState(false)
   const [confirmEnd, setConfirmEnd] = useState(false)
@@ -531,7 +531,7 @@ export default function RaffleDetailPage() {
     }
   }
 
-  const entryCount = csvResult?.imported ?? null
+  const entryCount = totalEntries
   const drawnCount = draws.length
   const remaining = entryCount === null ? null : Math.max(entryCount - drawnCount, 0)
 
@@ -583,7 +583,7 @@ export default function RaffleDetailPage() {
             <StatCard label="剩餘" value={remaining?.toString() ?? '--'} colorClass="text-amber-400" />
           </div>
 
-          <CsvUploadZone raffleId={raffle.id} onSuccess={(result) => { setCsvResult(result); setExhausted(false) }} />
+          <CsvUploadZone raffleId={raffle.id} onSuccess={(result) => { setTotalEntries(prev => (prev ?? 0) + result.imported); setExhausted(false) }} />
 
           <DrawControls
             status={effectiveStatus}

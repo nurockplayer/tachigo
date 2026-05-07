@@ -223,6 +223,37 @@ describe('RaffleDetailPage — draw button', () => {
     expect((container.querySelector('[data-testid="draw-btn"]') as HTMLButtonElement).disabled).toBe(true)
     cleanup(root, container)
   })
+
+  it('re-enables draw button after re-importing new entries when all previous draws are exhausted', async () => {
+    vi.mocked(rafflesService.listDraws).mockResolvedValue([mockDraw, { ...mockDraw, id: 'd2' }, { ...mockDraw, id: 'd3' }])
+    vi.mocked(rafflesService.importCSV).mockResolvedValue({ imported: 3, skipped: 0 })
+    const dp = createMockDataProvider({
+      getOne: { raffles: vi.fn().mockResolvedValue(mockRaffle as BaseRecord) },
+    })
+    const { container, root } = await renderAt('r1', dp)
+    await waitFor(() => expect(container.querySelector('[data-testid="csv-input"]')).toBeTruthy())
+
+    const input = container.querySelector('[data-testid="csv-input"]') as HTMLInputElement
+    const file = new File(['login\n'], 'first.csv', { type: 'text/csv' })
+    Object.defineProperty(input, 'files', { value: [file], configurable: true })
+    await act(async () => {
+      input.dispatchEvent(new Event('change', { bubbles: true }))
+    })
+    await waitFor(() => {
+      expect((container.querySelector('[data-testid="draw-btn"]') as HTMLButtonElement).disabled).toBe(true)
+    })
+
+    vi.mocked(rafflesService.importCSV).mockResolvedValue({ imported: 2, skipped: 0 })
+    const file2 = new File(['login2\n'], 'second.csv', { type: 'text/csv' })
+    Object.defineProperty(input, 'files', { value: [file2], configurable: true })
+    await act(async () => {
+      input.dispatchEvent(new Event('change', { bubbles: true }))
+    })
+    await waitFor(() => {
+      expect((container.querySelector('[data-testid="draw-btn"]') as HTMLButtonElement).disabled).toBe(false)
+    })
+    cleanup(root, container)
+  })
 })
 
 describe('RaffleDetailPage — end activity', () => {
