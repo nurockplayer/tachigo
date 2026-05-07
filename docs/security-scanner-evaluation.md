@@ -100,6 +100,42 @@ Rationale:
 - The project currently has a small token contract surface; report-only gives
   useful signal while keeping the first CI hardening pass low risk.
 
+#### Contracts Slither Report
+
+The `Contracts Slither report` CI job runs the pinned Crytic Slither GitHub
+Action against `contracts` and keeps detector findings report-only with
+`fail-on: none`. Workflow infrastructure failures should still fail the job, but
+Slither findings themselves should be reviewed through GitHub code scanning and
+the uploaded `slither-report` artifact.
+
+Baseline triage flow:
+
+1. Open the GitHub code scanning alert, or download the `slither-report`
+   artifact when code scanning is unavailable.
+2. Record each baseline finding with the detector name, severity, affected
+   contract/function, owner, and decision.
+3. Classify the decision as `fix now`, `accepted risk`, `false positive`, or
+   `follow-up issue`.
+4. For accepted risks and false positives, add a waiver before relying on the
+   report as reviewed.
+5. Recheck waivers when the affected contract changes, the detector changes, or
+   the waiver expires.
+
+Suggested Slither waiver format:
+
+```markdown
+## Slither / <detector or finding id>
+
+- Owner:
+- Accepted on:
+- Expires on:
+- Affected contract/function:
+- Severity:
+- Decision:
+- Why this is accepted:
+- Recheck trigger:
+```
+
 ### Gas Snapshot
 
 Use Foundry `forge snapshot` and eventually `forge snapshot --check`.
