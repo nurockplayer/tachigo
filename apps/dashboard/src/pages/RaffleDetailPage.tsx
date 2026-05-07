@@ -249,25 +249,6 @@ function GachaMachine() {
           animation: 'gachaRays 22s linear infinite',
         }}
       />
-      {[
-        { top: '12px', left: '22px', fontSize: '13px', animationDelay: '0s' },
-        { top: '44px', right: '18px', fontSize: '10px', animationDelay: '0.9s' },
-        { bottom: '38px', left: '14px', fontSize: '11px', animationDelay: '1.8s' },
-        { bottom: '18px', right: '28px', fontSize: '18px', animationDelay: '0.4s' },
-      ].map((style, index) => (
-        <span
-          key={index}
-          style={{
-            position: 'absolute',
-            color: '#f5c518',
-            filter: 'drop-shadow(0 0 5px rgba(245,197,24,.4))',
-            animation: 'gachaSparkle 3s ease-in-out infinite',
-            ...style,
-          }}
-        >
-          *
-        </span>
-      ))}
       <div
         style={{
           position: 'relative',
@@ -356,7 +337,6 @@ function GachaMachine() {
               { width: 40, height: 40, background: 'linear-gradient(135deg,#5c5c9c,#3c3c7c)', top: 68, left: 106, animation: 'bb3 4.8s' },
               { width: 34, height: 34, background: 'linear-gradient(135deg,#9c6c3a,#7c4c1a)', top: 90, left: 14, animation: 'bb4 3.9s' },
               { width: 42, height: 42, background: 'linear-gradient(135deg,#7c4c7c,#5c2c5c)', top: 100, left: 62, animation: 'bb5 4.4s' },
-              { width: 30, height: 30, background: 'linear-gradient(135deg,#4c7c7c,#2c5c5c)', top: 50, left: 50, animation: 'bb6 3.3s' },
             ].map((ball, index) => (
               <div
                 key={index}
@@ -436,7 +416,6 @@ function GachaMachine() {
       </div>
       <style>{`
         @keyframes gachaRays { to { transform: rotate(360deg); } }
-        @keyframes gachaSparkle { 0%,100%{transform:translateY(0) scale(1);opacity:.35} 50%{transform:translateY(-7px) scale(1.35);opacity:1} }
         @keyframes gachaLed { 0%,100%{opacity:.3} 50%{opacity:1} }
         @keyframes gachaGlobe { to { transform: rotate(360deg); } }
         @keyframes bb1{0%,100%{transform:translate(0,0)}33%{transform:translate(4px,-6px)}66%{transform:translate(-3px,4px)}}
@@ -444,7 +423,6 @@ function GachaMachine() {
         @keyframes bb3{0%,100%{transform:translate(0,0)}35%{transform:translate(-4px,6px)}70%{transform:translate(6px,-5px)}}
         @keyframes bb4{0%,100%{transform:translate(0,0)}50%{transform:translate(6px,-7px)}}
         @keyframes bb5{0%,100%{transform:translate(0,0)}25%{transform:translate(-5px,5px)}75%{transform:translate(5px,-5px)}}
-        @keyframes bb6{0%,100%{transform:translate(0,0)}60%{transform:translate(6px,6px)}}
       `}</style>
     </div>
   )
