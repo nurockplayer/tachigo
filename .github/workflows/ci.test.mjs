@@ -8,6 +8,7 @@ const currentDir = path.dirname(fileURLToPath(import.meta.url))
 const repoRoot = path.join(currentDir, '..', '..')
 const workflowPath = path.join(currentDir, 'ci.yml')
 const scopePolicePath = path.join(currentDir, 'pr-scope-police.yml')
+const dependabotAutomergeWorkflowPath = path.join(currentDir, 'dependabot-automerge.yml')
 const claudePath = path.join(repoRoot, 'CLAUDE.md')
 
 test('frontend CI job runs the frontend test command', async () => {
@@ -33,6 +34,13 @@ test('CI scope gate runs product validation for Dependabot maintenance PRs', asy
     workflow,
     /const runCi =\n\s+\(isReleasePromotionPr && releaseBodyValid\) \|\|\n\s+bodyValidForCi &&/,
   )
+})
+
+test('Dependabot auto-merge uses repository-supported merge commits', async () => {
+  const workflow = await readFile(dependabotAutomergeWorkflowPath, 'utf8')
+
+  assert.match(workflow, /gh pr merge --auto --merge "\$PR_URL"/)
+  assert.doesNotMatch(workflow, /gh pr merge --auto --squash/)
 })
 
 test('PR size thresholds match CLAUDE.md', async () => {
