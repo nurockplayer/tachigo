@@ -9,6 +9,8 @@ const currentDir = path.dirname(fileURLToPath(import.meta.url))
 const repoRoot = path.join(currentDir, '..', '..')
 const workflowPath = path.join(currentDir, 'ci.yml')
 const scopePolicePath = path.join(currentDir, 'pr-scope-police.yml')
+const dependabotConfigPath = path.join(repoRoot, '.github', 'dependabot.yml')
+const dependabotAutomergeWorkflowPath = path.join(currentDir, 'dependabot-automerge.yml')
 const autoMergeWorkflowPath = path.join(currentDir, 'auto-merge.yml')
 const autoReadyWorkflowPath = path.join(currentDir, 'auto-ready-pr.yml')
 const codexReviewRerequestWorkflowPath = path.join(currentDir, 'codex-review-rerequest.yml')
@@ -829,10 +831,49 @@ test('dependency review policy documents Dependabot split and waiver handling', 
   assert.match(policy, /Dependency Review Gate/)
   assert.match(policy, /high\/critical production dependency vulnerabilities/)
   assert.match(policy, /development dependency findings are report-only/)
-  assert.match(policy, /Dependabot opens routine version and security update PRs/)
+  assert.match(policy, /Dependabot opens routine version update PRs for the configured update levels/)
+  assert.match(policy, /security update PRs for alert-triggered fixes/)
+  assert.match(policy, /Production security update\s+PRs remain manual-review changes/)
   assert.match(policy, /False Positives And Waivers/)
   assert.match(policy, /Owner:/)
   assert.match(policy, /Expires on:/)
+})
+
+test('Dependabot pnpm version updates skip routine production patch releases', () => {
+  const config = parseYaml(dependabotConfigPath)
+  const pnpmUpdates = config.updates.filter((update) => update['package-ecosystem'] === 'npm')
+
+  assert.equal(pnpmUpdates.length, 2)
+  for (const update of pnpmUpdates) {
+    assert.deepEqual(update.allow, [
+      {
+        'dependency-type': 'production',
+        'update-types': [
+          'version-update:semver-minor',
+          'version-update:semver-major',
+        ],
+      },
+      {
+        'dependency-type': 'development',
+        'update-types': [
+          'version-update:semver-patch',
+          'version-update:semver-minor',
+          'version-update:semver-major',
+        ],
+      },
+    ])
+  }
+})
+
+test('Dependabot auto-merge keeps production dependency updates on manual review', async () => {
+  const workflow = await readFile(dependabotAutomergeWorkflowPath, 'utf8')
+  const jobBlock = workflowJobBlock(workflow, 'automerge')
+
+  assert.doesNotMatch(jobBlock, /BASE_REF: \$\{\{ github\.event\.pull_request\.base\.ref \}\}/)
+  assert.doesNotMatch(jobBlock, /DEFAULT_BRANCH: \$\{\{ github\.event\.repository\.default_branch \}\}/)
+  assert.doesNotMatch(jobBlock, /default-branch production patch update \(security-alert path\)/)
+  assert.match(jobBlock, /\[\[ "\$DEPENDENCY_TYPE" != "direct:development" \]\]/)
+  assert.match(jobBlock, /reason="production dependency requires manual review"/)
 })
 
 test('global auto-merge workflow excludes Dependabot PRs', async () => {
