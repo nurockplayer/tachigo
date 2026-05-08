@@ -36,6 +36,7 @@ jobs:
               isSameRepoHead &&
               pr.base?.ref === 'main' &&
               pr.head?.ref === 'develop'
+            const isDependabotPr = pr.user?.login === 'dependabot[bot]'
 
             const bypassLabels = new Set(['scope-exception'])
             const labels = (pr.labels || []).map((label) => label.name)
@@ -102,10 +103,11 @@ jobs:
               (dependsOnNone || Boolean(dependsOnPrMatch)) &&
               (backendContractYes !== backendContractNo) &&
               body.includes('本 PR 明確不做')
+            const bodyValidForCi = isDependabotPr || standardBodyValid
 
             const runCi =
               (isReleasePromotionPr && releaseBodyValid) ||
-              standardBodyValid &&
+              bodyValidForCi &&
               (isReleasePromotionPr || filenames.length <= hardMaxChangedFiles) &&
               (isReleasePromotionPr || diffLines <= hardMaxDiffLines) &&
               (isReleasePromotionPr || productSurfaces <= 1) &&
