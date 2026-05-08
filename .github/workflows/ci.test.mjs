@@ -24,6 +24,17 @@ test('frontend CI job runs the frontend test command', async () => {
   )
 })
 
+test('CI scope gate runs product validation for Dependabot maintenance PRs', async () => {
+  const workflow = await readFile(workflowPath, 'utf8')
+
+  assert.match(workflow, /const isDependabotPr = pr\.user\?\.login === 'dependabot\[bot\]'/)
+  assert.match(workflow, /const bodyValidForCi = isDependabotPr \|\| standardBodyValid/)
+  assert.match(
+    workflow,
+    /const runCi =\n\s+\(isReleasePromotionPr && releaseBodyValid\) \|\|\n\s+bodyValidForCi &&/,
+  )
+})
+
 test('PR size thresholds match CLAUDE.md', async () => {
   const claude = await readFile(claudePath, 'utf8')
   const workflow = await readFile(workflowPath, 'utf8')
