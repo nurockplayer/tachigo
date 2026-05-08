@@ -13,10 +13,12 @@ const autoMergeWorkflowPath = path.join(currentDir, 'auto-merge.yml')
 const autoReadyWorkflowPath = path.join(currentDir, 'auto-ready-pr.yml')
 const codexReviewRerequestWorkflowPath = path.join(currentDir, 'codex-review-rerequest.yml')
 const closeIssueOnDevelopMergeWorkflowPath = path.join(currentDir, 'close-issue-on-develop-merge.yml')
+const dependencyInventoryWorkflowPath = path.join(currentDir, 'dependency-inventory.yml')
 const claudePath = path.join(repoRoot, 'CLAUDE.md')
 const dependabotPolicyPath = path.join(repoRoot, 'docs', 'dependabot-update-policy.md')
 const securityScannerEvaluationPath = path.join(repoRoot, 'docs', 'security-scanner-evaluation.md')
 const contractsGasSnapshotPolicyPath = path.join(repoRoot, 'docs', 'contracts-gas-snapshot-policy.md')
+const dependencyInventoryPolicyPath = path.join(repoRoot, 'docs', 'dependency-inventory-policy.md')
 const AsyncFunction = Object.getPrototypeOf(async function () {}).constructor
 const developRequiredCheckRuns = [
   'Scope gate',
@@ -944,6 +946,87 @@ test('contracts gas snapshot policy documents baseline and reviewer handling', a
   assert.match(policy, /Intentional gas changes checklist/)
   assert.match(policy, /Reviewer accepted the gas impact/)
   assert.match(policy, /forge snapshot --check/)
+})
+
+test('dependency inventory workflow publishes report-only OSV scans by surface', async () => {
+  const workflow = await readFile(dependencyInventoryWorkflowPath, 'utf8')
+  const parsedWorkflow = parseYaml(dependencyInventoryWorkflowPath)
+
+  assert.equal(parsedWorkflow.name, 'Dependency inventory scan')
+  assert.deepEqual(parsedWorkflow.on.schedule, [{ cron: '41 3 * * 2' }])
+  assert.ok(Object.hasOwn(parsedWorkflow.on, 'workflow_dispatch'))
+  assert.equal(parsedWorkflow.permissions.contents, 'read')
+  assert.equal(parsedWorkflow.permissions.actions, 'read')
+  assert.equal(parsedWorkflow.permissions['security-events'], 'write')
+  assert.equal(parsedWorkflow.concurrency.group, 'dependency-inventory-${{ github.repository }}')
+  assert.equal(parsedWorkflow.concurrency['cancel-in-progress'], false)
+
+  const go = parsedWorkflow.jobs['osv-go-modules']
+  const pnpm = parsedWorkflow.jobs['osv-pnpm-lockfiles']
+  const containerArchives = parsedWorkflow.jobs['build-container-inventory-archives']
+  const backendImage = parsedWorkflow.jobs['osv-container-backend-image']
+  const extensionImage = parsedWorkflow.jobs['osv-container-extension-image']
+  const dashboardImage = parsedWorkflow.jobs['osv-container-dashboard-image']
+
+  for (const job of [go, pnpm, backendImage, extensionImage, dashboardImage]) {
+    assert.equal(job.uses, 'google/osv-scanner-action/.github/workflows/osv-scanner-reusable.yml@v2.3.5')
+    assert.equal(job.with['fail-on-vuln'], false)
+    assert.equal(job.with['upload-sarif'], true)
+  }
+
+  assert.match(go.with['scan-args'], /--lockfile=services\/api\/go\.mod/)
+  assert.equal(go.with['results-file-name'], 'osv-go-modules.sarif')
+  assert.equal(go.with['matrix-property'], 'go-')
+
+  assert.match(pnpm.with['scan-args'], /--lockfile=pnpm-lock\.yaml/)
+  assert.match(pnpm.with['scan-args'], /--lockfile=apps\/extension\/pnpm-lock\.yaml/)
+  assert.match(pnpm.with['scan-args'], /--lockfile=apps\/dashboard\/pnpm-lock\.yaml/)
+  assert.equal(pnpm.with['results-file-name'], 'osv-pnpm-lockfiles.sarif')
+  assert.equal(pnpm.with['matrix-property'], 'pnpm-')
+
+  assert.equal(containerArchives.name, 'Build dependency inventory image archives')
+  assert.equal(containerArchives['timeout-minutes'], 30)
+  assert.match(workflowJobBlock(workflow, 'build-container-inventory-archives'), /docker build -t tachigo-backend-inventory:latest \.\/services\/api/)
+  assert.match(workflowJobBlock(workflow, 'build-container-inventory-archives'), /docker save tachigo-backend-inventory:latest -o tachigo-backend-image\.tar/)
+  assert.match(workflowJobBlock(workflow, 'build-container-inventory-archives'), /name: dependency-inventory-backend-image/)
+  assert.match(workflowJobBlock(workflow, 'build-container-inventory-archives'), /name: dependency-inventory-extension-image/)
+  assert.match(workflowJobBlock(workflow, 'build-container-inventory-archives'), /name: dependency-inventory-dashboard-image/)
+
+  assert.equal(backendImage.needs, 'build-container-inventory-archives')
+  assert.equal(backendImage.with['download-artifact'], 'dependency-inventory-backend-image')
+  assert.equal(backendImage.with['results-file-name'], 'osv-container-backend-image.sarif')
+  assert.equal(backendImage.with['matrix-property'], 'container-backend-')
+  assert.match(backendImage.with['scan-args'], /scan\nimage\n--archive\ntachigo-backend-image\.tar/)
+
+  assert.equal(extensionImage.with['download-artifact'], 'dependency-inventory-extension-image')
+  assert.equal(extensionImage.with['results-file-name'], 'osv-container-extension-image.sarif')
+  assert.equal(extensionImage.with['matrix-property'], 'container-extension-')
+  assert.match(extensionImage.with['scan-args'], /scan\nimage\n--archive\ntachigo-extension-image\.tar/)
+
+  assert.equal(dashboardImage.with['download-artifact'], 'dependency-inventory-dashboard-image')
+  assert.equal(dashboardImage.with['results-file-name'], 'osv-container-dashboard-image.sarif')
+  assert.equal(dashboardImage.with['matrix-property'], 'container-dashboard-')
+  assert.match(dashboardImage.with['scan-args'], /scan\nimage\n--archive\ntachigo-dashboard-image\.tar/)
+})
+
+test('dependency inventory policy documents OSV triage ownership and non-blocking rollout', async () => {
+  const policy = await readFile(dependencyInventoryPolicyPath, 'utf8')
+
+  assert.match(policy, /Scheduled Dependency Inventory/)
+  assert.match(policy, /Source of truth.*#508/)
+  assert.match(policy, /Report owner/)
+  assert.match(policy, /Triage SLA/)
+  assert.match(policy, /Go module manifest/)
+  assert.match(policy, /pnpm lockfiles/)
+  assert.match(policy, /Container images/)
+  assert.match(policy, /Dependabot alerts/)
+  assert.match(policy, /Dependency Review/)
+  assert.match(policy, /not a required check/)
+  assert.match(policy, /weekly/)
+  assert.match(policy, /workflow_dispatch/)
+  assert.match(policy, /False positives and waivers/)
+  assert.match(policy, /Owner:/)
+  assert.match(policy, /Expires on:/)
 })
 
 test('global auto-merge workflow excludes Dependabot PRs', async () => {

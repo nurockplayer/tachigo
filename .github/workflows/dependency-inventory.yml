@@ -1,0 +1,140 @@
+name: Dependency inventory scan
+
+on:
+  schedule:
+    - cron: "41 3 * * 2"
+  workflow_dispatch:
+
+concurrency:
+  group: dependency-inventory-${{ github.repository }}
+  cancel-in-progress: false
+
+permissions:
+  contents: read
+  actions: read
+  security-events: write
+
+jobs:
+  osv-go-modules:
+    name: OSV Go module inventory
+    uses: google/osv-scanner-action/.github/workflows/osv-scanner-reusable.yml@v2.3.5
+    with:
+      scan-args: |-
+        --lockfile=services/api/go.mod
+      results-file-name: osv-go-modules.sarif
+      upload-sarif: true
+      fail-on-vuln: false
+      matrix-property: go-
+
+  osv-pnpm-lockfiles:
+    name: OSV pnpm lockfiles inventory
+    uses: google/osv-scanner-action/.github/workflows/osv-scanner-reusable.yml@v2.3.5
+    with:
+      scan-args: |-
+        --lockfile=pnpm-lock.yaml
+        --lockfile=apps/extension/pnpm-lock.yaml
+        --lockfile=apps/dashboard/pnpm-lock.yaml
+      results-file-name: osv-pnpm-lockfiles.sarif
+      upload-sarif: true
+      fail-on-vuln: false
+      matrix-property: pnpm-
+
+  build-container-inventory-archives:
+    timeout-minutes: 30
+    name: Build dependency inventory image archives
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+
+      - name: Set up Docker Buildx
+        uses: docker/setup-buildx-action@v3
+
+      - name: Build backend inventory image
+        run: docker build -t tachigo-backend-inventory:latest ./services/api
+
+      - name: Save backend inventory image
+        run: docker save tachigo-backend-inventory:latest -o tachigo-backend-image.tar
+
+      - name: Upload backend inventory image archive
+        uses: actions/upload-artifact@v4
+        with:
+          name: dependency-inventory-backend-image
+          path: tachigo-backend-image.tar
+          if-no-files-found: error
+          retention-days: 5
+
+      - name: Build extension inventory image
+        run: docker build -t tachigo-extension-inventory:latest ./apps/extension
+
+      - name: Save extension inventory image
+        run: docker save tachigo-extension-inventory:latest -o tachigo-extension-image.tar
+
+      - name: Upload extension inventory image archive
+        uses: actions/upload-artifact@v4
+        with:
+          name: dependency-inventory-extension-image
+          path: tachigo-extension-image.tar
+          if-no-files-found: error
+          retention-days: 5
+
+      - name: Build dashboard inventory image
+        run: docker build -t tachigo-dashboard-inventory:latest ./apps/dashboard
+
+      - name: Save dashboard inventory image
+        run: docker save tachigo-dashboard-inventory:latest -o tachigo-dashboard-image.tar
+
+      - name: Upload dashboard inventory image archive
+        uses: actions/upload-artifact@v4
+        with:
+          name: dependency-inventory-dashboard-image
+          path: tachigo-dashboard-image.tar
+          if-no-files-found: error
+          retention-days: 5
+
+  osv-container-backend-image:
+    name: OSV backend image inventory
+    needs: build-container-inventory-archives
+    uses: google/osv-scanner-action/.github/workflows/osv-scanner-reusable.yml@v2.3.5
+    with:
+      download-artifact: dependency-inventory-backend-image
+      scan-args: |-
+        scan
+        image
+        --archive
+        tachigo-backend-image.tar
+      results-file-name: osv-container-backend-image.sarif
+      upload-sarif: true
+      fail-on-vuln: false
+      matrix-property: container-backend-
+
+  osv-container-extension-image:
+    name: OSV extension image inventory
+    needs: build-container-inventory-archives
+    uses: google/osv-scanner-action/.github/workflows/osv-scanner-reusable.yml@v2.3.5
+    with:
+      download-artifact: dependency-inventory-extension-image
+      scan-args: |-
+        scan
+        image
+        --archive
+        tachigo-extension-image.tar
+      results-file-name: osv-container-extension-image.sarif
+      upload-sarif: true
+      fail-on-vuln: false
+      matrix-property: container-extension-
+
+  osv-container-dashboard-image:
+    name: OSV dashboard image inventory
+    needs: build-container-inventory-archives
+    uses: google/osv-scanner-action/.github/workflows/osv-scanner-reusable.yml@v2.3.5
+    with:
+      download-artifact: dependency-inventory-dashboard-image
+      scan-args: |-
+        scan
+        image
+        --archive
+        tachigo-dashboard-image.tar
+      results-file-name: osv-container-dashboard-image.sarif
+      upload-sarif: true
+      fail-on-vuln: false
+      matrix-property: container-dashboard-
