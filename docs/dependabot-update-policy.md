@@ -37,6 +37,18 @@ The production/development split keeps runtime dependency updates visible while
 still batching development tooling changes such as TypeScript, ESLint, Vite, and
 test tooling.
 
+Routine pnpm version updates intentionally skip production patch releases. For
+production dependencies, Dependabot opens routine version update PRs only for
+minor and major releases; this avoids review noise for tiny runtime bumps.
+Development dependencies still receive patch, minor, and major routine version
+updates.
+
+This `allow.update-types` boundary applies only to version updates. Dependabot
+security update PRs remain enabled, including patch-level production updates
+triggered by security alerts on the default branch. Production security update
+PRs remain manual-review changes because dependency upgrades can introduce new
+supply-chain, compatibility, or runtime risks even when they fix a known issue.
+
 ## Cooldown
 
 High-frequency frontend tooling updates use Dependabot cooldown:
@@ -56,22 +68,24 @@ still allowing security alerts and runtime dependency updates to remain visible.
 
 The `dependabot-automerge.yml` workflow remains conservative:
 
-- security updates may auto-merge when checks pass
-- updates explicitly labeled `safe-to-automerge` may auto-merge when checks pass
+- direct development security updates may auto-merge when checks pass
 - selected direct development patch/minor updates may auto-merge
-- production dependency updates, major updates, and excluded tooling packages do
-  not auto-merge by default
+- updates explicitly labeled `safe-to-automerge` may auto-merge when checks pass;
+  this is a manual override label, not a bot-only decision
+- production dependency updates, including security patches, and excluded tooling
+  packages do not auto-merge by default
 
-If a Dependabot PR touches runtime behavior or a production dependency, review it
-as a normal PR instead of relying on automation.
+If a Dependabot PR touches runtime behavior or a production dependency, review
+it as a normal PR instead of relying on automation unless a maintainer has
+explicitly applied `safe-to-automerge` after review.
 
 ## Dependency Review Gate
 
-Dependabot opens routine version and security update PRs. Dependency Review is
-the complementary PR gate for dependency changes opened by humans or automation:
-it compares the dependency diff in the PR and blocks newly introduced
-high/critical production dependency vulnerabilities before they enter
-`develop`.
+Dependabot opens routine version update PRs for the configured update levels and
+security update PRs for alert-triggered fixes. Dependency Review is the
+complementary PR gate for dependency changes opened by humans or automation: it
+compares the dependency diff in the PR and blocks newly introduced high/critical
+production dependency vulnerabilities before they enter `develop`.
 
 The gate runs only when dependency manifests or lockfiles for the frontend
 workspace change:
