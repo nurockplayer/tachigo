@@ -85,7 +85,7 @@ jobs:
         if: github.actor == 'dependabot[bot]' && steps.policy.outputs.auto_merge == 'true'
         run: |
           gh pr review --approve "$PR_URL"
-          gh pr merge --auto --squash "$PR_URL"
+          gh pr merge --auto --merge "$PR_URL"
         env:
           GH_TOKEN: ${{ secrets.GITHUB_TOKEN }}
           PR_URL: ${{ github.event.pull_request.html_url }}
