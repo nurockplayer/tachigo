@@ -138,3 +138,22 @@ jobs:
       upload-sarif: true
       fail-on-vuln: false
       matrix-property: container-dashboard-
+
+  notify-discord:
+    timeout-minutes: 5
+    name: Notify Discord on dependency inventory failure
+    needs:
+      - osv-go-modules
+      - osv-pnpm-lockfiles
+      - build-container-inventory-archives
+      - osv-container-backend-image
+      - osv-container-extension-image
+      - osv-container-dashboard-image
+    if: failure()
+    runs-on: ubuntu-latest
+    steps:
+      - name: Send failure notification
+        run: |
+          curl -X POST "${{ secrets.DISCORD_CI_WEBHOOK_URL }}" \
+            -H "Content-Type: application/json" \
+            -d "{\"content\": \"Dependency inventory scan failed on \`${{ github.ref_name }}\` (${{ github.event_name }})\n${{ github.server_url }}/${{ github.repository }}/actions/runs/${{ github.run_id }}\"}"

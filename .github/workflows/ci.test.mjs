@@ -967,6 +967,7 @@ test('dependency inventory workflow publishes report-only OSV scans by surface',
   const backendImage = parsedWorkflow.jobs['osv-container-backend-image']
   const extensionImage = parsedWorkflow.jobs['osv-container-extension-image']
   const dashboardImage = parsedWorkflow.jobs['osv-container-dashboard-image']
+  const notifyDiscord = parsedWorkflow.jobs['notify-discord']
 
   for (const job of [go, pnpm, backendImage, extensionImage, dashboardImage]) {
     assert.equal(job.uses, 'google/osv-scanner-action/.github/workflows/osv-scanner-reusable.yml@v2.3.5')
@@ -1007,6 +1008,19 @@ test('dependency inventory workflow publishes report-only OSV scans by surface',
   assert.equal(dashboardImage.with['results-file-name'], 'osv-container-dashboard-image.sarif')
   assert.equal(dashboardImage.with['matrix-property'], 'container-dashboard-')
   assert.match(dashboardImage.with['scan-args'], /scan\nimage\n--archive\ntachigo-dashboard-image\.tar/)
+
+  assert.equal(notifyDiscord.name, 'Notify Discord on dependency inventory failure')
+  assert.deepEqual(notifyDiscord.needs, [
+    'osv-go-modules',
+    'osv-pnpm-lockfiles',
+    'build-container-inventory-archives',
+    'osv-container-backend-image',
+    'osv-container-extension-image',
+    'osv-container-dashboard-image',
+  ])
+  assert.equal(notifyDiscord.if, 'failure()')
+  assert.match(workflowJobBlock(workflow, 'notify-discord'), /secrets\.DISCORD_CI_WEBHOOK_URL/)
+  assert.match(workflowJobBlock(workflow, 'notify-discord'), /Dependency inventory scan failed/)
 })
 
 test('dependency inventory policy documents OSV triage ownership and non-blocking rollout', async () => {
@@ -1025,6 +1039,7 @@ test('dependency inventory policy documents OSV triage ownership and non-blockin
   assert.match(policy, /weekly/)
   assert.match(policy, /workflow_dispatch/)
   assert.match(policy, /False positives and waivers/)
+  assert.match(policy, /Surface: Go module manifest \/ pnpm lockfiles \/ Container images/)
   assert.match(policy, /Owner:/)
   assert.match(policy, /Expires on:/)
 })

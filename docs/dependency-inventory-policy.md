@@ -99,7 +99,7 @@ Suggested waiver format:
 - Owner:
 - Accepted on:
 - Expires on:
-- Surface: Go lockfiles / pnpm lockfiles / Container images
+- Surface: Go module manifest / pnpm lockfiles / Container images
 - Affected package:
 - Source report:
 - Decision: false positive / accepted risk / duplicate / follow-up issue
