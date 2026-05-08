@@ -2,11 +2,15 @@ package handlers_test
 
 import (
 	"bytes"
-	"fmt"
 	"crypto/tls"
+	"fmt"
 	"net/http"
 	"net/http/httptest"
+	"strings"
 	"testing"
+	"time"
+
+	"github.com/tachigo/tachigo/internal/models"
 )
 
 // ─── Register ────────────────────────────────────────────────────────────────
@@ -451,6 +455,76 @@ func TestWeb3NonceHandler_MissingAddress(t *testing.T) {
 
 	if w.Code != http.StatusBadRequest {
 		t.Errorf("want 400, got %d", w.Code)
+	}
+}
+
+func TestWeb3VerifyHandler_SuccessSetsRefreshCookieAndConsumesNonce(t *testing.T) {
+	env := newTestEnv(t)
+	key, addr := newHandlerTestWallet(t)
+	lookupAddr := strings.ToLower(addr)
+	nonce := "handler-web3-verify-success"
+	nonceRecord := seedHandlerWalletNonce(t, env, addr, nonce)
+	msg := handlerSIWEMessage(lookupAddr, nonce, nonceRecord.CreatedAt.UTC().Format(time.RFC3339))
+	sig := handlerSignSIWE(t, msg, key)
+	body := fmt.Sprintf(`{"address":%q,"nonce":%q,"signature":%q}`, addr, nonce, sig)
+
+	req := httptest.NewRequest(http.MethodPost, "/api/v1/auth/web3/verify", bytes.NewBufferString(body))
+	req.Header.Set("Content-Type", "application/json")
+	w := httptest.NewRecorder()
+	env.router.ServeHTTP(w, req)
+
+	if w.Code != http.StatusOK {
+		t.Fatalf("want 200, got %d: %s", w.Code, w.Body.String())
+	}
+	assertRefreshCookieSet(t, w, "", http.SameSiteLaxMode, false)
+
+	resp := parseBody(t, w.Body.Bytes())
+	data, _ := resp["data"].(map[string]interface{})
+	tokens, _ := data["tokens"].(map[string]interface{})
+	if tokens["access_token"] == "" || tokens["refresh_token"] == "" {
+		t.Fatalf("expected non-empty tokens in response: %#v", tokens)
+	}
+
+	var provider models.AuthProvider
+	if err := env.db.Where("provider = ? AND provider_id = ?", models.ProviderWeb3, addr).First(&provider).Error; err != nil {
+		t.Fatalf("web3 provider not found: %v", err)
+	}
+
+	var nonceCount int64
+	env.db.Model(&models.Web3Nonce{}).Where("nonce = ?", nonce).Count(&nonceCount)
+	if nonceCount != 0 {
+		t.Fatalf("nonce should be consumed, got %d rows", nonceCount)
+	}
+}
+
+func TestWeb3VerifyHandler_InvalidSignatureReturns401AndKeepsNonce(t *testing.T) {
+	env := newTestEnv(t)
+	_, addr := newHandlerTestWallet(t)
+	wrongKey, _ := newHandlerTestWallet(t)
+	lookupAddr := strings.ToLower(addr)
+	nonce := "handler-web3-verify-bad-signature"
+	nonceRecord := seedHandlerWalletNonce(t, env, addr, nonce)
+	msg := handlerSIWEMessage(lookupAddr, nonce, nonceRecord.CreatedAt.UTC().Format(time.RFC3339))
+	sig := handlerSignSIWE(t, msg, wrongKey)
+	body := fmt.Sprintf(`{"address":%q,"nonce":%q,"signature":%q}`, addr, nonce, sig)
+
+	req := httptest.NewRequest(http.MethodPost, "/api/v1/auth/web3/verify", bytes.NewBufferString(body))
+	req.Header.Set("Content-Type", "application/json")
+	w := httptest.NewRecorder()
+	env.router.ServeHTTP(w, req)
+
+	if w.Code != http.StatusUnauthorized {
+		t.Fatalf("want 401, got %d: %s", w.Code, w.Body.String())
+	}
+	resp := parseBody(t, w.Body.Bytes())
+	if resp["error"] != "invalid wallet signature" {
+		t.Fatalf("want invalid wallet signature error, got %#v", resp["error"])
+	}
+
+	var nonceCount int64
+	env.db.Model(&models.Web3Nonce{}).Where("nonce = ?", nonce).Count(&nonceCount)
+	if nonceCount != 1 {
+		t.Fatalf("invalid signature should keep nonce for retry, got %d rows", nonceCount)
 	}
 }
 

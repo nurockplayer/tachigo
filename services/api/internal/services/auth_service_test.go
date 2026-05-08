@@ -245,6 +245,128 @@ func TestWeb3Nonce_ReplacesExisting(t *testing.T) {
 	}
 }
 
+func TestWeb3Verify_SuccessConsumesNonceAndIssuesTokens(t *testing.T) {
+	db := newTestDB(t)
+	svc := NewAuthService(db, testConfig())
+	key, addr := newTestWallet(t)
+	lookupAddr := strings.ToLower(addr)
+	nonce := "web3-verify-success"
+	nonceRecord := seedWalletNonce(t, db, addr, nonce)
+	msg := siweMessage(lookupAddr, nonce, nonceRecord.CreatedAt.UTC().Format(time.RFC3339))
+	sig := signSIWE(t, msg, key)
+
+	user, tokens, err := svc.Web3Verify(Web3VerifyInput{
+		Address:   addr,
+		Nonce:     nonce,
+		Signature: sig,
+	})
+	if err != nil {
+		t.Fatalf("unexpected error: %v", err)
+	}
+	if user == nil || tokens == nil {
+		t.Fatal("expected user and tokens")
+	}
+	if tokens.AccessToken == "" || tokens.RefreshToken == "" {
+		t.Fatal("expected non-empty token pair")
+	}
+
+	var provider models.AuthProvider
+	if err := db.Where("user_id = ? AND provider = ?", user.ID, models.ProviderWeb3).First(&provider).Error; err != nil {
+		t.Fatalf("web3 provider not found: %v", err)
+	}
+	if provider.ProviderID != addr {
+		t.Fatalf("provider_id: want %s, got %s", addr, provider.ProviderID)
+	}
+
+	var nonceCount int64
+	db.Model(&models.Web3Nonce{}).Where("nonce = ?", nonce).Count(&nonceCount)
+	if nonceCount != 0 {
+		t.Fatalf("nonce should be consumed, got %d rows", nonceCount)
+	}
+}
+
+func TestWeb3Verify_ReplayConsumedNonceReturnsInvalidNonce(t *testing.T) {
+	db := newTestDB(t)
+	svc := NewAuthService(db, testConfig())
+	key, addr := newTestWallet(t)
+	lookupAddr := strings.ToLower(addr)
+	nonce := "web3-verify-replay"
+	nonceRecord := seedWalletNonce(t, db, addr, nonce)
+	msg := siweMessage(lookupAddr, nonce, nonceRecord.CreatedAt.UTC().Format(time.RFC3339))
+	sig := signSIWE(t, msg, key)
+	input := Web3VerifyInput{
+		Address:   addr,
+		Nonce:     nonce,
+		Signature: sig,
+	}
+
+	if _, _, err := svc.Web3Verify(input); err != nil {
+		t.Fatalf("first verify failed: %v", err)
+	}
+	_, _, err := svc.Web3Verify(input)
+	if err != ErrInvalidNonce {
+		t.Fatalf("want ErrInvalidNonce on replay, got %v", err)
+	}
+}
+
+func TestWeb3Verify_InvalidSignatureKeepsNonce(t *testing.T) {
+	db := newTestDB(t)
+	svc := NewAuthService(db, testConfig())
+	_, addr := newTestWallet(t)
+	wrongKey, _ := newTestWallet(t)
+	lookupAddr := strings.ToLower(addr)
+	nonce := "web3-verify-bad-signature"
+	nonceRecord := seedWalletNonce(t, db, addr, nonce)
+	msg := siweMessage(lookupAddr, nonce, nonceRecord.CreatedAt.UTC().Format(time.RFC3339))
+	sig := signSIWE(t, msg, wrongKey)
+
+	_, _, err := svc.Web3Verify(Web3VerifyInput{
+		Address:   addr,
+		Nonce:     nonce,
+		Signature: sig,
+	})
+	if err != ErrInvalidSignature {
+		t.Fatalf("want ErrInvalidSignature, got %v", err)
+	}
+
+	var nonceCount int64
+	db.Model(&models.Web3Nonce{}).Where("nonce = ?", nonce).Count(&nonceCount)
+	if nonceCount != 1 {
+		t.Fatalf("invalid signature should keep nonce for retry, got %d rows", nonceCount)
+	}
+}
+
+func TestWeb3Verify_ExpiredNonceReturnsInvalidNonceAndDeletesRecord(t *testing.T) {
+	db := newTestDB(t)
+	svc := NewAuthService(db, testConfig())
+	key, addr := newTestWallet(t)
+	lookupAddr := strings.ToLower(addr)
+	nonce := "web3-verify-expired"
+	seedExpiredWalletNonce(t, db, addr, nonce)
+
+	var nonceRecord models.Web3Nonce
+	if err := db.Where("nonce = ?", nonce).First(&nonceRecord).Error; err != nil {
+		t.Fatalf("find seeded nonce: %v", err)
+	}
+	msg := siweMessage(lookupAddr, nonce, nonceRecord.CreatedAt.UTC().Format(time.RFC3339))
+	sig := signSIWE(t, msg, key)
+
+	_, _, err := svc.Web3Verify(Web3VerifyInput{
+		Address:   addr,
+		Nonce:     nonce,
+		Signature: sig,
+	})
+	if err != ErrInvalidNonce {
+		t.Fatalf("want ErrInvalidNonce, got %v", err)
+	}
+
+	var nonceCount int64
+	db.Model(&models.Web3Nonce{}).Where("nonce = ?", nonce).Count(&nonceCount)
+	if nonceCount != 0 {
+		t.Fatalf("expired nonce should be deleted, got %d rows", nonceCount)
+	}
+}
+
 // ─── UnlinkProvider ──────────────────────────────────────────────────────────
 
 func TestUnlinkProvider_LastProvider_NoPassword(t *testing.T) {
