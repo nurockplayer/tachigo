@@ -479,10 +479,21 @@ func TestWeb3VerifyHandler_SuccessSetsRefreshCookieAndConsumesNonce(t *testing.T
 	assertRefreshCookieSet(t, w, "", http.SameSiteLaxMode, false)
 
 	resp := parseBody(t, w.Body.Bytes())
-	data, _ := resp["data"].(map[string]interface{})
-	tokens, _ := data["tokens"].(map[string]interface{})
-	if tokens["access_token"] == "" || tokens["refresh_token"] == "" {
-		t.Fatalf("expected non-empty tokens in response: %#v", tokens)
+	data, ok := resp["data"].(map[string]interface{})
+	if !ok || data == nil {
+		t.Fatalf("expected data map in response, resp=%#v", resp)
+	}
+	tokens, ok := data["tokens"].(map[string]interface{})
+	if !ok || tokens == nil {
+		t.Fatalf("expected tokens map in response, data=%#v", data)
+	}
+	accessToken, ok := tokens["access_token"].(string)
+	if !ok || accessToken == "" {
+		t.Fatalf("expected non-empty access_token in response: %#v", tokens)
+	}
+	refreshToken, ok := tokens["refresh_token"].(string)
+	if !ok || refreshToken == "" {
+		t.Fatalf("expected non-empty refresh_token in response: %#v", tokens)
 	}
 
 	var provider models.AuthProvider
