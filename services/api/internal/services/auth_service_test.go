@@ -285,6 +285,123 @@ func TestWeb3Verify_SuccessConsumesNonceAndIssuesTokens(t *testing.T) {
 	}
 }
 
+func TestWeb3Verify_NonceDeleteFailureReturnsError(t *testing.T) {
+	db := newTestDB(t)
+	svc := NewAuthService(db, testConfig())
+	key, addr := newTestWallet(t)
+	lookupAddr := strings.ToLower(addr)
+	nonce := "web3-verify-delete-failure"
+	nonceRecord := seedWalletNonce(t, db, addr, nonce)
+	msg := siweMessage(lookupAddr, nonce, nonceRecord.CreatedAt.UTC().Format(time.RFC3339))
+	sig := signSIWE(t, msg, key)
+
+	if err := db.Exec(`
+		CREATE TRIGGER fail_web3_nonce_delete
+		BEFORE DELETE ON web3_nonces
+		BEGIN
+			SELECT RAISE(ABORT, 'forced web3 nonce delete failure');
+		END;
+	`).Error; err != nil {
+		t.Fatalf("create nonce delete trigger: %v", err)
+	}
+
+	user, tokens, err := svc.Web3Verify(Web3VerifyInput{
+		Address:   addr,
+		Nonce:     nonce,
+		Signature: sig,
+	})
+	if err == nil {
+		t.Fatalf("want nonce delete error, got nil (user=%#v tokens=%#v)", user, tokens)
+	}
+	if !strings.Contains(err.Error(), "forced web3 nonce delete failure") {
+		t.Fatalf("want forced delete error, got %v", err)
+	}
+
+	var providerCount int64
+	db.Model(&models.AuthProvider{}).Where("provider = ?", models.ProviderWeb3).Count(&providerCount)
+	if providerCount != 0 {
+		t.Fatalf("provider should not be created after nonce delete failure, got %d rows", providerCount)
+	}
+
+	var tokenCount int64
+	db.Model(&models.RefreshToken{}).Count(&tokenCount)
+	if tokenCount != 0 {
+		t.Fatalf("refresh token should not be created after nonce delete failure, got %d rows", tokenCount)
+	}
+}
+
+func TestWeb3Verify_ProviderCreateFailureReturnsError(t *testing.T) {
+	db := newTestDB(t)
+	svc := NewAuthService(db, testConfig())
+	key, addr := newTestWallet(t)
+	lookupAddr := strings.ToLower(addr)
+	nonce := "web3-verify-provider-failure"
+	nonceRecord := seedWalletNonce(t, db, addr, nonce)
+	msg := siweMessage(lookupAddr, nonce, nonceRecord.CreatedAt.UTC().Format(time.RFC3339))
+	sig := signSIWE(t, msg, key)
+
+	if err := db.Exec(`
+		CREATE TRIGGER fail_auth_provider_insert
+		BEFORE INSERT ON auth_providers
+		BEGIN
+			SELECT RAISE(ABORT, 'forced auth provider create failure');
+		END;
+	`).Error; err != nil {
+		t.Fatalf("create auth provider trigger: %v", err)
+	}
+
+	user, tokens, err := svc.Web3Verify(Web3VerifyInput{
+		Address:   addr,
+		Nonce:     nonce,
+		Signature: sig,
+	})
+	if err == nil {
+		t.Fatalf("want provider create error, got nil (user=%#v tokens=%#v)", user, tokens)
+	}
+	if !strings.Contains(err.Error(), "forced auth provider create failure") {
+		t.Fatalf("want forced provider create error, got %v", err)
+	}
+
+	var providerCount int64
+	db.Model(&models.AuthProvider{}).Where("provider = ?", models.ProviderWeb3).Count(&providerCount)
+	if providerCount != 0 {
+		t.Fatalf("provider should not be created after provider create failure, got %d rows", providerCount)
+	}
+
+	var tokenCount int64
+	db.Model(&models.RefreshToken{}).Count(&tokenCount)
+	if tokenCount != 0 {
+		t.Fatalf("refresh token should not be created after provider create failure, got %d rows", tokenCount)
+	}
+}
+
+func TestWeb3Verify_RefreshTokenCreateFailureReturnsError(t *testing.T) {
+	db := newTestDB(t)
+	svc := NewAuthService(db, testConfig())
+	key, addr := newTestWallet(t)
+	lookupAddr := strings.ToLower(addr)
+	nonce := "web3-verify-token-failure"
+	nonceRecord := seedWalletNonce(t, db, addr, nonce)
+	msg := siweMessage(lookupAddr, nonce, nonceRecord.CreatedAt.UTC().Format(time.RFC3339))
+	sig := signSIWE(t, msg, key)
+
+	if err := db.Exec("DROP TABLE refresh_tokens").Error; err != nil {
+		t.Fatalf("drop refresh_tokens: %v", err)
+	}
+
+	user, tokens, err := svc.Web3Verify(Web3VerifyInput{
+		Address:   addr,
+		Nonce:     nonce,
+		Signature: sig,
+	})
+	if err == nil {
+		t.Fatalf("want refresh token create error, got nil (user=%#v tokens=%#v)", user, tokens)
+	}
+	if tokens != nil {
+		t.Fatalf("tokens should be nil when refresh token create fails, got %#v", tokens)
+	}
+}
+
 func TestWeb3Verify_ReplayConsumedNonceReturnsInvalidNonce(t *testing.T) {
 	db := newTestDB(t)
 	svc := NewAuthService(db, testConfig())

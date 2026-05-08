@@ -267,7 +267,9 @@ func (s *AuthService) Web3Verify(input Web3VerifyInput) (*models.User, *TokenPai
 		return nil, nil, ErrInvalidNonce
 	}
 	if nonceRecord.IsExpired() {
-		s.db.Delete(&nonceRecord)
+		if err := s.db.Delete(&nonceRecord).Error; err != nil {
+			return nil, nil, err
+		}
 		return nil, nil, ErrInvalidNonce
 	}
 
@@ -278,7 +280,9 @@ func (s *AuthService) Web3Verify(input Web3VerifyInput) (*models.User, *TokenPai
 	}
 
 	// Nonce is consumed
-	s.db.Delete(&nonceRecord)
+	if err := s.db.Delete(&nonceRecord).Error; err != nil {
+		return nil, nil, err
+	}
 
 	// Upsert user
 	checksumAddr := common.HexToAddress(input.Address).Hex()
@@ -429,7 +433,9 @@ func (s *AuthService) upsertOAuthUser(
 		newAP.RefreshToken = &rt
 		newAP.TokenExpiresAt = &token.Expiry
 	}
-	s.db.Create(&newAP)
+	if err := s.db.Create(&newAP).Error; err != nil {
+		return nil, nil, err
+	}
 
 	tokens, err := s.issueTokenPair(&user)
 	return &user, tokens, err
