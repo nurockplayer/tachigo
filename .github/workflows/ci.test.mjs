@@ -640,7 +640,7 @@ test('docs/template-only PRs skip heavy product CI in scope gate', async () => {
     /const isDocsTemplateOrMetadataOnly =\n\s+allFilePaths\.length > 0 && allFilePaths\.every\(isNonProductMetadataPath\)/,
     'ci.yml metadata-only detection must stay rename-aware via allFilePaths.every(...)',
   )
-  assert.match(workflow, /standardBodyValid &&\n\s+!isDocsTemplateOrMetadataOnly &&/)
+  assert.match(workflow, /bodyValidForCi &&\n\s+!isDocsTemplateOrMetadataOnly &&/)
   assert.match(
     workflow,
     /Skipping heavy product CI because this PR only changes docs\/templates\/metadata\./,
@@ -912,6 +912,24 @@ test('Dependabot auto-merge keeps production dependency updates on manual review
   assert.doesNotMatch(jobBlock, /default-branch production patch update \(security-alert path\)/)
   assert.match(jobBlock, /\[\[ "\$DEPENDENCY_TYPE" != "direct:development" \]\]/)
   assert.match(jobBlock, /reason="production dependency requires manual review"/)
+})
+
+test('CI scope gate runs product validation for Dependabot maintenance PRs', async () => {
+  const workflow = await readFile(workflowPath, 'utf8')
+
+  assert.match(workflow, /const isDependabotPr = pr\.user\?\.login === 'dependabot\[bot\]'/)
+  assert.match(workflow, /const bodyValidForCi = isDependabotPr \|\| standardBodyValid/)
+  assert.match(
+    workflow,
+    /const runCi =\n\s+\(isReleasePromotionPr && releaseBodyValid\) \|\|\n\s+bodyValidForCi &&/,
+  )
+})
+
+test('Dependabot auto-merge uses repository-supported merge commits', async () => {
+  const workflow = await readFile(dependabotAutomergeWorkflowPath, 'utf8')
+
+  assert.match(workflow, /gh pr merge --auto --merge "\$PR_URL"/)
+  assert.doesNotMatch(workflow, /gh pr merge --auto --squash/)
 })
 
 test('contracts Slither report job uploads SARIF and keeps findings report-only', async () => {

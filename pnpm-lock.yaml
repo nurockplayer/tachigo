@@ -99,7 +99,7 @@ importers:
         specifier: ^29.0.1
         version: 29.1.0
       postcss:
-        specifier: ^8.5.8
+        specifier: ^8.5.10
         version: 8.5.12
       tailwindcss:
         specifier: ^4.2.2
