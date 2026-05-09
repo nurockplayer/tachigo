@@ -400,6 +400,9 @@ func TestWeb3Verify_RefreshTokenCreateFailureReturnsError(t *testing.T) {
 	if tokens != nil {
 		t.Fatalf("tokens should be nil when refresh token create fails, got %#v", tokens)
 	}
+	if !strings.Contains(err.Error(), "no such table: refresh_tokens") {
+		t.Fatalf("want refresh token table error, got %v", err)
+	}
 }
 
 func TestWeb3Verify_ReplayConsumedNonceReturnsInvalidNonce(t *testing.T) {
@@ -481,6 +484,53 @@ func TestWeb3Verify_ExpiredNonceReturnsInvalidNonceAndDeletesRecord(t *testing.T
 	db.Model(&models.Web3Nonce{}).Where("nonce = ?", nonce).Count(&nonceCount)
 	if nonceCount != 0 {
 		t.Fatalf("expired nonce should be deleted, got %d rows", nonceCount)
+	}
+}
+
+func TestWeb3Verify_ExpiredNonceDeleteFailureStillReturnsInvalidNonce(t *testing.T) {
+	db := newTestDB(t)
+	svc := NewAuthService(db, testConfig())
+	key, addr := newTestWallet(t)
+	lookupAddr := strings.ToLower(addr)
+	nonce := "web3-verify-expired-delete-failure"
+	seedExpiredWalletNonce(t, db, addr, nonce)
+
+	var nonceRecord models.Web3Nonce
+	if err := db.Where("nonce = ?", nonce).First(&nonceRecord).Error; err != nil {
+		t.Fatalf("find seeded nonce: %v", err)
+	}
+	msg := siweMessage(lookupAddr, nonce, nonceRecord.CreatedAt.UTC().Format(time.RFC3339))
+	sig := signSIWE(t, msg, key)
+
+	if err := db.Exec(`
+		CREATE TRIGGER fail_expired_web3_nonce_delete
+		BEFORE DELETE ON web3_nonces
+		BEGIN
+			SELECT RAISE(ABORT, 'forced expired web3 nonce cleanup failure');
+		END;
+	`).Error; err != nil {
+		t.Fatalf("create expired nonce delete trigger: %v", err)
+	}
+
+	user, tokens, err := svc.Web3Verify(Web3VerifyInput{
+		Address:   addr,
+		Nonce:     nonce,
+		Signature: sig,
+	})
+	if err != ErrInvalidNonce {
+		t.Fatalf("want ErrInvalidNonce despite cleanup failure, got %v (user=%#v tokens=%#v)", err, user, tokens)
+	}
+
+	var providerCount int64
+	db.Model(&models.AuthProvider{}).Where("provider = ?", models.ProviderWeb3).Count(&providerCount)
+	if providerCount != 0 {
+		t.Fatalf("provider should not be created after expired nonce, got %d rows", providerCount)
+	}
+
+	var tokenCount int64
+	db.Model(&models.RefreshToken{}).Count(&tokenCount)
+	if tokenCount != 0 {
+		t.Fatalf("refresh token should not be created after expired nonce, got %d rows", tokenCount)
 	}
 }
 

@@ -267,9 +267,7 @@ func (s *AuthService) Web3Verify(input Web3VerifyInput) (*models.User, *TokenPai
 		return nil, nil, ErrInvalidNonce
 	}
 	if nonceRecord.IsExpired() {
-		if err := s.db.Delete(&nonceRecord).Error; err != nil {
-			return nil, nil, err
-		}
+		s.db.Delete(&nonceRecord)
 		return nil, nil, ErrInvalidNonce
 	}
 
