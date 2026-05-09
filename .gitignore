@@ -4,25 +4,31 @@ backend/.env.*
 !backend/.env.example
 backend/tmp/
 backend/bin/
+services/api/*.env
+services/api/.env.*
+!services/api/.env.example
+services/api/tmp/
+services/api/bin/
 
 # Claude Code
 .claude/settings.local.json
 .claude/scheduled_tasks.lock
 .superpowers/
 .continue/
+.omc/
 
 # Frontend
-tachimint/node_modules/
-tachimint/dist/
-tachimint/.env
-tachimint/.env.local
-tachimint/*.local
+apps/extension/node_modules/
+apps/extension/dist/
+apps/extension/.env
+apps/extension/.env.local
+apps/extension/*.local
 
-dashboard/node_modules/
-dashboard/dist/
-dashboard/.env
-dashboard/.env.local
-dashboard/*.local
+apps/dashboard/node_modules/
+apps/dashboard/dist/
+apps/dashboard/.env
+apps/dashboard/.env.local
+apps/dashboard/*.local
 
 extensions/tachigo-demo-sidepanel/node_modules/
 extensions/tachigo-demo-sidepanel/dist/
@@ -31,6 +37,7 @@ extensions/tachigo-demo-sidepanel/.env.local
 extensions/tachigo-demo-sidepanel/*.local
 
 # pnpm
+node_modules/
 .pnpm-store/
 
 # Local caches

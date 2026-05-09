@@ -111,8 +111,8 @@ finished: is_active = false, ended_at = <timestamp>
 |---|---|---|
 | `id` | UUID PK | |
 | `ledger_id` | UUID FK → points_ledgers.id | |
-| `watch_session_id` | UUID NULL | `watch_time` 來源必填，`bits` / `spend` 為 NULL |
-| `source` | VARCHAR(50) | `watch_time` / `bits` / `spend` |
+| `watch_session_id` | UUID NULL | `watch_time` 來源必填，`t_point` / `spend` 為 NULL |
+| `source` | VARCHAR(50) | `watch_time` / `t_point` / `spend`（舊記錄可能為 `bits`，詳見 #316） |
 | `delta` | BIGINT | 變動量（正 = 獲得，負 = 消費） |
 | `balance_after` | BIGINT | 交易後餘額快照（查歷史不用重算） |
 | `note` | TEXT NULL | 備註 |
@@ -124,7 +124,7 @@ finished: is_active = false, ended_at = <timestamp>
 | source | watch_session_id |
 |---|---|
 | `watch_time` | 一定有值（指向觸發這次發點的 session） |
-| `bits` | NULL |
+| `t_point` | NULL |
 | `spend` | NULL |
 
 ---
@@ -288,7 +288,7 @@ ON CONFLICT (user_id, channel_id) DO UPDATE SET
 - 前端 Extension UI：顯示餘額、heartbeat 狀態
 - `GET /api/v1/points/balance`：一般帳號查詢端點
 - `GET /api/v1/points/transactions`：交易記錄
-- Bits 發點整合（`source = "bits"`）
+- T-point 發點整合（`source = "t_point"`）
 - Claim 上鏈（`spendable_balance → Soulbound ERC-20 mint`）
 
 ---
@@ -297,19 +297,19 @@ ON CONFLICT (user_id, channel_id) DO UPDATE SET
 
 ### Issue #61 — UUID v7（本次已處理 watch-points 相關部分）
 
-本次已在 watch-points 相關檔案中同步改為 `uuid.New7()`（時序 UUID，降低 B-tree index fragmentation 風險）：
+本次已在 watch-points 相關檔案中同步改為 `uuid.NewV7()`（時序 UUID，降低 B-tree index fragmentation 風險）：
 
 | 檔案 | 改動點 |
 |---|---|
-| `backend/internal/models/points.go` | `PointsLedger.BeforeCreate`、`PointsTransaction.BeforeCreate` |
-| `backend/internal/models/watch_session.go` | `WatchSession.BeforeCreate` |
-| `backend/internal/services/watch_service.go` | `ID: uuid.New()` for WatchSession |
+| `services/api/internal/models/points.go` | `PointsLedger.BeforeCreate`、`PointsTransaction.BeforeCreate` |
+| `services/api/internal/models/watch_session.go` | `WatchSession.BeforeCreate` |
+| `services/api/internal/services/watch_service.go` | `newUUID()` uses `uuid.NewV7()` with `uuid.New()` fallback |
 
 其餘 model（`user.go`、`auth_provider.go`、`address.go`、`refresh_token.go`、`email_auth.go`）與 `extension_service.go` 留給 Issue #61 獨立處理。詳見 [docs/uuid-v7.md](uuid-v7.md)。
 
 ### PR #62 重疊分析
 
-PR #62（`users.role` VARCHAR → ENUM）也改動了 `backend/cmd/server/main.go`，本次計劃同樣需要修改此檔案。
+PR #62（`users.role` VARCHAR → ENUM）也改動了 `services/api/cmd/server/main.go`，本次計劃同樣需要修改此檔案。
 
 | 項目 | PR #62 改動 | 本次計劃改動 |
 |---|---|---|
@@ -340,5 +340,5 @@ PR #62（`users.role` VARCHAR → ENUM）也改動了 `backend/cmd/server/main.g
 - [Issue #58](https://github.com/nurockplayer/tachigo/issues/58) — auth_providers 設計討論
 - [PR #52](https://github.com/nurockplayer/tachigo/pull/52) — Phase 1 & 2 實作
 - [PR #64](https://github.com/nurockplayer/tachigo/pull/64) — Watch-to-Points 補強 + Channel Config
-- 實作：[backend/internal/services/watch_service.go](../backend/internal/services/watch_service.go)
-- Migration：[backend/migrations/003_watch_points.sql](../backend/migrations/003_watch_points.sql)
+- 實作：[services/api/internal/services/watch_service.go](../services/api/internal/services/watch_service.go)
+- Migration：[services/api/migrations/003_watch_points.sql](../services/api/migrations/003_watch_points.sql)

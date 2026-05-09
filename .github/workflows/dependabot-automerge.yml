@@ -35,12 +35,14 @@ jobs:
           auto_merge=false
           reason="manual review required"
 
-          if [[ ",$LABELS," == *",security,"* ]]; then
-            auto_merge=true
-            reason="security update"
-          elif [[ ",$LABELS," == *",safe-to-automerge,"* ]]; then
+          if [[ ",$LABELS," == *",safe-to-automerge,"* ]]; then
             auto_merge=true
             reason="manual override label: safe-to-automerge"
+          elif [[ "$DEPENDENCY_TYPE" != "direct:development" ]]; then
+            reason="production dependency requires manual review"
+          elif [[ ",$LABELS," == *",security,"* ]]; then
+            auto_merge=true
+            reason="security update"
           elif [[ "$DEPENDENCY_TYPE" == "direct:development" ]] && \
                [[ "$UPDATE_TYPE" == "version-update:semver-patch" || "$UPDATE_TYPE" == "version-update:semver-minor" ]] && \
                [[ "$DEPENDENCY_NAMES" != *"typescript"* ]] && \
@@ -52,9 +54,7 @@ jobs:
             auto_merge=true
             reason="safe devDependency patch/minor update"
           else
-            if [[ "$DEPENDENCY_TYPE" != "direct:development" ]]; then
-              reason="non-dev dependency"
-            elif [[ "$UPDATE_TYPE" != "version-update:semver-patch" && "$UPDATE_TYPE" != "version-update:semver-minor" ]]; then
+            if [[ "$UPDATE_TYPE" != "version-update:semver-patch" && "$UPDATE_TYPE" != "version-update:semver-minor" ]]; then
               reason="major or unsupported update type"
             elif [[ "$DEPENDENCY_NAMES" == *"typescript"* ]]; then
               reason="typescript update requires manual review"

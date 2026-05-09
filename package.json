@@ -1,0 +1,22 @@
+{
+  "name": "tachigo",
+  "version": "1.0.0",
+  "private": true,
+  "description": "Chrome sidepanel extension + Web3 rewards platform. Viewers spend Bits to earn on-chain tokens; streamers manage rewards from the dashboard.",
+  "packageManager": "pnpm@10.33.0",
+  "scripts": {
+    "build:extension": "pnpm --filter ./apps/extension build",
+    "build:dashboard": "pnpm --filter ./apps/dashboard build",
+    "test": "echo \"No root test suite configured\""
+  },
+  "repository": {
+    "type": "git",
+    "url": "git+https://github.com/nurockplayer/tachigo.git"
+  },
+  "license": "ISC",
+  "type": "commonjs",
+  "bugs": {
+    "url": "https://github.com/nurockplayer/tachigo/issues"
+  },
+  "homepage": "https://github.com/nurockplayer/tachigo#readme"
+}

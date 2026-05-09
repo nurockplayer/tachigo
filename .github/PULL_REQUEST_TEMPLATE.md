@@ -8,6 +8,12 @@
 <!-- 若這是正式 release PR，請填：`develop -> main`；否則填 `n/a` -->
 - Release type：<!-- `develop -> main` 或 `n/a` -->
 
+## Workflow Type
+<!-- Codex task PR 請勾選；非 Codex task 填 n/a -->
+- [ ] Small / Medium
+- [ ] Test-Driven / Debug Loop
+- [ ] Architecture / High Risk
+
 ## Scope 對齊
 <!-- 一般 feature PR 若超過約 35 個檔案、diff 過大、同時改多個 product surface，或依賴尚未 merge 的 backend contract，會被 PR Scope Police 自動擋下。正式 `develop -> main` release PR 請使用 `[release]` title prefix，並在上方 Release Context 填 `develop -> main`。 -->
 - Source of truth：<!-- issue / PR / 文件，例如 #115 -->
@@ -36,6 +42,7 @@
   - [ ] migration / schema
   - [ ] backend domain service
   - [ ] API handler / router
+    - [ ] 已執行 `swag init` 並將 `services/api/docs/` 變更一起 commit
   - [ ] frontend integration
   - [ ] tests
   - [ ] docs
@@ -45,6 +52,12 @@
 - 若已拆分，相關 PR：
   - <!-- 例：#123 migration, #124 service；若無請填 n/a -->
 
+## Acceptance Criteria
+<!-- 對應 source issue 的 AC，逐條勾選；非 Codex task 填 n/a -->
+- [ ] AC 1
+- [ ] AC 2
+- [ ] AC 3
+
 ## 超出範圍內容
 <!-- 若有額外重構、future work、design exploration、順手修正，請寫在這裡；若無請填「無」 -->
 
@@ -52,5 +65,15 @@
 - [ ] 本地測試過
 - [ ] 有寫 / 更新測試
 
+**驗證結果**
+<!-- 貼上關鍵指令的執行結果或摘要；若無測試填 n/a -->
+```
+（貼上驗證輸出）
+```
+
 ## 備註
 <!-- 其他需要 reviewer 注意的事情（可留空） -->
+
+## Notes for Claude Code Review
+<!-- Codex 填寫：有哪些地方需要 Claude 特別注意、不確定的假設、已知風險 -->
+- 

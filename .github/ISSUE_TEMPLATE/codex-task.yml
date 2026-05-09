@@ -1,0 +1,126 @@
+name: Codex Task
+description: Claude Code 以 PM 身份替 Codex 撰寫的實作 issue。
+labels:
+  - feature
+body:
+  - type: markdown
+    attributes:
+      value: |
+        給 Codex 的任務 issue。Claude Code 負責填寫規格，Codex 依此開發。
+        Issue 必須自給自足——Codex 不應需要查閱 chat history 才能理解任務。
+
+        **Issue 標題必須以下列 prefix 之一開頭：** `[backend]`、`[frontend]`、`[discussion]`
+        範例：`[backend] ClaimService — finalize_failed 狀態流轉`
+
+  - type: dropdown
+    id: task_level
+    attributes:
+      label: Task Level
+      description: 選擇這張 issue 的任務等級。
+      options:
+        - Small / Medium
+        - Test-Driven / Debug Loop
+        - Architecture / High Risk
+    validations:
+      required: true
+
+  - type: textarea
+    id: background
+    attributes:
+      label: 背景
+      description: 為什麼要做這件事？目前狀態是什麼？
+      placeholder: |
+        例：
+        目前 PointsService 缺少雙帳本記帳，導致點數異動無法被稽核。
+    validations:
+      required: true
+
+  - type: textarea
+    id: goal
+    attributes:
+      label: 目標
+      description: 這張 issue 要達成的單一主要目標。
+      placeholder: |
+        例：
+        實作 PointsService 的雙帳本記帳邏輯，讓每次點數異動都有對應的 ledger entry。
+    validations:
+      required: true
+
+  - type: textarea
+    id: scope
+    attributes:
+      label: 範圍
+      description: 明確列出 Codex 可以動哪些檔案或模組。
+      placeholder: |
+        例：
+        只改 services/api/internal/points/，不動 apps/extension/ 與 apps/dashboard/。
+    validations:
+      required: true
+
+  - type: textarea
+    id: acceptance_criteria
+    attributes:
+      label: Acceptance Criteria
+      description: 逐條列出可驗收條件。PR merge 前必須全部達成。
+      placeholder: |
+        1. ...
+        2. ...
+        3. ...
+    validations:
+      required: true
+
+  - type: textarea
+    id: constraints
+    attributes:
+      label: 限制
+      description: 明確列出不能做的事、格式要求、相依條件。
+      placeholder: |
+        - 不可修改 schema 以外的 migration 檔案
+        - commit message 必須含 refs #<issue號碼>
+        - 不進行與本票無關的重構
+    validations:
+      required: true
+
+  - type: textarea
+    id: deliverables
+    attributes:
+      label: 交付物
+      description: 完成後預期 Codex 要交付哪些具體產出。
+      placeholder: |
+        - 實作檔案（路徑）
+        - 測試檔案
+        - PR（closes #本票號碼）
+    validations:
+      required: true
+
+  - type: input
+    id: branch_name
+    attributes:
+      label: Branch 名稱
+      description: 指定 Codex 應從 develop 開出的 branch 名稱。
+      placeholder: "feat/points-ledger"
+    validations:
+      required: true
+
+  - type: textarea
+    id: verification
+    attributes:
+      label: 驗證方式
+      description: 完成前需要做哪些檢查。對 Test-Driven / Debug Loop 任務尤其重要。
+      placeholder: |
+        - docker compose run --no-deps --rm app go test ./...
+        - 確認 ledger entry 存在於 DB
+    validations:
+      required: false
+
+  - type: textarea
+    id: references
+    attributes:
+      label: 參考資料
+      description: 相關文件、issue、PR、URL。
+      placeholder: |
+        - services/api/internal/points/service.go（現有範本）
+        - issue #...
+        - docs/architecture.md
+    validations:
+      required: false

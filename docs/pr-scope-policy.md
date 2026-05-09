@@ -34,13 +34,15 @@ repo 目前有一個 GitHub Actions workflow：
 - PR 變更檔案數超過 `35` 個時 fail
 - PR diff 超過 `1500` 行時 fail
 - PR 不可同時改多個 product surface：
-  - `backend/`
-  - `dashboard/`
-  - `tachimint/`
-- `[backend]` PR 不可修改 `dashboard/` 或 `tachimint/`
-- `[frontend]` PR 不可修改 `backend/`
-- `[contract]` PR 不可修改 `backend/` / `dashboard/` / `tachimint/`
+  - backend surface：`services/api/`（舊路徑 `backend/` 仍作為歷史 PR 判斷）
+  - frontend surface：`apps/dashboard/`、`apps/extension/`（舊路徑 `dashboard/`、`tachimint/` 仍作為歷史 PR 判斷）
+  - contract surface：`contracts/`
+- `[backend]` PR 不可修改 frontend surface
+- `[frontend]` PR 不可修改 backend surface
+- `[contract]` PR 不可修改 backend / frontend surface
 - `[frontend]` PR 若依賴尚未 merge 的 backend contract，會被 dependency gate 擋下
+
+未來 monorepo 的共享套件路徑（例如 `packages/shared-types/`、`packages/api-client/`）會被 workflow 辨識，但目前不單獨視為 product surface。是否能與某個 surface 同 PR 出現，仍應以 issue scope 與 reviewer 判斷為準，避免把 shared package 變成順手混改的出口。
 
 ### Dependabot maintenance PR
 
@@ -69,7 +71,9 @@ Dependabot maintenance PR 目前不會套用 frontend/backend 依賴關係用的
 目前視為 docs / template / metadata-only 的路徑：
 
 - `docs/`
+- `docs/ai/`
 - `plans/`
+- `infra/`
 - `.github/ISSUE_TEMPLATE/`
 - `.github/PULL_REQUEST_TEMPLATE.md`
 - repo root 的 Markdown 文件，例如 `AGENTS.md`、`CLAUDE.md`、`README.md`
@@ -87,6 +91,12 @@ Dependabot maintenance PR 目前不會套用 frontend/backend 依賴關係用的
 - product surface 不可混雜
 
 這類 PR 不需要填寫 backend contract 是否已經在 `develop`，因為文件 / template / metadata 改動不引入 frontend 對 backend API 的依賴。
+
+另外，這類 PR 不應再被 product surface 的 inherited 紅燈拖住 review 流程，因此：
+
+- `Scope gate` 會直接略過 backend / frontend / dashboard 的 heavy CI
+- 仍保留 `PR Scope Police`、workflow regression 與其他 metadata / policy 檢查
+- 若 docs/template PR 因為 restack 需求碰到 `develop` 上的產品線紅燈，應拆成獨立 product fix PR，不可把 inherited 修補留在 docs PR
 
 `Source of truth` 與 `Depends on PR` 可使用半形或全形冒號，例如 `Source of truth:` 或 `Source of truth：`。自動檢查不要求模板文字必須逐字完全相同，但仍要求欄位語意存在。
 
@@ -123,9 +133,9 @@ Dependabot maintenance PR 目前不會套用 frontend/backend 依賴關係用的
 - 檔案數超過 `35`
 - diff 超過 `1500` 行
 - 同時改多個 product surface
-- `[backend]` PR 去改前端
+- `[backend]` PR 去改 frontend surface
 - `[frontend]` PR 去改 backend
-- `[contract]` PR 去改 backend / dashboard / tachimint
+- `[contract]` PR 去改 backend / frontend surface
 
 ## 例外機制
 
@@ -156,6 +166,62 @@ repo 的 CI 目前改成：
 - 只有目前符合同一套 scope 規則、且沒有被 dependency gate 擋住的 PR，才會繼續跑 backend / frontend / dashboard 的 docker build 與測試
 - 若 `[frontend]` PR 依賴尚未 merge 的 backend contract，重型 CI 會直接跳過
 - 若 PR 是正式 `[release]` 的 `develop -> main` promotion，重型 CI 會照常執行，不因 diff 過大而被 scope gate 跳過
+- 若 PR 是 docs / template / metadata-only，重型 product CI 會直接跳過，避免 inherited product failures 造成無限循環
+
+## Conflict / Restack 規則
+
+對 docs / template / metadata-only PR，或任何單一小 scope PR：
+
+- 不要用 `merge develop` 的方式解 conflict
+- 正確做法是從最新 `develop` 開新 branch，將原 PR commit `cherry-pick` 過去後重開或更新 PR
+- 若 restack 後發現 inherited 的 backend / frontend / dashboard failure，必須拆成獨立 product fix PR，不可把修補留在原本的小 scope PR
+
+原因：
+
+- `merge develop` 會把整個 base branch 的當下狀態搬進 PR，容易把不屬於本 PR 的紅燈一起帶進來
+- 小 scope PR 為了讓 inherited CI 轉綠而修改產品程式碼，最後會落入「不修就 CI 紅、修了就 scope 污染」的死循環
+- 用最新 `develop` 重開 branch + `cherry-pick` 原 PR commit，可以把衝突處理限制在本 PR 自身範圍
+
+## 本地 PR preflight
+
+開 PR 前可以先在本地跑 metadata preflight，提早檢查 PR title、body template 欄位、dependency PR、backend contract 與 product surface 是否符合上方 Scope Police 規則。
+
+直接檢查既有 PR body 檔案：
+
+```bash
+make pr-meta-check TITLE="[chore] Example title" BODY_FILE=/tmp/pr-body.md
+```
+
+開 PR 前先檢查，通過後才呼叫 `gh pr create`：
+
+```bash
+make pr-open TITLE="[chore] Example title" BODY_FILE=/tmp/pr-body.md
+```
+
+Codex task PR 預設應使用 auto-ready 流程：
+
+```bash
+make pr-open TITLE="[chore] Example title" BODY_FILE=/tmp/pr-body.md AUTO_READY=1
+```
+
+可選參數：
+
+- `BASE`：預設 `develop`
+- `HEAD`：預設目前 branch
+- `DRAFT=1`：建立 draft PR
+- `AUTO_READY=1`：建立 draft PR 並加上 `auto-ready` label，等 required
+  checks 通過後由 workflow 自動轉成 Ready for review
+
+Codex task PR 應使用 `AUTO_READY=1`，讓 wrapper 一次建立 draft PR 並加上
+`auto-ready` label。若直接使用 `gh pr create`，則使用
+`--draft --label auto-ready`。
+
+底層腳本：
+
+- `infra/scripts/pr-metadata-check.sh`
+- `infra/scripts/pr-open.sh`
+
+這組本地 preflight 只檢查 PR metadata 與目前 branch diff 的基本 surface 規則；push 前的大型 diff 檢查仍由 `infra/githooks/pre-push` 負責，GitHub 上的最終 gate 仍是 `.github/workflows/pr-scope-police.yml`。
 
 ## GitHub 設定
 
@@ -216,7 +282,7 @@ repo 的 CI 目前改成：
 
 應該被擋：
 
-- `[backend]` PR 同時修改 `backend/` 與 `dashboard/`
+- `[backend]` PR 同時修改 `backend/` 與 `apps/dashboard/`
 - `[frontend]` PR 依賴 `#123` 的 backend contract，但 `#123` 還沒 merge 到 `develop`
 - 一張票只做 dashboard UI，PR 卻順手改 migration、router、service、docs
 - PR 改了 50 個檔案，混入多個 issue 的工作
@@ -224,7 +290,7 @@ repo 的 CI 目前改成：
 可以接受：
 
 - `[backend]` PR 只改 `backend/`，且有清楚的 source of truth
-- `[frontend]` PR 只改 `dashboard/`，必要測試一起補齊
+- `[frontend]` PR 只改 `apps/dashboard/`，必要測試一起補齊
 - `[discussion]` PR 只改文件，不碰產品程式碼
 - `[release]` PR 從 `develop` 整批 promotion 到 `main`
 

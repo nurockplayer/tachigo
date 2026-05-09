@@ -7,9 +7,11 @@ Viewers spend Bits to earn on-chain tokens; streamers manage rewards from the da
 
 ```
 tachigo/
-├── backend/      # Go API (Gin + GORM + PostgreSQL)
-├── tachimint/    # Chrome sidepanel frontend (React + TypeScript + Vite)
-└── dashboard/    # Admin dashboard (React + TypeScript + Vite)
+├── services/
+│   └── api/          # Go API (Gin + GORM + PostgreSQL)
+└── apps/
+    ├── extension/    # Chrome sidepanel frontend (React + TypeScript + Vite)
+    └── dashboard/    # Admin dashboard (React + TypeScript + Vite)
 ```
 
 ## Quick start
@@ -30,12 +32,12 @@ docker compose up --build
 | Postgres | localhost:5433                           |
 
 If you want local `.env` files, copy the examples first. Docker Compose can still start without them because the env files are optional.
-Fill in the secrets in `backend/.env` before using OAuth or Twitch Extension features.
+Fill in the secrets in `services/api/.env` before using OAuth or Twitch Extension features.
 
 On Windows PowerShell, you can generate the local env files with:
 
 ```powershell
-./scripts/setup-env.ps1
+./infra/scripts/setup-env.ps1
 ```
 
 ## Development
@@ -49,7 +51,7 @@ docker compose logs -f        # tail all logs
 
 `make` is still available as a convenience on macOS/Linux, but it is not required.
 
-### Backend (`backend/`)
+### Backend (`services/api/`)
 
 - Hot reload via [air](https://github.com/air-verse/air) — save any `.go` file to rebuild
 - Swagger docs regenerated automatically on each build (`swag init`)
@@ -59,7 +61,7 @@ docker compose logs -f        # tail all logs
 docker compose run --no-deps --rm app go test ./...
 ```
 
-### Frontend (`tachimint/`)
+### Frontend (`apps/extension/`)
 
 - Hot reload via Vite HMR
 - current migration direction is Chrome sidepanel runtime
@@ -74,15 +76,15 @@ docker compose run --no-deps --rm frontend npm run build   # production build
 Copy the examples and fill in your secrets:
 
 ```bash
-cp backend/.env.example backend/.env
-cp tachimint/.env.example tachimint/.env
-cp dashboard/.env.example dashboard/.env
+cp services/api/.env.example services/api/.env
+cp apps/extension/.env.example apps/extension/.env
+cp apps/dashboard/.env.example apps/dashboard/.env
 ```
 
 Windows PowerShell:
 
 ```powershell
-./scripts/setup-env.ps1
+./infra/scripts/setup-env.ps1
 ```
 
 Key backend variables:
@@ -102,14 +104,16 @@ Key backend variables:
 ## Architecture
 
 See [docs/architecture.md](docs/architecture.md) for the full system diagram.
-For the current frontend migration decision, see [docs/tachimint-chrome-sidepanel-migration.md](docs/tachimint-chrome-sidepanel-migration.md).
+For the frontend migration decision record, see [docs/history/2026-04-16-tachimint-chrome-sidepanel-migration.md](docs/history/2026-04-16-tachimint-chrome-sidepanel-migration.md).
 
 ## Documentation
 
 - [docs/auth-architecture.md](docs/auth-architecture.md) — current auth state 與 migration guardrails baseline
 - [docs/architecture.md](docs/architecture.md) — system architecture
-- [docs/claude-codex-cheatsheet.md](docs/claude-codex-cheatsheet.md) — quick reference for Claude Code + Codex collaboration
-- [docs/claude-codex-workflow.md](docs/claude-codex-workflow.md) — full workflow guide for low-token Claude Code usage
+- [docs/ai/README.md](docs/ai/README.md) — AI 協作文檔首頁與 root entrypoint 例外
+- [docs/ai/claude-codex-cheatsheet.md](docs/ai/claude-codex-cheatsheet.md) — quick reference for Claude Code + Codex collaboration
+- [docs/ai/claude-codex-workflow.md](docs/ai/claude-codex-workflow.md) — full workflow guide for low-token Claude Code usage
+- [infra/README.md](infra/README.md) — repo automation scripts and git hooks
 - [docs/pr-scope-policy.md](docs/pr-scope-policy.md) — PR 邊界規則、required checks、scope police 設定
 - [CLAUDE.md](CLAUDE.md) — repo-specific collaboration rules and command entry points
 

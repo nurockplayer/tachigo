@@ -1,7 +1,7 @@
 version: 2
 updates:
   - package-ecosystem: gomod
-    directory: /backend
+    directory: /services/api
     schedule:
       interval: weekly
       day: monday
@@ -18,9 +18,9 @@ updates:
 
   # Dependabot uses the "npm" ecosystem name for npm, yarn, and pnpm projects.
   - package-ecosystem: npm
-    directory: /dashboard
+    directory: /apps/dashboard
     schedule:
-      interval: weekly
+      interval: monthly
       day: monday
       time: "09:30"
       timezone: Asia/Taipei
@@ -28,6 +28,16 @@ updates:
     open-pull-requests-limit: 2
     labels:
       - chore
+    allow:
+      - dependency-type: production
+        update-types:
+          - version-update:semver-minor
+          - version-update:semver-major
+      - dependency-type: development
+        update-types:
+          - version-update:semver-patch
+          - version-update:semver-minor
+          - version-update:semver-major
     cooldown:
       semver-major-days: 30
       semver-minor-days: 21
@@ -58,9 +68,9 @@ updates:
 
   # Dependabot uses the "npm" ecosystem name for npm, yarn, and pnpm projects.
   - package-ecosystem: npm
-    directory: /tachimint
+    directory: /apps/extension
     schedule:
-      interval: weekly
+      interval: monthly
       day: monday
       time: "10:00"
       timezone: Asia/Taipei
@@ -68,6 +78,16 @@ updates:
     open-pull-requests-limit: 2
     labels:
       - chore
+    allow:
+      - dependency-type: production
+        update-types:
+          - version-update:semver-minor
+          - version-update:semver-major
+      - dependency-type: development
+        update-types:
+          - version-update:semver-patch
+          - version-update:semver-minor
+          - version-update:semver-major
     cooldown:
       semver-major-days: 30
       semver-minor-days: 21

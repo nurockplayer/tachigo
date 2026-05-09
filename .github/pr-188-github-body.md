@@ -26,7 +26,7 @@
   - [ ] 否，已另開 issue / PR 處理超出部分
 - 本 PR 明確不做：
   - 不串接正式 backend API、不變更 production Twitch extension 行為。
-  - 不擴張到 `tachimint/`、`dashboard/`、`backend/` 等其他 product surface。
+  - 不擴張到 `apps/extension/`、`apps/dashboard/`、`backend/` 等其他 product surface。
   - 不把 `tachigo-ui/` 或其他未於本 PR 列出的目錄納入範圍。
 
 ## 超出範圍內容

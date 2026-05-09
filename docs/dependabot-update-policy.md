@@ -9,8 +9,8 @@ Dependabot uses `package-ecosystem: npm` for npm, yarn, and pnpm projects.
 The dashboard and Twitch extension are pnpm projects because each directory has
 its own `pnpm-lock.yaml`:
 
-- `dashboard/pnpm-lock.yaml`
-- `tachimint/pnpm-lock.yaml`
+- `apps/dashboard/pnpm-lock.yaml`
+- `apps/extension/pnpm-lock.yaml`
 
 Do not change these entries to a non-existent `pnpm` ecosystem name.
 
@@ -18,9 +18,9 @@ Do not change these entries to a non-existent `pnpm` ecosystem name.
 
 Version updates target `develop` and run on Monday morning in `Asia/Taipei`:
 
-- `/backend`: 09:00
-- `/dashboard`: 09:30
-- `/tachimint`: 10:00
+- `/services/api`: 09:00
+- `/apps/dashboard`: 09:30
+- `/apps/extension`: 10:00
 
 Each ecosystem has `open-pull-requests-limit: 2` so Dependabot cannot flood the
 queue when many packages release close together.
@@ -29,13 +29,25 @@ queue when many packages release close together.
 
 Dependency updates are grouped by review shape:
 
-- Go modules in `/backend` are grouped into `backend-go-deps`.
+- Go modules in `/services/api` are grouped into `backend-go-deps`.
 - Dashboard pnpm updates are split into production and development groups.
 - Tachimint pnpm updates are split into production and development groups.
 
 The production/development split keeps runtime dependency updates visible while
 still batching development tooling changes such as TypeScript, ESLint, Vite, and
 test tooling.
+
+Routine pnpm version updates intentionally skip production patch releases. For
+production dependencies, Dependabot opens routine version update PRs only for
+minor and major releases; this avoids review noise for tiny runtime bumps.
+Development dependencies still receive patch, minor, and major routine version
+updates.
+
+This `allow.update-types` boundary applies only to version updates. Dependabot
+security update PRs remain enabled, including patch-level production updates
+triggered by security alerts on the default branch. Production security update
+PRs remain manual-review changes because dependency upgrades can introduce new
+supply-chain, compatibility, or runtime risks even when they fix a known issue.
 
 ## Cooldown
 
@@ -56,11 +68,65 @@ still allowing security alerts and runtime dependency updates to remain visible.
 
 The `dependabot-automerge.yml` workflow remains conservative:
 
-- security updates may auto-merge when checks pass
-- updates explicitly labeled `safe-to-automerge` may auto-merge when checks pass
+- direct development security updates may auto-merge when checks pass
 - selected direct development patch/minor updates may auto-merge
-- production dependency updates, major updates, and excluded tooling packages do
-  not auto-merge by default
+- updates explicitly labeled `safe-to-automerge` may auto-merge when checks pass;
+  this is a manual override label, not a bot-only decision
+- production dependency updates, including security patches, and excluded tooling
+  packages do not auto-merge by default
 
-If a Dependabot PR touches runtime behavior or a production dependency, review it
-as a normal PR instead of relying on automation.
+If a Dependabot PR touches runtime behavior or a production dependency, review
+it as a normal PR instead of relying on automation unless a maintainer has
+explicitly applied `safe-to-automerge` after review.
+
+## Dependency Review Gate
+
+Dependabot opens routine version update PRs for the configured update levels and
+security update PRs for alert-triggered fixes. Dependency Review is the
+complementary PR gate for dependency changes opened by humans or automation: it
+compares the dependency diff in the PR and blocks newly introduced high/critical
+production dependency vulnerabilities before they enter `develop`.
+
+The gate runs only when dependency manifests or lockfiles for the frontend
+workspace change:
+
+- `apps/dashboard/package.json`
+- `apps/dashboard/pnpm-lock.yaml`
+- `apps/extension/package.json`
+- `apps/extension/pnpm-lock.yaml`
+- `package.json`
+- `pnpm-lock.yaml`
+- `pnpm-workspace.yaml`
+
+Policy:
+
+- high/critical production dependency vulnerabilities are blocking
+- development dependency findings are report-only in the first rollout
+- license findings are not part of this gate
+- broad `pnpm audit` remains out of scope because it scans the whole current
+  tree instead of focusing on dependency changes in the PR
+
+Development dependency findings can become blockers later only when the finding
+affects packaged extension code or build-time execution in a way that creates a
+real production risk.
+
+## False Positives And Waivers
+
+Do not add blanket waivers for Dependency Review. If a false positive or
+temporarily accepted finding blocks a production dependency change, document the
+exception in the PR body and create a follow-up issue before merging.
+
+Waiver notes must include:
+
+- Owner:
+- Accepted on:
+- Expires on:
+- Affected package:
+- Finding ID:
+- Why this is accepted:
+- Recheck trigger:
+
+Waivers expire by default after 90 days. Security findings related to auth,
+wallet signatures, token accounting, deploy credentials, or packaged extension
+runtime behavior require human review even when the finding appears in a
+development dependency.

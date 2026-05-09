@@ -1,0 +1,1742 @@
+basePath: /api/v1
+definitions:
+  handlers.AddressResponse:
+    properties:
+      address:
+        $ref: '#/definitions/models.ShippingAddress'
+    type: object
+  handlers.AddressesResponse:
+    properties:
+      addresses:
+        items:
+          $ref: '#/definitions/models.ShippingAddress'
+        type: array
+    type: object
+  handlers.AuthResponse:
+    properties:
+      tokens:
+        $ref: '#/definitions/services.TokenPair'
+      user:
+        $ref: '#/definitions/models.User'
+    type: object
+  handlers.MessageResponse:
+    properties:
+      message:
+        type: string
+    type: object
+  handlers.NonceResponse:
+    properties:
+      issued_at:
+        type: string
+      nonce:
+        type: string
+    type: object
+  handlers.PointsBalanceResponse:
+    properties:
+      cumulative_total:
+        type: integer
+      spendable_balance:
+        type: integer
+    type: object
+  handlers.PointsHistoryItem:
+    properties:
+      amount:
+        type: integer
+      created_at:
+        format: date-time
+        type: string
+      note:
+        type: string
+      sku:
+        type: string
+      type:
+        enum:
+        - earn
+        - spend
+        type: string
+    type: object
+  handlers.PointsHistoryResponse:
+    properties:
+      transactions:
+        items:
+          $ref: '#/definitions/handlers.PointsHistoryItem'
+        type: array
+    type: object
+  handlers.ProvidersResponse:
+    properties:
+      providers:
+        items:
+          $ref: '#/definitions/models.AuthProvider'
+        type: array
+    type: object
+  handlers.Response:
+    properties:
+      data: {}
+      error:
+        type: string
+      success:
+        type: boolean
+    type: object
+  handlers.TokensResponse:
+    properties:
+      tokens:
+        $ref: '#/definitions/services.TokenPair'
+    type: object
+  handlers.UserResponse:
+    properties:
+      user:
+        $ref: '#/definitions/models.User'
+    type: object
+  handlers.WalletResponse:
+    properties:
+      address:
+        type: string
+    type: object
+  handlers.claimRequest:
+    properties:
+      amount:
+        description: 0 = claim all
+        type: integer
+    type: object
+  handlers.redeemRequest:
+    properties:
+      amount:
+        minimum: 1
+        type: integer
+      coupon_id:
+        type: string
+    required:
+    - amount
+    - coupon_id
+    type: object
+  handlers.redeemResponse:
+    properties:
+      balance:
+        type: integer
+      voucher_code:
+        type: string
+    type: object
+  handlers.tachiBalanceResponse:
+    properties:
+      tachi_balance:
+        type: integer
+    type: object
+  models.AuthProvider:
+    properties:
+      created_at:
+        type: string
+      id:
+        type: string
+      metadata:
+        type: object
+      provider:
+        $ref: '#/definitions/models.ProviderType'
+      provider_id:
+        type: string
+      updated_at:
+        type: string
+      user_id:
+        type: string
+    type: object
+  models.ProviderType:
+    enum:
+    - twitch
+    - google
+    - web3
+    - email
+    type: string
+    x-enum-varnames:
+    - ProviderTwitch
+    - ProviderGoogle
+    - ProviderWeb3
+    - ProviderEmail
+  models.ShippingAddress:
+    properties:
+      address_line1:
+        type: string
+      address_line2:
+        type: string
+      city:
+        type: string
+      country:
+        type: string
+      created_at:
+        type: string
+      district:
+        type: string
+      id:
+        type: string
+      is_default:
+        type: boolean
+      phone:
+        type: string
+      postal_code:
+        type: string
+      recipient_name:
+        type: string
+      updated_at:
+        type: string
+      user_id:
+        type: string
+    type: object
+  models.User:
+    properties:
+      addresses:
+        items:
+          $ref: '#/definitions/models.ShippingAddress'
+        type: array
+      auth_providers:
+        items:
+          $ref: '#/definitions/models.AuthProvider'
+        type: array
+      avatar_url:
+        type: string
+      created_at:
+        type: string
+      email:
+        type: string
+      email_verified:
+        type: boolean
+      id:
+        type: string
+      is_active:
+        type: boolean
+      role:
+        $ref: '#/definitions/models.UserRole'
+      updated_at:
+        type: string
+      username:
+        type: string
+    type: object
+  models.UserRole:
+    enum:
+    - viewer
+    - streamer
+    - agency
+    - admin
+    type: string
+    x-enum-varnames:
+    - RoleViewer
+    - RoleStreamer
+    - RoleAgency
+    - RoleAdmin
+  services.AddressInput:
+    properties:
+      address_line1:
+        type: string
+      address_line2:
+        type: string
+      city:
+        type: string
+      country:
+        type: string
+      district:
+        type: string
+      is_default:
+        type: boolean
+      phone:
+        type: string
+      postal_code:
+        type: string
+      recipient_name:
+        type: string
+    required:
+    - address_line1
+    - city
+    - recipient_name
+    type: object
+  services.ClaimInput:
+    properties:
+      address_line1:
+        type: string
+      address_line2:
+        type: string
+      city:
+        type: string
+      country:
+        type: string
+      phone:
+        type: string
+      postal_code:
+        type: string
+      recipient_name:
+        type: string
+    required:
+    - address_line1
+    - city
+    - recipient_name
+    type: object
+  services.LinkWalletInput:
+    properties:
+      address:
+        type: string
+      nonce:
+        type: string
+      signature:
+        type: string
+    required:
+    - address
+    - nonce
+    - signature
+    type: object
+  services.LoginInput:
+    properties:
+      email:
+        type: string
+      password:
+        type: string
+    required:
+    - email
+    - password
+    type: object
+  services.RegisterInput:
+    properties:
+      email:
+        type: string
+      password:
+        minLength: 8
+        type: string
+      username:
+        maxLength: 50
+        minLength: 3
+        type: string
+    required:
+    - email
+    - password
+    - username
+    type: object
+  services.TokenPair:
+    properties:
+      access_token:
+        type: string
+      expires_in:
+        description: seconds
+        type: integer
+      refresh_token:
+        type: string
+    type: object
+  services.UpdateProfileInput:
+    properties:
+      avatar_url:
+        type: string
+      username:
+        type: string
+    type: object
+  services.Web3VerifyInput:
+    properties:
+      address:
+        type: string
+      nonce:
+        type: string
+      signature:
+        type: string
+    required:
+    - address
+    - nonce
+    - signature
+    type: object
+host: localhost:8080
+info:
+  contact: {}
+  description: Backend API for tachigo — Twitch extension + Web3 rewards platform
+  title: tachigo API
+  version: "1.0"
+paths:
+  /auth/forgot-password:
+    post:
+      consumes:
+      - application/json
+      description: Always returns 200 to prevent user enumeration
+      parameters:
+      - description: Email address
+        in: body
+        name: body
+        required: true
+        schema:
+          properties:
+            email:
+              type: string
+          type: object
+      produces:
+      - application/json
+      responses:
+        "200":
+          description: OK
+          schema:
+            allOf:
+            - $ref: '#/definitions/handlers.Response'
+            - properties:
+                data:
+                  $ref: '#/definitions/handlers.MessageResponse'
+              type: object
+        "400":
+          description: Bad Request
+          schema:
+            $ref: '#/definitions/handlers.Response'
+      summary: Request a password reset email
+      tags:
+      - auth
+  /auth/google:
+    get:
+      produces:
+      - application/json
+      responses:
+        "302":
+          description: Found
+      summary: Redirect to Google OAuth
+      tags:
+      - auth
+  /auth/google/callback:
+    get:
+      parameters:
+      - description: OAuth authorization code
+        in: query
+        name: code
+        required: true
+        type: string
+      - description: OAuth state
+        in: query
+        name: state
+        required: true
+        type: string
+      produces:
+      - application/json
+      responses:
+        "200":
+          description: OK
+          schema:
+            allOf:
+            - $ref: '#/definitions/handlers.Response'
+            - properties:
+                data:
+                  $ref: '#/definitions/handlers.AuthResponse'
+              type: object
+        "400":
+          description: Bad Request
+          schema:
+            $ref: '#/definitions/handlers.Response'
+        "401":
+          description: Unauthorized
+          schema:
+            $ref: '#/definitions/handlers.Response'
+      summary: Google OAuth callback
+      tags:
+      - auth
+  /auth/login:
+    post:
+      consumes:
+      - application/json
+      parameters:
+      - description: Login payload
+        in: body
+        name: body
+        required: true
+        schema:
+          $ref: '#/definitions/services.LoginInput'
+      produces:
+      - application/json
+      responses:
+        "200":
+          description: OK
+          schema:
+            allOf:
+            - $ref: '#/definitions/handlers.Response'
+            - properties:
+                data:
+                  $ref: '#/definitions/handlers.AuthResponse'
+              type: object
+        "400":
+          description: Bad Request
+          schema:
+            $ref: '#/definitions/handlers.Response'
+        "401":
+          description: Unauthorized
+          schema:
+            $ref: '#/definitions/handlers.Response'
+      summary: Login with email and password
+      tags:
+      - auth
+  /auth/logout:
+    post:
+      consumes:
+      - application/json
+      parameters:
+      - description: Refresh token fallback when cookie is unavailable
+        in: body
+        name: body
+        schema:
+          properties:
+            refresh_token:
+              type: string
+          type: object
+      produces:
+      - application/json
+      responses:
+        "200":
+          description: OK
+          schema:
+            allOf:
+            - $ref: '#/definitions/handlers.Response'
+            - properties:
+                data:
+                  $ref: '#/definitions/handlers.MessageResponse'
+              type: object
+        "400":
+          description: Bad Request
+          schema:
+            $ref: '#/definitions/handlers.Response'
+      summary: Logout and invalidate refresh token
+      tags:
+      - auth
+  /auth/providers/{provider}:
+    delete:
+      parameters:
+      - description: Provider name
+        enum:
+        - twitch
+        - google
+        - web3
+        - email
+        in: path
+        name: provider
+        required: true
+        type: string
+      produces:
+      - application/json
+      responses:
+        "200":
+          description: OK
+          schema:
+            allOf:
+            - $ref: '#/definitions/handlers.Response'
+            - properties:
+                data:
+                  $ref: '#/definitions/handlers.MessageResponse'
+              type: object
+        "400":
+          description: Bad Request
+          schema:
+            $ref: '#/definitions/handlers.Response'
+        "500":
+          description: Internal Server Error
+          schema:
+            $ref: '#/definitions/handlers.Response'
+      security:
+      - BearerAuth: []
+      summary: Unlink an OAuth provider from the current user
+      tags:
+      - auth
+  /auth/refresh:
+    post:
+      consumes:
+      - application/json
+      parameters:
+      - description: Refresh token fallback when cookie is unavailable
+        in: body
+        name: body
+        schema:
+          properties:
+            refresh_token:
+              type: string
+          type: object
+      produces:
+      - application/json
+      responses:
+        "200":
+          description: OK
+          schema:
+            allOf:
+            - $ref: '#/definitions/handlers.Response'
+            - properties:
+                data:
+                  $ref: '#/definitions/handlers.TokensResponse'
+              type: object
+        "400":
+          description: Bad Request
+          schema:
+            $ref: '#/definitions/handlers.Response'
+        "401":
+          description: Unauthorized
+          schema:
+            $ref: '#/definitions/handlers.Response'
+      summary: Refresh access token
+      tags:
+      - auth
+  /auth/register:
+    post:
+      consumes:
+      - application/json
+      parameters:
+      - description: Registration payload
+        in: body
+        name: body
+        required: true
+        schema:
+          $ref: '#/definitions/services.RegisterInput'
+      produces:
+      - application/json
+      responses:
+        "201":
+          description: Created
+          schema:
+            allOf:
+            - $ref: '#/definitions/handlers.Response'
+            - properties:
+                data:
+                  $ref: '#/definitions/handlers.AuthResponse'
+              type: object
+        "400":
+          description: Bad Request
+          schema:
+            $ref: '#/definitions/handlers.Response'
+        "409":
+          description: Conflict
+          schema:
+            $ref: '#/definitions/handlers.Response'
+      summary: Register a new user
+      tags:
+      - auth
+  /auth/reset-password:
+    post:
+      consumes:
+      - application/json
+      parameters:
+      - description: Token and new password (min 8 chars)
+        in: body
+        name: body
+        required: true
+        schema:
+          properties:
+            new_password:
+              type: string
+            token:
+              type: string
+          type: object
+      produces:
+      - application/json
+      responses:
+        "200":
+          description: OK
+          schema:
+            allOf:
+            - $ref: '#/definitions/handlers.Response'
+            - properties:
+                data:
+                  $ref: '#/definitions/handlers.MessageResponse'
+              type: object
+        "400":
+          description: Bad Request
+          schema:
+            $ref: '#/definitions/handlers.Response'
+      summary: Reset password using token
+      tags:
+      - auth
+  /auth/twitch:
+    get:
+      produces:
+      - application/json
+      responses:
+        "302":
+          description: Found
+      summary: Redirect to Twitch OAuth
+      tags:
+      - auth
+  /auth/twitch/callback:
+    get:
+      parameters:
+      - description: OAuth authorization code
+        in: query
+        name: code
+        required: true
+        type: string
+      - description: OAuth state
+        in: query
+        name: state
+        required: true
+        type: string
+      produces:
+      - application/json
+      responses:
+        "200":
+          description: OK
+          schema:
+            allOf:
+            - $ref: '#/definitions/handlers.Response'
+            - properties:
+                data:
+                  $ref: '#/definitions/handlers.AuthResponse'
+              type: object
+        "400":
+          description: Bad Request
+          schema:
+            $ref: '#/definitions/handlers.Response'
+        "401":
+          description: Unauthorized
+          schema:
+            $ref: '#/definitions/handlers.Response'
+      summary: Twitch OAuth callback
+      tags:
+      - auth
+  /auth/verify-email/confirm:
+    post:
+      consumes:
+      - application/json
+      parameters:
+      - description: Verification token
+        in: body
+        name: body
+        required: true
+        schema:
+          properties:
+            token:
+              type: string
+          type: object
+      produces:
+      - application/json
+      responses:
+        "200":
+          description: OK
+          schema:
+            allOf:
+            - $ref: '#/definitions/handlers.Response'
+            - properties:
+                data:
+                  $ref: '#/definitions/handlers.MessageResponse'
+              type: object
+        "400":
+          description: Bad Request
+          schema:
+            $ref: '#/definitions/handlers.Response'
+      summary: Confirm email verification token
+      tags:
+      - auth
+  /auth/verify-email/send:
+    post:
+      produces:
+      - application/json
+      responses:
+        "200":
+          description: OK
+          schema:
+            allOf:
+            - $ref: '#/definitions/handlers.Response'
+            - properties:
+                data:
+                  $ref: '#/definitions/handlers.MessageResponse'
+              type: object
+        "400":
+          description: Bad Request
+          schema:
+            $ref: '#/definitions/handlers.Response'
+        "404":
+          description: Not Found
+          schema:
+            $ref: '#/definitions/handlers.Response'
+      security:
+      - BearerAuth: []
+      summary: Send or resend email verification
+      tags:
+      - auth
+  /auth/web3/nonce:
+    post:
+      consumes:
+      - application/json
+      parameters:
+      - description: Wallet address
+        in: body
+        name: body
+        required: true
+        schema:
+          properties:
+            address:
+              type: string
+          type: object
+      produces:
+      - application/json
+      responses:
+        "200":
+          description: OK
+          schema:
+            allOf:
+            - $ref: '#/definitions/handlers.Response'
+            - properties:
+                data:
+                  $ref: '#/definitions/handlers.NonceResponse'
+              type: object
+        "400":
+          description: Bad Request
+          schema:
+            $ref: '#/definitions/handlers.Response'
+        "500":
+          description: Internal Server Error
+          schema:
+            $ref: '#/definitions/handlers.Response'
+      summary: Get a sign-in nonce for a wallet address
+      tags:
+      - auth
+  /auth/web3/verify:
+    post:
+      consumes:
+      - application/json
+      parameters:
+      - description: Wallet address, nonce and signature
+        in: body
+        name: body
+        required: true
+        schema:
+          $ref: '#/definitions/services.Web3VerifyInput'
+      produces:
+      - application/json
+      responses:
+        "200":
+          description: OK
+          schema:
+            allOf:
+            - $ref: '#/definitions/handlers.Response'
+            - properties:
+                data:
+                  $ref: '#/definitions/handlers.AuthResponse'
+              type: object
+        "400":
+          description: Bad Request
+          schema:
+            $ref: '#/definitions/handlers.Response'
+        "401":
+          description: Unauthorized
+          schema:
+            $ref: '#/definitions/handlers.Response'
+      summary: Verify wallet signature and authenticate
+      tags:
+      - auth
+  /claim/{token}:
+    get:
+      parameters:
+      - description: Claim token
+        in: path
+        name: token
+        required: true
+        type: string
+      produces:
+      - application/json
+      responses:
+        "200":
+          description: OK
+          schema:
+            $ref: '#/definitions/handlers.Response'
+        "404":
+          description: Not Found
+          schema:
+            $ref: '#/definitions/handlers.Response'
+        "410":
+          description: Gone
+          schema:
+            $ref: '#/definitions/handlers.Response'
+      summary: Get claim info by token
+      tags:
+      - claim
+    post:
+      consumes:
+      - application/json
+      parameters:
+      - description: Claim token
+        in: path
+        name: token
+        required: true
+        type: string
+      - description: Shipping info
+        in: body
+        name: body
+        required: true
+        schema:
+          $ref: '#/definitions/services.ClaimInput'
+      produces:
+      - application/json
+      responses:
+        "200":
+          description: OK
+          schema:
+            $ref: '#/definitions/handlers.Response'
+        "400":
+          description: Bad Request
+          schema:
+            $ref: '#/definitions/handlers.Response'
+        "401":
+          description: Unauthorized
+          schema:
+            $ref: '#/definitions/handlers.Response'
+        "403":
+          description: Forbidden
+          schema:
+            $ref: '#/definitions/handlers.Response'
+        "404":
+          description: Not Found
+          schema:
+            $ref: '#/definitions/handlers.Response'
+        "409":
+          description: Conflict
+          schema:
+            $ref: '#/definitions/handlers.Response'
+        "410":
+          description: Gone
+          schema:
+            $ref: '#/definitions/handlers.Response'
+      security:
+      - BearerAuth: []
+      summary: Submit shipping info for a claim
+      tags:
+      - claim
+  /dashboard/raffles:
+    get:
+      produces:
+      - application/json
+      responses:
+        "200":
+          description: OK
+          schema:
+            $ref: '#/definitions/handlers.Response'
+      security:
+      - BearerAuth: []
+      summary: List my raffles
+      tags:
+      - raffles
+    post:
+      consumes:
+      - application/json
+      parameters:
+      - description: Raffle title
+        in: body
+        name: body
+        required: true
+        schema:
+          properties:
+            title:
+              type: string
+          type: object
+      produces:
+      - application/json
+      responses:
+        "201":
+          description: Created
+          schema:
+            $ref: '#/definitions/handlers.Response'
+        "400":
+          description: Bad Request
+          schema:
+            $ref: '#/definitions/handlers.Response'
+      security:
+      - BearerAuth: []
+      summary: Create a raffle
+      tags:
+      - raffles
+  /dashboard/raffles/{id}:
+    get:
+      parameters:
+      - description: Raffle ID
+        in: path
+        name: id
+        required: true
+        type: string
+      produces:
+      - application/json
+      responses:
+        "200":
+          description: OK
+          schema:
+            $ref: '#/definitions/handlers.Response'
+        "403":
+          description: Forbidden
+          schema:
+            $ref: '#/definitions/handlers.Response'
+        "404":
+          description: Not Found
+          schema:
+            $ref: '#/definitions/handlers.Response'
+      security:
+      - BearerAuth: []
+      summary: Get raffle by ID
+      tags:
+      - raffles
+  /dashboard/raffles/{id}/complete:
+    post:
+      parameters:
+      - description: Raffle ID
+        in: path
+        name: id
+        required: true
+        type: string
+      produces:
+      - application/json
+      responses:
+        "200":
+          description: OK
+          schema:
+            $ref: '#/definitions/handlers.Response'
+      security:
+      - BearerAuth: []
+      summary: Mark a raffle as completed
+      tags:
+      - raffles
+  /dashboard/raffles/{id}/discord-webhook:
+    patch:
+      consumes:
+      - application/json
+      parameters:
+      - description: Raffle ID
+        in: path
+        name: id
+        required: true
+        type: string
+      - description: Webhook URL (empty string to clear)
+        in: body
+        name: body
+        required: true
+        schema:
+          properties:
+            discord_webhook_url:
+              type: string
+          type: object
+      produces:
+      - application/json
+      responses:
+        "200":
+          description: OK
+          schema:
+            $ref: '#/definitions/handlers.Response'
+        "400":
+          description: Bad Request
+          schema:
+            $ref: '#/definitions/handlers.Response'
+        "403":
+          description: Forbidden
+          schema:
+            $ref: '#/definitions/handlers.Response'
+        "404":
+          description: Not Found
+          schema:
+            $ref: '#/definitions/handlers.Response'
+      security:
+      - BearerAuth: []
+      summary: Set or clear the Discord webhook URL for a raffle
+      tags:
+      - raffles
+  /dashboard/raffles/{id}/draws:
+    get:
+      parameters:
+      - description: Raffle ID
+        in: path
+        name: id
+        required: true
+        type: string
+      produces:
+      - application/json
+      responses:
+        "200":
+          description: OK
+          schema:
+            $ref: '#/definitions/handlers.Response'
+      security:
+      - BearerAuth: []
+      summary: List draws for a raffle
+      tags:
+      - raffles
+    post:
+      parameters:
+      - description: Raffle ID
+        in: path
+        name: id
+        required: true
+        type: string
+      produces:
+      - application/json
+      responses:
+        "201":
+          description: Created
+          schema:
+            $ref: '#/definitions/handlers.Response'
+        "409":
+          description: Conflict
+          schema:
+            $ref: '#/definitions/handlers.Response'
+      security:
+      - BearerAuth: []
+      summary: Draw the next winner
+      tags:
+      - raffles
+  /dashboard/raffles/{id}/entries/import-csv:
+    post:
+      consumes:
+      - multipart/form-data
+      parameters:
+      - description: Raffle ID
+        in: path
+        name: id
+        required: true
+        type: string
+      - description: 'CSV file (column 1: twitch_login, column 2: display_name)'
+        in: formData
+        name: file
+        required: true
+        type: file
+      produces:
+      - application/json
+      responses:
+        "200":
+          description: OK
+          schema:
+            $ref: '#/definitions/handlers.Response'
+        "400":
+          description: Bad Request
+          schema:
+            $ref: '#/definitions/handlers.Response'
+      security:
+      - BearerAuth: []
+      summary: Import participants from CSV
+      tags:
+      - raffles
+  /dashboard/raffles/{id}/snapshot:
+    post:
+      consumes:
+      - application/json
+      parameters:
+      - description: Raffle ID
+        in: path
+        name: id
+        required: true
+        type: string
+      - description: source must be twitch_api
+        in: body
+        name: body
+        required: true
+        schema:
+          properties:
+            source:
+              type: string
+          type: object
+      produces:
+      - application/json
+      responses:
+        "200":
+          description: OK
+          schema:
+            $ref: '#/definitions/handlers.Response'
+        "400":
+          description: Bad Request
+          schema:
+            $ref: '#/definitions/handlers.Response'
+      security:
+      - BearerAuth: []
+      summary: Sync raffle entries from Twitch subscriber list
+      tags:
+      - raffles
+  /extension/auth/login:
+    post:
+      consumes:
+      - application/json
+      parameters:
+      - description: Extension JWT from Twitch
+        in: body
+        name: body
+        required: true
+        schema:
+          properties:
+            extension_jwt:
+              type: string
+          type: object
+      produces:
+      - application/json
+      responses:
+        "200":
+          description: OK
+          schema:
+            allOf:
+            - $ref: '#/definitions/handlers.Response'
+            - properties:
+                data:
+                  $ref: '#/definitions/handlers.AuthResponse'
+              type: object
+        "400":
+          description: Bad Request
+          schema:
+            $ref: '#/definitions/handlers.Response'
+        "401":
+          description: Unauthorized
+          schema:
+            $ref: '#/definitions/handlers.Response'
+      summary: Authenticate via Twitch Extension JWT
+      tags:
+      - extension
+  /extension/bits/complete:
+    post:
+      consumes:
+      - application/json
+      deprecated: true
+      description: Deprecated alias for /extension/t-point/complete. Use the new endpoint
+        instead.
+      parameters:
+      - description: Bits transaction payload
+        in: body
+        name: body
+        required: true
+        schema:
+          properties:
+            extension_jwt:
+              type: string
+            sku:
+              type: string
+            transaction_receipt:
+              type: string
+          type: object
+      produces:
+      - application/json
+      responses:
+        "200":
+          description: OK
+          schema:
+            allOf:
+            - $ref: '#/definitions/handlers.Response'
+            - properties:
+                data:
+                  $ref: '#/definitions/handlers.AuthResponse'
+              type: object
+        "400":
+          description: Bad Request
+          schema:
+            $ref: '#/definitions/handlers.Response'
+        "401":
+          description: Unauthorized
+          schema:
+            $ref: '#/definitions/handlers.Response'
+        "409":
+          description: Conflict
+          schema:
+            $ref: '#/definitions/handlers.Response'
+      summary: '[Deprecated] Complete a Bits transaction'
+      tags:
+      - extension
+  /extension/raffles/{id}/result:
+    get:
+      parameters:
+      - description: Raffle ID
+        in: path
+        name: id
+        required: true
+        type: string
+      produces:
+      - application/json
+      responses:
+        "200":
+          description: OK
+          schema:
+            $ref: '#/definitions/handlers.Response'
+        "400":
+          description: Bad Request
+          schema:
+            $ref: '#/definitions/handlers.Response'
+      summary: Get drawn winners for a raffle (Extension)
+      tags:
+      - raffles
+  /extension/t-point/complete:
+    post:
+      consumes:
+      - application/json
+      description: Verifies Twitch Extension JWT and transaction receipt, then awards
+        T-points to the viewer.
+      parameters:
+      - description: T-point transaction payload
+        in: body
+        name: body
+        required: true
+        schema:
+          properties:
+            extension_jwt:
+              type: string
+            sku:
+              type: string
+            transaction_receipt:
+              type: string
+          type: object
+      produces:
+      - application/json
+      responses:
+        "200":
+          description: OK
+          schema:
+            allOf:
+            - $ref: '#/definitions/handlers.Response'
+            - properties:
+                data:
+                  $ref: '#/definitions/handlers.AuthResponse'
+              type: object
+        "400":
+          description: Bad Request
+          schema:
+            $ref: '#/definitions/handlers.Response'
+        "401":
+          description: Unauthorized
+          schema:
+            $ref: '#/definitions/handlers.Response'
+        "409":
+          description: Conflict
+          schema:
+            $ref: '#/definitions/handlers.Response'
+      summary: Complete a T-point transaction
+      tags:
+      - extension
+  /spend/redeem:
+    post:
+      consumes:
+      - application/json
+      parameters:
+      - description: Amount to burn (must be > 0)
+        in: body
+        name: body
+        required: true
+        schema:
+          $ref: '#/definitions/handlers.redeemRequest'
+      produces:
+      - application/json
+      responses:
+        "200":
+          description: OK
+          schema:
+            allOf:
+            - $ref: '#/definitions/handlers.Response'
+            - properties:
+                data:
+                  $ref: '#/definitions/handlers.redeemResponse'
+              type: object
+        "400":
+          description: Bad Request
+          schema:
+            $ref: '#/definitions/handlers.Response'
+        "401":
+          description: Unauthorized
+          schema:
+            $ref: '#/definitions/handlers.Response'
+        "500":
+          description: Internal Server Error
+          schema:
+            $ref: '#/definitions/handlers.Response'
+        "503":
+          description: Service Unavailable
+          schema:
+            $ref: '#/definitions/handlers.Response'
+      security:
+      - BearerAuth: []
+      summary: Burn $TACHI to redeem a discount coupon
+      tags:
+      - spend
+  /users/me:
+    get:
+      produces:
+      - application/json
+      responses:
+        "200":
+          description: OK
+          schema:
+            allOf:
+            - $ref: '#/definitions/handlers.Response'
+            - properties:
+                data:
+                  $ref: '#/definitions/handlers.UserResponse'
+              type: object
+        "404":
+          description: Not Found
+          schema:
+            $ref: '#/definitions/handlers.Response'
+      security:
+      - BearerAuth: []
+      summary: Get current user profile
+      tags:
+      - users
+    put:
+      consumes:
+      - application/json
+      parameters:
+      - description: Profile fields to update
+        in: body
+        name: body
+        required: true
+        schema:
+          $ref: '#/definitions/services.UpdateProfileInput'
+      produces:
+      - application/json
+      responses:
+        "200":
+          description: OK
+          schema:
+            allOf:
+            - $ref: '#/definitions/handlers.Response'
+            - properties:
+                data:
+                  $ref: '#/definitions/handlers.UserResponse'
+              type: object
+        "400":
+          description: Bad Request
+          schema:
+            $ref: '#/definitions/handlers.Response'
+        "409":
+          description: Conflict
+          schema:
+            $ref: '#/definitions/handlers.Response'
+      security:
+      - BearerAuth: []
+      summary: Update current user profile
+      tags:
+      - users
+  /users/me/addresses:
+    get:
+      produces:
+      - application/json
+      responses:
+        "200":
+          description: OK
+          schema:
+            allOf:
+            - $ref: '#/definitions/handlers.Response'
+            - properties:
+                data:
+                  $ref: '#/definitions/handlers.AddressesResponse'
+              type: object
+      security:
+      - BearerAuth: []
+      summary: List shipping addresses
+      tags:
+      - addresses
+    post:
+      consumes:
+      - application/json
+      parameters:
+      - description: Address payload
+        in: body
+        name: body
+        required: true
+        schema:
+          $ref: '#/definitions/services.AddressInput'
+      produces:
+      - application/json
+      responses:
+        "201":
+          description: Created
+          schema:
+            allOf:
+            - $ref: '#/definitions/handlers.Response'
+            - properties:
+                data:
+                  $ref: '#/definitions/handlers.AddressResponse'
+              type: object
+        "400":
+          description: Bad Request
+          schema:
+            $ref: '#/definitions/handlers.Response'
+      security:
+      - BearerAuth: []
+      summary: Create a shipping address
+      tags:
+      - addresses
+  /users/me/addresses/{id}:
+    delete:
+      parameters:
+      - description: Address UUID
+        in: path
+        name: id
+        required: true
+        type: string
+      produces:
+      - application/json
+      responses:
+        "200":
+          description: OK
+          schema:
+            allOf:
+            - $ref: '#/definitions/handlers.Response'
+            - properties:
+                data:
+                  $ref: '#/definitions/handlers.MessageResponse'
+              type: object
+        "400":
+          description: Bad Request
+          schema:
+            $ref: '#/definitions/handlers.Response'
+        "404":
+          description: Not Found
+          schema:
+            $ref: '#/definitions/handlers.Response'
+      security:
+      - BearerAuth: []
+      summary: Delete a shipping address
+      tags:
+      - addresses
+    put:
+      consumes:
+      - application/json
+      parameters:
+      - description: Address UUID
+        in: path
+        name: id
+        required: true
+        type: string
+      - description: Address payload
+        in: body
+        name: body
+        required: true
+        schema:
+          $ref: '#/definitions/services.AddressInput'
+      produces:
+      - application/json
+      responses:
+        "200":
+          description: OK
+          schema:
+            allOf:
+            - $ref: '#/definitions/handlers.Response'
+            - properties:
+                data:
+                  $ref: '#/definitions/handlers.AddressResponse'
+              type: object
+        "400":
+          description: Bad Request
+          schema:
+            $ref: '#/definitions/handlers.Response'
+        "404":
+          description: Not Found
+          schema:
+            $ref: '#/definitions/handlers.Response'
+      security:
+      - BearerAuth: []
+      summary: Update a shipping address
+      tags:
+      - addresses
+  /users/me/addresses/{id}/default:
+    put:
+      parameters:
+      - description: Address UUID
+        in: path
+        name: id
+        required: true
+        type: string
+      produces:
+      - application/json
+      responses:
+        "200":
+          description: OK
+          schema:
+            allOf:
+            - $ref: '#/definitions/handlers.Response'
+            - properties:
+                data:
+                  $ref: '#/definitions/handlers.AddressResponse'
+              type: object
+        "400":
+          description: Bad Request
+          schema:
+            $ref: '#/definitions/handlers.Response'
+        "404":
+          description: Not Found
+          schema:
+            $ref: '#/definitions/handlers.Response'
+      security:
+      - BearerAuth: []
+      summary: Set an address as default
+      tags:
+      - addresses
+  /users/me/points:
+    get:
+      parameters:
+      - description: Twitch channel ID
+        in: query
+        name: channel_id
+        required: true
+        type: string
+      produces:
+      - application/json
+      responses:
+        "200":
+          description: OK
+          schema:
+            allOf:
+            - $ref: '#/definitions/handlers.Response'
+            - properties:
+                data:
+                  $ref: '#/definitions/handlers.PointsBalanceResponse'
+              type: object
+        "400":
+          description: Bad Request
+          schema:
+            $ref: '#/definitions/handlers.Response'
+        "401":
+          description: Unauthorized
+          schema:
+            $ref: '#/definitions/handlers.Response'
+      security:
+      - BearerAuth: []
+      summary: Get my points balance
+      tags:
+      - points
+  /users/me/points/claim:
+    post:
+      consumes:
+      - application/json
+      parameters:
+      - description: Amount to claim (0 = all)
+        in: body
+        name: body
+        schema:
+          $ref: '#/definitions/handlers.claimRequest'
+      produces:
+      - application/json
+      responses:
+        "200":
+          description: OK
+          schema:
+            allOf:
+            - $ref: '#/definitions/handlers.Response'
+            - properties:
+                data:
+                  $ref: '#/definitions/handlers.tachiBalanceResponse'
+              type: object
+        "400":
+          description: Bad Request
+          schema:
+            $ref: '#/definitions/handlers.Response'
+        "401":
+          description: Unauthorized
+          schema:
+            $ref: '#/definitions/handlers.Response'
+        "422":
+          description: Unprocessable Entity
+          schema:
+            $ref: '#/definitions/handlers.Response'
+      security:
+      - BearerAuth: []
+      summary: Claim T-Points as $TACHI
+      tags:
+      - tachi
+  /users/me/points/history:
+    get:
+      parameters:
+      - description: Twitch channel ID
+        in: query
+        name: channel_id
+        required: true
+        type: string
+      produces:
+      - application/json
+      responses:
+        "200":
+          description: OK
+          schema:
+            allOf:
+            - $ref: '#/definitions/handlers.Response'
+            - properties:
+                data:
+                  $ref: '#/definitions/handlers.PointsHistoryResponse'
+              type: object
+        "400":
+          description: Bad Request
+          schema:
+            $ref: '#/definitions/handlers.Response'
+        "401":
+          description: Unauthorized
+          schema:
+            $ref: '#/definitions/handlers.Response'
+      security:
+      - BearerAuth: []
+      summary: List my recent points transactions
+      tags:
+      - points
+  /users/me/providers:
+    get:
+      produces:
+      - application/json
+      responses:
+        "200":
+          description: OK
+          schema:
+            allOf:
+            - $ref: '#/definitions/handlers.Response'
+            - properties:
+                data:
+                  $ref: '#/definitions/handlers.ProvidersResponse'
+              type: object
+      security:
+      - BearerAuth: []
+      summary: List linked OAuth providers
+      tags:
+      - users
+  /users/me/tachi/balance:
+    get:
+      produces:
+      - application/json
+      responses:
+        "200":
+          description: OK
+          schema:
+            allOf:
+            - $ref: '#/definitions/handlers.Response'
+            - properties:
+                data:
+                  $ref: '#/definitions/handlers.tachiBalanceResponse'
+              type: object
+        "401":
+          description: Unauthorized
+          schema:
+            $ref: '#/definitions/handlers.Response'
+      security:
+      - BearerAuth: []
+      summary: Get my $TACHI balance
+      tags:
+      - tachi
+  /users/me/wallet:
+    post:
+      consumes:
+      - application/json
+      description: Verifies a SIWE signature and links the wallet address to the authenticated
+        user.
+      parameters:
+      - description: address, nonce, signature
+        in: body
+        name: body
+        required: true
+        schema:
+          $ref: '#/definitions/services.LinkWalletInput'
+      produces:
+      - application/json
+      responses:
+        "200":
+          description: OK
+          schema:
+            allOf:
+            - $ref: '#/definitions/handlers.Response'
+            - properties:
+                data:
+                  $ref: '#/definitions/handlers.WalletResponse'
+              type: object
+        "400":
+          description: Bad Request
+          schema:
+            $ref: '#/definitions/handlers.Response'
+        "401":
+          description: Unauthorized
+          schema:
+            $ref: '#/definitions/handlers.Response'
+        "409":
+          description: Conflict
+          schema:
+            $ref: '#/definitions/handlers.Response'
+        "500":
+          description: Internal Server Error
+          schema:
+            $ref: '#/definitions/handlers.Response'
+      security:
+      - BearerAuth: []
+      summary: Bind a MetaMask wallet to the current user
+      tags:
+      - users
+securityDefinitions:
+  BearerAuth:
+    description: 'Enter: Bearer {access_token}'
+    in: header
+    name: Authorization
+    type: apiKey
+swagger: "2.0"
