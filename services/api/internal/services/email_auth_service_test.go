@@ -2,6 +2,7 @@ package services
 
 import (
 	"context"
+	"strings"
 	"testing"
 	"time"
 
@@ -93,6 +94,38 @@ func TestSendVerificationEmail_ReplacesExistingToken(t *testing.T) {
 	svc.db.Model(&models.EmailVerification{}).Where("user_id = ?", userID).Count(&count)
 	if count != 1 {
 		t.Errorf("expected 1 verification token, got %d", count)
+	}
+}
+
+func TestSendVerificationEmail_DeleteExistingTokenFailureReturnsError(t *testing.T) {
+	svc, mailer := newEmailAuthSvc(t)
+	email := "verify-delete-failure@example.com"
+	userID := seedEmailUser(t, svc, email, false)
+	svc.db.Create(&models.EmailVerification{
+		UserID:    userID,
+		TokenHash: hashToken("existing-verify-token"),
+		ExpiresAt: time.Now().Add(time.Hour),
+	})
+
+	if err := svc.db.Exec(`
+		CREATE TRIGGER fail_email_verification_delete
+		BEFORE DELETE ON email_verifications
+		BEGIN
+			SELECT RAISE(ABORT, 'forced email verification delete failure');
+		END;
+	`).Error; err != nil {
+		t.Fatalf("create email verification delete trigger: %v", err)
+	}
+
+	err := svc.SendVerificationEmail(context.Background(), userID)
+	if err == nil {
+		t.Fatal("want delete error, got nil")
+	}
+	if !strings.Contains(err.Error(), "forced email verification delete failure") {
+		t.Fatalf("want forced delete error, got %v", err)
+	}
+	if len(mailer.sent) != 0 {
+		t.Fatalf("email should not be sent after delete failure, got %d sends", len(mailer.sent))
 	}
 }
 
@@ -237,6 +270,38 @@ func TestForgotPassword_ReplacesExistingToken(t *testing.T) {
 	}
 }
 
+func TestForgotPassword_DeleteExistingTokenFailureReturnsError(t *testing.T) {
+	svc, mailer := newEmailAuthSvc(t)
+	email := "reset-delete-failure@example.com"
+	seedEmailUser(t, svc, email, true)
+	svc.db.Create(&models.PasswordReset{
+		Email:     email,
+		TokenHash: hashToken("existing-reset-token"),
+		ExpiresAt: time.Now().Add(time.Hour),
+	})
+
+	if err := svc.db.Exec(`
+		CREATE TRIGGER fail_password_reset_delete
+		BEFORE DELETE ON password_resets
+		BEGIN
+			SELECT RAISE(ABORT, 'forced password reset delete failure');
+		END;
+	`).Error; err != nil {
+		t.Fatalf("create password reset delete trigger: %v", err)
+	}
+
+	err := svc.ForgotPassword(context.Background(), email)
+	if err == nil {
+		t.Fatal("want delete error, got nil")
+	}
+	if !strings.Contains(err.Error(), "forced password reset delete failure") {
+		t.Fatalf("want forced delete error, got %v", err)
+	}
+	if len(mailer.sent) != 0 {
+		t.Fatalf("email should not be sent after delete failure, got %d sends", len(mailer.sent))
+	}
+}
+
 // ─── ResetPassword ────────────────────────────────────────────────────────────
 
 func TestResetPassword_Success(t *testing.T) {
@@ -260,6 +325,37 @@ func TestResetPassword_Success(t *testing.T) {
 	svc.db.Model(&models.PasswordReset{}).Where("email = ?", email).Count(&count)
 	if count != 0 {
 		t.Error("reset token should be deleted after use")
+	}
+}
+
+func TestResetPassword_DeleteTokenFailureReturnsError(t *testing.T) {
+	svc, _ := newEmailAuthSvc(t)
+	email := "reset-consume-delete-failure@example.com"
+	seedEmailUser(t, svc, email, true)
+
+	rawToken, _ := generateNonce()
+	svc.db.Create(&models.PasswordReset{
+		Email:     email,
+		TokenHash: hashToken(rawToken),
+		ExpiresAt: time.Now().Add(time.Hour),
+	})
+
+	if err := svc.db.Exec(`
+		CREATE TRIGGER fail_password_reset_consume_delete
+		BEFORE DELETE ON password_resets
+		BEGIN
+			SELECT RAISE(ABORT, 'forced password reset consume delete failure');
+		END;
+	`).Error; err != nil {
+		t.Fatalf("create password reset consume delete trigger: %v", err)
+	}
+
+	err := svc.ResetPassword(rawToken, "newpassword123")
+	if err == nil {
+		t.Fatal("want delete error, got nil")
+	}
+	if !strings.Contains(err.Error(), "forced password reset consume delete failure") {
+		t.Fatalf("want forced delete error, got %v", err)
 	}
 }
 
