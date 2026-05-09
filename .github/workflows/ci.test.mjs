@@ -16,6 +16,7 @@ const autoReadyWorkflowPath = path.join(currentDir, 'auto-ready-pr.yml')
 const codexReviewRerequestWorkflowPath = path.join(currentDir, 'codex-review-rerequest.yml')
 const closeIssueOnDevelopMergeWorkflowPath = path.join(currentDir, 'close-issue-on-develop-merge.yml')
 const dependencyInventoryWorkflowPath = path.join(currentDir, 'dependency-inventory.yml')
+const notifyRebaseNeededWorkflowPath = path.join(currentDir, 'notify-rebase-needed.yml')
 const claudePath = path.join(repoRoot, 'CLAUDE.md')
 const dependabotPolicyPath = path.join(repoRoot, 'docs', 'dependabot-update-policy.md')
 const securityScannerEvaluationPath = path.join(repoRoot, 'docs', 'security-scanner-evaluation.md')
@@ -423,6 +424,68 @@ async function runCloseIssueOnDevelopMergeWorkflow({
 
   await AsyncFunction('context', 'github', 'core', script)(context, github, core)
   return { closed, comments, errors, failures, notices, requestedCommits, warnings }
+}
+
+async function runNotifyRebaseNeededWorkflow({
+  mergedPrOverrides = {},
+  openPRs = [],
+  freshPRsByNumber = {},
+  commentsByIssueNumber = {},
+} = {}) {
+  const parsedWorkflow = parseYaml(notifyRebaseNeededWorkflowPath)
+  const script = parsedWorkflow.jobs.notify.steps[0].with.script
+  const commentsCreated = []
+  const commentsListed = []
+  const infos = []
+  const mergedPR = {
+    number: 600,
+    title: 'Merged backend fix',
+    html_url: 'https://github.com/nurockplayer/tachigo/pull/600',
+    ...mergedPrOverrides,
+  }
+  const github = {
+    rest: {
+      pulls: {
+        list: async () => ({ data: openPRs }),
+        get: async ({ pull_number }) => ({
+          data: freshPRsByNumber[pull_number] || openPRs.find((pr) => pr.number === pull_number),
+        }),
+      },
+      issues: {
+        listComments: async (args) => {
+          commentsListed.push(args)
+          return { data: commentsByIssueNumber[args.issue_number] || [] }
+        },
+        createComment: async (args) => {
+          commentsCreated.push(args)
+          return { data: { id: commentsCreated.length } }
+        },
+      },
+    },
+    paginate: async (fn, args) => {
+      const result = await fn(args)
+      return result.data || result
+    },
+  }
+  const core = {
+    info: (message) => infos.push(message),
+  }
+  const context = {
+    repo: { owner: 'nurockplayer', repo: 'tachigo' },
+    payload: { pull_request: mergedPR },
+  }
+
+  await AsyncFunction('context', 'github', 'core', 'setTimeout', script)(
+    context,
+    github,
+    core,
+    (callback) => {
+      callback()
+      return 0
+    },
+  )
+
+  return { commentsCreated, commentsListed, infos }
 }
 
 test('frontend CI job runs the frontend test command', async () => {
@@ -1138,6 +1201,39 @@ test('develop merge issue closer only runs after merged PRs close into develop',
   assert.equal(parsedWorkflow.permissions.issues, 'write')
   assert.equal(parsedWorkflow.permissions['pull-requests'], 'read')
   assert.equal(job.if, 'github.event.pull_request.merged == true')
+})
+
+test('notify rebase workflow uses read-only pull request permission', async () => {
+  const parsedWorkflow = parseYaml(notifyRebaseNeededWorkflowPath)
+
+  assert.equal(parsedWorkflow.permissions.issues, 'write')
+  assert.equal(parsedWorkflow.permissions['pull-requests'], 'read')
+})
+
+test('notify rebase workflow skips duplicate notification for the same PR head', async () => {
+  const result = await runNotifyRebaseNeededWorkflow({
+    openPRs: [
+      { number: 601 },
+    ],
+    freshPRsByNumber: {
+      601: {
+        number: 601,
+        mergeable_state: 'dirty',
+        head: { sha: 'dirty-head-sha' },
+      },
+    },
+    commentsByIssueNumber: {
+      601: [
+        {
+          body: '<!-- notify-rebase-needed:head=dirty-head-sha -->\n> existing notification',
+        },
+      ],
+    },
+  })
+
+  assert.equal(result.commentsListed.length, 1)
+  assert.deepEqual(result.commentsCreated, [])
+  assert.match(result.infos.join('\n'), /already has a rebase notification/)
 })
 
 test('develop merge issue closer ignores template comments and code examples', async () => {
