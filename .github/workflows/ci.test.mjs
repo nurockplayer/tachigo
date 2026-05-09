@@ -84,6 +84,14 @@ function workflowJobBlock(workflow, jobName) {
   return match[0]
 }
 
+function escapeRegExp(value) {
+  return value.replace(/[.*+?^${}()|[\]\\]/g, '\\$&')
+}
+
+function pinnedActionRef(actionName, versionLabel) {
+  return new RegExp(`uses: ${escapeRegExp(actionName)}@[0-9a-f]{40} # ${escapeRegExp(versionLabel)}`)
+}
+
 function extractRequiredCheckSnapshots(script) {
   const marker = 'const requiredCheckSnapshots ='
   const markerIndex = script.indexOf(marker)
@@ -449,13 +457,25 @@ test('CI workflow uses infra script entrypoints', async () => {
   assert.doesNotMatch(workflow, /run: bash scripts\//)
 })
 
+test('CI workflow pins action references to full commit SHAs', async () => {
+  const workflow = await readFile(workflowPath, 'utf8')
+  const actionRefs = [...workflow.matchAll(/uses:\s+([^@\s#]+)@([^\s#]+)(?:\s+#\s+([^\n]+))?/g)]
+
+  assert.ok(actionRefs.length > 0)
+
+  for (const [, actionName, ref, versionLabel] of actionRefs) {
+    assert.match(ref, /^[0-9a-f]{40}$/, `${actionName} must use a full 40-character SHA`)
+    assert.ok(versionLabel?.startsWith('v'), `${actionName} must keep the original version tag as a comment`)
+  }
+})
+
 test('backend CI job runs go test and go vet natively from services/api', async () => {
   const workflow = await readFile(workflowPath, 'utf8')
   const backendJob = workflowJobBlock(workflow, 'backend')
 
   assert.match(
     backendJob,
-    /uses: actions\/setup-go@v6\n\s+with:\n\s+go-version-file: services\/api\/go\.mod/,
+    /uses: actions\/setup-go@[0-9a-f]{40} # v6\n\s+with:\n\s+go-version-file: services\/api\/go\.mod/,
   )
 
   assert.match(
@@ -571,9 +591,9 @@ test('CI workflow validates Atlas migration tooling without applying migrations'
 
   assert.match(
     atlasJob,
-    /uses: actions\/setup-go@v6\n\s+with:\n\s+go-version-file: services\/api\/go\.mod/,
+    /uses: actions\/setup-go@[0-9a-f]{40} # v6\n\s+with:\n\s+go-version-file: services\/api\/go\.mod/,
   )
-  assert.match(atlasJob, /uses: ariga\/setup-atlas@v0/)
+  assert.match(atlasJob, pinnedActionRef('ariga/setup-atlas', 'v0'))
   assert.match(atlasJob, /version: v0\.37\.0/)
   assert.match(
     atlasJob,
@@ -863,8 +883,8 @@ test('dependency review CI job gates only frontend dependency files', async () =
   assert.equal(job['timeout-minutes'], 10)
   assert.equal(job.needs, 'scope-gate')
   assert.equal(job.if, "github.event_name == 'pull_request' && needs.scope-gate.outputs.run_dependency_review == 'true'")
-  assert.match(jobBlock, /uses: actions\/checkout@v4/)
-  assert.match(jobBlock, /uses: actions\/dependency-review-action@v4/)
+  assert.match(jobBlock, pinnedActionRef('actions/checkout', 'v4'))
+  assert.match(jobBlock, pinnedActionRef('actions/dependency-review-action', 'v4'))
   assert.match(jobBlock, /fail-on-severity: high/)
   assert.match(jobBlock, /fail-on-scopes: runtime/)
   assert.match(jobBlock, /vulnerability-check: true/)
@@ -954,18 +974,18 @@ test('contracts Slither report job uploads SARIF and keeps findings report-only'
   assert.equal(job.if, "needs.scope-gate.outputs.run_contracts_slither == 'true'")
   assert.equal(job.permissions.contents, 'read')
   assert.equal(job.permissions['security-events'], 'write')
-  assert.match(jobBlock, /uses: actions\/checkout@v4/)
-  assert.match(jobBlock, /uses: foundry-rs\/foundry-toolchain@v1/)
+  assert.match(jobBlock, pinnedActionRef('actions/checkout', 'v4'))
+  assert.match(jobBlock, pinnedActionRef('foundry-rs/foundry-toolchain', 'v1'))
   assert.match(jobBlock, /working-directory: contracts\n\s+run: forge install OpenZeppelin\/openzeppelin-contracts@v5\.6\.1 --no-git/)
-  assert.match(jobBlock, /uses: crytic\/slither-action@v0\.4\.2/)
+  assert.match(jobBlock, pinnedActionRef('crytic/slither-action', 'v0.4.2'))
   assert.match(jobBlock, /id: slither/)
   assert.match(jobBlock, /target: contracts/)
   assert.match(jobBlock, /slither-version: 0\.11\.5/)
   assert.match(jobBlock, /sarif: slither\.sarif/)
   assert.match(jobBlock, /fail-on: none/)
-  assert.match(jobBlock, /uses: github\/codeql-action\/upload-sarif@v3/)
+  assert.match(jobBlock, pinnedActionRef('github/codeql-action/upload-sarif', 'v3'))
   assert.match(jobBlock, /sarif_file: \$\{\{ steps\.slither\.outputs\.sarif \}\}/)
-  assert.match(jobBlock, /uses: actions\/upload-artifact@v4/)
+  assert.match(jobBlock, pinnedActionRef('actions/upload-artifact', 'v4'))
   assert.match(jobBlock, /name: slither-report/)
   assert.match(jobBlock, /path: \$\{\{ steps\.slither\.outputs\.sarif \}\}/)
   assert.doesNotMatch(jobBlock, /continue-on-error: true/)
@@ -993,12 +1013,12 @@ test('contracts gas snapshot job publishes a report-only artifact', async () => 
   assert.equal(job['timeout-minutes'], 20)
   assert.deepEqual(job.needs, ['scope-gate'])
   assert.equal(job.if, "needs.scope-gate.outputs.run_contracts_gas_report == 'true'")
-  assert.match(jobBlock, /uses: actions\/checkout@v4/)
-  assert.match(jobBlock, /uses: foundry-rs\/foundry-toolchain@v1/)
+  assert.match(jobBlock, pinnedActionRef('actions/checkout', 'v4'))
+  assert.match(jobBlock, pinnedActionRef('foundry-rs/foundry-toolchain', 'v1'))
   assert.match(jobBlock, /working-directory: contracts\n\s+run: forge install OpenZeppelin\/openzeppelin-contracts@v5\.6\.1 --no-git/)
   assert.match(jobBlock, /working-directory: contracts\n\s+run: forge snapshot --snap gas-snapshot\.report/)
   assert.match(jobBlock, /cat gas-snapshot\.report/)
-  assert.match(jobBlock, /uses: actions\/upload-artifact@v4/)
+  assert.match(jobBlock, pinnedActionRef('actions/upload-artifact', 'v4'))
   assert.match(jobBlock, /name: contracts-gas-snapshot-report/)
   assert.match(jobBlock, /path: contracts\/gas-snapshot\.report/)
   assert.doesNotMatch(jobBlock, /--check/)
