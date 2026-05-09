@@ -816,6 +816,16 @@ test('CI product jobs are gated by path-aware scope outputs', async () => {
   assert.match(contractsGasSnapshot, /needs\.scope-gate\.outputs\.run_contracts_gas_report == 'true'/)
 })
 
+test('PR commit message check skips formal release promotion PRs', () => {
+  const parsedWorkflow = parseYaml(workflowPath)
+  const job = parsedWorkflow.jobs['pr-commit-messages']
+
+  assert.match(job.if, /github\.event\.pull_request\.user\.login != 'dependabot\[bot\]'/)
+  assert.match(job.if, /github\.event\.pull_request\.head\.repo\.full_name != github\.repository/)
+  assert.match(job.if, /github\.event\.pull_request\.base\.ref != 'main'/)
+  assert.match(job.if, /github\.event\.pull_request\.head\.ref != 'develop'/)
+})
+
 test('backend security scanner job installs pinned staticcheck and govulncheck', async () => {
   const workflow = await readFile(workflowPath, 'utf8')
   const parsedWorkflow = parseYaml(workflowPath)
