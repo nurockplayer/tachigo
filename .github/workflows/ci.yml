@@ -437,7 +437,7 @@ jobs:
       - name: Set up Atlas
         uses: ariga/setup-atlas@v0
         with:
-          version: v1.2.0
+          version: v0.37.0
 
       - name: Verify GORM loader output
         working-directory: services/api

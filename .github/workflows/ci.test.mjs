@@ -574,7 +574,7 @@ test('CI workflow validates Atlas migration tooling without applying migrations'
     /uses: actions\/setup-go@v6\n\s+with:\n\s+go-version-file: services\/api\/go\.mod/,
   )
   assert.match(atlasJob, /uses: ariga\/setup-atlas@v0/)
-  assert.match(atlasJob, /version: v1\.2\.0/)
+  assert.match(atlasJob, /version: v0\.37\.0/)
   assert.match(
     atlasJob,
     /working-directory: services\/api\n\s+run: go run \.\/cmd\/loader\/main\.go > \/tmp\/tachigo-gorm-schema\.sql/,
