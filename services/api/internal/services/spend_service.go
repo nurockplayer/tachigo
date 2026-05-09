@@ -91,6 +91,9 @@ func (s *SpendService) Redeem(ctx context.Context, userID uuid.UUID, couponID st
 		if txHash != "" {
 			// Tx was broadcast but receipt is unknown (e.g. context deadline, RPC error).
 			// Do NOT roll back: the chain may have already burned the tokens.
+			if _, createErr := s.createPendingCouponRedemption(userID, couponID, reservation.amount, txHash); createErr != nil {
+				return 0, "", fmt.Errorf("failed to record coupon_redemption for broadcast-unknown burn (burn tx_hash=%s coupon_id=%s): %w; receipt_err=%v", txHash, couponID, createErr, err)
+			}
 			return 0, "", fmt.Errorf("burn tx broadcast (txHash=%s) but receipt unknown: %w", txHash, err)
 		}
 		rollbackErr := s.db.Transaction(func(tx *gorm.DB) error {
@@ -102,14 +105,8 @@ func (s *SpendService) Redeem(ctx context.Context, userID uuid.UUID, couponID st
 		return 0, "", err
 	}
 
-	rec := &models.CouponRedemption{
-		UserID:   userID,
-		CouponID: couponID,
-		Amount:   amount,
-		TxHash:   txHash,
-		Status:   models.CouponRedemptionPending,
-	}
-	if createErr := s.db.Create(rec).Error; createErr != nil {
+	rec, createErr := s.createPendingCouponRedemption(userID, couponID, amount, txHash)
+	if createErr != nil {
 		return 0, "", fmt.Errorf("failed to record coupon_redemption before tachiya call (burn tx_hash=%s coupon_id=%s): %w", txHash, couponID, createErr)
 	}
 
@@ -149,6 +146,20 @@ func (s *SpendService) Redeem(ctx context.Context, userID uuid.UUID, couponID st
 	}
 
 	return reservation.newBalance, voucherCode, nil
+}
+
+func (s *SpendService) createPendingCouponRedemption(userID uuid.UUID, couponID string, amount int64, txHash string) (*models.CouponRedemption, error) {
+	rec := &models.CouponRedemption{
+		UserID:   userID,
+		CouponID: couponID,
+		Amount:   amount,
+		TxHash:   txHash,
+		Status:   models.CouponRedemptionPending,
+	}
+	if err := s.db.Create(rec).Error; err != nil {
+		return nil, err
+	}
+	return rec, nil
 }
 
 func (s *SpendService) reserveSpend(tx *gorm.DB, userID uuid.UUID, amount int64) (spendReservation, error) {

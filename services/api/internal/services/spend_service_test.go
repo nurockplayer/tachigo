@@ -240,7 +240,7 @@ func TestRedeem_BurnBroadcastedButReceiptUnknown(t *testing.T) {
 	seedWeb3Provider(t, db, userID, "0xd8dA6BF26964aF9D7eEd9e03E53415D37aA96045")
 	seedTachiBalance(t, db, userID, 300)
 
-	_, _, err := svc.Redeem(context.Background(), userID, "", 100)
+	_, _, err := svc.Redeem(context.Background(), userID, "coupon-unknown", 100)
 	if err == nil {
 		t.Fatal("expected error but got nil")
 	}
@@ -250,6 +250,26 @@ func TestRedeem_BurnBroadcastedButReceiptUnknown(t *testing.T) {
 	db.Raw("SELECT balance FROM tachi_balances WHERE user_id = ?", userID).Scan(&dbBal)
 	if dbBal != 200 {
 		t.Fatalf("expected balance kept at 200 (no rollback), got %d", dbBal)
+	}
+
+	var status string
+	var couponID string
+	var amount int64
+	var txHash string
+	if err := db.Raw("SELECT status, coupon_id, amount, tx_hash FROM coupon_redemptions WHERE user_id = ?", userID).Row().Scan(&status, &couponID, &amount, &txHash); err != nil {
+		t.Fatalf("scan coupon_redemption: %v", err)
+	}
+	if status != "pending" {
+		t.Fatalf("expected status=pending for reconciliation, got %q", status)
+	}
+	if couponID != "coupon-unknown" {
+		t.Fatalf("expected coupon_id=coupon-unknown, got %q", couponID)
+	}
+	if amount != 100 {
+		t.Fatalf("expected amount=100, got %d", amount)
+	}
+	if txHash != "0xbroadcasted" {
+		t.Fatalf("expected tx_hash=0xbroadcasted, got %q", txHash)
 	}
 }
 
