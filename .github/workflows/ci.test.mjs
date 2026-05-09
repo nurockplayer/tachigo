@@ -791,10 +791,12 @@ Backend contract already in develop:
 
 test('CI product jobs are gated by path-aware scope outputs', async () => {
   const workflow = await readFile(workflowPath, 'utf8')
+  const parsedWorkflow = parseYaml(workflowPath)
   const backendBuild = workflowJobBlock(workflow, 'backend-build')
   const backend = workflowJobBlock(workflow, 'backend')
   const atlas = workflowJobBlock(workflow, 'atlas-migration-tooling')
   const backendIntegration = workflowJobBlock(workflow, 'backend-integration')
+  const backendIntegrationJob = parsedWorkflow.jobs['backend-integration']
   const backendSecurityScanners = workflowJobBlock(workflow, 'backend-security-scanners')
   const dependencyReview = workflowJobBlock(workflow, 'dependency-review')
   const frontend = workflowJobBlock(workflow, 'frontend')
@@ -814,6 +816,7 @@ test('CI product jobs are gated by path-aware scope outputs', async () => {
   assert.match(contracts, /needs\.scope-gate\.outputs\.run_contracts == 'true'/)
   assert.match(contractsSlither, /needs\.scope-gate\.outputs\.run_contracts_slither == 'true'/)
   assert.match(contractsGasSnapshot, /needs\.scope-gate\.outputs\.run_contracts_gas_report == 'true'/)
+  assert.deepEqual(backendIntegrationJob.needs, ['scope-gate', 'check-cache-wiring'])
 })
 
 test('PR commit message check skips formal release promotion PRs', () => {
