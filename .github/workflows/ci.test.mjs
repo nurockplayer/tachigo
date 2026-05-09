@@ -1124,7 +1124,7 @@ test('global auto-merge workflow excludes Dependabot PRs', async () => {
   ])
   assert.equal(
     parsedWorkflow.jobs['enable-auto-merge'].if,
-    "github.event.pull_request.draft == false && github.event.pull_request.user.login != 'dependabot[bot]'",
+    "github.event.pull_request.draft == false && github.event.pull_request.user.login != 'dependabot[bot]' && github.event.pull_request.base.ref == 'develop'",
   )
   assert.doesNotMatch(workflow, /if: github\.event\.pull_request\.draft == false\s*$/m)
 })
