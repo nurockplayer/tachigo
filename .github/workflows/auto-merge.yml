@@ -20,7 +20,7 @@ jobs:
         run: |
           changed_files=$(gh api --paginate \
             "repos/${{ github.repository }}/pulls/${{ github.event.pull_request.number }}/files" \
-            --jq '.[].filename')
+            --jq '.[] | .filename, (.previous_filename // empty)')
           if printf '%s\n' "$changed_files" | grep -Eq '^\.github/workflows/'; then
             echo "Skipping auto-merge for workflow-file PR."
             exit 0

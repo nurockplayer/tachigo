@@ -1157,6 +1157,10 @@ test('global auto-merge workflow excludes Dependabot and workflow-file PRs', asy
     "github.event.pull_request.draft == false && github.event.pull_request.user.login != 'dependabot[bot]'",
   )
   assert.match(workflow, /Skipping auto-merge for workflow-file PR/)
+  assert.ok(
+    workflow.includes("--jq '.[] | .filename, (.previous_filename // empty)'"),
+    'workflow-file PR detection must include renamed-away workflow files',
+  )
   assert.ok(workflow.includes("grep -Eq '^\\.github/workflows/'"))
   assert.doesNotMatch(workflow, /if: github\.event\.pull_request\.draft == false\s*$/m)
 })
