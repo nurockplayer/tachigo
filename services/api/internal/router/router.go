@@ -52,7 +52,7 @@ func New(
 	r.Use(gin.Logger(), gin.Recovery())
 	r.Use(middleware.CORS(allowedOrigins))
 
-	if cfg != nil {
+	if cfg != nil && len(cfg.Server.TrustedProxies) > 0 {
 		if err := r.SetTrustedProxies(cfg.Server.TrustedProxies); err != nil {
 			log.Printf("warning: SetTrustedProxies: %v", err)
 		}
