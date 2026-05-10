@@ -94,11 +94,15 @@ func TestServerStartupIsSplitByResponsibility(t *testing.T) {
 	for _, want := range []string{
 		"func wire(db *gorm.DB, cfg *config.Config, ctx context.Context) *gin.Engine",
 		"services.NewAuthService(db, cfg)",
+		"context.WithTimeout(ctx, 10*time.Second)",
 		"services.NewRaffleScheduler(raffleSvc).Start(ctx)",
 		"router.New(",
 	} {
 		if !strings.Contains(wiringSource, want) {
 			t.Fatalf("wiring.go should own %q", want)
 		}
+	}
+	if strings.Contains(wiringSource, "context.WithTimeout(context.Background(), 10*time.Second)") {
+		t.Fatalf("Sepolia RPC dial timeout should inherit the server context")
 	}
 }
