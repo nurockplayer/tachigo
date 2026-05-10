@@ -2,6 +2,7 @@ package handlers_test
 
 import (
 	"bytes"
+	"context"
 	"crypto/tls"
 	"fmt"
 	"net/http"
@@ -11,6 +12,7 @@ import (
 	"time"
 
 	"github.com/tachigo/tachigo/internal/models"
+	"golang.org/x/oauth2"
 )
 
 // ─── Register ────────────────────────────────────────────────────────────────
@@ -350,6 +352,64 @@ func TestLogoutHandler_MissingToken(t *testing.T) {
 	}
 }
 
+// ─── OAuth state cookie ──────────────────────────────────────────────────────
+
+func TestOAuthStateCookie_DevelopmentAllowsInsecureLocalRedirects(t *testing.T) {
+	env := newTestEnvWithServerEnv(t, "development")
+
+	req := httptest.NewRequest(http.MethodGet, "/api/v1/auth/twitch", nil)
+	w := httptest.NewRecorder()
+	env.router.ServeHTTP(w, req)
+
+	if w.Code != http.StatusFound {
+		t.Fatalf("want 302, got %d: %s", w.Code, w.Body.String())
+	}
+	assertOAuthStateCookieSet(t, w, http.SameSiteLaxMode, false)
+}
+
+func TestOAuthStateCookie_ProductionIsSecureAndHTTPOnly(t *testing.T) {
+	env := newTestEnvWithServerEnv(t, "production")
+
+	req := httptest.NewRequest(http.MethodGet, "/api/v1/auth/twitch", nil)
+	w := httptest.NewRecorder()
+	env.router.ServeHTTP(w, req)
+
+	if w.Code != http.StatusFound {
+		t.Fatalf("want 302, got %d: %s", w.Code, w.Body.String())
+	}
+	assertOAuthStateCookieSet(t, w, http.SameSiteLaxMode, true)
+}
+
+func TestOAuthCallback_StateMismatchRejectsAndClearsStateCookie(t *testing.T) {
+	env := newTestEnv(t)
+
+	req := httptest.NewRequest(http.MethodGet, "/api/v1/auth/twitch/callback?code=code&state=actual", nil)
+	req.AddCookie(&http.Cookie{Name: "oauth_state", Value: "expected", Path: "/"})
+	w := httptest.NewRecorder()
+	env.router.ServeHTTP(w, req)
+
+	if w.Code != http.StatusBadRequest {
+		t.Fatalf("want 400, got %d: %s", w.Code, w.Body.String())
+	}
+	assertOAuthStateCookieCleared(t, w, http.SameSiteLaxMode, false)
+}
+
+func TestOAuthCallback_ValidStateClearsStateCookieBeforeOAuthExchange(t *testing.T) {
+	env := newTestEnv(t)
+	httpClient := &http.Client{Transport: failingRoundTripper{}}
+	ctx := context.WithValue(context.Background(), oauth2.HTTPClient, httpClient)
+
+	req := httptest.NewRequest(http.MethodGet, "/api/v1/auth/twitch/callback?code=code&state=expected", nil).WithContext(ctx)
+	req.AddCookie(&http.Cookie{Name: "oauth_state", Value: "expected", Path: "/"})
+	w := httptest.NewRecorder()
+	env.router.ServeHTTP(w, req)
+
+	if w.Code != http.StatusInternalServerError {
+		t.Fatalf("want 500 from mocked OAuth exchange failure, got %d: %s", w.Code, w.Body.String())
+	}
+	assertOAuthStateCookieCleared(t, w, http.SameSiteLaxMode, false)
+}
+
 func assertRefreshCookieSet(
 	t *testing.T,
 	w *httptest.ResponseRecorder,
@@ -422,6 +482,70 @@ func responseCookie(t *testing.T, w *httptest.ResponseRecorder, name string) *ht
 	}
 	t.Fatalf("expected cookie %q to be present", name)
 	return nil
+}
+
+func assertOAuthStateCookieSet(
+	t *testing.T,
+	w *httptest.ResponseRecorder,
+	expectedSameSite http.SameSite,
+	expectedSecure bool,
+) {
+	t.Helper()
+
+	cookie := responseCookie(t, w, "oauth_state")
+	if cookie.Value == "" {
+		t.Fatal("expected oauth state cookie to be set")
+	}
+	if cookie.MaxAge <= 0 {
+		t.Fatalf("expected oauth state cookie MaxAge > 0, got %d", cookie.MaxAge)
+	}
+	if cookie.Path != "/" {
+		t.Fatalf("expected oauth state cookie path /, got %q", cookie.Path)
+	}
+	if !cookie.HttpOnly {
+		t.Fatal("expected oauth state cookie to be HttpOnly")
+	}
+	if cookie.SameSite != expectedSameSite {
+		t.Fatalf("expected oauth state cookie SameSite %v, got %v", expectedSameSite, cookie.SameSite)
+	}
+	if cookie.Secure != expectedSecure {
+		t.Fatalf("expected oauth state cookie Secure %t, got %t", expectedSecure, cookie.Secure)
+	}
+}
+
+func assertOAuthStateCookieCleared(
+	t *testing.T,
+	w *httptest.ResponseRecorder,
+	expectedSameSite http.SameSite,
+	expectedSecure bool,
+) {
+	t.Helper()
+
+	cookie := responseCookie(t, w, "oauth_state")
+	if cookie.Value != "" {
+		t.Fatalf("expected cleared oauth state cookie, got %q", cookie.Value)
+	}
+	if cookie.MaxAge >= 0 {
+		t.Fatalf("expected cleared oauth state cookie MaxAge < 0, got %d", cookie.MaxAge)
+	}
+	if cookie.Path != "/" {
+		t.Fatalf("expected oauth state cookie path /, got %q", cookie.Path)
+	}
+	if !cookie.HttpOnly {
+		t.Fatal("expected cleared oauth state cookie to be HttpOnly")
+	}
+	if cookie.SameSite != expectedSameSite {
+		t.Fatalf("expected cleared oauth state cookie SameSite %v, got %v", expectedSameSite, cookie.SameSite)
+	}
+	if cookie.Secure != expectedSecure {
+		t.Fatalf("expected cleared oauth state cookie Secure %t, got %t", expectedSecure, cookie.Secure)
+	}
+}
+
+type failingRoundTripper struct{}
+
+func (failingRoundTripper) RoundTrip(*http.Request) (*http.Response, error) {
+	return nil, fmt.Errorf("blocked test OAuth request")
 }
 
 // ─── Web3 Nonce ───────────────────────────────────────────────────────────────
