@@ -32,8 +32,6 @@ import (
 	"github.com/tachigo/tachigo/internal/services"
 )
 
-const defaultSepoliaRPCURL = "https://ethereum-sepolia-rpc.publicnode.com"
-
 func main() {
 	// Load .env (ignore error in production where env is set externally)
 	_ = godotenv.Load()
@@ -135,13 +133,12 @@ func main() {
 	streamerSvc := services.NewStreamerService(db, pointsSvc)
 	agencySvc := services.NewAgencyService(db)
 	airdropSvc := services.NewAirdropService(db, pointsSvc, channelConfigSvc)
-	// TODO: move Sepolia RPC URL into config.Contract.RPCEndpoint once config schema is extended.
 	var ethClient *ethclient.Client
 	if cfg.Contract.TachiContractAddress != "" && cfg.Contract.SepoliaSignerKey != "" {
 		var err error
 		dialCtx, dialCancel := context.WithTimeout(context.Background(), 10*time.Second)
 		defer dialCancel()
-		ethClient, err = ethclient.DialContext(dialCtx, defaultSepoliaRPCURL)
+		ethClient, err = ethclient.DialContext(dialCtx, cfg.Contract.RPCEndpoint)
 		if err != nil {
 			log.Printf("warning: failed to connect Sepolia RPC: %v", err)
 			ethClient = nil

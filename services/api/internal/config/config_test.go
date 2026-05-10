@@ -161,3 +161,30 @@ func TestShouldValidateProductionSecrets(t *testing.T) {
 		})
 	}
 }
+
+func TestLoad_ContractRPCEndpoint(t *testing.T) {
+	t.Run("defaults to public Sepolia endpoint", func(t *testing.T) {
+		t.Setenv("SEPOLIA_RPC_URL", "")
+
+		cfg := Load()
+		if cfg == nil {
+			t.Fatalf("expected config, got nil")
+		}
+		if cfg.Contract.RPCEndpoint != defaultSepoliaRPCEndpoint {
+			t.Fatalf("expected default %q, got %q", defaultSepoliaRPCEndpoint, cfg.Contract.RPCEndpoint)
+		}
+	})
+
+	t.Run("supports env override", func(t *testing.T) {
+		override := "https://example.invalid"
+		t.Setenv("SEPOLIA_RPC_URL", override)
+
+		cfg := Load()
+		if cfg == nil {
+			t.Fatalf("expected config, got nil")
+		}
+		if cfg.Contract.RPCEndpoint != override {
+			t.Fatalf("expected %q, got %q", override, cfg.Contract.RPCEndpoint)
+		}
+	})
+}

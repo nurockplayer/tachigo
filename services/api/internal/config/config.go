@@ -11,6 +11,7 @@ const (
 	defaultJWTAccessSecret  = "change-me-access-secret"
 	defaultJWTRefreshSecret = "change-me-refresh-secret"
 	minJWTSecretLength      = 32
+	defaultSepoliaRPCEndpoint = "https://ethereum-sepolia-rpc.publicnode.com"
 )
 
 type Config struct {
@@ -27,6 +28,7 @@ type Config struct {
 type ContractConfig struct {
 	TachiContractAddress string // TACHI_CONTRACT_ADDRESS
 	SepoliaSignerKey     string // SEPOLIA_SIGNER_KEY — never log or expose
+	RPCEndpoint          string // SEPOLIA_RPC_URL
 }
 
 type InternalConfig struct {
@@ -128,6 +130,7 @@ func Load() *Config {
 		Contract: ContractConfig{
 			TachiContractAddress: getEnv("TACHI_CONTRACT_ADDRESS", ""),
 			SepoliaSignerKey:     getEnv("SEPOLIA_SIGNER_KEY", ""),
+			RPCEndpoint:          getEnv("SEPOLIA_RPC_URL", defaultSepoliaRPCEndpoint),
 		},
 		Internal: InternalConfig{
 			TachiyaSharedSecret: getEnv("TACHIYA_INTERNAL_SHARED_SECRET", ""),
