@@ -1,5 +1,7 @@
 .PHONY: run build tidy db-up db-down up down logs lint test
 
+GOCACHE ?= $(CURDIR)/.go-build-cache
+
 # ── Dev ───────────────────────────────────────────────────────────────────────
 run:
 	go run ./cmd/server
@@ -38,4 +40,5 @@ lint:
 	golangci-lint run ./...
 
 test:
-	go test ./... -v
+	mkdir -p "$(GOCACHE)"
+	GOCACHE="$(GOCACHE)" go test ./... -v

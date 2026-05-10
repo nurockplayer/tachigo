@@ -4,12 +4,14 @@ import (
 	"context"
 	"encoding/json"
 	"net/http"
-	"net/http/httptest"
 	"testing"
+
+	"github.com/tachigo/tachigo/internal/testutil"
 )
 
 func TestTachiyaHTTPClient_RedeemCoupon_Success(t *testing.T) {
-	server := httptest.NewServer(http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
+	client := NewTachiyaHTTPClient("https://tachiya.test", "shared-secret")
+	client.httpClient = testutil.NewHTTPClient(func(r *http.Request) (*http.Response, error) {
 		if r.Method != http.MethodPost {
 			t.Fatalf("expected POST, got %s", r.Method)
 		}
@@ -34,14 +36,10 @@ func TestTachiyaHTTPClient_RedeemCoupon_Success(t *testing.T) {
 			t.Fatalf("expected tcg_cost=100, got %d", req.TCGCost)
 		}
 
-		w.Header().Set("Content-Type", "application/json")
-		_ = json.NewEncoder(w).Encode(map[string]string{
-			"voucher_code": "VOUCHER-XYZ",
-		})
-	}))
-	defer server.Close()
-
-	client := NewTachiyaHTTPClient(server.URL, "shared-secret")
+		resp := testutil.NewStringResponse(http.StatusOK, `{"voucher_code":"VOUCHER-XYZ"}`)
+		resp.Header.Set("Content-Type", "application/json")
+		return resp, nil
+	})
 
 	voucherCode, err := client.RedeemCoupon(context.Background(), "coupon-123", 100)
 	if err != nil {
@@ -53,12 +51,10 @@ func TestTachiyaHTTPClient_RedeemCoupon_Success(t *testing.T) {
 }
 
 func TestTachiyaHTTPClient_RedeemCoupon_NonOKStatus(t *testing.T) {
-	server := httptest.NewServer(http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
-		w.WriteHeader(http.StatusInternalServerError)
-	}))
-	defer server.Close()
-
-	client := NewTachiyaHTTPClient(server.URL, "shared-secret")
+	client := NewTachiyaHTTPClient("https://tachiya.test", "shared-secret")
+	client.httpClient = testutil.NewHTTPClient(func(r *http.Request) (*http.Response, error) {
+		return testutil.NewStringResponse(http.StatusInternalServerError, ""), nil
+	})
 
 	if _, err := client.RedeemCoupon(context.Background(), "coupon-123", 100); err == nil {
 		t.Fatal("expected error but got nil")
