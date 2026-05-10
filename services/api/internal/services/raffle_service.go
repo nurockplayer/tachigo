@@ -68,6 +68,12 @@ func NewRaffleService(db *gorm.DB, twitchClientID, frontendURL string, mailer Ma
 }
 
 func (s *RaffleService) SetTwitchBaseURL(u string) { s.twitchBaseURL = u }
+func (s *RaffleService) SetHTTPClient(c *http.Client) {
+	if c == nil {
+		return
+	}
+	s.httpClient = c
+}
 
 // Create creates a new raffle owned by the given user.
 func (s *RaffleService) Create(userID uuid.UUID, title string) (*models.Raffle, error) {

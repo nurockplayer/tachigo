@@ -5,6 +5,7 @@ import (
 	"encoding/json"
 	"fmt"
 	"net/http"
+	"strings"
 
 	"golang.org/x/oauth2"
 )
@@ -48,9 +49,19 @@ func fetchGoogleUser(ctx context.Context, cfg *oauth2.Config, token *oauth2.Toke
 	}
 	defer resp.Body.Close()
 
+	if resp.StatusCode < http.StatusOK || resp.StatusCode >= http.StatusMultipleChoices {
+		return nil, fmt.Errorf("google API returned %d", resp.StatusCode)
+	}
+
 	var info googleUserInfo
 	if err := json.NewDecoder(resp.Body).Decode(&info); err != nil {
 		return nil, err
+	}
+	if strings.TrimSpace(info.Sub) == "" {
+		return nil, fmt.Errorf("google user missing sub")
+	}
+	if strings.TrimSpace(info.Email) == "" {
+		return nil, fmt.Errorf("google user missing email")
 	}
 	return &info, nil
 }

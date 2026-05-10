@@ -68,4 +68,59 @@ describe('dataProvider API URL', () => {
     )
     expect(mockClient.patch).not.toHaveBeenCalled()
   })
+
+  it('transactions getList 走 points history endpoint 並傳遞 channel_id', async () => {
+    vi.stubEnv('VITE_TACHIGO_API_URL', 'https://api.example.test/')
+    mockClient.get.mockResolvedValueOnce({
+      data: {
+        data: {
+          transactions: [
+            {
+              id: 'tx-1',
+              type: 'earn',
+              amount: 12,
+            },
+          ],
+        },
+      },
+    })
+
+    const { dataProvider } = await import('@/providers/dataProvider')
+
+    const result = await dataProvider.getList({
+      resource: 'transactions',
+      meta: { params: { channel_id: 'channel-123' } },
+    })
+
+    expect(mockClient.get).toHaveBeenCalledWith(
+      'https://api.example.test/api/v1/users/me/points/history',
+      {
+        params: {
+          channel_id: 'channel-123',
+          pagination: undefined,
+          sorters: undefined,
+          filters: undefined,
+        },
+      },
+    )
+    expect(result.data).toEqual([
+      {
+        id: 'tx-1',
+        type: 'earn',
+        amount: 12,
+      },
+    ])
+  })
+
+  it('settings resource 目前明確不支援，避免打到不存在的 dashboard settings endpoint', async () => {
+    vi.stubEnv('VITE_TACHIGO_API_URL', 'https://api.example.test/')
+
+    const { dataProvider } = await import('@/providers/dataProvider')
+
+    await expect(dataProvider.getList({ resource: 'settings' })).rejects.toThrow(
+      'Dashboard settings resource is not wired to a backend endpoint yet',
+    )
+
+    expect(mockClient.get).not.toHaveBeenCalled()
+  })
 })

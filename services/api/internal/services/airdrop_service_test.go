@@ -495,9 +495,11 @@ func newConcurrentTestDB(t *testing.T) *gorm.DB {
 
 	dbPath := t.TempDir() + "/airdrop-concurrency.db"
 	// PRAGMAs in the DSN are applied per-connection by the SQLite driver, so
-	// every connection in the pool gets busy_timeout, WAL mode, and foreign
-	// keys — unlike executing PRAGMA statements after Open, which only affects
-	// the single connection that runs the query.
+	// foreign keys are enabled consistently.  This unit test serializes DB
+	// access through one connection because SQLite's single-writer locking can
+	// otherwise fail the test with "database is locked" before the application
+	// daily-limit assertion is reached. True concurrent SERIALIZABLE coverage
+	// lives in airdrop_service_pg_test.go.
 	dsn := dbPath + "?_busy_timeout=5000&_journal_mode=WAL&_foreign_keys=on"
 	db, err := gorm.Open(sqlite.Open(dsn), &gorm.Config{
 		Logger:         logger.Default.LogMode(logger.Silent),
@@ -511,8 +513,8 @@ func newConcurrentTestDB(t *testing.T) *gorm.DB {
 	if err != nil {
 		t.Fatalf("db handle: %v", err)
 	}
-	sqlDB.SetMaxOpenConns(8)
-	sqlDB.SetMaxIdleConns(8)
+	sqlDB.SetMaxOpenConns(1)
+	sqlDB.SetMaxIdleConns(1)
 
 	if err := migrateTestDB(db); err != nil {
 		t.Fatalf("migrate concurrent test db: %v", err)

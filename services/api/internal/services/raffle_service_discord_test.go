@@ -4,33 +4,41 @@ import (
 	"encoding/json"
 	"io"
 	"net/http"
-	"net/http/httptest"
 	"strings"
 	"testing"
 	"time"
+
+	"github.com/tachigo/tachigo/internal/testutil"
 )
 
-// discordCapture is an httptest.Server that captures the last Discord webhook POST body.
+// discordCapture is a RoundTripper-based fake that captures Discord webhook POST bodies.
 type discordCapture struct {
-	srv *httptest.Server
-	ch  chan string
+	url    string
+	client *http.Client
+	ch     chan string
 }
 
-func newDiscordCapture() *discordCapture {
-	dc := &discordCapture{ch: make(chan string, 1)}
-	dc.srv = httptest.NewServer(http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
+func newDiscordCapture(t *testing.T) *discordCapture {
+	t.Helper()
+
+	dc := &discordCapture{
+		url: "https://discord.com/api/webhooks/123/test",
+		ch:  make(chan string, 1),
+	}
+	dc.client = testutil.NewHTTPClient(func(r *http.Request) (*http.Response, error) {
 		body, _ := io.ReadAll(r.Body)
 		select {
 		case dc.ch <- string(body):
 		default:
 		}
-		w.WriteHeader(http.StatusNoContent)
-	}))
+		return testutil.NewStringResponse(http.StatusNoContent, ""), nil
+	})
 	return dc
 }
 
-func (dc *discordCapture) URL() string { return dc.srv.URL }
-func (dc *discordCapture) Close()      { dc.srv.Close() }
+func (dc *discordCapture) URL() string          { return dc.url }
+func (dc *discordCapture) Client() *http.Client { return dc.client }
+func (dc *discordCapture) Close()               {}
 
 func (dc *discordCapture) expectPayload(t *testing.T) map[string]interface{} {
 	t.Helper()
@@ -101,7 +109,7 @@ func TestSetDiscordWebhook_RejectsInvalidURL(t *testing.T) {
 
 func TestDrawNext_SendsDiscordNotification(t *testing.T) {
 	db := newTestDB(t)
-	dc := newDiscordCapture()
+	dc := newDiscordCapture(t)
 	defer dc.Close()
 
 	ownerID := seedUserWithEmail(t, db, "owner4@example.com")
@@ -112,7 +120,7 @@ func TestDrawNext_SendsDiscordNotification(t *testing.T) {
 	svc := &RaffleService{
 		db:          db,
 		frontendURL: "http://localhost:3000",
-		httpClient:  dc.srv.Client(),
+		httpClient:  dc.Client(),
 	}
 	// patch webhook URL directly into DB
 	webhookURL := dc.URL()
@@ -149,7 +157,7 @@ func TestDrawNext_SendsDiscordNotification(t *testing.T) {
 
 func TestDrawNext_SkipsDiscordWhenNoWebhook(t *testing.T) {
 	db := newTestDB(t)
-	dc := newDiscordCapture()
+	dc := newDiscordCapture(t)
 	defer dc.Close()
 
 	ownerID := seedUserWithEmail(t, db, "owner5@example.com")
@@ -157,7 +165,7 @@ func TestDrawNext_SkipsDiscordWhenNoWebhook(t *testing.T) {
 	raffleID := seedRaffle(t, db, ownerID)
 	seedEntry(t, db, raffleID, &winnerID, "winner5_twitch")
 
-	svc := &RaffleService{db: db, httpClient: dc.srv.Client()}
+	svc := &RaffleService{db: db, httpClient: dc.Client()}
 
 	draw, err := svc.DrawNext(raffleID, ownerID)
 	if err != nil {

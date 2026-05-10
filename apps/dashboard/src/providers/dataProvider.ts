@@ -28,8 +28,18 @@ const resourcePaths: Record<string, string> = {
   'streamer-stats': '/dashboard/streamers',
   raffles: '/dashboard/raffles',
   transactions: '/users/me/points/history',
-  settings: '/dashboard/settings',
   'channel-configs': '/dashboard/channels',
+}
+
+const unsupportedResources: Record<string, string> = {
+  settings: 'Dashboard settings resource is not wired to a backend endpoint yet',
+}
+
+function assertResourceSupported(resource: string) {
+  const message = unsupportedResources[resource]
+  if (message) {
+    throw new Error(message)
+  }
 }
 
 function resourcePath(resource: string) {
@@ -135,6 +145,8 @@ export const dataProvider: DataProvider = {
     filters,
     meta,
   }: GetListParams): Promise<GetListResponse<TData>> => {
+    assertResourceSupported(resource)
+
     const { data } = await client.get(apiUrl(resourcePath(resource)), {
       params: {
         ...(meta?.params as object | undefined),
@@ -155,6 +167,8 @@ export const dataProvider: DataProvider = {
     resource,
     id,
   }: GetOneParams): Promise<GetOneResponse<TData>> => {
+    assertResourceSupported(resource)
+
     const { data } = await client.get(apiUrl(pathWithId(resource, id)))
 
     return {
@@ -166,6 +180,8 @@ export const dataProvider: DataProvider = {
     resource,
     variables,
   }: CreateParams<TVariables>): Promise<CreateResponse<TData>> => {
+    assertResourceSupported(resource)
+
     const { data } = await client.post(apiUrl(resourcePath(resource)), variables)
 
     return {
@@ -178,6 +194,8 @@ export const dataProvider: DataProvider = {
     id,
     variables,
   }: UpdateParams<TVariables>): Promise<UpdateResponse<TData>> => {
+    assertResourceSupported(resource)
+
     const request = updateMethod(resource)
     const { data } = await request(apiUrl(pathWithId(resource, id)), variables)
 
@@ -190,6 +208,8 @@ export const dataProvider: DataProvider = {
     resource,
     id,
   }: DeleteOneParams<TVariables>): Promise<DeleteOneResponse<TData>> => {
+    assertResourceSupported(resource)
+
     const { data } = await client.delete(apiUrl(pathWithId(resource, id)))
 
     return {

@@ -39,7 +39,7 @@ jobs:
     steps:
       - name: Evaluate PR scope for CI
         id: evaluate
-        uses: actions/github-script@v7
+        uses: actions/github-script@f28e40c7f34bde8b3046d885e986cb6290c5673b # v7
         with:
           script: |
             const setCiOutputs = ({
@@ -312,7 +312,7 @@ jobs:
     if: needs.scope-gate.outputs.run_backend == 'true'
     runs-on: ubuntu-latest
     steps:
-      - uses: actions/checkout@v4
+      - uses: actions/checkout@34e114876b0b11c390a56381ad16ebd13914f8d5 # v4
 
       - name: Verify Docker Buildx cache configuration
         run: bash infra/scripts/check-backend-ci-cache.sh
@@ -322,9 +322,9 @@ jobs:
     name: Workflow regression tests
     runs-on: ubuntu-latest
     steps:
-      - uses: actions/checkout@v4
+      - uses: actions/checkout@34e114876b0b11c390a56381ad16ebd13914f8d5 # v4
 
-      - uses: actions/setup-node@v4
+      - uses: actions/setup-node@49933ea5288caeca8642d1e84afbd3f7d6820020 # v4
         with:
           node-version: 22.12.0
 
@@ -336,7 +336,7 @@ jobs:
     name: Commit message regression tests
     runs-on: ubuntu-latest
     steps:
-      - uses: actions/checkout@v4
+      - uses: actions/checkout@34e114876b0b11c390a56381ad16ebd13914f8d5 # v4
 
       - name: Verify commit message hook assertions
         run: bash infra/scripts/commit-message-check.test.sh
@@ -346,7 +346,7 @@ jobs:
     name: PR metadata check regression tests
     runs-on: ubuntu-latest
     steps:
-      - uses: actions/checkout@v4
+      - uses: actions/checkout@34e114876b0b11c390a56381ad16ebd13914f8d5 # v4
         with:
           fetch-depth: 0
 
@@ -367,7 +367,7 @@ jobs:
     if: github.event_name == 'pull_request' && github.event.pull_request.user.login != 'dependabot[bot]' && (github.event.pull_request.head.repo.full_name != github.repository || github.event.pull_request.base.ref != 'main' || github.event.pull_request.head.ref != 'develop')
     runs-on: ubuntu-latest
     steps:
-      - uses: actions/checkout@v4
+      - uses: actions/checkout@34e114876b0b11c390a56381ad16ebd13914f8d5 # v4
         with:
           fetch-depth: 0
 
@@ -381,13 +381,13 @@ jobs:
     if: needs.scope-gate.outputs.run_backend == 'true'
     runs-on: ubuntu-latest
     steps:
-      - uses: actions/checkout@v4
+      - uses: actions/checkout@34e114876b0b11c390a56381ad16ebd13914f8d5 # v4
 
       - name: Set up Docker Buildx
-        uses: docker/setup-buildx-action@v3
+        uses: docker/setup-buildx-action@8d2750c68a42422c14e847fe6c8ac0403b4cbd6f # v3
 
       - name: Build backend image
-        uses: docker/build-push-action@v6
+        uses: docker/build-push-action@10e90e3645eae34f1e60eeb005ba3a3d33f178e8 # v6
         with:
           context: ./services/api
           target: dev
@@ -403,10 +403,10 @@ jobs:
     if: needs.scope-gate.outputs.run_backend == 'true'
     runs-on: ubuntu-latest
     steps:
-      - uses: actions/checkout@v4
+      - uses: actions/checkout@34e114876b0b11c390a56381ad16ebd13914f8d5 # v4
 
       - name: Set up Go
-        uses: actions/setup-go@v6
+        uses: actions/setup-go@4a3601121dd01d1626a1e23e37211e3254c1c06c # v6
         with:
           go-version-file: services/api/go.mod
 
@@ -425,17 +425,17 @@ jobs:
     if: needs.scope-gate.outputs.run_backend == 'true'
     runs-on: ubuntu-latest
     steps:
-      - uses: actions/checkout@v4
+      - uses: actions/checkout@34e114876b0b11c390a56381ad16ebd13914f8d5 # v4
         with:
           fetch-depth: 0
 
       - name: Set up Go
-        uses: actions/setup-go@v6
+        uses: actions/setup-go@4a3601121dd01d1626a1e23e37211e3254c1c06c # v6
         with:
           go-version-file: services/api/go.mod
 
       - name: Set up Atlas
-        uses: ariga/setup-atlas@v0
+        uses: ariga/setup-atlas@2f3c785c89a15e1c0d07bcae3900fb5feb969eea # v0
         with:
           version: v0.37.0
 
@@ -469,14 +469,14 @@ jobs:
   backend-integration:
     timeout-minutes: 20
     name: Backend integration tests
-    needs: [scope-gate]
+    needs: [scope-gate, check-cache-wiring]
     runs-on: ubuntu-latest
     if: needs.scope-gate.outputs.run_backend_integration == 'true'
     steps:
-      - uses: actions/checkout@v6
+      - uses: actions/checkout@de0fac2e4500dabe0009e67214ff5f5447ce83dd # v6
 
       - name: Set up Go
-        uses: actions/setup-go@v6
+        uses: actions/setup-go@4a3601121dd01d1626a1e23e37211e3254c1c06c # v6
         with:
           go-version-file: services/api/go.mod
 
@@ -494,10 +494,10 @@ jobs:
       STATICCHECK_VERSION: v0.7.0
       GOVULNCHECK_VERSION: v1.3.0
     steps:
-      - uses: actions/checkout@v4
+      - uses: actions/checkout@34e114876b0b11c390a56381ad16ebd13914f8d5 # v4
 
       - name: Set up Go
-        uses: actions/setup-go@v6
+        uses: actions/setup-go@4a3601121dd01d1626a1e23e37211e3254c1c06c # v6
         with:
           go-version: 1.25.10
 
@@ -524,10 +524,10 @@ jobs:
     if: github.event_name == 'pull_request' && needs.scope-gate.outputs.run_dependency_review == 'true'
     runs-on: ubuntu-latest
     steps:
-      - uses: actions/checkout@v4
+      - uses: actions/checkout@34e114876b0b11c390a56381ad16ebd13914f8d5 # v4
 
       - name: Review dependency changes
-        uses: actions/dependency-review-action@v4
+        uses: actions/dependency-review-action@2031cfc080254a8a887f58cffee85186f0e49e48 # v4
         with:
           fail-on-severity: high
           fail-on-scopes: runtime
@@ -543,7 +543,7 @@ jobs:
     if: needs.scope-gate.outputs.run_frontend == 'true'
     runs-on: ubuntu-latest
     steps:
-      - uses: actions/checkout@v4
+      - uses: actions/checkout@34e114876b0b11c390a56381ad16ebd13914f8d5 # v4
         with:
           lfs: true
 
@@ -569,7 +569,7 @@ jobs:
     if: needs.scope-gate.outputs.run_dashboard == 'true'
     runs-on: ubuntu-latest
     steps:
-      - uses: actions/checkout@v4
+      - uses: actions/checkout@34e114876b0b11c390a56381ad16ebd13914f8d5 # v4
 
       - name: Build image
         run: docker compose build dashboard
@@ -590,10 +590,10 @@ jobs:
     if: needs.scope-gate.outputs.run_contracts == 'true'
     runs-on: ubuntu-latest
     steps:
-      - uses: actions/checkout@v4
+      - uses: actions/checkout@34e114876b0b11c390a56381ad16ebd13914f8d5 # v4
 
       - name: Install Foundry
-        uses: foundry-rs/foundry-toolchain@v1
+        uses: foundry-rs/foundry-toolchain@c7450ba673e133f5ee30098b3b54f444d3a2ca2d # v1
 
       - name: Install dependencies
         working-directory: contracts
@@ -621,10 +621,10 @@ jobs:
       contents: read
       security-events: write
     steps:
-      - uses: actions/checkout@v4
+      - uses: actions/checkout@34e114876b0b11c390a56381ad16ebd13914f8d5 # v4
 
       - name: Install Foundry
-        uses: foundry-rs/foundry-toolchain@v1
+        uses: foundry-rs/foundry-toolchain@c7450ba673e133f5ee30098b3b54f444d3a2ca2d # v1
 
       - name: Install Solidity dependencies
         working-directory: contracts
@@ -632,7 +632,7 @@ jobs:
 
       - name: Run Slither
         id: slither
-        uses: crytic/slither-action@v0.4.2
+        uses: crytic/slither-action@b52cc1cbfee9ca3e8722dd5224299d16c9a6b80f # v0.4.2
         with:
           target: contracts
           slither-version: 0.11.5
@@ -641,13 +641,13 @@ jobs:
 
       - name: Upload Slither SARIF
         if: always() && steps.slither.outputs.sarif != ''
-        uses: github/codeql-action/upload-sarif@v3
+        uses: github/codeql-action/upload-sarif@7fd177fa680c9881b53cdab4d346d32574c9f7f4 # v3
         with:
           sarif_file: ${{ steps.slither.outputs.sarif }}
 
       - name: Upload Slither report artifact
         if: always() && steps.slither.outputs.sarif != ''
-        uses: actions/upload-artifact@v4
+        uses: actions/upload-artifact@ea165f8d65b6e75b540449e92b4886f43607fa02 # v4
         with:
           name: slither-report
           path: ${{ steps.slither.outputs.sarif }}
@@ -660,10 +660,10 @@ jobs:
     if: needs.scope-gate.outputs.run_contracts_gas_report == 'true'
     runs-on: ubuntu-latest
     steps:
-      - uses: actions/checkout@v4
+      - uses: actions/checkout@34e114876b0b11c390a56381ad16ebd13914f8d5 # v4
 
       - name: Install Foundry
-        uses: foundry-rs/foundry-toolchain@v1
+        uses: foundry-rs/foundry-toolchain@c7450ba673e133f5ee30098b3b54f444d3a2ca2d # v1
 
       - name: Install dependencies
         working-directory: contracts
@@ -678,7 +678,7 @@ jobs:
         run: cat gas-snapshot.report
 
       - name: Upload gas snapshot report artifact
-        uses: actions/upload-artifact@v4
+        uses: actions/upload-artifact@ea165f8d65b6e75b540449e92b4886f43607fa02 # v4
         with:
           name: contracts-gas-snapshot-report
           path: contracts/gas-snapshot.report
@@ -727,7 +727,7 @@ jobs:
       pull-requests: write
     steps:
       - name: Mark auto-ready draft PR ready
-        uses: actions/github-script@v7
+        uses: actions/github-script@f28e40c7f34bde8b3046d885e986cb6290c5673b # v7
         env:
           SCOPE_GATE_RESULT: ${{ needs.scope-gate.result }}
           BACKEND_CI_RESULT: ${{ needs.backend-ci.result }}

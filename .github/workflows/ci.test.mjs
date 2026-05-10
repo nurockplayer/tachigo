@@ -16,6 +16,7 @@ const autoReadyWorkflowPath = path.join(currentDir, 'auto-ready-pr.yml')
 const codexReviewRerequestWorkflowPath = path.join(currentDir, 'codex-review-rerequest.yml')
 const closeIssueOnDevelopMergeWorkflowPath = path.join(currentDir, 'close-issue-on-develop-merge.yml')
 const dependencyInventoryWorkflowPath = path.join(currentDir, 'dependency-inventory.yml')
+const notifyRebaseNeededWorkflowPath = path.join(currentDir, 'notify-rebase-needed.yml')
 const claudePath = path.join(repoRoot, 'CLAUDE.md')
 const dependabotPolicyPath = path.join(repoRoot, 'docs', 'dependabot-update-policy.md')
 const securityScannerEvaluationPath = path.join(repoRoot, 'docs', 'security-scanner-evaluation.md')
@@ -82,6 +83,14 @@ function workflowJobBlock(workflow, jobName) {
   const match = workflow.match(pattern)
   assert.ok(match, `expected workflow to include ${jobName} job`)
   return match[0]
+}
+
+function escapeRegExp(value) {
+  return value.replace(/[.*+?^${}()|[\]\\]/g, '\\$&')
+}
+
+function pinnedActionRef(actionName, versionLabel) {
+  return new RegExp(`uses: ${escapeRegExp(actionName)}@[0-9a-f]{40} # ${escapeRegExp(versionLabel)}`)
 }
 
 function extractRequiredCheckSnapshots(script) {
@@ -425,6 +434,68 @@ async function runCloseIssueOnDevelopMergeWorkflow({
   return { closed, comments, errors, failures, notices, requestedCommits, warnings }
 }
 
+async function runNotifyRebaseNeededWorkflow({
+  mergedPrOverrides = {},
+  openPRs = [],
+  freshPRsByNumber = {},
+  commentsByIssueNumber = {},
+} = {}) {
+  const parsedWorkflow = parseYaml(notifyRebaseNeededWorkflowPath)
+  const script = parsedWorkflow.jobs.notify.steps[0].with.script
+  const commentsCreated = []
+  const commentsListed = []
+  const infos = []
+  const mergedPR = {
+    number: 600,
+    title: 'Merged backend fix',
+    html_url: 'https://github.com/nurockplayer/tachigo/pull/600',
+    ...mergedPrOverrides,
+  }
+  const github = {
+    rest: {
+      pulls: {
+        list: async () => ({ data: openPRs }),
+        get: async ({ pull_number }) => ({
+          data: freshPRsByNumber[pull_number] || openPRs.find((pr) => pr.number === pull_number),
+        }),
+      },
+      issues: {
+        listComments: async (args) => {
+          commentsListed.push(args)
+          return { data: commentsByIssueNumber[args.issue_number] || [] }
+        },
+        createComment: async (args) => {
+          commentsCreated.push(args)
+          return { data: { id: commentsCreated.length } }
+        },
+      },
+    },
+    paginate: async (fn, args) => {
+      const result = await fn(args)
+      return result.data || result
+    },
+  }
+  const core = {
+    info: (message) => infos.push(message),
+  }
+  const context = {
+    repo: { owner: 'nurockplayer', repo: 'tachigo' },
+    payload: { pull_request: mergedPR },
+  }
+
+  await AsyncFunction('context', 'github', 'core', 'setTimeout', script)(
+    context,
+    github,
+    core,
+    (callback) => {
+      callback()
+      return 0
+    },
+  )
+
+  return { commentsCreated, commentsListed, infos }
+}
+
 test('frontend CI job runs the frontend test command', async () => {
   const workflow = await readFile(workflowPath, 'utf8')
 
@@ -449,13 +520,25 @@ test('CI workflow uses infra script entrypoints', async () => {
   assert.doesNotMatch(workflow, /run: bash scripts\//)
 })
 
+test('CI workflow pins action references to full commit SHAs', async () => {
+  const workflow = await readFile(workflowPath, 'utf8')
+  const actionRefs = [...workflow.matchAll(/uses:\s+([^@\s#]+)@([^\s#]+)(?:\s+#\s+([^\n]+))?/g)]
+
+  assert.ok(actionRefs.length > 0)
+
+  for (const [, actionName, ref, versionLabel] of actionRefs) {
+    assert.match(ref, /^[0-9a-f]{40}$/, `${actionName} must use a full 40-character SHA`)
+    assert.ok(versionLabel?.startsWith('v'), `${actionName} must keep the original version tag as a comment`)
+  }
+})
+
 test('backend CI job runs go test and go vet natively from services/api', async () => {
   const workflow = await readFile(workflowPath, 'utf8')
   const backendJob = workflowJobBlock(workflow, 'backend')
 
   assert.match(
     backendJob,
-    /uses: actions\/setup-go@v6\n\s+with:\n\s+go-version-file: services\/api\/go\.mod/,
+    /uses: actions\/setup-go@[0-9a-f]{40} # v6\n\s+with:\n\s+go-version-file: services\/api\/go\.mod/,
   )
 
   assert.match(
@@ -571,9 +654,9 @@ test('CI workflow validates Atlas migration tooling without applying migrations'
 
   assert.match(
     atlasJob,
-    /uses: actions\/setup-go@v6\n\s+with:\n\s+go-version-file: services\/api\/go\.mod/,
+    /uses: actions\/setup-go@[0-9a-f]{40} # v6\n\s+with:\n\s+go-version-file: services\/api\/go\.mod/,
   )
-  assert.match(atlasJob, /uses: ariga\/setup-atlas@v0/)
+  assert.match(atlasJob, pinnedActionRef('ariga/setup-atlas', 'v0'))
   assert.match(atlasJob, /version: v0\.37\.0/)
   assert.match(
     atlasJob,
@@ -791,10 +874,12 @@ Backend contract already in develop:
 
 test('CI product jobs are gated by path-aware scope outputs', async () => {
   const workflow = await readFile(workflowPath, 'utf8')
+  const parsedWorkflow = parseYaml(workflowPath)
   const backendBuild = workflowJobBlock(workflow, 'backend-build')
   const backend = workflowJobBlock(workflow, 'backend')
   const atlas = workflowJobBlock(workflow, 'atlas-migration-tooling')
   const backendIntegration = workflowJobBlock(workflow, 'backend-integration')
+  const backendIntegrationJob = parsedWorkflow.jobs['backend-integration']
   const backendSecurityScanners = workflowJobBlock(workflow, 'backend-security-scanners')
   const dependencyReview = workflowJobBlock(workflow, 'dependency-review')
   const frontend = workflowJobBlock(workflow, 'frontend')
@@ -814,6 +899,7 @@ test('CI product jobs are gated by path-aware scope outputs', async () => {
   assert.match(contracts, /needs\.scope-gate\.outputs\.run_contracts == 'true'/)
   assert.match(contractsSlither, /needs\.scope-gate\.outputs\.run_contracts_slither == 'true'/)
   assert.match(contractsGasSnapshot, /needs\.scope-gate\.outputs\.run_contracts_gas_report == 'true'/)
+  assert.deepEqual(backendIntegrationJob.needs, ['scope-gate', 'check-cache-wiring'])
 })
 
 test('PR commit message check skips formal release promotion PRs', () => {
@@ -863,8 +949,8 @@ test('dependency review CI job gates only frontend dependency files', async () =
   assert.equal(job['timeout-minutes'], 10)
   assert.equal(job.needs, 'scope-gate')
   assert.equal(job.if, "github.event_name == 'pull_request' && needs.scope-gate.outputs.run_dependency_review == 'true'")
-  assert.match(jobBlock, /uses: actions\/checkout@v4/)
-  assert.match(jobBlock, /uses: actions\/dependency-review-action@v4/)
+  assert.match(jobBlock, pinnedActionRef('actions/checkout', 'v4'))
+  assert.match(jobBlock, pinnedActionRef('actions/dependency-review-action', 'v4'))
   assert.match(jobBlock, /fail-on-severity: high/)
   assert.match(jobBlock, /fail-on-scopes: runtime/)
   assert.match(jobBlock, /vulnerability-check: true/)
@@ -954,18 +1040,18 @@ test('contracts Slither report job uploads SARIF and keeps findings report-only'
   assert.equal(job.if, "needs.scope-gate.outputs.run_contracts_slither == 'true'")
   assert.equal(job.permissions.contents, 'read')
   assert.equal(job.permissions['security-events'], 'write')
-  assert.match(jobBlock, /uses: actions\/checkout@v4/)
-  assert.match(jobBlock, /uses: foundry-rs\/foundry-toolchain@v1/)
+  assert.match(jobBlock, pinnedActionRef('actions/checkout', 'v4'))
+  assert.match(jobBlock, pinnedActionRef('foundry-rs/foundry-toolchain', 'v1'))
   assert.match(jobBlock, /working-directory: contracts\n\s+run: forge install OpenZeppelin\/openzeppelin-contracts@v5\.6\.1 --no-git/)
-  assert.match(jobBlock, /uses: crytic\/slither-action@v0\.4\.2/)
+  assert.match(jobBlock, pinnedActionRef('crytic/slither-action', 'v0.4.2'))
   assert.match(jobBlock, /id: slither/)
   assert.match(jobBlock, /target: contracts/)
   assert.match(jobBlock, /slither-version: 0\.11\.5/)
   assert.match(jobBlock, /sarif: slither\.sarif/)
   assert.match(jobBlock, /fail-on: none/)
-  assert.match(jobBlock, /uses: github\/codeql-action\/upload-sarif@v3/)
+  assert.match(jobBlock, pinnedActionRef('github/codeql-action/upload-sarif', 'v3'))
   assert.match(jobBlock, /sarif_file: \$\{\{ steps\.slither\.outputs\.sarif \}\}/)
-  assert.match(jobBlock, /uses: actions\/upload-artifact@v4/)
+  assert.match(jobBlock, pinnedActionRef('actions/upload-artifact', 'v4'))
   assert.match(jobBlock, /name: slither-report/)
   assert.match(jobBlock, /path: \$\{\{ steps\.slither\.outputs\.sarif \}\}/)
   assert.doesNotMatch(jobBlock, /continue-on-error: true/)
@@ -993,12 +1079,12 @@ test('contracts gas snapshot job publishes a report-only artifact', async () => 
   assert.equal(job['timeout-minutes'], 20)
   assert.deepEqual(job.needs, ['scope-gate'])
   assert.equal(job.if, "needs.scope-gate.outputs.run_contracts_gas_report == 'true'")
-  assert.match(jobBlock, /uses: actions\/checkout@v4/)
-  assert.match(jobBlock, /uses: foundry-rs\/foundry-toolchain@v1/)
+  assert.match(jobBlock, pinnedActionRef('actions/checkout', 'v4'))
+  assert.match(jobBlock, pinnedActionRef('foundry-rs/foundry-toolchain', 'v1'))
   assert.match(jobBlock, /working-directory: contracts\n\s+run: forge install OpenZeppelin\/openzeppelin-contracts@v5\.6\.1 --no-git/)
   assert.match(jobBlock, /working-directory: contracts\n\s+run: forge snapshot --snap gas-snapshot\.report/)
   assert.match(jobBlock, /cat gas-snapshot\.report/)
-  assert.match(jobBlock, /uses: actions\/upload-artifact@v4/)
+  assert.match(jobBlock, pinnedActionRef('actions/upload-artifact', 'v4'))
   assert.match(jobBlock, /name: contracts-gas-snapshot-report/)
   assert.match(jobBlock, /path: contracts\/gas-snapshot\.report/)
   assert.doesNotMatch(jobBlock, /--check/)
@@ -1124,7 +1210,7 @@ test('global auto-merge workflow excludes Dependabot PRs', async () => {
   ])
   assert.equal(
     parsedWorkflow.jobs['enable-auto-merge'].if,
-    "github.event.pull_request.draft == false && github.event.pull_request.user.login != 'dependabot[bot]'",
+    "github.event.pull_request.draft == false && github.event.pull_request.user.login != 'dependabot[bot]' && github.event.pull_request.base.ref == 'develop'",
   )
   assert.doesNotMatch(workflow, /if: github\.event\.pull_request\.draft == false\s*$/m)
 })
@@ -1138,6 +1224,39 @@ test('develop merge issue closer only runs after merged PRs close into develop',
   assert.equal(parsedWorkflow.permissions.issues, 'write')
   assert.equal(parsedWorkflow.permissions['pull-requests'], 'read')
   assert.equal(job.if, 'github.event.pull_request.merged == true')
+})
+
+test('notify rebase workflow uses read-only pull request permission', async () => {
+  const parsedWorkflow = parseYaml(notifyRebaseNeededWorkflowPath)
+
+  assert.equal(parsedWorkflow.permissions.issues, 'write')
+  assert.equal(parsedWorkflow.permissions['pull-requests'], 'read')
+})
+
+test('notify rebase workflow skips duplicate notification for the same PR head', async () => {
+  const result = await runNotifyRebaseNeededWorkflow({
+    openPRs: [
+      { number: 601 },
+    ],
+    freshPRsByNumber: {
+      601: {
+        number: 601,
+        mergeable_state: 'dirty',
+        head: { sha: 'dirty-head-sha' },
+      },
+    },
+    commentsByIssueNumber: {
+      601: [
+        {
+          body: '<!-- notify-rebase-needed:head=dirty-head-sha -->\n> existing notification',
+        },
+      ],
+    },
+  })
+
+  assert.equal(result.commentsListed.length, 1)
+  assert.deepEqual(result.commentsCreated, [])
+  assert.match(result.infos.join('\n'), /already has a rebase notification/)
 })
 
 test('develop merge issue closer ignores template comments and code examples', async () => {

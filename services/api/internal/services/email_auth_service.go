@@ -57,7 +57,9 @@ func (s *EmailAuthService) SendVerificationEmail(ctx context.Context, userID uui
 	}
 
 	// Replace any existing verification token for this user
-	s.db.Where("user_id = ?", userID).Delete(&models.EmailVerification{})
+	if err := s.db.Where("user_id = ?", userID).Delete(&models.EmailVerification{}).Error; err != nil {
+		return err
+	}
 
 	if err := s.db.Create(&models.EmailVerification{
 		UserID:    userID,
@@ -117,7 +119,9 @@ func (s *EmailAuthService) ForgotPassword(ctx context.Context, email string) err
 	}
 
 	// Replace any existing reset token for this email
-	s.db.Where("email = ?", email).Delete(&models.PasswordReset{})
+	if err := s.db.Where("email = ?", email).Delete(&models.PasswordReset{}).Error; err != nil {
+		return err
+	}
 
 	if err := s.db.Create(&models.PasswordReset{
 		Email:     email,

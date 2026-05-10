@@ -3,7 +3,6 @@ package services
 import (
 	"context"
 	"net/http"
-	"net/http/httptest"
 	"testing"
 	"time"
 
@@ -11,6 +10,7 @@ import (
 	"gorm.io/gorm"
 
 	"github.com/tachigo/tachigo/internal/models"
+	"github.com/tachigo/tachigo/internal/testutil"
 )
 
 func TestNextSchedulerRun(t *testing.T) {
@@ -91,15 +91,15 @@ func TestRunScheduledSnapshots_SkipsCompleted(t *testing.T) {
 }
 
 func TestRunScheduledSnapshots_TwitchAPISuccess(t *testing.T) {
-	ts := httptest.NewServer(http.HandlerFunc(func(w http.ResponseWriter, _ *http.Request) {
-		w.Header().Set("Content-Type", "application/json")
-		w.Write([]byte(`{"data":[],"pagination":{}}`)) //nolint:errcheck
-	}))
-	defer ts.Close()
-
 	db := newTestDB(t)
 	svc := NewRaffleService(db, "test-client-id", "", nil)
-	svc.SetTwitchBaseURL(ts.URL)
+	svc.SetTwitchBaseURL("https://twitch.test")
+	svc.httpClient = testutil.NewHTTPClient(func(r *http.Request) (*http.Response, error) {
+		if r.Method == http.MethodGet && r.URL.Path == "/helix/subscriptions" {
+			return testutil.NewStringResponse(http.StatusOK, `{"data":[],"pagination":{}}`), nil
+		}
+		return testutil.NewStringResponse(http.StatusNotFound, ""), nil
+	})
 
 	user := insertRaffleTestUser(t, db)
 	insertRaffleTwitchProvider(t, db, user.ID, "broadcaster123", "streamer_token")
