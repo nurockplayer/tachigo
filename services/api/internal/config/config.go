@@ -66,8 +66,9 @@ type JWTConfig struct {
 }
 
 type OAuthConfig struct {
-	Twitch TwitchConfig
-	Google GoogleConfig
+	Twitch             TwitchConfig
+	Google             GoogleConfig
+	TokenEncryptionKey string
 }
 
 type TwitchConfig struct {
@@ -115,6 +116,7 @@ func Load() *Config {
 			FrontendURL: getEnv("FRONTEND_URL", "http://localhost:3000"),
 		},
 		OAuth: OAuthConfig{
+			TokenEncryptionKey: getEnv("OAUTH_TOKEN_ENCRYPTION_KEY", ""),
 			Twitch: TwitchConfig{
 				ClientID:        getEnv("TWITCH_CLIENT_ID", ""),
 				ClientSecret:    getEnv("TWITCH_CLIENT_SECRET", ""),

@@ -1,12 +1,15 @@
 package services
 
 import (
+	"context"
+	"encoding/json"
 	"errors"
 	"strings"
 	"testing"
 	"time"
 
 	"github.com/google/uuid"
+	"golang.org/x/oauth2"
 
 	"github.com/tachigo/tachigo/internal/models"
 )
@@ -39,6 +42,102 @@ func TestRegister_Success(t *testing.T) {
 	}
 	if user.Role != models.RoleViewer {
 		t.Errorf("role: want viewer, got %s", user.Role)
+	}
+}
+
+func TestOAuthUser_PersistsOnlyEncryptedTwitchAccessToken(t *testing.T) {
+	db := newTestDB(t)
+	cfg := testConfig()
+	cfg.OAuth.TokenEncryptionKey = "oauth-token-encryption-secret"
+	svc := NewAuthService(db, cfg)
+
+	expiry := time.Now().Add(time.Hour)
+	_, _, err := svc.upsertOAuthUser(
+		context.Background(),
+		models.ProviderTwitch,
+		"twitch-broadcaster-1",
+		"twitch-user",
+		"twitch-user@example.com",
+		nil,
+		&oauth2.Token{
+			AccessToken:  "plain-access-token",
+			RefreshToken: "plain-refresh-token",
+			Expiry:       expiry,
+		},
+	)
+	if err != nil {
+		t.Fatalf("upsertOAuthUser: %v", err)
+	}
+
+	var ap models.AuthProvider
+	if err := db.Where("provider = ? AND provider_id = ?", models.ProviderTwitch, "twitch-broadcaster-1").First(&ap).Error; err != nil {
+		t.Fatalf("load auth provider: %v", err)
+	}
+	if ap.AccessToken == nil {
+		t.Fatal("expected encrypted Twitch access token to be persisted")
+	}
+	if *ap.AccessToken == "plain-access-token" || strings.Contains(*ap.AccessToken, "plain-access-token") {
+		t.Fatalf("access token persisted in plaintext: %q", *ap.AccessToken)
+	}
+	if !strings.HasPrefix(*ap.AccessToken, encryptedOAuthTokenPrefix) {
+		t.Fatalf("expected encrypted token prefix %q, got %q", encryptedOAuthTokenPrefix, *ap.AccessToken)
+	}
+	if ap.RefreshToken != nil {
+		t.Fatalf("provider refresh token should not be persisted, got %q", *ap.RefreshToken)
+	}
+
+	decrypted, err := newOAuthTokenCipher(cfg.OAuth.TokenEncryptionKey).decrypt(*ap.AccessToken)
+	if err != nil {
+		t.Fatalf("decrypt persisted token: %v", err)
+	}
+	if decrypted != "plain-access-token" {
+		t.Fatalf("expected decrypted access token, got %q", decrypted)
+	}
+
+	rawJSON, err := json.Marshal(ap)
+	if err != nil {
+		t.Fatalf("marshal auth provider: %v", err)
+	}
+	if strings.Contains(string(rawJSON), "plain-access-token") || strings.Contains(string(rawJSON), *ap.AccessToken) {
+		t.Fatalf("auth provider JSON exposed token material: %s", rawJSON)
+	}
+}
+
+func TestOAuthUser_DoesNotPersistUnusedGoogleTokens(t *testing.T) {
+	db := newTestDB(t)
+	cfg := testConfig()
+	cfg.OAuth.TokenEncryptionKey = "oauth-token-encryption-secret"
+	svc := NewAuthService(db, cfg)
+
+	_, _, err := svc.upsertOAuthUser(
+		context.Background(),
+		models.ProviderGoogle,
+		"google-user-1",
+		"google-user",
+		"google-user@example.com",
+		nil,
+		&oauth2.Token{
+			AccessToken:  "google-access-token",
+			RefreshToken: "google-refresh-token",
+			Expiry:       time.Now().Add(time.Hour),
+		},
+	)
+	if err != nil {
+		t.Fatalf("upsertOAuthUser: %v", err)
+	}
+
+	var ap models.AuthProvider
+	if err := db.Where("provider = ? AND provider_id = ?", models.ProviderGoogle, "google-user-1").First(&ap).Error; err != nil {
+		t.Fatalf("load auth provider: %v", err)
+	}
+	if ap.AccessToken != nil {
+		t.Fatalf("google access token should not be persisted, got %q", *ap.AccessToken)
+	}
+	if ap.RefreshToken != nil {
+		t.Fatalf("google refresh token should not be persisted, got %q", *ap.RefreshToken)
+	}
+	if ap.TokenExpiresAt != nil {
+		t.Fatalf("google token expiry should not be persisted, got %v", ap.TokenExpiresAt)
 	}
 }
 
