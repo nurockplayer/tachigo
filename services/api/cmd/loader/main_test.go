@@ -70,6 +70,16 @@ func TestAtlasLoaderCreatesCompositeReferenceIndexesBeforeForeignKeys(t *testing
 		t.Fatalf("load atlas schema: %v", err)
 	}
 
+	assertCompositeReferenceIndexesBeforeForeignKeys(t, stmts, "loader SQL")
+}
+
+func TestAtlasCustomSchemaCreatesCompositeReferenceIndexesBeforeForeignKeys(t *testing.T) {
+	assertCompositeReferenceIndexesBeforeForeignKeys(t, atlasCustomPostgresSchema(), "custom schema SQL")
+}
+
+func assertCompositeReferenceIndexesBeforeForeignKeys(t *testing.T, stmts, context string) {
+	t.Helper()
+
 	claimIndex := strings.Index(stmts, "CREATE UNIQUE INDEX idx_claims_id_user_id")
 	ledgerIndex := strings.Index(stmts, "CREATE UNIQUE INDEX idx_points_ledgers_id_user_id")
 	txIndex := strings.Index(stmts, "CREATE UNIQUE INDEX idx_points_transactions_id_ledger_id")
@@ -86,17 +96,17 @@ func TestAtlasLoaderCreatesCompositeReferenceIndexesBeforeForeignKeys(t *testing
 		"fk_claim_items_tx_ledger":             txFK,
 	} {
 		if index == -1 {
-			t.Fatalf("loader SQL missing %s", name)
+			t.Fatalf("%s missing %s", context, name)
 		}
 	}
 	if claimIndex > claimFK {
-		t.Fatal("claims composite unique index must be created before claim_items claim/user FK")
+		t.Fatalf("%s must create claims composite unique index before claim_items claim/user FK", context)
 	}
 	if ledgerIndex > ledgerFK {
-		t.Fatal("points_ledgers composite unique index must be created before claim_items ledger/user FK")
+		t.Fatalf("%s must create points_ledgers composite unique index before claim_items ledger/user FK", context)
 	}
 	if txIndex > txFK {
-		t.Fatal("points_transactions composite unique index must be created before claim_items transaction/ledger FK")
+		t.Fatalf("%s must create points_transactions composite unique index before claim_items transaction/ledger FK", context)
 	}
 }
 

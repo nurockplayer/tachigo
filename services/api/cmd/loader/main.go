@@ -45,8 +45,8 @@ func atlasModels() []any {
 func atlasCustomPostgresSchema() string {
 	return strings.Join([]string{
 		atlasCustomPostgresTypes(),
-		atlasCustomPostgresConstraints(),
 		atlasCustomPostgresIndexes(),
+		atlasCustomPostgresConstraints(),
 	}, "\n\n")
 }
 
