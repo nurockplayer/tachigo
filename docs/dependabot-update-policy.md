@@ -19,7 +19,10 @@ that updates an app `package.json` without the matching lockfile changes,
 `dependabot-pnpm-lockfile.yml` repairs the PR branch by running
 `pnpm install --lockfile-only --ignore-scripts --config.shared-workspace-lockfile=false`
 for the touched app. The workflow is limited to same-repository
-`dependabot[bot]` PRs and commits only root/app pnpm lockfile repairs.
+`dependabot[bot]` PRs and commits only root/app pnpm lockfile repairs. When it
+pushes a repair commit with `GITHUB_TOKEN`, it also dispatches the CI workflow
+for the repaired head because `GITHUB_TOKEN` push events do not create new
+`pull_request` or `push` workflow runs.
 
 ## Scheduling
 
