@@ -346,6 +346,77 @@ func migrateTestDB(db *gorm.DB) error {
 	return nil
 }
 
+func TestPublicEndpointRateLimits(t *testing.T) {
+	env := newRouterTestEnv(t)
+
+	tests := []struct {
+		name string
+		path string
+		body string
+	}{
+		{
+			name: "register",
+			path: "/api/v1/auth/register",
+			body: `{}`,
+		},
+		{
+			name: "login",
+			path: "/api/v1/auth/login",
+			body: `{}`,
+		},
+		{
+			name: "forgot password",
+			path: "/api/v1/auth/forgot-password",
+			body: `{}`,
+		},
+		{
+			name: "reset password",
+			path: "/api/v1/auth/reset-password",
+			body: `{}`,
+		},
+		{
+			name: "web3 nonce",
+			path: "/api/v1/auth/web3/nonce",
+			body: `{}`,
+		},
+		{
+			name: "web3 verify",
+			path: "/api/v1/auth/web3/verify",
+			body: `{}`,
+		},
+		{
+			name: "receipt completion",
+			path: "/api/v1/extension/t-point/complete",
+			body: `{}`,
+		},
+		{
+			name: "bits receipt completion",
+			path: "/api/v1/extension/bits/complete",
+			body: `{}`,
+		},
+	}
+
+	for _, tt := range tests {
+		t.Run(tt.name, func(t *testing.T) {
+			for i := 0; i < 70; i++ {
+				req := httptest.NewRequest(http.MethodPost, tt.path, strings.NewReader(tt.body))
+				req.Header.Set("Content-Type", "application/json")
+				rec := httptest.NewRecorder()
+				env.router.ServeHTTP(rec, req)
+
+				if rec.Code == http.StatusTooManyRequests {
+					if !strings.Contains(rec.Body.String(), "rate limit exceeded") {
+						t.Fatalf("want deterministic rate limit error, got %s", rec.Body.String())
+					}
+					return
+				}
+			}
+
+			t.Fatal("expected endpoint to return 429 after repeated requests")
+		})
+	}
+}
+
 func (e *routerTestEnv) tokenForRole(t *testing.T, role models.UserRole, prefix string) (string, string) {
 	t.Helper()
 
