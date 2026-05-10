@@ -1,7 +1,9 @@
 package router
 
 import (
+	"context"
 	"log"
+	"net/http"
 	"time"
 
 	"github.com/gin-gonic/gin"
@@ -41,8 +43,10 @@ func New(
 	internalRouterConfig ...InternalRouterConfig,
 ) *gin.Engine {
 	var cfg *config.Config
+	var db *gorm.DB
 	if len(internalRouterConfig) > 0 {
 		cfg = internalRouterConfig[0].Config
+		db = internalRouterConfig[0].DB
 	}
 
 	if cfg != nil && cfg.Server.GinMode != "" {
@@ -82,9 +86,8 @@ func New(
 	airdropH := handlers.NewAirdropHandler(airdropSvc, agencySvc, streamerSvc)
 	raffleH := handlers.NewRaffleHandler(raffleSvc)
 
-	r.GET("/health", func(c *gin.Context) {
-		c.JSON(200, gin.H{"status": "ok"})
-	})
+	r.GET("/health", healthHandler(db))
+	r.GET("/readyz", readinessHandler(db))
 	if config.ShouldEnableSwagger(cfg) {
 		r.GET("/swagger/*any", ginSwagger.WrapHandler(swaggerFiles.Handler))
 	}
@@ -248,13 +251,12 @@ func New(
 		dashboardAirdrop.POST("/airdrop", airdropH.Airdrop)
 	}
 
-	if len(internalRouterConfig) > 0 &&
-		internalRouterConfig[0].DB != nil &&
-		internalRouterConfig[0].Config != nil &&
-		internalRouterConfig[0].Config.Internal.TachiyaSharedSecret != "" {
-		internalPointsH := handlers.NewInternalPointsHandler(internalRouterConfig[0].DB)
+	if db != nil &&
+		cfg != nil &&
+		cfg.Internal.TachiyaSharedSecret != "" {
+		internalPointsH := handlers.NewInternalPointsHandler(db)
 		internal := v1.Group("/internal/tachiya")
-		internal.Use(middleware.TachiyaInternalAuth(internalRouterConfig[0].Config))
+		internal.Use(middleware.TachiyaInternalAuth(cfg))
 		{
 			internal.GET("/users/points/balance", internalPointsH.GetUserPointsBalance)
 		}
@@ -306,4 +308,44 @@ func New(
 	}
 
 	return r
+}
+
+func healthHandler(db *gorm.DB) gin.HandlerFunc {
+	return func(c *gin.Context) {
+		c.JSON(http.StatusOK, gin.H{
+			"status": "ok",
+			"db":     databaseStatus(c.Request.Context(), db),
+		})
+	}
+}
+
+func readinessHandler(db *gorm.DB) gin.HandlerFunc {
+	return func(c *gin.Context) {
+		if databaseStatus(c.Request.Context(), db) != "ok" {
+			c.JSON(http.StatusServiceUnavailable, gin.H{
+				"status": "unavailable",
+				"db":     "unavailable",
+			})
+			return
+		}
+
+		c.JSON(http.StatusOK, gin.H{
+			"status": "ready",
+			"db":     "ok",
+		})
+	}
+}
+
+func databaseStatus(ctx context.Context, db *gorm.DB) string {
+	if db == nil {
+		return "unavailable"
+	}
+	sqlDB, err := db.DB()
+	if err != nil {
+		return "unavailable"
+	}
+	if err := sqlDB.PingContext(ctx); err != nil {
+		return "unavailable"
+	}
+	return "ok"
 }
