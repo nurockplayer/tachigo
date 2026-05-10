@@ -29,7 +29,6 @@
 - 不得移除 GORM model structs；`atlas-provider-gorm` 仍需要讀取它們。
 - 不得把 production deploy automation 或 rollback automation 混進 `#463`；issue 已明確排除。
 - 任何改變 runtime schema 行為的 PR，都必須在 PR body 補 staging 驗證說明。
-- CI 使用 official/latest Atlas CLI 驗證 `external_schema` / GORM loader，並對 ephemeral PostgreSQL 執行完整 `atlas migrate apply`；不再使用 `migrate lint` 或 Community binary。
 
 ## PR 拆分順序
 
@@ -163,7 +162,7 @@ refs #463
 Co-Authored-By: Codex <codex[bot]@openai.com>
 ```
 
-### PR 4：Remove Runtime AutoMigrate After Reconciliation Migration（範圍完成於 PR `#588`）
+### PR 4：Remove Runtime AutoMigrate After Reconciliation Migration（範圍完成於 PR `#588`；deploy follow-up `#212`）
 
 **目的：** 讓 Atlas 成為 runtime schema owner。
 
@@ -182,14 +181,8 @@ Co-Authored-By: Codex <codex[bot]@openai.com>
 **Implementation Steps：**
 
 - [x] 從 server startup 移除 `db.AutoMigrate(...)`（PR `#588`）。
-- [x] 移除已由 Atlas migration 表達的 manual schema patches（PR `#588`）。
-- [x] 只保留非 schema 的 runtime data repair code：legacy raffle claim token hash repair（PR `#588`）。
-- [x] 新增 startup guard test，明確防止 API process 再執行 schema DDL（PR `#588`）。
+- [x] Manual schema patches 已移入 Atlas；legacy raffle token hash repair 保留為非 schema data repair；startup guard test 防止 API process 再執行 schema DDL（PR `#588`）。
 
-**Follow-up / Owner / Issue：**
-
-- Production deploy automation 仍不屬於 `#463`，由 `#212` 追蹤；上線前需要把同一個 `atlas migrate apply` path 接進部署 workflow/runbook。
-- 既有舊 dev volume 若沒有 `atlas_schema_revisions`，由 operator reset 或手動 baseline；本專案尚未正式上線，不在 PR `#588` 內自動推斷任意歷史 DB 狀態。
 
 **Verification：**
 
@@ -216,13 +209,11 @@ Co-Authored-By: Codex <codex[bot]@openai.com>
 
 背景：`atlas migrate lint` 從 v0.38 起限 Pro 授權。原本 pin 在 v0.37.0 是為了繼續免費用 lint。經 Claude Code + Codex 討論，新專案不值得為此維護版本 pin。
 
-此處的「official/latest，不 pin」只適用於 CI 的 `atlas-migration-tooling` apply job；Docker dev/runtime stages 仍刻意透過 `ATLAS_VERSION=1.2.0` pin runtime CLI，讓容器啟動路徑可控且可重現。
-
 ### 決定採用的 CI 方案
 
 | 步驟 | 做法 | 理由 |
 |---|---|---|
-| CI Atlas 版本 | official/latest，不 pin | 解除 CI lint-era 版本鎖，不依賴 Community binary |
+| CI Atlas 版本 | official/latest，不 pin（僅 CI；Docker runtime 另以 `ATLAS_VERSION=1.2.0` pin） | 解除 CI lint-era 版本鎖，不依賴 Community binary |
 | GORM loader 驗證 | `atlas schema inspect --env gorm --url env://src` | 確認 external_schema + loader 正常運作 |
 | Migration apply | `atlas migrate apply --dir file://migrations --url postgres://...` 對 ephemeral Postgres | 比 lint 更接近真實；apply 本身會驗 atlas.sum checksum |
 | Checksum drift | apply 失敗即可抓到，不另跑 `hash --check`（該 flag 不存在） | apply 已內建此保護 |
@@ -231,7 +222,6 @@ Co-Authored-By: Codex <codex[bot]@openai.com>
 **明確不做：**
 - 不使用 `migrate lint`（Pro gate）
 - 不使用 Community binary（不支援 `external_schema`）
-- 不 pin 舊版 official binary
 
 ### 已實作項目
 
