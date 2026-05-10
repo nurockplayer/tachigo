@@ -8,9 +8,9 @@ import (
 )
 
 const (
-	defaultJWTAccessSecret  = "change-me-access-secret"
-	defaultJWTRefreshSecret = "change-me-refresh-secret"
-	minJWTSecretLength      = 32
+	defaultJWTAccessSecret    = "change-me-access-secret"
+	defaultJWTRefreshSecret   = "change-me-refresh-secret"
+	minJWTSecretLength        = 32
 	defaultSepoliaRPCEndpoint = "https://ethereum-sepolia-rpc.publicnode.com"
 )
 

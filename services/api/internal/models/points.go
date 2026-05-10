@@ -13,8 +13,8 @@ type TxSource string
 const (
 	// TxSourceBits is the legacy DB value kept for backward-compat reads.
 	// Deprecated: use TxSourceTPoint for new writes.
-	TxSourceBits  TxSource = "bits"
-	TxSourceTPoint TxSource = "t_point"
+	TxSourceBits      TxSource = "bits"
+	TxSourceTPoint    TxSource = "t_point"
 	TxSourceWatchTime TxSource = "watch_time"
 	TxSourceClick     TxSource = "click"
 	TxSourceSpend     TxSource = "spend"
