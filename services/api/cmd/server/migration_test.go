@@ -62,6 +62,7 @@ func TestMigration020ReconcilesAtlasBaselineOwnership(t *testing.T) {
 		"idx_claims_id_user_id",
 		"idx_points_ledgers_id_user_id",
 		"idx_points_transactions_id_ledger_id",
+		"invalid coupon_redemptions rows detected",
 		"fk_claim_items_claim_user",
 		"fk_claim_items_ledger_user",
 		"fk_claim_items_tx_ledger",

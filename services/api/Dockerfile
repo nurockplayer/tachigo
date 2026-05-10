@@ -1,5 +1,6 @@
 # ── Atlas stage ───────────────────────────────────────────────────────────────
-FROM arigaio/atlas:latest AS atlas
+ARG ATLAS_VERSION=1.2.0
+FROM arigaio/atlas:${ATLAS_VERSION} AS atlas
 
 # ── Dev stage ─────────────────────────────────────────────────────────────────
 FROM golang:1.25-alpine AS dev

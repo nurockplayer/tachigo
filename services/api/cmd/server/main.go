@@ -30,8 +30,6 @@ import (
 	"gorm.io/gorm"
 )
 
-const defaultSepoliaRPCURL = "https://ethereum-sepolia-rpc.publicnode.com"
-
 func main() {
 	// Load .env (ignore error in production where env is set externally)
 	_ = godotenv.Load()
@@ -45,8 +43,11 @@ func main() {
 
 	db := database.Connect(cfg.Database.DSN)
 
-	if err := hashLegacyRaffleClaimTokens(db); err != nil {
-		log.Fatalf("failed to hash existing claim tokens: %v", err)
+	hashCtx, hashCancel := context.WithTimeout(context.Background(), 30*time.Second)
+	hashErr := hashLegacyRaffleClaimTokens(hashCtx, db)
+	hashCancel()
+	if hashErr != nil {
+		log.Fatalf("failed to hash existing claim tokens: %v", hashErr)
 	}
 
 	// Wire services
@@ -62,13 +63,12 @@ func main() {
 	streamerSvc := services.NewStreamerService(db, pointsSvc)
 	agencySvc := services.NewAgencyService(db)
 	airdropSvc := services.NewAirdropService(db, pointsSvc, channelConfigSvc)
-	// TODO: move Sepolia RPC URL into config.Contract.RPCEndpoint once config schema is extended.
 	var ethClient *ethclient.Client
 	if cfg.Contract.TachiContractAddress != "" && cfg.Contract.SepoliaSignerKey != "" {
 		var err error
 		dialCtx, dialCancel := context.WithTimeout(context.Background(), 10*time.Second)
 		defer dialCancel()
-		ethClient, err = ethclient.DialContext(dialCtx, defaultSepoliaRPCURL)
+		ethClient, err = ethclient.DialContext(dialCtx, cfg.Contract.RPCEndpoint)
 		if err != nil {
 			log.Printf("warning: failed to connect Sepolia RPC: %v", err)
 			ethClient = nil
@@ -121,10 +121,10 @@ func main() {
 	}
 }
 
-func hashLegacyRaffleClaimTokens(db *gorm.DB) error {
+func hashLegacyRaffleClaimTokens(ctx context.Context, db *gorm.DB) error {
 	// claim_token was previously a raw UUIDv7 (36 chars); it now stores the
 	// SHA-256 hex digest (64 chars). This idempotent repair is data-only.
-	return db.Exec(`
+	return db.WithContext(ctx).Exec(`
 		UPDATE raffle_draws
 		SET claim_token = encode(sha256(claim_token::bytea), 'hex')
 		WHERE length(claim_token) = 36

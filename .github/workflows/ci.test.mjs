@@ -698,7 +698,8 @@ test('backend Docker runtime applies Atlas migrations before starting the API', 
   const compose = await readFile(dockerComposePath, 'utf8')
   const composeOverride = await readFile(dockerComposeOverridePath, 'utf8')
 
-  assert.match(dockerfile, /FROM arigaio\/atlas:latest AS atlas/)
+  assert.match(dockerfile, /ARG ATLAS_VERSION=1\.2\.0\nFROM arigaio\/atlas:\$\{ATLAS_VERSION\} AS atlas/)
+  assert.doesNotMatch(dockerfile, /FROM arigaio\/atlas:latest/)
   assert.equal(
     (dockerfile.match(/COPY --from=atlas \/atlas \/usr\/local\/bin\/atlas/g) ?? []).length,
     2,

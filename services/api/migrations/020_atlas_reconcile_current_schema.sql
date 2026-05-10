@@ -49,23 +49,18 @@ BEGIN
     IF NOT EXISTS (
         SELECT 1 FROM pg_constraint WHERE conname = 'fk_tachi_balances_user_id'
     ) THEN
-        ALTER TABLE tachi_balances
-            ADD CONSTRAINT fk_tachi_balances_user_id
-            FOREIGN KEY (user_id) REFERENCES users(id) ON DELETE CASCADE;
+        ALTER TABLE tachi_balances ADD CONSTRAINT fk_tachi_balances_user_id FOREIGN KEY (user_id) REFERENCES users(id) ON DELETE CASCADE;
     END IF;
 END $$;
 
-ALTER TABLE streamers
-    ADD COLUMN IF NOT EXISTS agency_user_id UUID;
+ALTER TABLE streamers ADD COLUMN IF NOT EXISTS agency_user_id UUID;
 
 DO $$
 BEGIN
     IF NOT EXISTS (
         SELECT 1 FROM pg_constraint WHERE conname = 'fk_streamers_agency_user_id'
     ) THEN
-        ALTER TABLE streamers
-            ADD CONSTRAINT fk_streamers_agency_user_id
-            FOREIGN KEY (agency_user_id) REFERENCES users(id);
+        ALTER TABLE streamers ADD CONSTRAINT fk_streamers_agency_user_id FOREIGN KEY (agency_user_id) REFERENCES users(id);
     END IF;
 END $$;
 
@@ -80,13 +75,19 @@ CREATE UNIQUE INDEX IF NOT EXISTS idx_points_transactions_external_transaction_i
 CREATE UNIQUE INDEX IF NOT EXISTS idx_claims_tx_hash_not_null ON claims (tx_hash) WHERE tx_hash IS NOT NULL;
 
 DO $$
+DECLARE invalid_amount_count INTEGER; invalid_status_count INTEGER;
+BEGIN
+    SELECT COUNT(*) INTO invalid_amount_count FROM coupon_redemptions WHERE amount <= 0;
+    SELECT COUNT(*) INTO invalid_status_count FROM coupon_redemptions WHERE status NOT IN ('pending','redeemed','compensation-needed');
+    IF invalid_amount_count > 0 OR invalid_status_count > 0 THEN RAISE EXCEPTION 'migration 020 blocked: invalid coupon_redemptions rows detected (amount_le_0=%, invalid_status=%). resolve data before re-running migration', invalid_amount_count, invalid_status_count; END IF;
+END $$;
+
+DO $$
 BEGIN
     IF NOT EXISTS (
         SELECT 1 FROM pg_constraint WHERE conname = 'chk_coupon_redemptions_amount_gt_0'
     ) THEN
-        ALTER TABLE coupon_redemptions
-            ADD CONSTRAINT chk_coupon_redemptions_amount_gt_0
-            CHECK (amount > 0);
+        ALTER TABLE coupon_redemptions ADD CONSTRAINT chk_coupon_redemptions_amount_gt_0 CHECK (amount > 0);
     END IF;
 END $$;
 
@@ -95,9 +96,7 @@ BEGIN
     IF NOT EXISTS (
         SELECT 1 FROM pg_constraint WHERE conname = 'chk_coupon_redemptions_status'
     ) THEN
-        ALTER TABLE coupon_redemptions
-            ADD CONSTRAINT chk_coupon_redemptions_status
-            CHECK (status IN ('pending','redeemed','compensation-needed'));
+        ALTER TABLE coupon_redemptions ADD CONSTRAINT chk_coupon_redemptions_status CHECK (status IN ('pending','redeemed','compensation-needed'));
     END IF;
 END $$;
 
@@ -110,8 +109,7 @@ CREATE UNIQUE INDEX IF NOT EXISTS idx_points_ledgers_id_user_id ON points_ledger
 
 CREATE UNIQUE INDEX IF NOT EXISTS idx_points_transactions_id_ledger_id ON points_transactions (id, ledger_id);
 
-ALTER TABLE claim_items
-    ADD COLUMN IF NOT EXISTS claim_user_id UUID;
+ALTER TABLE claim_items ADD COLUMN IF NOT EXISTS claim_user_id UUID;
 
 DO $$
 DECLARE

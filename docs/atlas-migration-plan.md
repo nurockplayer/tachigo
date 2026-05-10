@@ -230,7 +230,7 @@ Co-Authored-By: Codex <codex[bot]@openai.com>
 
 - [x] `ci.yml` 的 `atlas-migration-tooling` job 改成 apply 方案（移除舊版 pin、Community binary 與 lint step）
 - [x] 加 ephemeral Postgres service 給 Atlas apply job 用
-- [x] Docker image 的 dev/runtime stages 都透過 `arigaio/atlas:latest` stage 帶入 official/latest Atlas CLI，entrypoint 會先執行 `atlas migrate apply`，`docker-compose.yml` 提供 `ATLAS_DATABASE_URL`
+- [x] Docker image 的 dev/runtime stages 都透過可覆寫的 `ATLAS_VERSION=1.2.0` Atlas stage 帶入版本化 CLI，entrypoint 會先執行 `atlas migrate apply`，`docker-compose.yml` 提供 `ATLAS_DATABASE_URL`
 - [x] `services/api/Makefile` 加入 `make migrate`，提供本機 CLI apply path
 - [x] 加 destructive DDL grep guard；需要同行或前一行 `-- atlas:nolint` 才允許 destructive statement
 

@@ -32,7 +32,16 @@ func TestServerStartupDoesNotRunSchemaDDL(t *testing.T) {
 			t.Fatalf("server startup must not run schema DDL %q after Atlas owns migrations", forbidden)
 		}
 	}
-	if !strings.Contains(source, "hashLegacyRaffleClaimTokens(db)") {
+	if !strings.Contains(source, "hashLegacyRaffleClaimTokens(hashCtx, db)") {
 		t.Fatalf("server startup should keep the non-schema raffle claim token data repair")
+	}
+	if !strings.Contains(source, "db.WithContext(ctx).Exec") {
+		t.Fatalf("legacy raffle claim token repair must respect startup timeout context")
+	}
+	if !strings.Contains(source, "ethclient.DialContext(dialCtx, cfg.Contract.RPCEndpoint)") {
+		t.Fatalf("server startup must use configured Sepolia RPC endpoint")
+	}
+	if strings.Contains(source, "defaultSepoliaRPCURL") {
+		t.Fatalf("server startup must not bypass config.Contract.RPCEndpoint with a hard-coded RPC URL")
 	}
 }
