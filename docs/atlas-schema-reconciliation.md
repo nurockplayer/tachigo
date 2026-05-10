@@ -9,9 +9,9 @@
 | Source | Path | Role | Current Status |
 |---|---|---|---|
 | Historical SQL migrations | `services/api/migrations/001_init.sql` through `019_coupon_redemptions.sql` | 手寫 schema history | 檔案存在於 repo；issue `#463` 指的是正式 migration tool / 自動流程尚未建立。本文件的 validation run 以手動 sequential replay 方式把 `001-019` 套到 clean DB。 |
-| GORM models | `services/api/internal/models/*.go` | Application schema model | 目前 `AutoMigrate` source。包含部分沒有完整出現在 `001-019` 的表。 |
-| Runtime schema patches | `services/api/cmd/server/main.go` | Startup-time DDL 與 data repair | API startup 仍會執行。這些 patch 必須遷移到 Atlas，或明確保留為非 schema runtime work。 |
-| Atlas config | `services/api/atlas.hcl` | 未來 schema diff entrypoint | PR `#491` 已加入，使用 `external_schema` 執行 `go run -mod=mod ./cmd/loader`。 |
+| GORM models | `services/api/internal/models/*.go` | Application schema model | 過去是 `AutoMigrate` source；本階段也作為 Atlas GORM loader 的 schema source。包含部分沒有完整出現在 `001-019` 的表。 |
+| Runtime schema patches | `services/api/cmd/server/main.go` | Startup-time DDL 與 data repair | Schema DDL 已由 Atlas migration / loader 補齊目標 state；API startup 移除留給後續 runtime ownership PR。 |
+| Atlas config | `services/api/atlas.hcl` | schema diff entrypoint | PR `#491` 已加入，使用 `external_schema` 執行 `go run -mod=mod ./cmd/loader`。 |
 | Closed attempt | PR `#476` | 前一次 implementation attempt | 已關閉，原因是 tooling、baseline、runtime migration strategy 被包在同一顆 PR，且 baseline 假設不安全。 |
 
 ## Validation Run: 2026-05-04
@@ -43,7 +43,7 @@
 | Runtime AutoMigrate vs Atlas loader tables | Exact match. | Loader is a usable table/column source for current models. |
 | Runtime AutoMigrate vs Atlas loader columns | Exact match. | Column-level runtime drift is not currently between runtime and loader; major column drift is between historical SQL and runtime/loader. |
 | Runtime AutoMigrate vs Atlas loader enum labels/order | Exact match: `viewer`, `streamer`, `agency`, `admin`. | This is current fresh-create runtime order, not proof that production/migrated enum order should be rebuilt. |
-| Runtime AutoMigrate vs Atlas loader constraints | Loader is missing runtime `fk_streamers_agency_user_id`. | Fix loader or add an explicit GORM association before generating baseline from loader. |
+| Runtime AutoMigrate vs Atlas loader constraints | Loader now preserves runtime `fk_streamers_agency_user_id` plus claim composite invariants. | Loader is the desired schema source for Atlas diff after migration `020`. |
 | Runtime AutoMigrate vs Atlas loader indexes | Loader adds `idx_auth_providers_provider_provider_id_active` and `idx_auth_providers_web3_user_active`; runtime fresh-create does not. | Preserve these historical soft-delete invariants in Atlas; do not remove just because runtime fresh-create lacks them. |
 
 ## Verified Reconciliation Gaps
@@ -52,7 +52,7 @@
 |---|---|---|---|
 | Tables absent from `001-019` | Runtime/loader have `broadcast_time_logs`, `broadcast_time_stats`, `watch_time_stats`, `raffles`, `raffle_entries`, `raffle_draws`, `raffle_claims`; migration-only DB does not. | model drift | Baseline must account for these tables. For existing AutoMigrate-created environments, emitting bare `CREATE TABLE` without guards is unsafe. |
 | `user_role` enum order | Migration path produces `viewer`, `streamer`, `admin`, `agency`; runtime/loader fresh-create produces `viewer`, `streamer`, `agency`, `admin`. | false-drift risk | Preserve the label set. Do not create enum rebuild or reorder migration solely to normalize order. PR body for baseline must say whether it targets migrated order, fresh-create order, or explicitly accepts both. |
-| `streamers.agency_user_id` FK | Runtime has `fk_streamers_agency_user_id`; loader does not. Migration `011_streamers_agency.sql` and runtime `applyStreamerAgencyMigration` both create it. | runtime patch missing from loader | Must be added to Atlas desired schema before baseline generation, either in loader custom constraints or via an explicit model association. |
+| `streamers.agency_user_id` FK | Runtime has `fk_streamers_agency_user_id`; migration `011_streamers_agency.sql` and runtime `applyStreamerAgencyMigration` both create it. | runtime patch migrated to Atlas | Preserved in Atlas loader and migration `020`; server startup can remove this DDL in the runtime ownership PR. |
 | Auth provider soft-delete uniqueness | Migration `014_auth_provider_partial_unique.sql` and loader preserve `idx_auth_providers_provider_provider_id_active` and `idx_auth_providers_web3_user_active`; runtime fresh-create lacks them. | historical invariant not in runtime fresh-create | Keep these indexes in Atlas. They protect wallet/login rebinding semantics for soft-deleted auth providers. |
 | Claim composite consistency | Migration `016_claims_composite_fk.sql` adds `claim_user_id`, composite FKs `fk_claim_items_claim_user`, `fk_claim_items_ledger_user`, `fk_claim_items_tx_ledger`, and supporting unique indexes. Runtime/loader keep `claim_user_id` but do not recreate the composite FKs/supporting unique indexes. | historical invariant not in runtime/loader | Do not drop silently. Either port these invariants into Atlas desired schema or open an issue-backed service decision to remove them. |
 | Claim transaction hash uniqueness | Migration `015_claims.sql` creates partial unique `idx_claims_tx_hash_not_null`; runtime/loader do not. | historical invariant not in runtime/loader | Treat as preserve-by-default until claim service review confirms duplicate tx hashes are harmless. |
@@ -64,19 +64,21 @@
 
 ## Current Runtime DDL In `cmd/server/main.go`
 
+Server startup 目前仍同時負責 schema DDL 與一次性 data repair。`020_atlas_reconcile_current_schema.sql` 與 loader custom SQL 已補齊目標 schema state；下一個 runtime ownership PR 才能移除這些 schema DDL。
+
 | Runtime Behavior | Current Code | Reconciliation Decision |
 |---|---|---|
 | 建立 `user_role` enum | `initializeUserRoleEnum` fresh-create 目前建立 `('viewer', 'streamer', 'agency', 'admin')`，但既有資料庫若由 `001_init.sql` 建立後再跑 `004_rbac_roles.sql`，實際 order 是 `('viewer', 'streamer', 'admin', 'agency')`；型別已存在時只會補 `agency`，不會重排。 | 必須保留 label set。Atlas reconciliation 不得把 enum order mismatch 視為必須重建 enum 的 drift；baseline 應以 production/migrated order 為準，或明確接受雙態。 |
-| 執行 GORM `AutoMigrate` | `db.AutoMigrate(...)` 套用所有 models。 | 只能在 Atlas baseline 已於 staging 驗證後移除。 |
-| 補 `tachi_balances.user_id` FK | 手寫 `ALTER TABLE tachi_balances ADD CONSTRAINT fk_tachi_balances_user_id`。 | 必須以 Atlas migration 或 model association 保留。 |
-| 補 coupon redemption checks | `ensureCouponRedemptionRuntimeSchema` 增加 amount/status constraints。 | 必須保留於 Atlas migration。 |
-| 補 coupon compensation index | `coupon_redemptions(status)` 的 partial index，條件為 status = `compensation-needed`。 | 若 query behavior 仍依賴它，必須保留。 |
-| 補 active watch session uniqueness | Partial unique index `idx_watch_sessions_active_user_channel`。 | 必須保留。這是 concurrency invariant，不只是效能 index。 |
-| 補 points ledger uniqueness | Unique index `idx_points_ledgers_user_channel`。 | 必須保留。watch heartbeat upsert 依賴 `ON CONFLICT (user_id, channel_id)`。 |
-| 補 external transaction uniqueness | Partial unique index `idx_points_transactions_external_transaction_id`。 | 除非另開 issue 移除 idempotency guarantee，否則必須保留。 |
-| 補 streamer uniqueness | Unique index `idx_streamers_user_channel`。 | 必須保留，除非有等價 constraint 取代。 |
-| 執行 streamer agency migration | `applyStreamerAgencyMigration(db)`。 | 需與 migrations `010`、`011` 比對，缺漏部分要保留到 Atlas。 |
-| Hash raffle claim tokens | 將 36-char token 一次性轉成 SHA-256 hex。 | 與 schema migration 分開處理。只有 production data 仍需要此 repair 時才保留。 |
+| 執行 GORM `AutoMigrate` | `db.AutoMigrate(...)` 套用所有 models。 | `020` 已補齊 migration directory target；移除留給 runtime ownership PR。 |
+| 補 `tachi_balances.user_id` FK | 手寫 `ALTER TABLE tachi_balances ADD CONSTRAINT fk_tachi_balances_user_id`。 | 已由 Atlas migration / loader 保留；後續 runtime PR 可移除。 |
+| 補 coupon redemption checks | `ensureCouponRedemptionRuntimeSchema` 增加 amount/status constraints。 | 已由 Atlas migration 保留；後續 runtime PR 可移除。 |
+| 補 coupon compensation index | `coupon_redemptions(status)` 的 partial index，條件為 status = `compensation-needed`。 | 已由 Atlas migration 保留；後續 runtime PR 可移除。 |
+| 補 active watch session uniqueness | Partial unique index `idx_watch_sessions_active_user_channel`。 | 已由 historical migration / Atlas schema source 保留；這是 concurrency invariant，不只是效能 index。 |
+| 補 points ledger uniqueness | Unique index `idx_points_ledgers_user_channel`。 | 已由 Atlas migration 保留；watch heartbeat upsert 依賴 `ON CONFLICT (user_id, channel_id)`。 |
+| 補 external transaction uniqueness | Partial unique index `idx_points_transactions_external_transaction_id`。 | 已由 Atlas migration 保留；除非另開 issue 移除 idempotency guarantee，否則必須保留。 |
+| 補 streamer uniqueness | Unique index `idx_streamers_user_channel`。 | 已由 Atlas migration 保留，除非有等價 constraint 取代。 |
+| 執行 streamer agency migration | `applyStreamerAgencyMigration(db)`。 | 已由 migrations `010`、`011`、`020` 與 loader custom SQL 覆蓋；後續 runtime PR 可移除。 |
+| Hash raffle claim tokens | 仍保留於 server startup，將 36-char token 一次性轉成 SHA-256 hex。 | 與 schema migration 分開處理。只有 production data 仍需要此 repair 時才保留。 |
 
 ## Historical Migration Inventory
 
@@ -109,12 +111,14 @@
 | Area | Evidence | Risk | Required Decision |
 |---|---|---|---|
 | Baseline strategy | Runtime/loader have 24 tables, historical migrations have 17. Some historical constraints are stricter than runtime/loader. | A single naive diff can either fail on existing tables or silently drop historical invariants. | PR body must choose `import baseline` or `apply-safe baseline`, and say which source state represents the deployed target. |
-| Production/staging catalog | This document only proves clean migration path, clean runtime path, and loader path. | The actual deployed database may match runtime, historical SQL, or a mixed state after years of AutoMigrate/runtime patches. | Before removing `AutoMigrate`, dump staging/current schema and compare it with the selected baseline target. |
-| Loader completeness | Loader currently misses `fk_streamers_agency_user_id`, while runtime creates it. | Atlas-generated baseline could omit a runtime FK that exists in server startup today. | Fix loader desired schema before using it for `atlas migrate diff`. |
-| Historical invariants | Claim composite FKs, claim tx hash uniqueness, cascade behavior, and auth soft-delete indexes are not all expressible from plain GORM tags. | Atlas may generate destructive drift if these are absent from desired schema. | Preserve by hand in loader/baseline, or document issue-backed removal decisions before PR3. |
+| Production/staging catalog | This document only proves clean migration path, clean runtime path, and loader path. | The actual deployed database may match runtime, historical SQL, or a mixed state after years of AutoMigrate/runtime patches. | Before production deploy, dump staging/current schema and compare it with the selected baseline target or create an explicit baseline procedure. |
+| Loader completeness | Loader preserves `fk_streamers_agency_user_id`, runtime partial indexes, claim tx hash uniqueness, and claim composite FKs. | Any future GORM-only diff could still miss invariants not represented by tags. | Keep non-GORM invariants in loader custom SQL and tests. |
+| Historical invariants | Claim composite FKs, claim tx hash uniqueness, cascade behavior, and auth soft-delete indexes are not all expressible from plain GORM tags. | Atlas may generate destructive drift if these are removed from desired schema. | Migration `020` preserves the reviewed high-risk invariants; future removals need issue-backed service decisions. |
 | Runtime data migration | Server startup hashes 36-char raffle claim tokens. | Schema migration work could leave unrelated data repair hidden in runtime forever. | Decide separately whether production still needs this repair; do not bury it in baseline SQL. |
 
 ## Reconciliation Procedure
+
+以下程序記錄 2026-05-04 產生 reconciliation 文件時的驗證方式。本階段日常驗證以 Atlas loader inspect 與 migration apply 為準；「runtime AutoMigrate state」比較仍代表移除 runtime DDL 前的 server startup target。
 
 產生任何 baseline migration 前，先完成以下程序：
 
@@ -139,7 +143,7 @@
    pg_dump --schema-only --no-owner --no-privileges --schema=public "$MIGRATIONS_DATABASE_URL" > /tmp/tachigo-sql-migrations-schema.sql
    ```
 
-4. 建立 runtime AutoMigrate state。用第二個乾淨 DB 啟動目前 API，等待 server startup 完成後停止 process；startup 會執行 enum init、`AutoMigrate`、manual schema patches 與 runtime data repair：
+4. 建立 runtime AutoMigrate state。用第二個乾淨 DB 啟動當時尚未移除 `AutoMigrate` 的 API，等待 server startup 完成後停止 process；startup 會執行 enum init、`AutoMigrate`、manual schema patches 與 runtime data repair：
 
    ```bash
    cd services/api
@@ -190,17 +194,17 @@
 
 ## Baseline Strategy Decision Record
 
-Baseline PR commit SQL 前，必須先在 PR body 選定 baseline strategy。
+Baseline strategy is **apply-safe reconciliation**. The repo keeps `001-019` as historical migration history and adds `020_atlas_reconcile_current_schema.sql` as a guarded reconciliation migration. New databases can apply `001-020`; existing databases shaped by AutoMigrate/runtime patches should not receive a full schema replay.
 
 | Strategy | Use When | Required Proof |
 |---|---|---|
 | Import baseline | 既有環境已經透過 AutoMigrate 與 runtime patches 擁有目標 schema。 | Atlas history 可標記既有狀態，不會把 unsafe `CREATE TABLE` 重套到既有 DB。 |
-| Apply-safe baseline | 既有環境需要 SQL 從已知 current state reconcile。 | Migration 可同時套用到 clean migration DB 與已跑過目前 `AutoMigrate` 的 DB。 |
+| Apply-safe baseline | 既有環境需要 SQL 從已知 current state reconcile。 | Migration 可同時套用到 clean migration DB 與已跑過目前 `AutoMigrate` 的 DB；本 repo 採用此策略。 |
 
 ## Completion Criteria
 
-- [ ] `001-019` 中每個 table/index 都已被保留、明確替代，或用 issue-backed rationale 明確移除。
-- [ ] `cmd/server/main.go` 中每個 runtime schema patch 都已進入 Atlas，或被記錄為刻意保留的非 schema runtime behavior。
-- [ ] Raffle/watch/broadcast tables 已有安全 baseline strategy，且有考慮 AutoMigrate 可能已建表。
-- [ ] Atlas loader output 包含或保留 GORM 無法表達的 invariants。
-- [ ] `AutoMigrate` removal 被 baseline staging validation 阻擋，不能提前執行。
+- [x] `001-019` 中的 high-risk table/index invariants 已被保留、明確替代，或列為後續 issue-backed service decision。
+- [x] `cmd/server/main.go` 中的 schema patches 已進入 Atlas migration/loader；legacy raffle token hash 保留為非 schema runtime data repair。
+- [x] Raffle/watch/broadcast tables 已有 guarded reconciliation migration，且有考慮 AutoMigrate 可能已建表。
+- [x] Atlas loader output 包含或保留 GORM 無法表達的 high-risk invariants。
+- [ ] `AutoMigrate` 已在 Atlas reconciliation migration 落地後從 server startup 移除。（runtime ownership PR scope）
