@@ -2361,10 +2361,18 @@ const docTemplate = `{
             "type": "object",
             "properties": {
                 "tokens": {
-                    "$ref": "#/definitions/services.TokenPair"
+                    "$ref": "#/definitions/handlers.BrowserTokenPair"
                 },
                 "user": {
                     "$ref": "#/definitions/models.User"
+                }
+            }
+        },
+        "handlers.BrowserTokenPair": {
+            "type": "object",
+            "properties": {
+                "access_token": {
+                    "type": "string"
                 }
             }
         },
@@ -2461,7 +2469,7 @@ const docTemplate = `{
             "type": "object",
             "properties": {
                 "tokens": {
-                    "$ref": "#/definitions/services.TokenPair"
+                    "$ref": "#/definitions/handlers.BrowserTokenPair"
                 }
             }
         },
@@ -2790,21 +2798,6 @@ const docTemplate = `{
                     "type": "string",
                     "maxLength": 50,
                     "minLength": 3
-                }
-            }
-        },
-        "services.TokenPair": {
-            "type": "object",
-            "properties": {
-                "access_token": {
-                    "type": "string"
-                },
-                "expires_in": {
-                    "description": "seconds",
-                    "type": "integer"
-                },
-                "refresh_token": {
-                    "type": "string"
                 }
             }
         },

@@ -15,9 +15,14 @@ definitions:
   handlers.AuthResponse:
     properties:
       tokens:
-        $ref: '#/definitions/services.TokenPair'
+        $ref: '#/definitions/handlers.BrowserTokenPair'
       user:
         $ref: '#/definitions/models.User'
+    type: object
+  handlers.BrowserTokenPair:
+    properties:
+      access_token:
+        type: string
     type: object
   handlers.MessageResponse:
     properties:
@@ -80,7 +85,7 @@ definitions:
   handlers.TokensResponse:
     properties:
       tokens:
-        $ref: '#/definitions/services.TokenPair'
+        $ref: '#/definitions/handlers.BrowserTokenPair'
     type: object
   handlers.UserResponse:
     properties:
@@ -304,16 +309,6 @@ definitions:
     - email
     - password
     - username
-    type: object
-  services.TokenPair:
-    properties:
-      access_token:
-        type: string
-      expires_in:
-        description: seconds
-        type: integer
-      refresh_token:
-        type: string
     type: object
   services.UpdateProfileInput:
     properties:

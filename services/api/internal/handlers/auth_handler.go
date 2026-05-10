@@ -85,7 +85,7 @@ func (h *AuthHandler) Register(c *gin.Context) {
 	}
 
 	h.setRefreshCookie(c, tokens.RefreshToken)
-	created(c, gin.H{"user": user, "tokens": tokens})
+	created(c, gin.H{"user": user, "tokens": browserTokenPair(tokens)})
 }
 
 // Login godoc
@@ -116,7 +116,7 @@ func (h *AuthHandler) Login(c *gin.Context) {
 	}
 
 	h.setRefreshCookie(c, tokens.RefreshToken)
-	ok(c, gin.H{"user": user, "tokens": tokens})
+	ok(c, gin.H{"user": user, "tokens": browserTokenPair(tokens)})
 }
 
 // Refresh godoc
@@ -147,7 +147,7 @@ func (h *AuthHandler) Refresh(c *gin.Context) {
 	}
 
 	h.setRefreshCookie(c, tokens.RefreshToken)
-	ok(c, gin.H{"tokens": tokens})
+	ok(c, gin.H{"tokens": browserTokenPair(tokens)})
 }
 
 // Logout godoc
@@ -207,7 +207,7 @@ func (h *AuthHandler) TwitchCallback(c *gin.Context) {
 	}
 
 	h.setRefreshCookie(c, tokens.RefreshToken)
-	ok(c, gin.H{"user": user, "tokens": tokens})
+	ok(c, gin.H{"user": user, "tokens": browserTokenPair(tokens)})
 }
 
 // GoogleLogin godoc
@@ -246,7 +246,7 @@ func (h *AuthHandler) GoogleCallback(c *gin.Context) {
 	}
 
 	h.setRefreshCookie(c, tokens.RefreshToken)
-	ok(c, gin.H{"user": user, "tokens": tokens})
+	ok(c, gin.H{"user": user, "tokens": browserTokenPair(tokens)})
 }
 
 // Web3Nonce godoc
@@ -311,7 +311,7 @@ func (h *AuthHandler) Web3Verify(c *gin.Context) {
 	}
 
 	h.setRefreshCookie(c, tokens.RefreshToken)
-	ok(c, gin.H{"user": user, "tokens": tokens})
+	ok(c, gin.H{"user": user, "tokens": browserTokenPair(tokens)})
 }
 
 // UnlinkProvider godoc

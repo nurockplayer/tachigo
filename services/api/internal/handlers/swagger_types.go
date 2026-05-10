@@ -4,18 +4,17 @@ import (
 	"time"
 
 	"github.com/tachigo/tachigo/internal/models"
-	"github.com/tachigo/tachigo/internal/services"
 )
 
 // AuthResponse is the data payload returned on successful auth.
 type AuthResponse struct {
-	User   models.User        `json:"user"`
-	Tokens services.TokenPair `json:"tokens"`
+	User   models.User      `json:"user"`
+	Tokens BrowserTokenPair `json:"tokens"`
 }
 
 // TokensResponse is the data payload returned on token refresh.
 type TokensResponse struct {
-	Tokens services.TokenPair `json:"tokens"`
+	Tokens BrowserTokenPair `json:"tokens"`
 }
 
 // MessageResponse is a generic message payload.
