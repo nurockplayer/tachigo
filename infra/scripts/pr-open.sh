@@ -11,6 +11,38 @@ Runs local PR metadata checks, then opens a PR with gh.
 EOF
 }
 
+extract_issue_number() {
+  local body_file="$1"
+
+  grep -Eio '(refs|closes|fixes|resolves)[[:space:]]+#[0-9]+' "$body_file" 2>/dev/null \
+    | head -n 1 \
+    | grep -Eo '[0-9]+' \
+    || true
+}
+
+extract_pr_number() {
+  sed -n -E 's#.*github\.com/.*/pull/([0-9]+).*#\1#p' | tail -n 1
+}
+
+update_session_index() {
+  local root_dir="$1"
+  local pr_number="$2"
+  local issue_number="$3"
+  local session_index="$root_dir/infra/scripts/session-index.sh"
+  local cmd=("$session_index" add --pr "$pr_number" --worktree "$root_dir")
+
+  [ -x "$session_index" ] || return 0
+  if [ -n "$issue_number" ]; then
+    cmd+=(--issue "$issue_number")
+  fi
+
+  if "${cmd[@]}" >/dev/null; then
+    echo "Updated local Codex session index for PR #$pr_number."
+  else
+    echo "warning: failed to update local Codex session index for PR #$pr_number" >&2
+  fi
+}
+
 main() {
   local title=""
   local body_file=""
@@ -18,6 +50,9 @@ main() {
   local head_branch=""
   local draft=0
   local auto_ready=0
+  local pr_output=""
+  local pr_number=""
+  local issue_number=""
 
   while [ "$#" -gt 0 ]; do
     case "$1" in
@@ -87,7 +122,14 @@ main() {
   fi
 
   echo "Opening PR with gh..."
-  "${cmd[@]}"
+  pr_output="$("${cmd[@]}")"
+  printf '%s\n' "$pr_output"
+
+  pr_number="$(printf '%s\n' "$pr_output" | extract_pr_number)"
+  if [ -n "$pr_number" ]; then
+    issue_number="$(extract_issue_number "$body_file")"
+    update_session_index "$root_dir" "$pr_number" "$issue_number"
+  fi
 }
 
 main "$@"
