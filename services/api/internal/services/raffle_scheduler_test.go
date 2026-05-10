@@ -157,9 +157,9 @@ func insertRaffleTwitchProvider(t *testing.T, db *gorm.DB, userID uuid.UUID, bro
 	t.Helper()
 	tok := token
 	ap := models.AuthProvider{
-		UserID:     userID,
-		Provider:   models.ProviderTwitch,
-		ProviderID: broadcasterID,
+		UserID:      userID,
+		Provider:    models.ProviderTwitch,
+		ProviderID:  broadcasterID,
 		AccessToken: &tok,
 	}
 	if err := db.Create(&ap).Error; err != nil {
