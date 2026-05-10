@@ -697,6 +697,26 @@ test('CI workflow validates Atlas migrations against ephemeral PostgreSQL', asyn
     atlasJob,
     /atlas migrate apply --dir file:\/\/migrations --url "postgres:\/\/postgres:postgres@localhost:5432\/tachigo\?sslmode=disable"/,
   )
+  assert.match(
+    atlasJob,
+    /Apply migrations to GORM-shape baseline/,
+  )
+  assert.match(
+    atlasJob,
+    /GORM_BASELINE_DATABASE_URL: postgres:\/\/postgres:postgres@localhost:5432\/tachigo_gorm_baseline\?sslmode=disable/,
+  )
+  assert.match(
+    atlasJob,
+    /psql "postgres:\/\/postgres:postgres@localhost:5432\/postgres\?sslmode=disable" -v ON_ERROR_STOP=1 -c "CREATE DATABASE tachigo_gorm_baseline"/,
+  )
+  assert.match(
+    atlasJob,
+    /psql "\$GORM_BASELINE_DATABASE_URL" -v ON_ERROR_STOP=1 -f \/tmp\/tachigo-gorm-schema\.sql/,
+  )
+  assert.match(
+    atlasJob,
+    /atlas migrate apply --dir file:\/\/migrations --url "\$GORM_BASELINE_DATABASE_URL"/,
+  )
   assert.doesNotMatch(atlasJob, /--community|\/tmp\/atlas-community|migrate lint|--git-base|docker:\/\/postgres\/15/)
   assert.doesNotMatch(atlasJob, /version: v0\.37\.0|version: v1\.2\.0/)
   assert.doesNotMatch(atlasJob, /atlas schema apply|docker compose up/)
