@@ -1,6 +1,6 @@
-.PHONY: run build tidy db-up db-down up down logs lint test
+.PHONY: run build tidy migrate db-up db-down up down logs lint test
 
-GOCACHE ?= $(CURDIR)/.go-build-cache
+ATLAS_DATABASE_URL ?= postgres://postgres:postgres@localhost:5432/tachigo?sslmode=disable
 
 # ── Dev ───────────────────────────────────────────────────────────────────────
 run:
@@ -11,6 +11,9 @@ build:
 
 tidy:
 	go mod tidy
+
+migrate:
+	atlas migrate apply --dir file://migrations --url "$(ATLAS_DATABASE_URL)"
 
 # ── Docker DB (for local dev without a full docker-compose) ───────────────────
 db-up:
@@ -40,5 +43,4 @@ lint:
 	golangci-lint run ./...
 
 test:
-	mkdir -p "$(GOCACHE)"
-	GOCACHE="$(GOCACHE)" go test ./... -v
+	go test ./... -v

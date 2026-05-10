@@ -11,7 +11,6 @@ package main
 
 import (
 	"context"
-	"errors"
 	"log"
 	"os"
 	"os/signal"
@@ -20,7 +19,6 @@ import (
 	"time"
 
 	"github.com/ethereum/go-ethereum/ethclient"
-	"github.com/jackc/pgx/v5/pgconn"
 	"github.com/joho/godotenv"
 
 	_ "github.com/tachigo/tachigo/docs"
@@ -28,9 +26,11 @@ import (
 	"github.com/tachigo/tachigo/internal/database"
 	"github.com/tachigo/tachigo/internal/handlers"
 	"github.com/tachigo/tachigo/internal/router"
-	"github.com/tachigo/tachigo/internal/schema"
 	"github.com/tachigo/tachigo/internal/services"
+	"gorm.io/gorm"
 )
+
+const defaultSepoliaRPCURL = "https://ethereum-sepolia-rpc.publicnode.com"
 
 func main() {
 	// Load .env (ignore error in production where env is set externally)
@@ -45,78 +45,7 @@ func main() {
 
 	db := database.Connect(cfg.Database.DSN)
 
-	// Create custom ENUM types before AutoMigrate (GORM cannot create them automatically).
-	// NOTE: keep in sync with models.UserRole constants in internal/models/user.go.
-	// 'agency' was added in refs #99; if adding new roles, update this list.
-	if err := initializeUserRoleEnum(func(query string) error {
-		return db.Exec(query).Error
-	}); err != nil {
-		log.Fatalf("failed to create user_role enum: %v", err)
-	}
-
-	// Auto-migrate all models
-	if err := db.AutoMigrate(schema.AutoMigrateModels()...); err != nil {
-		log.Fatalf("migration failed: %v", err)
-	}
-
-	// FK constraint on tachi_balances.user_id — GORM AutoMigrate does not create FK
-	// constraints without an explicit association field, so we add it manually (idempotent).
-	if err := db.Exec(`
-		DO $$ BEGIN
-			ALTER TABLE tachi_balances ADD CONSTRAINT fk_tachi_balances_user_id
-			FOREIGN KEY (user_id) REFERENCES users(id) ON DELETE CASCADE;
-		EXCEPTION WHEN duplicate_object THEN NULL;
-		END $$;
-	`).Error; err != nil {
-		log.Fatalf("failed to create tachi_balances FK: %v", err)
-	}
-	if err := ensureCouponRedemptionRuntimeSchema(func(query string) error {
-		return db.Exec(query).Error
-	}); err != nil {
-		log.Fatalf("failed to create coupon_redemptions runtime schema: %v", err)
-	}
-
-	// Partial unique index: only one active session per (user_id, channel_id).
-	// GORM AutoMigrate does not support partial indexes via struct tags, so we
-	// create it manually with CREATE INDEX IF NOT EXISTS (idempotent).
-	if err := db.Exec(`
-		CREATE UNIQUE INDEX IF NOT EXISTS idx_watch_sessions_active_user_channel
-		ON watch_sessions (user_id, channel_id)
-		WHERE is_active = true
-	`).Error; err != nil {
-		log.Fatalf("failed to create partial index: %v", err)
-	}
-	if err := db.Exec(`
-		CREATE UNIQUE INDEX IF NOT EXISTS idx_points_ledgers_user_channel
-		ON points_ledgers (user_id, channel_id)
-	`).Error; err != nil {
-		log.Fatalf("failed to create points ledger index: %v", err)
-	}
-	if err := db.Exec(`
-		CREATE UNIQUE INDEX IF NOT EXISTS idx_points_transactions_external_transaction_id
-		ON points_transactions (external_transaction_id)
-		WHERE external_transaction_id IS NOT NULL
-	`).Error; err != nil {
-		log.Fatalf("failed to create points transaction external id index: %v", err)
-	}
-	if err := db.Exec(`
-		CREATE UNIQUE INDEX IF NOT EXISTS idx_streamers_user_channel
-		ON streamers (user_id, channel_id)
-	`).Error; err != nil {
-		log.Fatalf("failed to create streamer index: %v", err)
-	}
-	if err := applyStreamerAgencyMigration(db); err != nil {
-		log.Fatalf("failed to run migration 008: %v", err)
-	}
-	// One-time migration: hash existing plain-text claim tokens.
-	// claim_token was previously a raw UUIDv7 (36 chars); it now stores the
-	// SHA-256 hex digest (64 chars). The WHERE filter is idempotent:
-	// already-hashed values are 64 chars and will not match.
-	if err := db.Exec(`
-		UPDATE raffle_draws
-		SET claim_token = encode(sha256(claim_token::bytea), 'hex')
-		WHERE length(claim_token) = 36
-	`).Error; err != nil {
+	if err := hashLegacyRaffleClaimTokens(db); err != nil {
 		log.Fatalf("failed to hash existing claim tokens: %v", err)
 	}
 
@@ -133,12 +62,13 @@ func main() {
 	streamerSvc := services.NewStreamerService(db, pointsSvc)
 	agencySvc := services.NewAgencyService(db)
 	airdropSvc := services.NewAirdropService(db, pointsSvc, channelConfigSvc)
+	// TODO: move Sepolia RPC URL into config.Contract.RPCEndpoint once config schema is extended.
 	var ethClient *ethclient.Client
 	if cfg.Contract.TachiContractAddress != "" && cfg.Contract.SepoliaSignerKey != "" {
 		var err error
 		dialCtx, dialCancel := context.WithTimeout(context.Background(), 10*time.Second)
 		defer dialCancel()
-		ethClient, err = ethclient.DialContext(dialCtx, cfg.Contract.RPCEndpoint)
+		ethClient, err = ethclient.DialContext(dialCtx, defaultSepoliaRPCURL)
 		if err != nil {
 			log.Printf("warning: failed to connect Sepolia RPC: %v", err)
 			ethClient = nil
@@ -191,53 +121,12 @@ func main() {
 	}
 }
 
-func initializeUserRoleEnum(exec func(query string) error) error {
-	if err := exec(`CREATE TYPE user_role AS ENUM ('viewer', 'streamer', 'agency', 'admin')`); err != nil {
-		if !isDuplicateObject(err) {
-			return err
-		}
-	}
-
-	if err := exec(`ALTER TYPE user_role ADD VALUE IF NOT EXISTS 'agency'`); err != nil {
-		return err
-	}
-
-	return nil
-}
-
-func ensureCouponRedemptionRuntimeSchema(exec func(query string) error) error {
-	if err := exec(`
-		DO $$ BEGIN
-			ALTER TABLE coupon_redemptions ADD CONSTRAINT chk_coupon_redemptions_amount_gt_0
-			CHECK (amount > 0);
-		EXCEPTION WHEN duplicate_object THEN NULL;
-		END $$;
-	`); err != nil {
-		return err
-	}
-	if err := exec(`
-		DO $$ BEGIN
-			ALTER TABLE coupon_redemptions ADD CONSTRAINT chk_coupon_redemptions_status
-			CHECK (status IN ('pending','redeemed','compensation-needed'));
-		EXCEPTION WHEN duplicate_object THEN NULL;
-		END $$;
-	`); err != nil {
-		return err
-	}
-	if err := exec(`
-		CREATE INDEX IF NOT EXISTS idx_coupon_redemptions_compensation
-		ON coupon_redemptions (status)
-		WHERE status = 'compensation-needed'
-	`); err != nil {
-		return err
-	}
-	return nil
-}
-
-func isDuplicateObject(err error) bool {
-	var pgErr *pgconn.PgError
-	if errors.As(err, &pgErr) {
-		return pgErr.Code == "42710"
-	}
-	return false
+func hashLegacyRaffleClaimTokens(db *gorm.DB) error {
+	// claim_token was previously a raw UUIDv7 (36 chars); it now stores the
+	// SHA-256 hex digest (64 chars). This idempotent repair is data-only.
+	return db.Exec(`
+		UPDATE raffle_draws
+		SET claim_token = encode(sha256(claim_token::bytea), 'hex')
+		WHERE length(claim_token) = 36
+	`).Error
 }

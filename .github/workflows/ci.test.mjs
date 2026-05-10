@@ -8,6 +8,11 @@ import { fileURLToPath } from 'node:url'
 const currentDir = path.dirname(fileURLToPath(import.meta.url))
 const repoRoot = path.join(currentDir, '..', '..')
 const workflowPath = path.join(currentDir, 'ci.yml')
+const dockerComposePath = path.join(repoRoot, 'docker-compose.yml')
+const dockerComposeOverridePath = path.join(repoRoot, 'docker-compose.override.yml')
+const backendDockerfilePath = path.join(repoRoot, 'services', 'api', 'Dockerfile')
+const backendMakefilePath = path.join(repoRoot, 'services', 'api', 'Makefile')
+const backendDockerEntrypointPath = path.join(repoRoot, 'services', 'api', 'docker-entrypoint.sh')
 const scopePolicePath = path.join(currentDir, 'pr-scope-police.yml')
 const dependabotConfigPath = path.join(repoRoot, '.github', 'dependabot.yml')
 const dependabotAutomergeWorkflowPath = path.join(currentDir, 'dependabot-automerge.yml')
@@ -649,7 +654,7 @@ test('backend CI uses services/api as the Go service root', async () => {
   )
 })
 
-test('CI workflow validates Atlas migration tooling without applying migrations', async () => {
+test('CI workflow validates Atlas migrations against ephemeral PostgreSQL', async () => {
   const workflow = await readFile(workflowPath, 'utf8')
   const atlasJob = workflowJobBlock(workflow, 'atlas-migration-tooling')
 
@@ -657,8 +662,14 @@ test('CI workflow validates Atlas migration tooling without applying migrations'
     atlasJob,
     /uses: actions\/setup-go@[0-9a-f]{40} # v6\n\s+with:\n\s+go-version-file: services\/api\/go\.mod/,
   )
+  assert.match(atlasJob, /services:\n\s+postgres:\n\s+image: postgres:16-alpine/)
+  assert.match(atlasJob, /POSTGRES_DB: tachigo/)
+  assert.match(atlasJob, /5432:5432/)
+  assert.match(
+    atlasJob,
+    /--health-cmd "pg_isready -U postgres -d tachigo"/,
+  )
   assert.match(atlasJob, pinnedActionRef('ariga/setup-atlas', 'v0'))
-  assert.match(atlasJob, /version: v0\.37\.0/)
   assert.match(
     atlasJob,
     /working-directory: services\/api\n\s+run: go run \.\/cmd\/loader\/main\.go > \/tmp\/tachigo-gorm-schema\.sql/,
@@ -667,12 +678,50 @@ test('CI workflow validates Atlas migration tooling without applying migrations'
     atlasJob,
     /atlas schema inspect --env gorm --url env:\/\/src --format '\{\{ sql \. \}\}' > \/tmp\/tachigo-atlas-inspect-schema\.sql/,
   )
-  assert.match(atlasJob, /services\/api\/migrations\/.*\.sql/)
   assert.match(
     atlasJob,
-    /atlas migrate lint --env gorm --git-base "origin\/\$\{\{ github\.base_ref \}\}"/,
+    /Reject destructive migration statements without nolint/,
   )
-  assert.doesNotMatch(atlasJob, /atlas migrate apply|atlas schema apply|docker compose up/)
+  assert.match(
+    atlasJob,
+    /atlas migrate apply --dir file:\/\/migrations --url "postgres:\/\/postgres:postgres@localhost:5432\/tachigo\?sslmode=disable"/,
+  )
+  assert.doesNotMatch(atlasJob, /--community|\/tmp\/atlas-community|migrate lint|--git-base|docker:\/\/postgres\/15/)
+  assert.doesNotMatch(atlasJob, /version: v0\.37\.0|version: v1\.2\.0/)
+  assert.doesNotMatch(atlasJob, /atlas schema apply|docker compose up/)
+})
+
+test('backend Docker runtime applies Atlas migrations before starting the API', async () => {
+  const dockerfile = await readFile(backendDockerfilePath, 'utf8')
+  const makefile = await readFile(backendMakefilePath, 'utf8')
+  const entrypoint = await readFile(backendDockerEntrypointPath, 'utf8')
+  const compose = await readFile(dockerComposePath, 'utf8')
+  const composeOverride = await readFile(dockerComposeOverridePath, 'utf8')
+
+  assert.match(dockerfile, /FROM arigaio\/atlas:latest AS atlas/)
+  assert.equal(
+    (dockerfile.match(/COPY --from=atlas \/atlas \/usr\/local\/bin\/atlas/g) ?? []).length,
+    2,
+    'both dev and runtime Docker stages must include the Atlas CLI',
+  )
+  assert.match(dockerfile, /COPY --from=builder \/app\/migrations \.\/migrations/)
+  assert.equal(
+    (dockerfile.match(/ENTRYPOINT \["\/docker-entrypoint\.sh"\]/g) ?? []).length,
+    2,
+    'both dev and runtime Docker stages must run the migration entrypoint',
+  )
+  assert.match(dockerfile, /mkdir -p \/home\/nonroot/)
+  assert.match(dockerfile, /CMD \["\/tachigo"\]/)
+
+  assert.match(entrypoint, /ATLAS_DATABASE_URL is required to apply database migrations/)
+  const migrateIndex = entrypoint.indexOf('atlas migrate apply')
+  const execIndex = entrypoint.indexOf('exec "$@"')
+  assert.ok(migrateIndex >= 0, 'entrypoint must apply Atlas migrations')
+  assert.ok(execIndex > migrateIndex, 'entrypoint must start the API only after migrations apply')
+
+  assert.match(makefile, /^migrate:\n\tatlas migrate apply --dir file:\/\/migrations --url "\$\(ATLAS_DATABASE_URL\)"/m)
+  assert.match(compose, /ATLAS_DATABASE_URL: postgres:\/\/postgres:postgres@postgres:5432\/tachigo\?sslmode=disable/)
+  assert.match(composeOverride, /target: dev/)
 })
 
 test('scope gate backend contract regex accepts full-width and half-width colons', async () => {
@@ -933,9 +982,12 @@ test('backend security scanner job installs pinned staticcheck and govulncheck',
   assert.deepEqual(backendCi.needs, [
     'backend-build',
     'backend',
+    'atlas-migration-tooling',
     'backend-integration',
     'backend-security-scanners',
   ])
+  assert.match(backendCiBlock, /ATLAS_MIGRATION_TOOLING_RESULT: \$\{\{ needs\.atlas-migration-tooling\.result \}\}/)
+  assert.match(backendCiBlock, /"atlas-migration-tooling:\$ATLAS_MIGRATION_TOOLING_RESULT"/)
   assert.match(backendCiBlock, /BACKEND_SECURITY_SCANNERS_RESULT/)
   assert.match(backendCiBlock, /backend-security-scanners:\$BACKEND_SECURITY_SCANNERS_RESULT/)
 })
