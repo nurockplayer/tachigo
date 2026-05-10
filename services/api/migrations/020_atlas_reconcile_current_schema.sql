@@ -5,110 +5,43 @@
 -- shaped by GORM AutoMigrate and runtime schema patches.
 
 -- Tables that existed in GORM models/runtime but not in historical 001-019 SQL.
-CREATE TABLE IF NOT EXISTS watch_time_stats (
-    id                  UUID         PRIMARY KEY DEFAULT gen_random_uuid(),
-    user_id             UUID         NOT NULL,
-    channel_id          VARCHAR(255) NOT NULL,
-    total_watch_seconds BIGINT       NOT NULL DEFAULT 0,
-    created_at          TIMESTAMPTZ,
-    updated_at          TIMESTAMPTZ
-);
+CREATE TABLE IF NOT EXISTS watch_time_stats (id UUID PRIMARY KEY DEFAULT gen_random_uuid(), user_id UUID NOT NULL, channel_id VARCHAR(255) NOT NULL, total_watch_seconds BIGINT NOT NULL DEFAULT 0, created_at TIMESTAMPTZ, updated_at TIMESTAMPTZ);
 
-CREATE UNIQUE INDEX IF NOT EXISTS idx_watch_time_user_channel
-    ON watch_time_stats (user_id, channel_id);
+CREATE UNIQUE INDEX IF NOT EXISTS idx_watch_time_user_channel ON watch_time_stats (user_id, channel_id);
 
-CREATE TABLE IF NOT EXISTS broadcast_time_stats (
-    id                      UUID         PRIMARY KEY DEFAULT gen_random_uuid(),
-    streamer_id             UUID         NOT NULL,
-    channel_id              VARCHAR(255) NOT NULL,
-    total_broadcast_seconds BIGINT       NOT NULL DEFAULT 0,
-    created_at              TIMESTAMPTZ,
-    updated_at              TIMESTAMPTZ
-);
+CREATE TABLE IF NOT EXISTS broadcast_time_stats (id UUID PRIMARY KEY DEFAULT gen_random_uuid(), streamer_id UUID NOT NULL, channel_id VARCHAR(255) NOT NULL, total_broadcast_seconds BIGINT NOT NULL DEFAULT 0, created_at TIMESTAMPTZ, updated_at TIMESTAMPTZ);
 
-CREATE UNIQUE INDEX IF NOT EXISTS idx_broadcast_time_streamer_channel
-    ON broadcast_time_stats (streamer_id, channel_id);
+CREATE UNIQUE INDEX IF NOT EXISTS idx_broadcast_time_streamer_channel ON broadcast_time_stats (streamer_id, channel_id);
 
-CREATE TABLE IF NOT EXISTS broadcast_time_logs (
-    id          UUID         PRIMARY KEY DEFAULT gen_random_uuid(),
-    streamer_id UUID         NOT NULL,
-    channel_id  VARCHAR(255) NOT NULL,
-    seconds     BIGINT       NOT NULL,
-    recorded_at TIMESTAMPTZ  NOT NULL
-);
+CREATE TABLE IF NOT EXISTS broadcast_time_logs (id UUID PRIMARY KEY DEFAULT gen_random_uuid(), streamer_id UUID NOT NULL, channel_id VARCHAR(255) NOT NULL, seconds BIGINT NOT NULL, recorded_at TIMESTAMPTZ NOT NULL);
 
-CREATE INDEX IF NOT EXISTS idx_broadcast_time_logs_streamer_id
-    ON broadcast_time_logs (streamer_id);
+CREATE INDEX IF NOT EXISTS idx_broadcast_time_logs_streamer_id ON broadcast_time_logs (streamer_id);
 
-CREATE INDEX IF NOT EXISTS idx_broadcast_time_logs_channel_id
-    ON broadcast_time_logs (channel_id);
+CREATE INDEX IF NOT EXISTS idx_broadcast_time_logs_channel_id ON broadcast_time_logs (channel_id);
 
-CREATE INDEX IF NOT EXISTS idx_broadcast_time_logs_recorded_at
-    ON broadcast_time_logs (recorded_at);
+CREATE INDEX IF NOT EXISTS idx_broadcast_time_logs_recorded_at ON broadcast_time_logs (recorded_at);
 
-CREATE TABLE IF NOT EXISTS raffles (
-    id                  UUID         PRIMARY KEY DEFAULT gen_random_uuid(),
-    user_id             UUID         NOT NULL,
-    title               VARCHAR(255) NOT NULL,
-    status              VARCHAR(50)  NOT NULL DEFAULT 'draft',
-    source              VARCHAR(50)  NOT NULL DEFAULT 'csv',
-    scheduled_at        TIMESTAMPTZ,
-    discord_webhook_url VARCHAR(512),
-    created_at          TIMESTAMPTZ,
-    updated_at          TIMESTAMPTZ
-);
+CREATE TABLE IF NOT EXISTS raffles (id UUID PRIMARY KEY DEFAULT gen_random_uuid(), user_id UUID NOT NULL, title VARCHAR(255) NOT NULL, status VARCHAR(50) NOT NULL DEFAULT 'draft', source VARCHAR(50) NOT NULL DEFAULT 'csv', scheduled_at TIMESTAMPTZ, discord_webhook_url VARCHAR(512), created_at TIMESTAMPTZ, updated_at TIMESTAMPTZ);
 
-CREATE INDEX IF NOT EXISTS idx_raffles_user_id
-    ON raffles (user_id);
+CREATE INDEX IF NOT EXISTS idx_raffles_user_id ON raffles (user_id);
 
-CREATE TABLE IF NOT EXISTS raffle_entries (
-    id           UUID         PRIMARY KEY DEFAULT gen_random_uuid(),
-    raffle_id    UUID         NOT NULL,
-    user_id      UUID,
-    twitch_login VARCHAR(255) NOT NULL,
-    display_name VARCHAR(255),
-    created_at   TIMESTAMPTZ
-);
+CREATE TABLE IF NOT EXISTS raffle_entries (id UUID PRIMARY KEY DEFAULT gen_random_uuid(), raffle_id UUID NOT NULL, user_id UUID, twitch_login VARCHAR(255) NOT NULL, display_name VARCHAR(255), created_at TIMESTAMPTZ);
 
-CREATE INDEX IF NOT EXISTS idx_raffle_entries_user_id
-    ON raffle_entries (user_id);
+CREATE INDEX IF NOT EXISTS idx_raffle_entries_user_id ON raffle_entries (user_id);
 
-CREATE UNIQUE INDEX IF NOT EXISTS idx_raffle_entry_twitch
-    ON raffle_entries (raffle_id, twitch_login);
+CREATE UNIQUE INDEX IF NOT EXISTS idx_raffle_entry_twitch ON raffle_entries (raffle_id, twitch_login);
 
-CREATE UNIQUE INDEX IF NOT EXISTS idx_entry_id_raffle
-    ON raffle_entries (id, raffle_id);
+CREATE UNIQUE INDEX IF NOT EXISTS idx_entry_id_raffle ON raffle_entries (id, raffle_id);
 
-CREATE TABLE IF NOT EXISTS raffle_draws (
-    id               UUID         PRIMARY KEY DEFAULT gen_random_uuid(),
-    raffle_id        UUID         NOT NULL,
-    entry_id         UUID         NOT NULL,
-    claim_token      VARCHAR(255) NOT NULL,
-    claim_expires_at TIMESTAMPTZ,
-    drawn_at         TIMESTAMPTZ
-);
+CREATE TABLE IF NOT EXISTS raffle_draws (id UUID PRIMARY KEY DEFAULT gen_random_uuid(), raffle_id UUID NOT NULL, entry_id UUID NOT NULL, claim_token VARCHAR(255) NOT NULL, claim_expires_at TIMESTAMPTZ, drawn_at TIMESTAMPTZ);
 
-CREATE UNIQUE INDEX IF NOT EXISTS idx_raffle_draws_claim_token
-    ON raffle_draws (claim_token);
+CREATE UNIQUE INDEX IF NOT EXISTS idx_raffle_draws_claim_token ON raffle_draws (claim_token);
 
-CREATE UNIQUE INDEX IF NOT EXISTS idx_raffle_draw_entry
-    ON raffle_draws (raffle_id, entry_id);
+CREATE UNIQUE INDEX IF NOT EXISTS idx_raffle_draw_entry ON raffle_draws (raffle_id, entry_id);
 
-CREATE TABLE IF NOT EXISTS raffle_claims (
-    id             UUID         PRIMARY KEY DEFAULT gen_random_uuid(),
-    draw_id        UUID         NOT NULL,
-    recipient_name VARCHAR(255) NOT NULL,
-    phone          VARCHAR(50),
-    address_line1  VARCHAR(255) NOT NULL,
-    address_line2  VARCHAR(255),
-    city           VARCHAR(100) NOT NULL,
-    postal_code    VARCHAR(20),
-    country        VARCHAR(10)  NOT NULL DEFAULT 'TW',
-    submitted_at   TIMESTAMPTZ
-);
+CREATE TABLE IF NOT EXISTS raffle_claims (id UUID PRIMARY KEY DEFAULT gen_random_uuid(), draw_id UUID NOT NULL, recipient_name VARCHAR(255) NOT NULL, phone VARCHAR(50), address_line1 VARCHAR(255) NOT NULL, address_line2 VARCHAR(255), city VARCHAR(100) NOT NULL, postal_code VARCHAR(20), country VARCHAR(10) NOT NULL DEFAULT 'TW', submitted_at TIMESTAMPTZ);
 
-CREATE UNIQUE INDEX IF NOT EXISTS idx_raffle_claims_draw_id
-    ON raffle_claims (draw_id);
+CREATE UNIQUE INDEX IF NOT EXISTS idx_raffle_claims_draw_id ON raffle_claims (draw_id);
 
 -- Runtime schema patches now owned by Atlas.
 DO $$
