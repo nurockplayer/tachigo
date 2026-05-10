@@ -6,7 +6,10 @@
 
 - 日常功能開發與功能 PR 一律先進 `develop`
 - `main` 只接受正式 release promotion
-- 預設 cadence 為每兩週一次 `develop -> main` release PR
+- `.github/workflows/release-pr.yml` 每天檢查一次 `develop -> main` release PR
+- 自動 release PR 需距離上次 release 至少 72 小時，且上次 release 後已 merge 至少 10 個 PR
+- 若距離上次 release 已滿 7 天，即使 PR 數低於 10 個也可自動開 release PR，避免 `main` 長期落後
+- `workflow_dispatch` 可手動開 release PR；automation 只開 PR，不自動 merge
 - 目前暫不使用 `release/*` branch
 - 待未來有正式部署、freeze window、hotfix/backport 需求時，再升級為完整 release branch 流程
 

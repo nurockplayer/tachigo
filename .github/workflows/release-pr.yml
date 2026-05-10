@@ -1,0 +1,248 @@
+name: Release PR
+
+on:
+  schedule:
+    # 每天 10:00 UTC+8 = 02:00 UTC；workflow 內仍會套用 release cadence gate。
+    - cron: "0 2 * * *"
+  workflow_dispatch:
+
+permissions:
+  contents: read
+  pull-requests: write
+  actions: write
+
+concurrency:
+  group: release-pr-${{ github.repository }}
+  cancel-in-progress: false
+
+jobs:
+  create-release-pr:
+    timeout-minutes: 10
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@34e114876b0b11c390a56381ad16ebd13914f8d5 # v4
+        with:
+          fetch-depth: 0
+
+      - name: Check if develop is ahead of main
+        id: check
+        run: |
+          git fetch origin main develop
+          COMMITS_AHEAD=$(git rev-list --count origin/main..origin/develop)
+          echo "commits_ahead=$COMMITS_AHEAD" >> "$GITHUB_OUTPUT"
+          echo "develop is $COMMITS_AHEAD commits ahead of main"
+
+      - name: Skip if nothing to release
+        if: steps.check.outputs.commits_ahead == '0'
+        run: echo "develop is up to date with main, skipping."
+
+      - name: Check for existing open release PR
+        if: steps.check.outputs.commits_ahead != '0'
+        id: existing
+        env:
+          GH_TOKEN: ${{ secrets.GITHUB_TOKEN }}
+        run: |
+          EXISTING=$(gh pr list --base main --head develop --state open --json number --jq '.[0].number // ""')
+          echo "existing_pr=$EXISTING" >> "$GITHUB_OUTPUT"
+          if [ -n "$EXISTING" ]; then
+            echo "Release PR #$EXISTING already open, skipping."
+          fi
+
+      - name: Evaluate release cadence gate
+        if: steps.check.outputs.commits_ahead != '0' && steps.existing.outputs.existing_pr == ''
+        id: gate
+        env:
+          GH_TOKEN: ${{ secrets.GITHUB_TOKEN }}
+        run: |
+          gh pr list --base main --head develop --state merged --limit 50 --json number,title,mergedAt > /tmp/release-prs.json
+          gh pr list --base develop --state merged --limit 300 --json number,title,mergedAt > /tmp/develop-merged-prs.json
+
+          node <<'NODE'
+          const fs = require('node:fs')
+
+          const minElapsedHours = 72
+          const minMergedPrs = 10
+          const maxElapsedHours = 168
+
+          const releasePrs = JSON.parse(fs.readFileSync('/tmp/release-prs.json', 'utf8'))
+          const developMergedPrs = JSON.parse(fs.readFileSync('/tmp/develop-merged-prs.json', 'utf8'))
+
+          const parseTime = (value) => {
+            const parsed = Date.parse(value || '')
+            return Number.isNaN(parsed) ? null : parsed
+          }
+
+          const mergedReleasePrs = releasePrs
+            .filter((pr) => parseTime(pr.mergedAt) !== null)
+            .sort((left, right) => parseTime(right.mergedAt) - parseTime(left.mergedAt))
+
+          const lastReleasePr = mergedReleasePrs[0]
+          const lastReleaseAt = lastReleasePr ? parseTime(lastReleasePr.mergedAt) : null
+          const elapsedHours = lastReleaseAt === null ? Infinity : (Date.now() - lastReleaseAt) / 36e5
+          const mergedPrsSinceLastRelease =
+            lastReleaseAt === null
+              ? developMergedPrs.length
+              : developMergedPrs.filter((pr) => {
+                  const mergedAt = parseTime(pr.mergedAt)
+                  return mergedAt !== null && mergedAt > lastReleaseAt
+                }).length
+
+          const isManual = process.env.GITHUB_EVENT_NAME === 'workflow_dispatch'
+          const enoughAge = elapsedHours >= minElapsedHours
+          const enoughPrs = mergedPrsSinceLastRelease >= minMergedPrs
+          const staleEnough = elapsedHours >= maxElapsedHours
+          const shouldOpen = isManual || (enoughAge && (enoughPrs || staleEnough))
+
+          let releaseReason = 'below-threshold'
+          if (isManual) {
+            releaseReason = 'manual-dispatch'
+          } else if (lastReleaseAt === null) {
+            releaseReason = 'no-previous-release'
+          } else if (enoughAge && enoughPrs) {
+            releaseReason = '72h-and-10-prs'
+          } else if (staleEnough) {
+            releaseReason = '7-day-fallback'
+          }
+
+          const elapsedHoursOutput = Number.isFinite(elapsedHours) ? elapsedHours.toFixed(1) : 'unknown'
+          const lastReleaseOutput = lastReleasePr
+            ? `#${lastReleasePr.number} at ${lastReleasePr.mergedAt}`
+            : 'none'
+
+          const outputs = {
+            should_open: shouldOpen ? 'true' : 'false',
+            release_reason: releaseReason,
+            elapsed_hours: elapsedHoursOutput,
+            merged_prs_since_release: String(mergedPrsSinceLastRelease),
+            last_release: lastReleaseOutput,
+          }
+
+          for (const [key, value] of Object.entries(outputs)) {
+            fs.appendFileSync(process.env.GITHUB_OUTPUT, `${key}=${value}\n`)
+          }
+
+          fs.appendFileSync(
+            process.env.GITHUB_STEP_SUMMARY,
+            [
+              '## Release cadence gate',
+              '',
+              `- Should open: ${outputs.should_open}`,
+              `- Reason: ${outputs.release_reason}`,
+              `- Last release: ${outputs.last_release}`,
+              `- Hours since last release: ${outputs.elapsed_hours}`,
+              `- Merged PRs since last release: ${outputs.merged_prs_since_release}`,
+              '',
+            ].join('\n'),
+          )
+          NODE
+
+      - name: Skip if release cadence gate is not ready
+        if: steps.check.outputs.commits_ahead != '0' && steps.existing.outputs.existing_pr == '' && steps.gate.outputs.should_open != 'true'
+        run: |
+          echo "Release cadence gate not ready."
+          echo "Reason: ${{ steps.gate.outputs.release_reason }}"
+          echo "Hours since last release: ${{ steps.gate.outputs.elapsed_hours }}"
+          echo "Merged PRs since last release: ${{ steps.gate.outputs.merged_prs_since_release }}"
+
+      - name: Create release PR
+        if: steps.check.outputs.commits_ahead != '0' && steps.existing.outputs.existing_pr == '' && steps.gate.outputs.should_open == 'true'
+        env:
+          GH_TOKEN: ${{ secrets.GITHUB_TOKEN }}
+        run: |
+          DATE=$(TZ=Asia/Taipei date +%Y-%m-%d)
+          COMMITS_AHEAD=${{ steps.check.outputs.commits_ahead }}
+          RELEASE_REASON="${{ steps.gate.outputs.release_reason }}"
+          ELAPSED_HOURS="${{ steps.gate.outputs.elapsed_hours }}"
+          MERGED_PRS="${{ steps.gate.outputs.merged_prs_since_release }}"
+          LAST_RELEASE="${{ steps.gate.outputs.last_release }}"
+          cat > /tmp/release-pr-body.md <<EOF
+          ## 什麼改動
+          - Promote \`develop\` to \`main\` for the $DATE release cycle.
+
+          ## 為什麼
+          - Auto-generated by release-pr workflow.
+          - Cadence reason: $RELEASE_REASON
+          - Commits ahead: $COMMITS_AHEAD
+          - Merged PRs since last release: $MERGED_PRS
+          - Hours since last release: $ELAPSED_HOURS
+          - Last release: $LAST_RELEASE
+
+          ## Release Context
+          - Release type：develop -> main
+
+          ## Workflow Type
+          - [ ] Small / Medium
+          - [ ] Test-Driven / Debug Loop
+          - [x] Architecture / High Risk
+
+          ## Scope 對齊
+          - Source of truth：develop release promotion on $DATE
+          - Depends on PR：none
+          - Backend contract already in develop:
+            - [x] yes
+            - [ ] no
+          - If no, this PR is:
+            - [ ] stacked on dependency branch
+            - [ ] intentionally blocked until dependency merges
+          - 本 PR 是否完全在 source of truth 範圍內？
+            - [x] 是
+            - [ ] 否，已另開 issue / PR 處理超出部分
+          - 本 PR 明確不做：
+            - 不新增任何程式碼變更，僅將 develop promote 到 main。
+            - 不修改任何未在 develop 上的內容。
+
+          ## PR 拆分檢查
+          - 這個 PR 的單一句子目的：
+            - Promote already-merged \`develop\` changes to \`main\`.
+          - Approx changed lines：release promotion；請以 Files changed 為準。
+          - 本 PR 是否可獨立 review，不需要理解未合併的其他 PR？
+            - [x] 是
+            - [ ] 否，原因：
+          - 本 PR 是否同時包含以下多個層級？
+            - [ ] migration / schema
+            - [ ] backend domain service
+            - [ ] API handler / router
+              - [ ] 已執行 \`swag init\` 並將 \`services/api/docs/\` 變更一起 commit
+            - [ ] frontend integration
+            - [x] tests
+            - [x] docs
+            - [ ] refactor / cleanup
+          - 若勾選兩項以上，為什麼這些變更需要放在同一個 PR？
+            - Formal release promotion can contain multiple already-reviewed PRs.
+          - 若已拆分，相關 PR：
+            - n/a
+
+          ## Acceptance Criteria
+          - [ ] Release PR CI 通過
+          - [ ] Reviewer 確認沒有 half-finished feature 應延後
+          - [ ] Reviewer 確認可以 merge 到 \`main\`
+
+          ## 超出範圍內容
+          無
+
+          ## 測試方式
+          - [ ] 本地測試過
+          - [x] 有寫 / 更新測試
+
+          **驗證結果**
+          \`\`\`
+          GitHub Actions will run the release PR checks after this PR is created.
+          \`\`\`
+
+          ## 備註
+          - This workflow only opens the release PR. It does not enable auto-ready or auto-merge.
+
+          ## Notes for Claude Code Review
+          - Review release readiness: CI, branch protection, and whether anything in \`develop\` should wait for the next release cycle.
+          EOF
+          gh pr create \
+            --base main \
+            --head develop \
+            --title "[release] develop → main ($DATE)" \
+            --body-file /tmp/release-pr-body.md
+
+      - name: Dispatch CI against develop
+        if: steps.check.outputs.commits_ahead != '0' && steps.existing.outputs.existing_pr == '' && steps.gate.outputs.should_open == 'true'
+        env:
+          GH_TOKEN: ${{ secrets.GITHUB_TOKEN }}
+        run: gh workflow run ci.yml --ref develop
