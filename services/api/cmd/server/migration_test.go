@@ -8,6 +8,7 @@ import (
 	"strings"
 	"testing"
 
+	"ariga.io/atlas/sql/migrate"
 	"gorm.io/driver/sqlite"
 	"gorm.io/gorm"
 	"gorm.io/gorm/logger"
@@ -32,6 +33,76 @@ func TestMigration011AddsAgencyUserForeignKeyConstraint(t *testing.T) {
 	fkPattern := regexp.MustCompile(`FOREIGN KEY\s*\(\s*agency_user_id\s*\)\s*REFERENCES\s+users\s*\(\s*id\s*\)`)
 	if !fkPattern.MatchString(sql) {
 		t.Fatalf("migration must add foreign key on streamers.agency_user_id")
+	}
+}
+
+func TestMigration020ReconcilesAtlasBaselineOwnership(t *testing.T) {
+	_, file, _, ok := runtime.Caller(0)
+	if !ok {
+		t.Fatal("resolve current test file")
+	}
+
+	path := filepath.Join(filepath.Dir(file), "..", "..", "migrations", "020_atlas_reconcile_current_schema.sql")
+	body, err := os.ReadFile(path)
+	if err != nil {
+		t.Fatalf("read migration: %v", err)
+	}
+
+	sql := string(body)
+	for _, want := range []string{
+		"CREATE TABLE IF NOT EXISTS watch_time_stats",
+		"CREATE TABLE IF NOT EXISTS broadcast_time_stats",
+		"CREATE TABLE IF NOT EXISTS broadcast_time_logs",
+		"CREATE TABLE IF NOT EXISTS raffles",
+		"CREATE TABLE IF NOT EXISTS raffle_entries",
+		"CREATE TABLE IF NOT EXISTS raffle_draws",
+		"CREATE TABLE IF NOT EXISTS raffle_claims",
+		"fk_streamers_agency_user_id",
+		"legacy agency_streamers backfill conflict",
+		"UPDATE streamers s",
+		"FROM agency_streamers",
+		"idx_claims_tx_hash_not_null",
+		"idx_claims_id_user_id",
+		"idx_points_ledgers_id_user_id",
+		"idx_points_transactions_id_ledger_id",
+		"invalid coupon_redemptions rows detected",
+		"fk_claim_items_claim_user",
+		"fk_claim_items_ledger_user",
+		"fk_claim_items_tx_ledger",
+		"chk_coupon_redemptions_amount_gt_0",
+		"idx_coupon_redemptions_compensation",
+	} {
+		if !strings.Contains(sql, want) {
+			t.Fatalf("migration 020 missing %q", want)
+		}
+	}
+}
+
+func TestMigrationDirectoryAtlasChecksumIsCurrent(t *testing.T) {
+	_, file, _, ok := runtime.Caller(0)
+	if !ok {
+		t.Fatal("resolve current test file")
+	}
+
+	migrationsDir := filepath.Join(filepath.Dir(file), "..", "..", "migrations")
+	dir, err := migrate.NewLocalDir(migrationsDir)
+	if err != nil {
+		t.Fatalf("open migration dir: %v", err)
+	}
+	sum, err := dir.Checksum()
+	if err != nil {
+		t.Fatalf("checksum migration dir: %v", err)
+	}
+	got, err := sum.MarshalText()
+	if err != nil {
+		t.Fatalf("marshal checksum: %v", err)
+	}
+	want, err := os.ReadFile(filepath.Join(migrationsDir, migrate.HashFileName))
+	if err != nil {
+		t.Fatalf("read atlas.sum: %v", err)
+	}
+	if string(got) != string(want) {
+		t.Fatalf("atlas.sum is stale; regenerate after migration edits")
 	}
 }
 

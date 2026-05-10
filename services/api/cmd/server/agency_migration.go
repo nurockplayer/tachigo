@@ -6,38 +6,6 @@ import (
 	"gorm.io/gorm"
 )
 
-const migration008SchemaSQL = `
-ALTER TABLE streamers ADD COLUMN IF NOT EXISTS agency_user_id UUID;
-
-DO $$
-BEGIN
-    IF NOT EXISTS (
-        SELECT 1
-        FROM pg_constraint
-        WHERE conname = 'fk_streamers_agency_user_id'
-    ) THEN
-        ALTER TABLE streamers
-        ADD CONSTRAINT fk_streamers_agency_user_id
-        FOREIGN KEY (agency_user_id) REFERENCES users(id);
-    END IF;
-END $$;
-
-CREATE INDEX IF NOT EXISTS idx_streamers_agency_user_id ON streamers (agency_user_id);
-`
-
-func applyStreamerAgencyMigration(db *gorm.DB) error {
-	if err := db.Exec(migration008SchemaSQL).Error; err != nil {
-		return fmt.Errorf("execute migration 008 schema: %w", err)
-	}
-	if err := failOnAgencyBackfillConflicts(db); err != nil {
-		return err
-	}
-	if err := backfillStreamerAgencyUserID(db); err != nil {
-		return fmt.Errorf("backfill streamer agency_user_id: %w", err)
-	}
-	return nil
-}
-
 func failOnAgencyBackfillConflicts(db *gorm.DB) error {
 	type conflictRow struct {
 		ChannelID string

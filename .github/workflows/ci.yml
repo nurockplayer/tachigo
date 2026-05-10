@@ -424,6 +424,20 @@ jobs:
     needs: [scope-gate]
     if: needs.scope-gate.outputs.run_backend == 'true'
     runs-on: ubuntu-latest
+    services:
+      postgres:
+        image: postgres:16-alpine
+        env:
+          POSTGRES_USER: postgres
+          POSTGRES_PASSWORD: postgres
+          POSTGRES_DB: tachigo
+        ports:
+          - 5432:5432
+        options: >-
+          --health-cmd "pg_isready -U postgres -d tachigo"
+          --health-interval 5s
+          --health-timeout 5s
+          --health-retries 10
     steps:
       - uses: actions/checkout@34e114876b0b11c390a56381ad16ebd13914f8d5 # v4
         with:
@@ -436,8 +450,6 @@ jobs:
 
       - name: Set up Atlas
         uses: ariga/setup-atlas@2f3c785c89a15e1c0d07bcae3900fb5feb969eea # v0
-        with:
-          version: v0.37.0
 
       - name: Verify GORM loader output
         working-directory: services/api
@@ -447,24 +459,29 @@ jobs:
         working-directory: services/api
         run: atlas schema inspect --env gorm --url env://src --format '{{ sql . }}' > /tmp/tachigo-atlas-inspect-schema.sql
 
-      - name: Detect changed migration files
-        id: migration-changes
-        run: |
-          if [ "${{ github.event_name }}" != "pull_request" ]; then
-            echo "changed=false" >> "$GITHUB_OUTPUT"
-            exit 0
-          fi
-
-          if git diff --name-only "origin/${{ github.base_ref }}" "${{ github.event.pull_request.head.sha }}" -- 'services/api/migrations/*.sql' | grep -q .; then
-            echo "changed=true" >> "$GITHUB_OUTPUT"
-          else
-            echo "changed=false" >> "$GITHUB_OUTPUT"
-          fi
-
-      - name: Lint changed Atlas migrations
-        if: steps.migration-changes.outputs.changed == 'true'
+      - name: Reject destructive migration statements without nolint
         working-directory: services/api
-        run: atlas migrate lint --env gorm --git-base "origin/${{ github.base_ref }}"
+        run: |
+          awk '
+            FNR == 1 { previous = "" }
+            {
+              upper = toupper($0)
+              destructive = upper ~ /(^|[^A-Z_])DROP[[:space:]]+TABLE([^A-Z_]|$)/ ||
+                upper ~ /(^|[^A-Z_])TRUNCATE[[:space:]]+TABLE([^A-Z_]|$)/ ||
+                upper ~ /(^|[^A-Z_])DROP[[:space:]]+COLUMN([^A-Z_]|$)/
+              allowed = $0 ~ /--[[:space:]]*atlas:nolint/ || previous ~ /--[[:space:]]*atlas:nolint/
+              if (destructive && !allowed) {
+                printf "%s:%d: destructive migration requires -- atlas:nolint on the same or previous line\n", FILENAME, FNR
+                failed = 1
+              }
+              previous = $0
+            }
+            END { exit failed }
+          ' migrations/*.sql
+
+      - name: Verify Atlas migrations apply to clean PostgreSQL
+        working-directory: services/api
+        run: atlas migrate apply --dir file://migrations --url "postgres://postgres:postgres@localhost:5432/tachigo?sslmode=disable"
 
   backend-integration:
     timeout-minutes: 20
@@ -687,7 +704,7 @@ jobs:
   backend-ci:
     timeout-minutes: 5
     name: Backend CI (gate)
-    needs: [backend-build, backend, backend-integration, backend-security-scanners]
+    needs: [backend-build, backend, atlas-migration-tooling, backend-integration, backend-security-scanners]
     if: always()
     runs-on: ubuntu-latest
     steps:
@@ -695,12 +712,14 @@ jobs:
         env:
           BACKEND_BUILD_RESULT: ${{ needs.backend-build.result }}
           BACKEND_RESULT: ${{ needs.backend.result }}
+          ATLAS_MIGRATION_TOOLING_RESULT: ${{ needs.atlas-migration-tooling.result }}
           BACKEND_INTEGRATION_RESULT: ${{ needs.backend-integration.result }}
           BACKEND_SECURITY_SCANNERS_RESULT: ${{ needs.backend-security-scanners.result }}
         run: |
           for item in \
             "backend-build:$BACKEND_BUILD_RESULT" \
             "backend:$BACKEND_RESULT" \
+            "atlas-migration-tooling:$ATLAS_MIGRATION_TOOLING_RESULT" \
             "backend-integration:$BACKEND_INTEGRATION_RESULT" \
             "backend-security-scanners:$BACKEND_SECURITY_SCANNERS_RESULT"
           do

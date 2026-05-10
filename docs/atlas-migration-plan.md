@@ -4,7 +4,7 @@
 
 **目標：** 將 `services/api` 的 schema 管理由 GORM `AutoMigrate` 遷移到 Atlas，同時不削弱既有資料庫 invariant，也不送出不安全的 baseline。
 
-**架構：** Atlas 遷移必須拆成多個小型、可獨立 review 的 PR。先導入 tooling 與 CI validation，再盤點現有 schema source，接著決定並驗證 baseline 策略，最後在 staging 驗證後才移除 runtime `AutoMigrate` 與手寫 schema patches。
+**架構：** Atlas 遷移原本規劃拆成多個小型、可獨立 review 的 PR：先導入 tooling 與 CI validation，再盤點現有 schema source，接著決定並驗證 baseline 策略，最後移除 runtime `AutoMigrate` 與手寫 schema patches。2026-05-10 後續決策改為由 PR `#588` 一次交付完整 runtime migration path，因為專案尚未正式上線，保留半套 migration ownership 反而會增加風險。
 
 **Tech Stack：** Go、GORM、PostgreSQL、Atlas、`atlas-provider-gorm`、GitHub Actions。
 
@@ -23,7 +23,7 @@
 
 ## Guardrails
 
-- 不得把 tooling、baseline SQL、`AutoMigrate` removal 合併在同一個 PR。
+- 歷史 guardrail：原本不得把 tooling、baseline SQL、`AutoMigrate` removal 合併在同一個 PR；PR `#588` 例外承擔完整 runtime path，避免新專案保留半套 schema ownership。
 - `docs/atlas-schema-reconciliation.md` review 前，不得產生大型 baseline migration。
 - 不得因為 `atlas migrate lint` 通過就宣稱 baseline 安全；lint 驗證 migration mechanics，不驗證 production data compatibility。
 - 不得移除 GORM model structs；`atlas-provider-gorm` 仍需要讀取它們。
@@ -34,7 +34,7 @@
 
 ### PR 1：Atlas Tooling Only
 
-**目的：** 加入最小 Atlas toolchain，讓開發者可以從 GORM schema source 產生 diff，CI 可以 lint migration 檔。
+**目的：** 加入最小 Atlas toolchain，讓開發者可以從 GORM schema source 產生 diff，CI 可以驗證 loader 與 migration directory。
 
 **Files：**
 
@@ -59,8 +59,8 @@
 - [ ] 新增 `services/api/cmd/loader/main.go`，載入目前所有 GORM model structs。
 - [ ] 將 GORM 無法表達的 custom PostgreSQL schema objects 放進 loader output，或集中在清楚命名的 loader helper。
 - [ ] 新增 `services/api/atlas.hcl`，使用 `external_schema` program 執行 loader。
-- [ ] 新增 CI job，對 PR 變更的 migration files 執行 Atlas migration lint。
-- [ ] 確認 CI lint 是 non-destructive，不會對共用 database apply migration。
+- [ ] 新增 CI job，驗證 Atlas 可以 inspect GORM loader，並把 migration directory 套到 clean PostgreSQL。
+- [ ] 確認 CI migration apply 只寫入 job 內 ephemeral database，不會對共用 database apply migration。
 
 **Verification：**
 
@@ -129,12 +129,9 @@ Co-Authored-By: Codex <codex[bot]@openai.com>
 - Create or modify：`services/api/migrations/atlas.sum`
 - Modify：`docs/atlas-schema-reconciliation.md`
 
-**Baseline Decision Required Before Coding：**
+**Baseline Decision：**
 
-開始寫 SQL 前，必須在 PR body 選定且記錄其中一種策略：
-
-- **Import baseline：** 將 `001-019` 視為既有 history，避免把 create-table SQL 重套到已經有表的 database。
-- **Apply-safe baseline：** 產生可安全套用到已知 staging/current schema 的 SQL，必要時使用 `IF NOT EXISTS` 或 guarded `DO $$` blocks。
+採 **Apply-safe reconciliation**。`001-019` 繼續作為歷史 migration，`020_atlas_reconcile_current_schema.sql` 補齊 GORM AutoMigrate/runtime patch 曾經隱式建立的 current schema，並使用 `IF NOT EXISTS` / guarded `DO $$` blocks 避免對既有 DB 重打完整 schema。
 
 **Implementation Steps：**
 
@@ -148,11 +145,12 @@ Co-Authored-By: Codex <codex[bot]@openai.com>
 
 ```bash
 cd services/api
-atlas migrate lint --dev-url "postgres://postgres:postgres@localhost:5432/atlas_dev?sslmode=disable" --dir "file://migrations" --latest 1
+atlas schema inspect --env gorm --url env://src --format '{{ sql . }}' > /tmp/tachigo-atlas-inspect-schema.sql
+atlas migrate apply --dir "file://migrations" --url "$ATLAS_VERIFY_DATABASE_URL"
 docker compose run --no-deps --rm app go test ./...
 ```
 
-Expected：Atlas lint 通過、後端測試通過，且 PR body 明確寫出採用哪個 baseline strategy。
+Expected：Atlas 可以 inspect loader、完整 migration directory 可套到乾淨 PostgreSQL、後端測試通過，且 PR body 明確寫出採用哪個 baseline strategy。
 
 **Commit Message：**
 
@@ -164,7 +162,7 @@ refs #463
 Co-Authored-By: Codex <codex[bot]@openai.com>
 ```
 
-### PR 4：Remove Runtime AutoMigrate After Staging Validation
+### PR 4：Remove Runtime AutoMigrate After Reconciliation Migration（範圍完成於 PR `#588`；deploy follow-up `#212`）
 
 **目的：** 讓 Atlas 成為 runtime schema owner。
 
@@ -177,15 +175,14 @@ Co-Authored-By: Codex <codex[bot]@openai.com>
 **Preconditions：**
 
 - PR 1、PR 2、PR 3 已 merge。
-- Staging 已驗證 baseline strategy。
+- Reconciliation migration 已保留 runtime schema patches 與 high-risk historical invariants。
 - PR body 必須列出移除哪些 runtime patches，以及等價 Atlas migration 在哪裡。
 
 **Implementation Steps：**
 
-- [ ] 從 server startup 移除 `db.AutoMigrate(...)`。
-- [ ] 移除已由 Atlas migration 表達的 manual schema patches。
-- [ ] 只在仍有必要且有文件說明時，保留非 schema 的 runtime data repair code。
-- [ ] 新增 startup guard 或 log，明確表示 API process 不再執行 schema DDL。
+- [x] 從 server startup 移除 `db.AutoMigrate(...)`（PR `#588`）。
+- [x] Manual schema patches 已移入 Atlas；legacy raffle token hash repair 保留為非 schema data repair；startup guard test 防止 API process 再執行 schema DDL（PR `#588`）。
+
 
 **Verification：**
 
@@ -206,25 +203,52 @@ refs #463
 Co-Authored-By: Codex <codex[bot]@openai.com>
 ```
 
+## CI 策略決策（2026-05-10）
+
+**決策：移除 `migrate lint`，改用 official/latest Atlas + ephemeral Postgres apply。**
+
+背景：`atlas migrate lint` 從 v0.38 起限 Pro 授權。原本 pin 在 v0.37.0 是為了繼續免費用 lint。經 Claude Code + Codex 討論，新專案不值得為此維護版本 pin。
+
+### 決定採用的 CI 方案
+
+| 步驟 | 做法 | 理由 |
+|---|---|---|
+| CI Atlas 版本 | official/latest，不 pin（僅 CI；Docker runtime 另以 `ATLAS_VERSION=1.2.0` pin） | 解除 CI lint-era 版本鎖，不依賴 Community binary |
+| GORM loader 驗證 | `atlas schema inspect --env gorm --url env://src` | 確認 external_schema + loader 正常運作 |
+| Migration apply | `atlas migrate apply --dir file://migrations --url postgres://...` 對 ephemeral Postgres | 比 lint 更接近真實；apply 本身會驗 atlas.sum checksum |
+| Checksum drift | apply 失敗即可抓到，不另跑 `hash --check`（該 flag 不存在） | apply 已內建此保護 |
+| Destructive DDL guard | CI grep `DROP TABLE`、`TRUNCATE TABLE`、`DROP COLUMN`，需 `-- atlas:nolint` allowlist 才過 | 取代 lint 對危險 DDL 的部分保護，且更透明 |
+
+**明確不做：**
+- 不使用 `migrate lint`（Pro gate）
+- 不使用 Community binary（不支援 `external_schema`）
+
+### 運作邊界
+
+- Fresh DB / 新 Docker volume：API Docker entrypoint 會先套用 `001-020`，再啟動 `air`（dev target）或 `/tachigo`（runtime target）；API binary 本身不再執行 schema DDL。
+- 既有 dev DB / 舊 volume：若 schema 是早期 `AutoMigrate` 建出來、但沒有 `atlas_schema_revisions`，Atlas 不能自動判斷已套用哪些歷史 migration；本專案尚未正式上線，建議 reset dev volume 或由 operator 手動 baseline。
+- Production deploy automation 仍不屬於 `#463` 範圍；上線前需要在部署 workflow/runbook 中重用同一個 `atlas migrate apply` 流程。
+
 ## Issue #463 Acceptance Checklist
 
-- [ ] `services/api/atlas.hcl` 存在，且 `atlas migrate diff` 可使用 GORM loader。
-- [ ] CI 有 Atlas migration lint，且 job pass。
-- [ ] `services/api/migrations/001-019` 與 GORM model drift 已記錄或修正。
-- [ ] Baseline strategy 明確，且已針對目標 schema state 驗證。
-- [ ] `AutoMigrate` 策略在移除前已明確化，且 removal 只在 baseline validation 後執行。
+- [x] `services/api/atlas.hcl` 存在，且 `atlas migrate diff` 可使用 GORM loader。
+- [x] CI 有 Atlas migration 驗證，且 job 被 backend gate 納入。
+- [x] `services/api/migrations/001-019` 與 GORM model drift 已記錄或修正。
+- [x] Baseline strategy 明確，採 guarded apply-safe reconciliation migration。
+- [x] `AutoMigrate` 已從 server startup 移除；server 不再執行 schema DDL。
+- [x] Migration runner 存在：Docker image entrypoint 與 `make migrate` 都有 `atlas migrate apply` path，確保 fresh DB / 新 volume 可正確 bootstrap schema。
+- [x] CI 改成 official/latest Atlas + ephemeral Postgres apply（移除舊版 pin、Community binary 與 migrate lint）。
 
 ## Atlas References
 
 - External schema loading：<https://atlasgo.io/atlas-schema/external>
 - Versioned migration diff：<https://atlasgo.io/versioned/diff>
-- Migration lint：<https://atlasgo.io/versioned/lint>
 
 ## Review Checklist
 
 - [ ] PR diff 沒超過專案 scope limit；若超過，PR body 有有效 scope exception 理由。
 - [ ] PR 沒混合 schema migration、service logic、handler/router、frontend changes。
 - [ ] Partial unique indexes 被保留，或有 issue-backed decision 說明為何移除。
-- [ ] Custom PostgreSQL enum definitions 保留相同 label set，並依 `docs/atlas-schema-reconciliation.md` 的 enum ordering decision 處理；不得只因 runtime fresh-create order 與 production/migrated order 不同，就產生 enum rebuild 或 false-drift migration。
+- [ ] Custom PostgreSQL enum definitions 保留相同 label set，並依 `docs/atlas-schema-reconciliation.md` 的 enum ordering decision 處理。
 - [ ] `go mod tidy` 不會移除 Atlas tooling dependencies。
-- [ ] CI lint 驗證 migration directory；本地驗證另行驗證 GORM loader path。
+- [ ] CI apply job 對 ephemeral Postgres 跑完整 migration 001–020 無錯誤。
