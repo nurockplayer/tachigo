@@ -29,7 +29,7 @@ Tachigo 的代幣經濟模型以「**觀看即挖礦**（Proof of Watch）」為
 ### 2-2 T-Point（積分）
 
 - **產出來源**：用戶觀看直播時，前端透過 WebSocket Heartbeat 每分鐘回報在線狀態，後端定時寫入 `points_ledger`
-- **帳本設計**：**Per-channel ledger**（`points_ledgers` 以 `(user_id, channel_id)` 為唯一鍵）。每位觀眾在每個頻道各有獨立餘額，頻道點數彼此不互通。兌換 $TACHI 時統一結算（Phase 2）。欄位：`spendable_balance`（可 Claim 餘額）/ `cumulative_total`（歷史總觀看積分）
+- **帳本設計**：**Per-channel ledger**（`points_ledgers` 以 `(user_id, channel_id)` 為唯一鍵）。每位觀眾在每個頻道各有獨立餘額，頻道點數彼此不互通。兌換 $TACHI 時由 Claim 流程統一結算。欄位：`spendable_balance`（可 Claim 餘額）/ `cumulative_total`（歷史總觀看積分）
 - **性質**：純資料庫記帳，無鏈上存在，不可轉讓，不可交易
 - **角色**：作為「觀看發放獎勵」的緩衝層，防止直接 mint 造成即時通膨壓力
 
@@ -42,7 +42,7 @@ Tachigo 的代幣經濟模型以「**觀看即挖礦**（Proof of Watch）」為
 - **Soulbound 設計**：合約 override `transfer()`，禁止持有者自由轉讓；保留 `burn()`（消費路徑）與平台授權的 `mint()`；所有涉及「$TACHI 流動」的操作均經平台 Router Contract 路由執行，不破壞 Soulbound 限制
 - **獲取方式**：唯一來源為 T-Point → 手動 Claim → 合約 mint
 
-> **Phase 1 簡化**：Phase 1 Claim 在 DB 層執行（扣 `spendable_balance`、寫入 `tachi_balances`），不觸發鏈上 mint。Phase 2 升級為 Router Contract 模式，DB 記帳作為鏈上餘額同步參照。
+> **Phase 1 實作狀態（已完成，refs #103 #104 #105 #112 #190）**：Sepolia MVP Claim 已落地。後端會扣 `spendable_balance`、呼叫授權 signer 對 `TachiToken.mint()` 廣播並等待 receipt，成功後更新 `tachi_balances` 作為 $TACHI 餘額鏡像。Phase 2 Router Contract、1% Claim 手續費與 7 日未 Claim 回收仍屬後續範圍。
 
 ---
 
@@ -54,12 +54,12 @@ Tachigo 的代幣經濟模型以「**觀看即挖礦**（Proof of Watch）」為
 用戶觀看直播
   → WebSocket Heartbeat（每 30 秒，含 stale 偵測）
   → 後端依 channel_config.seconds_per_point 累積 T-Point（鏈下）
-  → [Phase 2] 每日 00:00 快照，計算各用戶可得 $TACHI 額度
-  → 用戶手動 Claim（扣除 1% 手續費 Burn，觸發合約 mint）
-  → $TACHI mint 至用戶帳面
+  → [Phase 1] 用戶手動 Claim（扣 spendable_balance，觸發 Sepolia mint）
+  → $TACHI 餘額寫入 tachi_balances 鏡像
+  → [Phase 2] Router Contract、每日快照、1% Claim 手續費與未 Claim 回收
 ```
 
-> **Phase 1 簡化版**（#59/#64 已實作）：跳過每日快照與鏈上 mint。用戶 Claim = DB 層扣 `spendable_balance` + 寫入 `tachi_balances`。Claim 手續費 Phase 1 免收。
+> **Phase 1 簡化版**（#59/#64/#103/#104/#105/#112/#190 已實作）：跳過每日快照、Router Contract、Claim 手續費與未 Claim 回收。用戶 Claim = DB 層扣 `spendable_balance` + Sepolia mint + 更新 `tachi_balances` 鏡像。Claim 手續費 Phase 1 免收。
 
 ### 3-2 消費側（Token Sink 完整路徑）
 
@@ -402,9 +402,9 @@ $TACHI 為 Soulbound（不可自由轉讓），但競標結算、投資分潤、
 | WatchService（Start / Heartbeat / End） | ✅ 已完成 | 含 session 建立、發點、結束 | #59 #64 |
 | Channel Config（seconds_per_point） | ✅ 已完成 | dashboard `/channels/:id/config` API | #64 |
 | Heartbeat hash 防刷記錄 | 🟡 待實作 | 目前僅時間間隔，需補 hash 欄位 | — |
-| $TACHI Claim 流程（DB 層） | 🟡 待實作 | `POST /users/me/points/claim`；Phase 1 DB-only，無手續費 | 待開 |
-| `tachi_balances` 記帳表 | 🟡 待實作 | Phase 1 DB 層 $TACHI 持有記錄 | 待開 |
-| `GET /users/me/tachi/balance` | 🟡 待實作 | 前端餘額顯示用 | 待開 |
+| $TACHI Claim 流程（Sepolia MVP） | ✅ 已完成 | `POST /users/me/points/claim`；扣 T-Point、mint $TACHI、Phase 1 無手續費 | #104 #112 #190 |
+| `tachi_balances` 餘額鏡像表 | ✅ 已完成 | Phase 1 $TACHI 餘額查詢與鏈上 mint 成功後的 DB 鏡像 | #103 #104 |
+| `GET /users/me/tachi/balance` | ✅ 已完成 | 前端餘額顯示用 | #105 #190 |
 | 每日發行池快照 Cron Job | ❌ Phase 2 | 60% / 30% / 10% 三子池分配 | — |
 | 7 日未 Claim 自動回收財庫 | ❌ Phase 2 | Cron Job 定期清算 | — |
 | 1% Claim 手續費燒毀 | ❌ Phase 2 | Mint 時同步執行 | — |
