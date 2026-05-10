@@ -166,6 +166,7 @@ func TestTPointComplete_DuplicateTransactionID_Returns409(t *testing.T) {
 	if w.Code != http.StatusOK {
 		t.Fatalf("first request: want 200, got %d: %s", w.Code, w.Body.String())
 	}
+	assertTokenPayloadHasAccessOnly(t, parseBody(t, w.Body.Bytes()))
 
 	req2 := httptest.NewRequest(http.MethodPost, "/api/v1/extension/t-point/complete",
 		tpointBody(t, extJWT, receipt, "TPOINT100"))
