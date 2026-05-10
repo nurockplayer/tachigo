@@ -50,11 +50,17 @@ type AppConfig struct {
 }
 
 type ServerConfig struct {
-	Port             string
-	Env              string
-	EnvSet           bool
-	EnableSwagger    bool
-	EnableSwaggerSet bool
+	Port              string
+	Env               string
+	EnvSet            bool
+	LogLevel          string
+	EnableSwagger     bool
+	EnableSwaggerSet  bool
+	EnableAutoMigrate bool
+	EnableScheduler   bool
+	AllowedOrigins    []string
+	GinMode           string
+	TrustedProxies    []string
 }
 
 type DatabaseConfig struct {
@@ -91,15 +97,29 @@ func Load() *Config {
 	refreshTTL, _ := strconv.Atoi(getEnv("JWT_REFRESH_TTL_DAYS", "30"))
 	smtpPort, _ := strconv.Atoi(getEnv("SMTP_PORT", "587"))
 	appEnv, appEnvSet := getEnvWithPresence("APP_ENV", "development")
-	enableSwagger, enableSwaggerSet := getBoolEnvWithPresence("ENABLE_SWAGGER", false)
+	isProduction := appEnvSet && appEnv == "production"
+
+	defaultEnableSwagger := !isProduction
+	enableSwagger, enableSwaggerSet := getBoolEnvWithPresence("ENABLE_SWAGGER", defaultEnableSwagger)
+	defaultGinMode := "debug"
+	if isProduction {
+		defaultGinMode = "release"
+	}
+	defaultAllowedOrigins := []string{"http://localhost:3000", "http://localhost:5173"}
 
 	return &Config{
 		Server: ServerConfig{
-			Port:             getEnv("PORT", "8080"),
-			Env:              appEnv,
-			EnvSet:           appEnvSet,
-			EnableSwagger:    enableSwagger,
-			EnableSwaggerSet: enableSwaggerSet,
+			Port:              getEnv("PORT", "8080"),
+			Env:               appEnv,
+			EnvSet:            appEnvSet,
+			LogLevel:          getEnv("LOG_LEVEL", "info"),
+			EnableSwagger:     enableSwagger,
+			EnableSwaggerSet:  enableSwaggerSet,
+			EnableAutoMigrate: getBoolEnv("ENABLE_AUTOMIGRATE", true),
+			EnableScheduler:   getBoolEnv("ENABLE_SCHEDULER", true),
+			AllowedOrigins:    getCommaEnv("ALLOWED_ORIGINS", defaultAllowedOrigins),
+			GinMode:           getEnv("GIN_MODE", defaultGinMode),
+			TrustedProxies:    getCommaEnv("TRUSTED_PROXIES", nil),
 		},
 		Database: DatabaseConfig{
 			DSN: getEnv("DATABASE_URL", "host=localhost user=postgres password=postgres dbname=tachigo port=5432 sslmode=disable"),
@@ -224,4 +244,28 @@ func validateJWTSecret(name, value, fallback string) error {
 		return fmt.Errorf("%s must be at least %d characters", name, minJWTSecretLength)
 	}
 	return nil
+}
+
+func getBoolEnv(key string, fallback bool) bool {
+	v := os.Getenv(key)
+	if v == "" {
+		return fallback
+	}
+	b, err := strconv.ParseBool(v)
+	if err != nil {
+		return fallback
+	}
+	return b
+}
+
+func getCommaEnv(key string, fallback []string) []string {
+	v := os.Getenv(key)
+	if v == "" {
+		return fallback
+	}
+	parts := strings.Split(v, ",")
+	for i, p := range parts {
+		parts[i] = strings.TrimSpace(p)
+	}
+	return parts
 }

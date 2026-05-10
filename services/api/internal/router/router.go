@@ -1,6 +1,7 @@
 package router
 
 import (
+	"log"
 	"time"
 
 	"github.com/gin-gonic/gin"
@@ -39,13 +40,23 @@ func New(
 	allowedOrigins []string,
 	internalRouterConfig ...InternalRouterConfig,
 ) *gin.Engine {
+	var cfg *config.Config
+	if len(internalRouterConfig) > 0 {
+		cfg = internalRouterConfig[0].Config
+	}
+
+	if cfg != nil && cfg.Server.GinMode != "" {
+		gin.SetMode(cfg.Server.GinMode)
+	}
+
 	r := gin.New()
 	r.Use(gin.Logger(), gin.Recovery())
 	r.Use(middleware.CORS(allowedOrigins))
 
-	var cfg *config.Config
-	if len(internalRouterConfig) > 0 {
-		cfg = internalRouterConfig[0].Config
+	if cfg != nil && len(cfg.Server.TrustedProxies) > 0 {
+		if err := r.SetTrustedProxies(cfg.Server.TrustedProxies); err != nil {
+			log.Printf("warning: SetTrustedProxies: %v", err)
+		}
 	}
 	rateLimiter := middleware.NewRateLimiter()
 	publicRateLimit := func(name string) gin.HandlerFunc {

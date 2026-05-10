@@ -13,9 +13,7 @@ import (
 	"context"
 	"errors"
 	"log"
-	"os"
 	"os/signal"
-	"strings"
 	"syscall"
 	"time"
 
@@ -157,13 +155,6 @@ func main() {
 	services.NewRaffleScheduler(raffleSvc).Start(serverCtx)
 	agencyH := handlers.NewAgencyHandler(agencySvc, emailAuthSvc)
 
-	// CORS origins from env, default to localhost for dev
-	originsEnv := os.Getenv("ALLOWED_ORIGINS")
-	allowedOrigins := []string{"http://localhost:3000", "http://localhost:5173"}
-	if originsEnv != "" {
-		allowedOrigins = strings.Split(originsEnv, ",")
-	}
-
 	r := router.New(
 		authSvc,
 		userSvc,
@@ -180,7 +171,7 @@ func main() {
 		spendSvc,
 		raffleSvc,
 		agencyH,
-		allowedOrigins,
+		cfg.Server.AllowedOrigins,
 		router.InternalRouterConfig{DB: db, Config: cfg},
 	)
 
