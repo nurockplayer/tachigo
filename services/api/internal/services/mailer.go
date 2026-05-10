@@ -125,12 +125,11 @@ func (m *SMTPMailer) Send(ctx context.Context, to, subject, htmlBody string) err
 }
 
 // NoOpMailer is used when SMTP is not configured.
-// It logs the email to stdout instead of sending it, which is useful during development.
+// It logs delivery metadata without the body so token-bearing links never reach logs.
 type NoOpMailer struct{}
 
 func (n *NoOpMailer) Send(_ context.Context, to, subject, htmlBody string) error {
-	log.Printf("[mailer] no-op send | to=%s | subject=%s", to, subject)
-	fmt.Printf("--- email ---\nTo: %s\nSubject: %s\n%s\n-------------\n", to, subject, htmlBody)
+	log.Printf("[mailer] no-op send | to=%s | subject=%s | body_bytes=%d | body=redacted", to, subject, len(htmlBody))
 	return nil
 }
 

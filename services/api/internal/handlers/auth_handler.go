@@ -24,6 +24,9 @@ import (
 const (
 	refreshTokenCookieName = "refresh_token"
 	refreshTokenCookiePath = "/api/v1/auth"
+	oauthStateCookieName   = "oauth_state"
+	oauthStateCookiePath   = "/"
+	oauthStateCookieMaxAge = 300
 )
 
 type AuthHandler struct {
@@ -85,7 +88,7 @@ func (h *AuthHandler) Register(c *gin.Context) {
 	}
 
 	h.setRefreshCookie(c, tokens.RefreshToken)
-	created(c, gin.H{"user": user, "tokens": tokens})
+	created(c, gin.H{"user": user, "tokens": browserTokenPair(tokens)})
 }
 
 // Login godoc
@@ -116,7 +119,7 @@ func (h *AuthHandler) Login(c *gin.Context) {
 	}
 
 	h.setRefreshCookie(c, tokens.RefreshToken)
-	ok(c, gin.H{"user": user, "tokens": tokens})
+	ok(c, gin.H{"user": user, "tokens": browserTokenPair(tokens)})
 }
 
 // Refresh godoc
@@ -147,7 +150,7 @@ func (h *AuthHandler) Refresh(c *gin.Context) {
 	}
 
 	h.setRefreshCookie(c, tokens.RefreshToken)
-	ok(c, gin.H{"tokens": tokens})
+	ok(c, gin.H{"tokens": browserTokenPair(tokens)})
 }
 
 // Logout godoc
@@ -179,7 +182,7 @@ func (h *AuthHandler) Logout(c *gin.Context) {
 // @Router       /auth/twitch [get]
 func (h *AuthHandler) TwitchLogin(c *gin.Context) {
 	state := oauthState()
-	c.SetCookie("oauth_state", state, 300, "/", "", false, true)
+	h.setOAuthStateCookie(c, state)
 	c.Redirect(http.StatusFound, h.auth.TwitchAuthURL(state))
 }
 
@@ -195,9 +198,11 @@ func (h *AuthHandler) TwitchLogin(c *gin.Context) {
 // @Router       /auth/twitch/callback [get]
 func (h *AuthHandler) TwitchCallback(c *gin.Context) {
 	if err := validateOAuthState(c); err != nil {
+		h.clearOAuthStateCookie(c)
 		badRequest(c, "invalid state parameter")
 		return
 	}
+	h.clearOAuthStateCookie(c)
 
 	code := c.Query("code")
 	user, tokens, err := h.auth.TwitchCallback(c.Request.Context(), code)
@@ -207,7 +212,7 @@ func (h *AuthHandler) TwitchCallback(c *gin.Context) {
 	}
 
 	h.setRefreshCookie(c, tokens.RefreshToken)
-	ok(c, gin.H{"user": user, "tokens": tokens})
+	ok(c, gin.H{"user": user, "tokens": browserTokenPair(tokens)})
 }
 
 // GoogleLogin godoc
@@ -218,7 +223,7 @@ func (h *AuthHandler) TwitchCallback(c *gin.Context) {
 // @Router       /auth/google [get]
 func (h *AuthHandler) GoogleLogin(c *gin.Context) {
 	state := oauthState()
-	c.SetCookie("oauth_state", state, 300, "/", "", false, true)
+	h.setOAuthStateCookie(c, state)
 	c.Redirect(http.StatusFound, h.auth.GoogleAuthURL(state))
 }
 
@@ -234,9 +239,11 @@ func (h *AuthHandler) GoogleLogin(c *gin.Context) {
 // @Router       /auth/google/callback [get]
 func (h *AuthHandler) GoogleCallback(c *gin.Context) {
 	if err := validateOAuthState(c); err != nil {
+		h.clearOAuthStateCookie(c)
 		badRequest(c, "invalid state parameter")
 		return
 	}
+	h.clearOAuthStateCookie(c)
 
 	code := c.Query("code")
 	user, tokens, err := h.auth.GoogleCallback(c.Request.Context(), code)
@@ -246,7 +253,7 @@ func (h *AuthHandler) GoogleCallback(c *gin.Context) {
 	}
 
 	h.setRefreshCookie(c, tokens.RefreshToken)
-	ok(c, gin.H{"user": user, "tokens": tokens})
+	ok(c, gin.H{"user": user, "tokens": browserTokenPair(tokens)})
 }
 
 // Web3Nonce godoc
@@ -311,7 +318,7 @@ func (h *AuthHandler) Web3Verify(c *gin.Context) {
 	}
 
 	h.setRefreshCookie(c, tokens.RefreshToken)
-	ok(c, gin.H{"user": user, "tokens": tokens})
+	ok(c, gin.H{"user": user, "tokens": browserTokenPair(tokens)})
 }
 
 // UnlinkProvider godoc
@@ -351,7 +358,7 @@ func oauthState() string {
 }
 
 func validateOAuthState(c *gin.Context) error {
-	cookie, err := c.Cookie("oauth_state")
+	cookie, err := c.Cookie(oauthStateCookieName)
 	if err != nil {
 		return err
 	}
@@ -359,6 +366,32 @@ func validateOAuthState(c *gin.Context) error {
 		return gin.Error{Err: nil, Type: gin.ErrorTypePublic}
 	}
 	return nil
+}
+
+func (h *AuthHandler) setOAuthStateCookie(c *gin.Context, state string) {
+	c.SetSameSite(http.SameSiteLaxMode)
+	c.SetCookie(
+		oauthStateCookieName,
+		state,
+		oauthStateCookieMaxAge,
+		oauthStateCookiePath,
+		"",
+		h.refreshCookieSecure(),
+		true,
+	)
+}
+
+func (h *AuthHandler) clearOAuthStateCookie(c *gin.Context) {
+	c.SetSameSite(http.SameSiteLaxMode)
+	c.SetCookie(
+		oauthStateCookieName,
+		"",
+		-1,
+		oauthStateCookiePath,
+		"",
+		h.refreshCookieSecure(),
+		true,
+	)
 }
 
 func (h *AuthHandler) refreshTokenFromRequest(c *gin.Context) (string, error) {

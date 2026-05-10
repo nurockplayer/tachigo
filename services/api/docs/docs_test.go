@@ -130,6 +130,55 @@ func TestSwaggerDoc_NoGlobalSecurity_ProtectedOpsRequireBearerAuth(t *testing.T)
 	}
 }
 
+func TestSwaggerDoc_BrowserTokenPairDocumentsRequiredMetadata(t *testing.T) {
+	raw := SwaggerInfo.ReadDoc()
+
+	var doc map[string]any
+	if err := json.Unmarshal([]byte(raw), &doc); err != nil {
+		t.Fatalf("unmarshal doc: %v", err)
+	}
+
+	definitions, ok := doc["definitions"].(map[string]any)
+	if !ok {
+		t.Fatalf("definitions: got %#v", doc["definitions"])
+	}
+	schema, ok := definitions["handlers.BrowserTokenPair"].(map[string]any)
+	if !ok {
+		t.Fatalf("handlers.BrowserTokenPair definition missing, got %#v", definitions["handlers.BrowserTokenPair"])
+	}
+	properties, ok := schema["properties"].(map[string]any)
+	if !ok {
+		t.Fatalf("BrowserTokenPair properties invalid, got %#v", schema["properties"])
+	}
+	if _, ok := properties["access_token"]; !ok {
+		t.Fatalf("BrowserTokenPair must document access_token, got %#v", properties)
+	}
+	if _, ok := properties["expires_in"]; !ok {
+		t.Fatalf("BrowserTokenPair must document expires_in metadata, got %#v", properties)
+	}
+	if _, ok := properties["refresh_token"]; ok {
+		t.Fatalf("BrowserTokenPair must not document refresh_token, got %#v", properties)
+	}
+
+	required, ok := schema["required"].([]any)
+	if !ok {
+		t.Fatalf("BrowserTokenPair must declare required fields, got %#v", schema["required"])
+	}
+	requiredSet := make(map[string]bool, len(required))
+	for _, field := range required {
+		name, ok := field.(string)
+		if !ok {
+			t.Fatalf("BrowserTokenPair required field has invalid shape: %#v", field)
+		}
+		requiredSet[name] = true
+	}
+	for _, field := range []string{"access_token", "expires_in"} {
+		if !requiredSet[field] {
+			t.Fatalf("BrowserTokenPair required fields must include %s, got %#v", field, required)
+		}
+	}
+}
+
 func TestSwaggerDoc_ClaimSubmitDocumentsBadRequest(t *testing.T) {
 	raw := SwaggerInfo.ReadDoc()
 

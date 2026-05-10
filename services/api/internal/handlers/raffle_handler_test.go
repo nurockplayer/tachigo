@@ -744,6 +744,81 @@ func TestRaffle_CSVDuplicateSkipped(t *testing.T) {
 	}
 }
 
+func TestRaffle_ImportCSV_ValidUploadStillWorks(t *testing.T) {
+	env := newRaffleTestEnv(t)
+	token := env.registerStreamer(t, "csvvalid", "csvvalid@test.com", "pass1234")
+	raffleID := env.createRaffle(t, token, "valid csv")
+	env.createTwitchLinkedUser(t, "csv_valid_user")
+
+	w := env.uploadCSV(t, token, raffleID, "csv_valid_user,CSV Valid User\n")
+
+	if w.Code != http.StatusOK {
+		t.Fatalf("want 200, got %d: %s", w.Code, w.Body.String())
+	}
+	resp := parseBody(t, w.Body.Bytes())
+	data := resp["data"].(map[string]interface{})
+	if int(data["imported"].(float64)) != 1 {
+		t.Fatalf("want imported=1, got %v", data["imported"])
+	}
+}
+
+func TestRaffle_ImportCSV_OversizedUploadReturns413(t *testing.T) {
+	env := newRaffleTestEnv(t)
+	token := env.registerStreamer(t, "csvlarge", "csvlarge@test.com", "pass1234")
+	raffleID := env.createRaffle(t, token, "large csv")
+
+	oversizedCSV := strings.Repeat("large_user,Large User\n", 70000)
+	w := env.uploadCSV(t, token, raffleID, oversizedCSV)
+
+	if w.Code != http.StatusRequestEntityTooLarge {
+		t.Fatalf("want 413, got %d: %s", w.Code, w.Body.String())
+	}
+	resp := parseBody(t, w.Body.Bytes())
+	if resp["error"] != "csv upload is too large" {
+		t.Fatalf("want deterministic too-large error, got %#v", resp["error"])
+	}
+}
+
+func (e *raffleTestEnv) createRaffle(t *testing.T, token, title string) string {
+	t.Helper()
+
+	body, _ := json.Marshal(map[string]string{"title": title})
+	w := httptest.NewRecorder()
+	req, _ := http.NewRequest(http.MethodPost, "/api/v1/dashboard/raffles", bytes.NewReader(body))
+	req.Header.Set("Content-Type", "application/json")
+	req.Header.Set("Authorization", bearer(token))
+	e.router.ServeHTTP(w, req)
+	if w.Code != http.StatusCreated {
+		t.Fatalf("create raffle: want 201, got %d: %s", w.Code, w.Body.String())
+	}
+	resp := parseBody(t, w.Body.Bytes())
+	return resp["data"].(map[string]interface{})["raffle"].(map[string]interface{})["id"].(string)
+}
+
+func (e *raffleTestEnv) uploadCSV(t *testing.T, token, raffleID, csvBody string) *httptest.ResponseRecorder {
+	t.Helper()
+
+	var buf bytes.Buffer
+	mw := multipart.NewWriter(&buf)
+	fw, err := mw.CreateFormFile("file", "entries.csv")
+	if err != nil {
+		t.Fatalf("create form file: %v", err)
+	}
+	if _, err := fw.Write([]byte(csvBody)); err != nil {
+		t.Fatalf("write csv: %v", err)
+	}
+	if err := mw.Close(); err != nil {
+		t.Fatalf("close multipart writer: %v", err)
+	}
+
+	w := httptest.NewRecorder()
+	req, _ := http.NewRequest(http.MethodPost, "/api/v1/dashboard/raffles/"+raffleID+"/entries/import-csv", &buf)
+	req.Header.Set("Content-Type", mw.FormDataContentType())
+	req.Header.Set("Authorization", bearer(token))
+	e.router.ServeHTTP(w, req)
+	return w
+}
+
 // testConfig returns minimal config for tests.
 func testConfig() *config.Config {
 	return &config.Config{

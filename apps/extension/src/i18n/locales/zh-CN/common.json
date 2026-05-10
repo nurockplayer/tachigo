@@ -17,6 +17,8 @@
     "bgmOn": "♪ 开",
     "bgmOff": "♪ 关",
     "tabAudioUnavailable": "分页音频不可用",
+    "pointsBalance": "点数余额",
+    "availableBalance": "可用",
     "cumulativeTotal": "累计总计",
     "nextIn": "下次 {{count}} 秒",
     "clicksLeft": "剩 {{count}} 次",

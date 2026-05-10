@@ -51,10 +51,10 @@ Provider support is part of the shared identity layer, but client auth contracts
 Observed behavior in the current repo:
 
 - access token is kept in memory only
-- refresh token is persisted in `localStorage` under key `refresh_token`
-- `login()` calls `POST /api/v1/auth/login`; login stores the returned refresh token in `localStorage`
-- logout sends `refresh_token` in the request body when present
-- session restore on page reload is not implemented
+- refresh token is owned by the backend-managed httpOnly cookie; dashboard does not persist it in `localStorage`
+- `login()` calls `POST /api/v1/auth/login`; login stores only the returned access token in memory
+- logout calls `POST /api/v1/auth/logout` without a `refresh_token` request body
+- session restore on page reload is implemented by calling `restoreSession()` before rendering the app
 - axios client sends `withCredentials: true`; 401 responses trigger a single silent refresh (deduped across concurrent requests) and retry
 - dashboard does not currently persist a separate `current_user` payload
 
@@ -64,9 +64,9 @@ Observed behavior in the current repo:
 |---|---|---|
 | Phase 1 — Backend | httpOnly cookie set on login/refresh/logout; refresh and logout prefer cookie with body fallback | ✅ Done (PR #220) |
 | Phase 2a — Dashboard axios layer | `withCredentials: true`; `hasAuthToken()`; 401 dedupe interceptor | ✅ Done (PR #338) |
-| Phase 2b — Dashboard auth contract | Remove `localStorage`; cookie-based session restore; update `auth.ts` and `main.tsx` | ⏳ Pending |
+| Phase 2b — Dashboard auth contract | Remove `localStorage`; cookie-based session restore; update `auth.ts` and `main.tsx` | ✅ Done (PR #340) |
 
-Body fallback (sending `refresh_token` in request body) remains active in the backend during the transition period. It will be removed in a dedicated follow-up once all clients are confirmed to be on the cookie-based contract.
+Body fallback (sending `refresh_token` in request body) remains active in the backend during the transition period, but dashboard no longer uses it. The backend fallback should be removed in a dedicated follow-up once all clients are confirmed to be on the cookie-based contract.
 
 ## Current Extension State
 

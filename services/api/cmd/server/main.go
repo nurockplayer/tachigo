@@ -13,9 +13,7 @@ import (
 	"context"
 	"errors"
 	"log"
-	"os"
 	"os/signal"
-	"strings"
 	"syscall"
 	"time"
 
@@ -150,19 +148,16 @@ func main() {
 	if cfg.Server.Env == "production" && cfg.OAuth.Twitch.ClientID == "" {
 		log.Fatal("TWITCH_CLIENT_ID is required in production for raffle snapshot sync")
 	}
-	raffleSvc := services.NewRaffleService(db, cfg.OAuth.Twitch.ClientID, cfg.App.FrontendURL, mailer)
+	oauthTokenSecret := cfg.OAuth.TokenEncryptionKey
+	if oauthTokenSecret == "" {
+		oauthTokenSecret = cfg.JWT.RefreshSecret
+	}
+	raffleSvc := services.NewRaffleService(db, cfg.OAuth.Twitch.ClientID, cfg.App.FrontendURL, mailer, oauthTokenSecret)
 	// Tie scheduler lifetime to server shutdown signals so the goroutine exits cleanly.
 	serverCtx, serverStop := signal.NotifyContext(context.Background(), syscall.SIGINT, syscall.SIGTERM)
 	defer serverStop()
 	services.NewRaffleScheduler(raffleSvc).Start(serverCtx)
 	agencyH := handlers.NewAgencyHandler(agencySvc, emailAuthSvc)
-
-	// CORS origins from env, default to localhost for dev
-	originsEnv := os.Getenv("ALLOWED_ORIGINS")
-	allowedOrigins := []string{"http://localhost:3000", "http://localhost:5173"}
-	if originsEnv != "" {
-		allowedOrigins = strings.Split(originsEnv, ",")
-	}
 
 	r := router.New(
 		authSvc,
@@ -180,7 +175,7 @@ func main() {
 		spendSvc,
 		raffleSvc,
 		agencyH,
-		allowedOrigins,
+		cfg.Server.AllowedOrigins,
 		router.InternalRouterConfig{DB: db, Config: cfg},
 	)
 

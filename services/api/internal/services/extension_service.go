@@ -37,6 +37,7 @@ type ExtensionClaims struct {
 type ReceiptClaims struct {
 	Data struct {
 		TransactionID string `json:"transactionId"`
+		UserID        string `json:"userId"`
 		SKU           string `json:"sku"`
 		Amount        int    `json:"amount"`
 		Type          string `json:"type"` // "bits" — Twitch SDK contract, do not rename
@@ -165,6 +166,9 @@ func (s *ExtensionService) CompleteTPointTransaction(extJWT, receipt, sku string
 	}
 
 	if receiptClaims.Data.SKU != sku {
+		return nil, nil, ErrInvalidReceipt
+	}
+	if receiptClaims.Data.UserID == "" || receiptClaims.Data.UserID != extClaims.UserID {
 		return nil, nil, ErrInvalidReceipt
 	}
 	if receiptClaims.Data.Type != "bits" {

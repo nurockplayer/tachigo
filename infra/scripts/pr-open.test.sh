@@ -16,6 +16,14 @@ printf '%s\n' "$*" > "$PR_METADATA_CHECK_LOG"
 STUB
 chmod +x "$tmp_dir/infra/scripts/pr-metadata-check.sh"
 
+cat > "$tmp_dir/infra/scripts/session-index.sh" <<'STUB'
+#!/usr/bin/env bash
+set -euo pipefail
+printf '%s\n' "$*" > "$SESSION_INDEX_LOG"
+exit "${SESSION_INDEX_EXIT:-0}"
+STUB
+chmod +x "$tmp_dir/infra/scripts/session-index.sh"
+
 cat > "$tmp_dir/fakebin/gh" <<'STUB'
 #!/usr/bin/env bash
 set -euo pipefail
@@ -26,6 +34,7 @@ fi
 
 if [ "${1:-}" = "pr" ] && [ "${2:-}" = "create" ]; then
   printf '%s\n' "$*" > "$GH_PR_CREATE_LOG"
+  printf '%s\n' "https://github.com/nurockplayer/tachigo/pull/566"
   exit 0
 fi
 
@@ -38,11 +47,12 @@ chmod +x "$tmp_dir/fakebin/gh"
   cd "$tmp_dir"
   git init -q
   git checkout -q -b test/pr-open
-  touch body.md
+  printf '%s\n' "refs #420" > body.md
 
   PATH="$tmp_dir/fakebin:$PATH" \
     GH_PR_CREATE_LOG="$tmp_dir/gh-pr-create.log" \
     PR_METADATA_CHECK_LOG="$tmp_dir/pr-metadata-check.log" \
+    SESSION_INDEX_LOG="$tmp_dir/session-index.log" \
     "$tmp_dir/infra/scripts/pr-open.sh" \
       --title "[chore] Test auto-ready PR" \
       --body-file body.md \
@@ -52,6 +62,9 @@ chmod +x "$tmp_dir/fakebin/gh"
 grep -q -- '--draft' "$tmp_dir/gh-pr-create.log"
 grep -q -- '--label auto-ready' "$tmp_dir/gh-pr-create.log"
 grep -q -- '--title \[chore\] Test auto-ready PR' "$tmp_dir/pr-metadata-check.log"
+grep -q -- 'add --pr 566' "$tmp_dir/session-index.log"
+grep -q -- '--issue 420' "$tmp_dir/session-index.log"
+grep -q -- '--worktree '"$tmp_dir" "$tmp_dir/session-index.log"
 
 (
   cd "$tmp_dir"
@@ -59,6 +72,7 @@ grep -q -- '--title \[chore\] Test auto-ready PR' "$tmp_dir/pr-metadata-check.lo
   PATH="$tmp_dir/fakebin:$PATH" \
     GH_PR_CREATE_LOG="$tmp_dir/gh-pr-create-default.log" \
     PR_METADATA_CHECK_LOG="$tmp_dir/pr-metadata-check-default.log" \
+    SESSION_INDEX_LOG="$tmp_dir/session-index-default.log" \
     "$tmp_dir/infra/scripts/pr-open.sh" \
       --title "[chore] Test default PR" \
       --body-file body.md
@@ -67,5 +81,24 @@ grep -q -- '--title \[chore\] Test auto-ready PR' "$tmp_dir/pr-metadata-check.lo
 ! grep -q -- '--draft' "$tmp_dir/gh-pr-create-default.log"
 ! grep -q -- '--label auto-ready' "$tmp_dir/gh-pr-create-default.log"
 grep -q -- '--title \[chore\] Test default PR' "$tmp_dir/pr-metadata-check-default.log"
+grep -q -- 'add --pr 566' "$tmp_dir/session-index-default.log"
+grep -q -- '--issue 420' "$tmp_dir/session-index-default.log"
+grep -q -- '--worktree '"$tmp_dir" "$tmp_dir/session-index-default.log"
+
+(
+  cd "$tmp_dir"
+
+  PATH="$tmp_dir/fakebin:$PATH" \
+    GH_PR_CREATE_LOG="$tmp_dir/gh-pr-create-index-fail.log" \
+    PR_METADATA_CHECK_LOG="$tmp_dir/pr-metadata-check-index-fail.log" \
+    SESSION_INDEX_LOG="$tmp_dir/session-index-fail.log" \
+    SESSION_INDEX_EXIT=1 \
+    "$tmp_dir/infra/scripts/pr-open.sh" \
+      --title "[chore] Test index failure is non-fatal" \
+      --body-file body.md \
+      2>"$tmp_dir/index-fail.stderr"
+)
+
+grep -q -- 'warning: failed to update local Codex session index' "$tmp_dir/index-fail.stderr"
 
 echo "pr-open regression tests passed"

@@ -1,6 +1,6 @@
 module github.com/tachigo/tachigo
 
-go 1.25.0
+go 1.26.3
 
 require (
 	ariga.io/atlas-provider-gorm v0.6.0

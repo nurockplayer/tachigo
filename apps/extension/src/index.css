@@ -98,10 +98,10 @@ p  { margin: 0; }
 }
 
 .ext-balance {
-  display: flex;
-  align-items: baseline;
+  display: grid;
+  grid-template-columns: minmax(0, 1fr) minmax(0, 1fr);
   justify-content: space-between;
-  gap: 8px;
+  gap: 10px;
   padding: 10px 12px;
   border: 1px solid var(--border);
   border-radius: var(--radius);
@@ -112,15 +112,26 @@ p  { margin: 0; }
   animation: balance-bump 450ms ease;
 }
 
+.ext-balance__metric {
+  min-width: 0;
+}
+
+.ext-balance__metric--secondary {
+  text-align: right;
+}
+
 .ext-balance__label {
+  display: block;
   font-size: 12px;
   color: var(--text);
 }
 
 .ext-balance__value {
+  display: block;
   font-size: 18px;
   color: var(--text-h);
   letter-spacing: -0.2px;
+  overflow-wrap: anywhere;
 }
 
 .ext-balance-gain {

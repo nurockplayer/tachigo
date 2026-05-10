@@ -37,7 +37,7 @@ type routerTestEnv struct {
 	router  *gin.Engine
 }
 
-func newRouterTestEnv(t *testing.T) *routerTestEnv {
+func newRouterTestEnv(t *testing.T, routerConfigs ...*config.Config) *routerTestEnv {
 	t.Helper()
 
 	dbName := strings.NewReplacer("/", "_", " ", "_").Replace(t.Name())
@@ -74,6 +74,9 @@ func newRouterTestEnv(t *testing.T) *routerTestEnv {
 			FrontendURL: "http://localhost:3000",
 		},
 	}
+	if len(routerConfigs) > 0 {
+		cfg = routerConfigs[0]
+	}
 	authSvc := services.NewAuthService(db, cfg)
 	userSvc := services.NewUserService(db)
 	addrSvc := services.NewAddressService(db)
@@ -89,6 +92,11 @@ func newRouterTestEnv(t *testing.T) *routerTestEnv {
 	spendSvc := services.NewSpendService(db, config.ContractConfig{}, nil, nil)
 	raffleSvc := services.NewRaffleService(db, "", "", nil)
 	agencyHandler := handlers.NewAgencyHandler(agencySvc, emailAuthSvc)
+
+	internalRouterConfigs := []router.InternalRouterConfig{}
+	if len(routerConfigs) > 0 {
+		internalRouterConfigs = append(internalRouterConfigs, router.InternalRouterConfig{DB: db, Config: cfg})
+	}
 
 	engine := router.New(
 		authSvc,
@@ -107,12 +115,74 @@ func newRouterTestEnv(t *testing.T) *routerTestEnv {
 		raffleSvc,
 		agencyHandler,
 		[]string{"http://localhost:3000"},
+		internalRouterConfigs...,
 	)
 
 	return &routerTestEnv{
 		db:      db,
 		authSvc: authSvc,
 		router:  engine,
+	}
+}
+
+func TestSwaggerRoute_DevelopmentDefaultExposesSwagger(t *testing.T) {
+	env := newRouterTestEnv(t, routerTestConfig("development", false, false))
+
+	assertSwaggerExposed(t, env.router)
+}
+
+func TestSwaggerRoute_ProductionDefaultHidesSwagger(t *testing.T) {
+	env := newRouterTestEnv(t, routerTestConfig("production", false, false))
+
+	assertSwaggerHidden(t, env.router)
+}
+
+func TestSwaggerRoute_ProductionExplicitFlagExposesSwagger(t *testing.T) {
+	env := newRouterTestEnv(t, routerTestConfig("production", true, true))
+
+	assertSwaggerExposed(t, env.router)
+}
+
+func routerTestConfig(serverEnv string, enableSwagger, enableSwaggerSet bool) *config.Config {
+	return &config.Config{
+		Server: config.ServerConfig{
+			Env:              serverEnv,
+			EnableSwagger:    enableSwagger,
+			EnableSwaggerSet: enableSwaggerSet,
+		},
+		JWT: config.JWTConfig{
+			AccessSecret:  "test-access-secret-at-least-32-chars!",
+			RefreshSecret: "test-refresh-secret",
+			AccessTTL:     15 * time.Minute,
+			RefreshTTL:    30 * 24 * time.Hour,
+		},
+		App: config.AppConfig{
+			FrontendURL: "http://localhost:3000",
+		},
+	}
+}
+
+func assertSwaggerExposed(t *testing.T, engine *gin.Engine) {
+	t.Helper()
+
+	req := httptest.NewRequest(http.MethodGet, "/swagger/index.html", nil)
+	rec := httptest.NewRecorder()
+	engine.ServeHTTP(rec, req)
+
+	if rec.Code == http.StatusNotFound {
+		t.Fatalf("expected swagger route to be exposed, got 404: %s", rec.Body.String())
+	}
+}
+
+func assertSwaggerHidden(t *testing.T, engine *gin.Engine) {
+	t.Helper()
+
+	req := httptest.NewRequest(http.MethodGet, "/swagger/index.html", nil)
+	rec := httptest.NewRecorder()
+	engine.ServeHTTP(rec, req)
+
+	if rec.Code != http.StatusNotFound {
+		t.Fatalf("expected swagger route to be hidden with 404, got %d: %s", rec.Code, rec.Body.String())
 	}
 }
 
@@ -344,6 +414,77 @@ func migrateTestDB(db *gorm.DB) error {
 	}
 
 	return nil
+}
+
+func TestPublicEndpointRateLimits(t *testing.T) {
+	env := newRouterTestEnv(t)
+
+	tests := []struct {
+		name string
+		path string
+		body string
+	}{
+		{
+			name: "register",
+			path: "/api/v1/auth/register",
+			body: `{}`,
+		},
+		{
+			name: "login",
+			path: "/api/v1/auth/login",
+			body: `{}`,
+		},
+		{
+			name: "forgot password",
+			path: "/api/v1/auth/forgot-password",
+			body: `{}`,
+		},
+		{
+			name: "reset password",
+			path: "/api/v1/auth/reset-password",
+			body: `{}`,
+		},
+		{
+			name: "web3 nonce",
+			path: "/api/v1/auth/web3/nonce",
+			body: `{}`,
+		},
+		{
+			name: "web3 verify",
+			path: "/api/v1/auth/web3/verify",
+			body: `{}`,
+		},
+		{
+			name: "receipt completion",
+			path: "/api/v1/extension/t-point/complete",
+			body: `{}`,
+		},
+		{
+			name: "bits receipt completion",
+			path: "/api/v1/extension/bits/complete",
+			body: `{}`,
+		},
+	}
+
+	for _, tt := range tests {
+		t.Run(tt.name, func(t *testing.T) {
+			for i := 0; i < 70; i++ {
+				req := httptest.NewRequest(http.MethodPost, tt.path, strings.NewReader(tt.body))
+				req.Header.Set("Content-Type", "application/json")
+				rec := httptest.NewRecorder()
+				env.router.ServeHTTP(rec, req)
+
+				if rec.Code == http.StatusTooManyRequests {
+					if !strings.Contains(rec.Body.String(), "rate limit exceeded") {
+						t.Fatalf("want deterministic rate limit error, got %s", rec.Body.String())
+					}
+					return
+				}
+			}
+
+			t.Fatal("expected endpoint to return 429 after repeated requests")
+		})
+	}
 }
 
 func (e *routerTestEnv) tokenForRole(t *testing.T, role models.UserRole, prefix string) (string, string) {

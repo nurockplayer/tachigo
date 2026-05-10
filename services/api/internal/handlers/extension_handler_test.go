@@ -115,10 +115,11 @@ func signExtJWTForHandler(t *testing.T, twitchID, channelID string) string {
 	return signed
 }
 
-func signReceiptJWTForHandler(t *testing.T, txID, sku string, amount int, txType string) string {
+func signReceiptJWTForHandler(t *testing.T, txID, userID, sku string, amount int, txType string) string {
 	t.Helper()
 	type receiptData struct {
 		TransactionID string `json:"transactionId"`
+		UserID        string `json:"userId"`
 		SKU           string `json:"sku"`
 		Amount        int    `json:"amount"`
 		Type          string `json:"type"`
@@ -128,7 +129,7 @@ func signReceiptJWTForHandler(t *testing.T, txID, sku string, amount int, txType
 		jwt.RegisteredClaims
 	}
 	claims := receiptClaims{
-		Data: receiptData{TransactionID: txID, SKU: sku, Amount: amount, Type: txType},
+		Data: receiptData{TransactionID: txID, UserID: userID, SKU: sku, Amount: amount, Type: txType},
 		RegisteredClaims: jwt.RegisteredClaims{
 			ExpiresAt: jwt.NewNumericDate(time.Now().Add(time.Hour)),
 		},
@@ -155,7 +156,7 @@ func TestTPointComplete_DuplicateTransactionID_Returns409(t *testing.T) {
 	r, db := newExtHandlerEnv(t)
 	twitchID := seedTwitchUserForHandler(t, db)
 	extJWT := signExtJWTForHandler(t, twitchID, "ch-42")
-	receipt := signReceiptJWTForHandler(t, "tx-handler-dup", "TPOINT100", 100, "bits")
+	receipt := signReceiptJWTForHandler(t, "tx-handler-dup", twitchID, "TPOINT100", 100, "bits")
 
 	req := httptest.NewRequest(http.MethodPost, "/api/v1/extension/t-point/complete",
 		tpointBody(t, extJWT, receipt, "TPOINT100"))
@@ -165,6 +166,7 @@ func TestTPointComplete_DuplicateTransactionID_Returns409(t *testing.T) {
 	if w.Code != http.StatusOK {
 		t.Fatalf("first request: want 200, got %d: %s", w.Code, w.Body.String())
 	}
+	assertTokenPayloadHasAccessOnly(t, parseBody(t, w.Body.Bytes()))
 
 	req2 := httptest.NewRequest(http.MethodPost, "/api/v1/extension/t-point/complete",
 		tpointBody(t, extJWT, receipt, "TPOINT100"))
@@ -180,7 +182,7 @@ func TestTPointComplete_InvalidReceiptAmount_Returns400(t *testing.T) {
 	r, db := newExtHandlerEnv(t)
 	twitchID := seedTwitchUserForHandler(t, db)
 	extJWT := signExtJWTForHandler(t, twitchID, "ch-42")
-	receipt := signReceiptJWTForHandler(t, "tx-bad-amount", "TPOINT100", 0, "bits")
+	receipt := signReceiptJWTForHandler(t, "tx-bad-amount", twitchID, "TPOINT100", 0, "bits")
 
 	req := httptest.NewRequest(http.MethodPost, "/api/v1/extension/t-point/complete",
 		tpointBody(t, extJWT, receipt, "TPOINT100"))
@@ -196,7 +198,24 @@ func TestTPointComplete_TooLongTransactionID_Returns400(t *testing.T) {
 	r, db := newExtHandlerEnv(t)
 	twitchID := seedTwitchUserForHandler(t, db)
 	extJWT := signExtJWTForHandler(t, twitchID, "ch-42")
-	receipt := signReceiptJWTForHandler(t, strings.Repeat("x", 256), "TPOINT100", 100, "bits")
+	receipt := signReceiptJWTForHandler(t, strings.Repeat("x", 256), twitchID, "TPOINT100", 100, "bits")
+
+	req := httptest.NewRequest(http.MethodPost, "/api/v1/extension/t-point/complete",
+		tpointBody(t, extJWT, receipt, "TPOINT100"))
+	req.Header.Set("Content-Type", "application/json")
+	w := httptest.NewRecorder()
+	r.ServeHTTP(w, req)
+	if w.Code != http.StatusBadRequest {
+		t.Errorf("want 400, got %d: %s", w.Code, w.Body.String())
+	}
+}
+
+func TestTPointComplete_ReceiptUserMismatch_Returns400(t *testing.T) {
+	r, db := newExtHandlerEnv(t)
+	twitchID := seedTwitchUserForHandler(t, db)
+	otherTwitchID := seedTwitchUserForHandler(t, db)
+	extJWT := signExtJWTForHandler(t, twitchID, "ch-42")
+	receipt := signReceiptJWTForHandler(t, "tx-handler-cross-user", otherTwitchID, "TPOINT100", 100, "bits")
 
 	req := httptest.NewRequest(http.MethodPost, "/api/v1/extension/t-point/complete",
 		tpointBody(t, extJWT, receipt, "TPOINT100"))

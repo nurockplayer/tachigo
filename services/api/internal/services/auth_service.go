@@ -435,11 +435,9 @@ func (s *AuthService) upsertOAuthUser(
 	if err == nil {
 		// Already linked – update tokens, return user
 		if token != nil {
-			at := token.AccessToken
-			rt := token.RefreshToken
-			ap.AccessToken = &at
-			ap.RefreshToken = &rt
-			ap.TokenExpiresAt = &token.Expiry
+			if err := s.assignProviderTokens(&ap, provider, token); err != nil {
+				return nil, nil, err
+			}
 			if err := s.db.Save(&ap).Error; err != nil {
 				return nil, nil, err
 			}
@@ -481,11 +479,9 @@ func (s *AuthService) upsertOAuthUser(
 		ProviderID: providerID,
 	}
 	if token != nil {
-		at := token.AccessToken
-		rt := token.RefreshToken
-		newAP.AccessToken = &at
-		newAP.RefreshToken = &rt
-		newAP.TokenExpiresAt = &token.Expiry
+		if err := s.assignProviderTokens(&newAP, provider, token); err != nil {
+			return nil, nil, err
+		}
 	}
 	if err := s.db.Create(&newAP).Error; err != nil {
 		return nil, nil, err
@@ -493,6 +489,37 @@ func (s *AuthService) upsertOAuthUser(
 
 	tokens, err := s.issueTokenPair(&user)
 	return &user, tokens, err
+}
+
+func (s *AuthService) assignProviderTokens(ap *models.AuthProvider, provider models.ProviderType, token *oauth2.Token) error {
+	ap.AccessToken = nil
+	ap.RefreshToken = nil
+	ap.TokenExpiresAt = nil
+
+	if provider != models.ProviderTwitch || token == nil || token.AccessToken == "" {
+		return nil
+	}
+
+	cipher := newOAuthTokenCipher(s.oauthTokenEncryptionSecret())
+	encrypted, err := cipher.encrypt(token.AccessToken)
+	if err != nil {
+		return err
+	}
+	ap.AccessToken = &encrypted
+	if !token.Expiry.IsZero() {
+		ap.TokenExpiresAt = &token.Expiry
+	}
+	return nil
+}
+
+func (s *AuthService) oauthTokenEncryptionSecret() string {
+	if s == nil || s.cfg == nil {
+		return ""
+	}
+	if s.cfg.OAuth.TokenEncryptionKey != "" {
+		return s.cfg.OAuth.TokenEncryptionKey
+	}
+	return s.cfg.JWT.RefreshSecret
 }
 
 // ─── Utility ─────────────────────────────────────────────────────────────────

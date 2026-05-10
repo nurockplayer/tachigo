@@ -48,7 +48,7 @@ func (h *ExtensionHandler) Login(c *gin.Context) {
 		return
 	}
 
-	ok(c, gin.H{"user": user, "tokens": tokens})
+	ok(c, gin.H{"user": user, "tokens": browserTokenPair(tokens)})
 }
 
 // TPointComplete godoc
@@ -91,7 +91,7 @@ func (h *ExtensionHandler) TPointComplete(c *gin.Context) {
 		return
 	}
 
-	ok(c, gin.H{"user": user, "tokens": tokens})
+	ok(c, gin.H{"user": user, "tokens": browserTokenPair(tokens)})
 }
 
 // BitsComplete godoc

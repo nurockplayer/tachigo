@@ -54,9 +54,14 @@ type RaffleService struct {
 	httpClient     *http.Client
 	mailer         Mailer
 	frontendURL    string
+	tokenCipher    *oauthTokenCipher
 }
 
-func NewRaffleService(db *gorm.DB, twitchClientID, frontendURL string, mailer Mailer) *RaffleService {
+func NewRaffleService(db *gorm.DB, twitchClientID, frontendURL string, mailer Mailer, tokenEncryptionSecret ...string) *RaffleService {
+	secret := ""
+	if len(tokenEncryptionSecret) > 0 {
+		secret = tokenEncryptionSecret[0]
+	}
 	return &RaffleService{
 		db:             db,
 		twitchClientID: twitchClientID,
@@ -64,6 +69,7 @@ func NewRaffleService(db *gorm.DB, twitchClientID, frontendURL string, mailer Ma
 		httpClient:     &http.Client{Timeout: 10 * time.Second},
 		mailer:         mailer,
 		frontendURL:    frontendURL,
+		tokenCipher:    newOAuthTokenCipher(secret),
 	}
 }
 
@@ -551,15 +557,26 @@ func (s *RaffleService) SyncFromTwitchAPI(ctx context.Context, raffleID, userID 
 		}
 		return nil, err
 	}
-	if ap.AccessToken == nil {
+	accessToken, err := s.decryptedProviderAccessToken(&ap)
+	if err != nil {
+		return nil, err
+	}
+	if accessToken == "" {
+		return nil, ErrTwitchTokenMissing
+	}
+	if ap.TokenExpiresAt != nil && time.Now().After(*ap.TokenExpiresAt) {
+		s.clearProviderTokens(ap.ID)
 		return nil, ErrTwitchTokenMissing
 	}
 
 	result := &SyncFromTwitchResult{}
 	cursor := ""
 	for {
-		subs, nextCursor, err := s.fetchTwitchSubsPage(ctx, *ap.AccessToken, ap.ProviderID, cursor)
+		subs, nextCursor, err := s.fetchTwitchSubsPage(ctx, accessToken, ap.ProviderID, cursor)
 		if err != nil {
+			if errors.Is(err, ErrTwitchInsufficientScope) {
+				s.clearProviderTokens(ap.ID)
+			}
 			return nil, err
 		}
 
@@ -604,6 +621,30 @@ func (s *RaffleService) SyncFromTwitchAPI(ctx context.Context, raffleID, userID 
 	}
 
 	return result, nil
+}
+
+func (s *RaffleService) decryptedProviderAccessToken(ap *models.AuthProvider) (string, error) {
+	if ap == nil || ap.AccessToken == nil {
+		return "", nil
+	}
+	cipher := s.tokenCipher
+	if cipher == nil {
+		cipher = newOAuthTokenCipher("")
+	}
+	return cipher.decrypt(*ap.AccessToken)
+}
+
+func (s *RaffleService) clearProviderTokens(providerID uuid.UUID) {
+	if s == nil || s.db == nil || providerID == uuid.Nil {
+		return
+	}
+	_ = s.db.Model(&models.AuthProvider{}).
+		Where("id = ?", providerID).
+		Updates(map[string]interface{}{
+			"access_token":     nil,
+			"refresh_token":    nil,
+			"token_expires_at": nil,
+		}).Error
 }
 
 // ── Scheduled snapshot (cron) ─────────────────────────────────────────────────
