@@ -30,9 +30,9 @@ func wire(db *gorm.DB, cfg *config.Config, ctx context.Context) *gin.Engine {
 	var ethClient *ethclient.Client
 	if cfg.Contract.TachiContractAddress != "" && cfg.Contract.SepoliaSignerKey != "" {
 		var err error
-		dialCtx, dialCancel := context.WithTimeout(context.Background(), 10*time.Second)
-		defer dialCancel()
+		dialCtx, dialCancel := context.WithTimeout(ctx, 10*time.Second)
 		ethClient, err = ethclient.DialContext(dialCtx, cfg.Contract.RPCEndpoint)
+		dialCancel()
 		if err != nil {
 			log.Printf("warning: failed to connect Sepolia RPC: %v", err)
 			ethClient = nil
