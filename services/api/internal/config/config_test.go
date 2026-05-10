@@ -162,6 +162,82 @@ func TestShouldValidateProductionSecrets(t *testing.T) {
 	}
 }
 
+func TestShouldEnableSwagger(t *testing.T) {
+	tests := []struct {
+		name string
+		cfg  *Config
+		want bool
+	}{
+		{
+			name: "defaults to enabled when config is missing",
+			want: true,
+		},
+		{
+			name: "enabled by default in development",
+			cfg: &Config{
+				Server: ServerConfig{Env: "development"},
+			},
+			want: true,
+		},
+		{
+			name: "disabled by default in production",
+			cfg: &Config{
+				Server: ServerConfig{Env: "production"},
+			},
+			want: false,
+		},
+		{
+			name: "explicit flag enables production",
+			cfg: &Config{
+				Server: ServerConfig{Env: "production", EnableSwagger: true, EnableSwaggerSet: true},
+			},
+			want: true,
+		},
+		{
+			name: "explicit flag disables development",
+			cfg: &Config{
+				Server: ServerConfig{Env: "development", EnableSwagger: false, EnableSwaggerSet: true},
+			},
+			want: false,
+		},
+	}
+
+	for _, tc := range tests {
+		t.Run(tc.name, func(t *testing.T) {
+			got := ShouldEnableSwagger(tc.cfg)
+			if got != tc.want {
+				t.Fatalf("expected %v, got %v", tc.want, got)
+			}
+		})
+	}
+}
+
+func TestLoad_EnableSwagger(t *testing.T) {
+	t.Run("records explicit true", func(t *testing.T) {
+		t.Setenv("ENABLE_SWAGGER", "true")
+
+		cfg := Load()
+		if !cfg.Server.EnableSwaggerSet {
+			t.Fatal("expected EnableSwaggerSet=true")
+		}
+		if !cfg.Server.EnableSwagger {
+			t.Fatal("expected EnableSwagger=true")
+		}
+	})
+
+	t.Run("records explicit false", func(t *testing.T) {
+		t.Setenv("ENABLE_SWAGGER", "false")
+
+		cfg := Load()
+		if !cfg.Server.EnableSwaggerSet {
+			t.Fatal("expected EnableSwaggerSet=true")
+		}
+		if cfg.Server.EnableSwagger {
+			t.Fatal("expected EnableSwagger=false")
+		}
+	})
+}
+
 func TestLoad_ContractRPCEndpoint(t *testing.T) {
 	t.Run("defaults to public Sepolia endpoint", func(t *testing.T) {
 		t.Setenv("SEPOLIA_RPC_URL", "")
