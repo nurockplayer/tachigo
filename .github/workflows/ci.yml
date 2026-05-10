@@ -469,7 +469,7 @@ jobs:
   backend-integration:
     timeout-minutes: 20
     name: Backend integration tests
-    needs: [scope-gate]
+    needs: [scope-gate, check-cache-wiring]
     runs-on: ubuntu-latest
     if: needs.scope-gate.outputs.run_backend_integration == 'true'
     steps:
