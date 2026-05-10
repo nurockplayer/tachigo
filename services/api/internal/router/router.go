@@ -2,6 +2,7 @@ package router
 
 import (
 	"context"
+	"errors"
 	"log"
 	"net/http"
 	"time"
@@ -17,6 +18,8 @@ import (
 	"github.com/tachigo/tachigo/internal/models"
 	"github.com/tachigo/tachigo/internal/services"
 )
+
+const databasePingTimeout = 2 * time.Second
 
 type InternalRouterConfig struct {
 	DB     *gorm.DB
@@ -312,16 +315,24 @@ func New(
 
 func healthHandler(db *gorm.DB) gin.HandlerFunc {
 	return func(c *gin.Context) {
+		dbStatus, err := databaseStatus(c.Request.Context(), db)
+		if err != nil {
+			log.Printf("health db check failed: %v", err)
+		}
 		c.JSON(http.StatusOK, gin.H{
 			"status": "ok",
-			"db":     databaseStatus(c.Request.Context(), db),
+			"db":     dbStatus,
 		})
 	}
 }
 
 func readinessHandler(db *gorm.DB) gin.HandlerFunc {
 	return func(c *gin.Context) {
-		if databaseStatus(c.Request.Context(), db) != "ok" {
+		dbStatus, err := databaseStatus(c.Request.Context(), db)
+		if err != nil {
+			log.Printf("readyz db check failed: %v", err)
+		}
+		if dbStatus != "ok" {
 			c.JSON(http.StatusServiceUnavailable, gin.H{
 				"status": "unavailable",
 				"db":     "unavailable",
@@ -336,16 +347,18 @@ func readinessHandler(db *gorm.DB) gin.HandlerFunc {
 	}
 }
 
-func databaseStatus(ctx context.Context, db *gorm.DB) string {
+func databaseStatus(ctx context.Context, db *gorm.DB) (string, error) {
 	if db == nil {
-		return "unavailable"
+		return "unavailable", errors.New("database handle is not configured")
 	}
 	sqlDB, err := db.DB()
 	if err != nil {
-		return "unavailable"
+		return "unavailable", err
 	}
-	if err := sqlDB.PingContext(ctx); err != nil {
-		return "unavailable"
+	pingCtx, cancel := context.WithTimeout(ctx, databasePingTimeout)
+	defer cancel()
+	if err := sqlDB.PingContext(pingCtx); err != nil {
+		return "unavailable", err
 	}
-	return "ok"
+	return "ok", nil
 }

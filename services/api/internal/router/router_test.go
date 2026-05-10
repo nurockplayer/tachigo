@@ -251,6 +251,51 @@ func TestReadyzReturnsUnavailableWhenDatabasePingFails(t *testing.T) {
 	}
 }
 
+func TestReadyzReturnsUnavailableWhenDatabaseIsNotInjected(t *testing.T) {
+	env := newRouterTestEnv(t)
+
+	req := httptest.NewRequest(http.MethodGet, "/readyz", nil)
+	rec := httptest.NewRecorder()
+	env.router.ServeHTTP(rec, req)
+
+	if rec.Code != http.StatusServiceUnavailable {
+		t.Fatalf("want 503, got %d: %s", rec.Code, rec.Body.String())
+	}
+	body := decodeJSONBody(t, rec)
+	if body["status"] != "unavailable" {
+		t.Fatalf("want status=unavailable, got %v", body["status"])
+	}
+	if body["db"] != "unavailable" {
+		t.Fatalf("want db=unavailable, got %v", body["db"])
+	}
+}
+
+func TestHealthReportsDatabaseUnavailableWithoutFailingLiveness(t *testing.T) {
+	env := newRouterTestEnv(t, routerTestConfig("development", false, false))
+	sqlDB, err := env.db.DB()
+	if err != nil {
+		t.Fatalf("db handle: %v", err)
+	}
+	if err := sqlDB.Close(); err != nil {
+		t.Fatalf("close db: %v", err)
+	}
+
+	req := httptest.NewRequest(http.MethodGet, "/health", nil)
+	rec := httptest.NewRecorder()
+	env.router.ServeHTTP(rec, req)
+
+	if rec.Code != http.StatusOK {
+		t.Fatalf("want 200, got %d: %s", rec.Code, rec.Body.String())
+	}
+	body := decodeJSONBody(t, rec)
+	if body["status"] != "ok" {
+		t.Fatalf("want status=ok, got %v", body["status"])
+	}
+	if body["db"] != "unavailable" {
+		t.Fatalf("want db=unavailable, got %v", body["db"])
+	}
+}
+
 func decodeJSONBody(t *testing.T, rec *httptest.ResponseRecorder) map[string]any {
 	t.Helper()
 
