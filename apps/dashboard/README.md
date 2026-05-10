@@ -1,34 +1,89 @@
 # Tachigo Dashboard
 
-Tachigo Dashboard 是 Vite + React + TypeScript 應用，管理介面。
+`apps/dashboard` 是給 Streamer / Agency / Admin 使用的後台管理介面，負責查看營運概況、管理 streamers、設定頻道獎勵、檢視交易紀錄與操作 raffle 流程。
 
-## 啟動方式
+## 快速啟動
+
+需求：
+
+- Node.js / pnpm：以 [`package.json`](package.json) 的 `packageManager` 為準
+- 後端 API：預設連到 `http://localhost:8080`
 
 ```bash
+cd apps/dashboard
 pnpm install
 pnpm dev
 ```
 
-預設 Vite dev server 使用 `5174`。API base URL 使用 `VITE_API_URL`，未設定時回退到 `http://localhost:8080`。
+Vite dev server 預設在：
 
-## 目前架構
+```text
+http://localhost:5174
+```
 
-`src/App.tsx` 使用 React Router v7 `createBrowserRouter`，並以 `ProtectedRoute`（驗證 `isAuthenticated()`）保護需要登入的路由。
+常用指令：
 
-認證邏輯集中在 `src/services/auth.ts`，使用 in-memory access token + httpOnly refresh cookie。`src/main.tsx` 在 app 啟動時呼叫 `restoreSession()` 取回 access token；各頁面的 API request path 由各 service 函式自行帶入 `/api/v1` prefix。
+```bash
+pnpm dev
+pnpm build
+pnpm test
+pnpm lint
+pnpm preview
+```
 
-## 規劃中：Refine.dev 架構遷移
+也可以從 repo root 用 Docker Compose 啟動完整 stack：
 
-以下異動正在進行，尚未合併到 develop（追蹤 #456）：
+```bash
+make dev
+```
 
-- `src/providers/authProvider.ts`：為 Refine `<Authenticated>` 提供 `check()` 介面；`check()` 內部同樣呼叫 `restoreSession()`，`main.tsx` 的啟動呼叫不變
-- `src/providers/dataProvider.ts`：以 `@refinedev/simple-rest` 為 base，實際 request 使用既有 axios client；`/api/v1` prefix 作為 base URL 的一部分（非中介層自動注入）
-- `src/App.tsx`：改以 `<Refine>` 包住 React Router，resources 定義 `streamers`、`raffles`、`transactions`、`settings`
-- dataProvider base URL 使用 `VITE_API_URL`，未設定時回退到 `http://localhost:8080`，並加上 `/api/v1` 作為路徑前綴
+## 連接後端
 
-## API response envelope
+建立本機 env：
 
-後端 response 格式如下（非標準 simple-rest）：
+```bash
+cp apps/dashboard/.env.example apps/dashboard/.env
+```
+
+目前支援的 API base URL 變數：
+
+| 變數 | 用途 |
+| --- | --- |
+| `VITE_TACHIGO_API_URL` | Tachigo API origin，例如 `http://localhost:8080` |
+| `VITE_API_URL` | 舊本機 env 的 fallback key；新設定請優先使用 `VITE_TACHIGO_API_URL` |
+
+Dashboard API client 會自行帶上 `/api/v1` path prefix。登入後的 request 使用 in-memory access token，refresh flow 透過後端 httpOnly cookie。
+
+## 主要模組
+
+目前 router / resources 由 [`src/App.tsx`](src/App.tsx) 定義：
+
+| 路由 | 用途 |
+| --- | --- |
+| `/login` | Dashboard auth |
+| `/` | 營運概覽 dashboard |
+| `/streamers` | Streamer list |
+| `/streamers/:streamerId` | Streamer detail / stats |
+| `/raffles` | Raffle list |
+| `/raffles/:raffleId` | Raffle detail / draw management |
+| `/transactions` | Viewer points transaction history |
+| `/settings` | Reward / channel settings entry |
+
+核心實作位置：
+
+| 路徑 | 說明 |
+| --- | --- |
+| `src/pages/` | Route-level pages |
+| `src/components/` | Layout、route guard 與共用 UI |
+| `src/services/` | Axios client、auth、channels、raffles API calls |
+| `src/providers/` | Refine authProvider / dataProvider |
+| `src/test/` | Refine test wrapper |
+
+## Refine / API response
+
+Dashboard 目前使用 Refine + React Router。`dataProvider` 以 `@refinedev/simple-rest` 為基底，再配合既有 Axios client 對接 tachigo API。
+
+後端 response envelope 不是標準 simple-rest 格式，常見形狀如下：
 
 ```json
 { "data": { "raffles": [] } }
@@ -40,10 +95,15 @@ pnpm dev
 { "data": { "raffle": {} } }
 ```
 
-## 常用指令
+新增 resource 時，請同步確認 `src/providers/dataProvider.ts` 的 resource path mapping 與 unwrap logic。
+
+## 測試與 build
 
 ```bash
+cd apps/dashboard
 pnpm test
 pnpm lint
 pnpm build
 ```
+
+PR 若修改頁面或 dataProvider，建議至少跑相關 Vitest，加上 `pnpm build` 確認 TypeScript 與 Vite build 都通過。
