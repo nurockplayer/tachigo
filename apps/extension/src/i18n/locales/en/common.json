@@ -17,6 +17,8 @@
     "bgmOn": "♪ ON",
     "bgmOff": "♪ OFF",
     "tabAudioUnavailable": "TAB AUDIO OFF",
+    "pointsBalance": "Points balance",
+    "availableBalance": "AVAILABLE",
     "cumulativeTotal": "CUMULATIVE TOTAL",
     "nextIn": "NEXT IN {{count}}S",
     "clicksLeft": "{{count}} / 30 CLICKS",
