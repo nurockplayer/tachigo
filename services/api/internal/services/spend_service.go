@@ -92,6 +92,10 @@ func (s *SpendService) Redeem(ctx context.Context, userID uuid.UUID, couponID st
 			// Tx was broadcast but receipt is unknown (e.g. context deadline, RPC error).
 			// Do NOT roll back: the chain may have already burned the tokens.
 			if _, createErr := s.createPendingCouponRedemption(userID, couponID, reservation.amount, txHash); createErr != nil {
+				log.Printf(
+					"broadcast-unknown burn redemption record failed: user_id=%s coupon_id=%s amount=%d tx_hash=%s receipt_err=%v db_err=%v",
+					userID, couponID, reservation.amount, txHash, err, createErr,
+				)
 				return 0, "", fmt.Errorf("failed to record coupon_redemption for broadcast-unknown burn (burn tx_hash=%s coupon_id=%s): %w; receipt_err=%v", txHash, couponID, createErr, err)
 			}
 			return 0, "", fmt.Errorf("burn tx broadcast (txHash=%s) but receipt unknown: %w", txHash, err)
