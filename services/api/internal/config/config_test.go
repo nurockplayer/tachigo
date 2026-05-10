@@ -3,6 +3,7 @@ package config
 import (
 	"strings"
 	"testing"
+	"time"
 )
 
 func TestValidateProductionSecrets(t *testing.T) {
@@ -374,6 +375,7 @@ func TestLoad_ServerConfig_Defaults(t *testing.T) {
 		"APP_ENV", "LOG_LEVEL", "ENABLE_SWAGGER",
 		"ENABLE_AUTOMIGRATE", "ENABLE_SCHEDULER",
 		"ALLOWED_ORIGINS", "GIN_MODE", "TRUSTED_PROXIES",
+		"REQUEST_TIMEOUT_SECONDS",
 	}
 	for _, k := range envVars {
 		t.Setenv(k, "")
@@ -405,6 +407,9 @@ func TestLoad_ServerConfig_Defaults(t *testing.T) {
 	if cfg.Server.TrustedProxies != nil {
 		t.Errorf("TrustedProxies: want nil, got %v", cfg.Server.TrustedProxies)
 	}
+	if cfg.Server.RequestTimeout != 30*time.Second {
+		t.Errorf("RequestTimeout: want 30s, got %v", cfg.Server.RequestTimeout)
+	}
 }
 
 func TestLoad_ServerConfig_ProductionDefaults(t *testing.T) {
@@ -432,6 +437,7 @@ func TestLoad_ServerConfig_EnvOverrides(t *testing.T) {
 	t.Setenv("ALLOWED_ORIGINS", "https://app.tachigo.io,https://admin.tachigo.io")
 	t.Setenv("GIN_MODE", "debug")
 	t.Setenv("TRUSTED_PROXIES", "10.0.0.1,10.0.0.2")
+	t.Setenv("REQUEST_TIMEOUT_SECONDS", "45")
 
 	cfg := Load()
 
@@ -455,5 +461,8 @@ func TestLoad_ServerConfig_EnvOverrides(t *testing.T) {
 	}
 	if len(cfg.Server.TrustedProxies) != 2 || cfg.Server.TrustedProxies[0] != "10.0.0.1" {
 		t.Errorf("TrustedProxies: got %v", cfg.Server.TrustedProxies)
+	}
+	if cfg.Server.RequestTimeout != 45*time.Second {
+		t.Errorf("RequestTimeout: want 45s, got %v", cfg.Server.RequestTimeout)
 	}
 }

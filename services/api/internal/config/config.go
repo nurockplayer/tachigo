@@ -61,6 +61,7 @@ type ServerConfig struct {
 	AllowedOrigins    []string
 	GinMode           string
 	TrustedProxies    []string
+	RequestTimeout    time.Duration
 }
 
 type DatabaseConfig struct {
@@ -97,6 +98,7 @@ func Load() *Config {
 	accessTTL, _ := strconv.Atoi(getEnv("JWT_ACCESS_TTL_MINUTES", "15"))
 	refreshTTL, _ := strconv.Atoi(getEnv("JWT_REFRESH_TTL_DAYS", "30"))
 	smtpPort, _ := strconv.Atoi(getEnv("SMTP_PORT", "587"))
+	requestTimeoutSeconds, _ := strconv.Atoi(getEnv("REQUEST_TIMEOUT_SECONDS", "30"))
 	appEnv, appEnvSet := getEnvWithPresence("APP_ENV", "development")
 	isProduction := appEnvSet && appEnv == "production"
 
@@ -121,6 +123,7 @@ func Load() *Config {
 			AllowedOrigins:    getCommaEnv("ALLOWED_ORIGINS", defaultAllowedOrigins),
 			GinMode:           getEnv("GIN_MODE", defaultGinMode),
 			TrustedProxies:    getCommaEnv("TRUSTED_PROXIES", nil),
+			RequestTimeout:    time.Duration(requestTimeoutSeconds) * time.Second,
 		},
 		Database: DatabaseConfig{
 			DSN: getEnv("DATABASE_URL", "host=localhost user=postgres password=postgres dbname=tachigo port=5432 sslmode=disable"),
