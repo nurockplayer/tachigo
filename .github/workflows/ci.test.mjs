@@ -715,7 +715,7 @@ test('CI workflow validates Atlas migrations against ephemeral PostgreSQL', asyn
   )
   assert.match(
     atlasJob,
-    /atlas migrate apply --dir file:\/\/migrations --url "\$GORM_BASELINE_DATABASE_URL"/,
+    /atlas migrate apply --dir file:\/\/migrations --url "\$GORM_BASELINE_DATABASE_URL" --baseline 019/,
   )
   assert.doesNotMatch(atlasJob, /--community|\/tmp\/atlas-community|migrate lint|--git-base|docker:\/\/postgres\/15/)
   assert.doesNotMatch(atlasJob, /version: v0\.37\.0|version: v1\.2\.0/)
