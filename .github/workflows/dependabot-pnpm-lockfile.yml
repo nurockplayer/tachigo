@@ -12,6 +12,7 @@ jobs:
     name: Repair pnpm lockfiles
     if: github.event.pull_request.user.login == 'dependabot[bot]' && github.event.pull_request.head.repo.full_name == github.repository
     permissions:
+      actions: write
       contents: write
       pull-requests: read
     runs-on: ubuntu-latest
@@ -55,13 +56,23 @@ jobs:
         run: pnpm install --lockfile-only --ignore-scripts --config.shared-workspace-lockfile=false
 
       - name: Commit repaired lockfiles
+        id: commit-repair
         run: |
           git config user.name "github-actions[bot]"
           git config user.email "41898282+github-actions[bot]@users.noreply.github.com"
           git add pnpm-lock.yaml apps/dashboard/pnpm-lock.yaml apps/extension/pnpm-lock.yaml
           if git diff --cached --quiet; then
             echo "No pnpm lockfile repair needed."
+            echo "repaired=false" >> "$GITHUB_OUTPUT"
           else
             git commit -m "chore(deps): repair pnpm lockfiles"
             git push
+            echo "repaired=true" >> "$GITHUB_OUTPUT"
           fi
+
+      - name: Dispatch CI for repaired head
+        if: steps.commit-repair.outputs.repaired == 'true'
+        env:
+          GH_TOKEN: ${{ secrets.GITHUB_TOKEN }}
+          HEAD_REF: ${{ github.event.pull_request.head.ref }}
+        run: gh workflow run ci.yml --ref "$HEAD_REF"
