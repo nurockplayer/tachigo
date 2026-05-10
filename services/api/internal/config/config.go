@@ -172,6 +172,9 @@ func ValidateProductionSecrets(cfg *Config) error {
 	if cfg.JWT.AccessSecret == cfg.JWT.RefreshSecret {
 		return fmt.Errorf("JWT_ACCESS_SECRET and JWT_REFRESH_SECRET must be different")
 	}
+	if cfg.SMTP.Host == "" {
+		return fmt.Errorf("SMTP_HOST must be configured when email-dependent production flows are enabled")
+	}
 
 	return nil
 }

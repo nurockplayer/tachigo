@@ -21,6 +21,9 @@ func TestValidateProductionSecrets(t *testing.T) {
 					AccessSecret:  validAccess,
 					RefreshSecret: validRefresh,
 				},
+				SMTP: SMTPConfig{
+					Host: "smtp.example.com",
+				},
 			},
 		},
 		{
@@ -29,6 +32,9 @@ func TestValidateProductionSecrets(t *testing.T) {
 				JWT: JWTConfig{
 					AccessSecret:  "",
 					RefreshSecret: validRefresh,
+				},
+				SMTP: SMTPConfig{
+					Host: "smtp.example.com",
 				},
 			},
 			wantErr: "JWT_ACCESS_SECRET",
@@ -40,6 +46,9 @@ func TestValidateProductionSecrets(t *testing.T) {
 					AccessSecret:  validAccess,
 					RefreshSecret: "",
 				},
+				SMTP: SMTPConfig{
+					Host: "smtp.example.com",
+				},
 			},
 			wantErr: "JWT_REFRESH_SECRET",
 		},
@@ -49,6 +58,9 @@ func TestValidateProductionSecrets(t *testing.T) {
 				JWT: JWTConfig{
 					AccessSecret:  defaultJWTAccessSecret,
 					RefreshSecret: validRefresh,
+				},
+				SMTP: SMTPConfig{
+					Host: "smtp.example.com",
 				},
 			},
 			wantErr: "default",
@@ -60,6 +72,9 @@ func TestValidateProductionSecrets(t *testing.T) {
 					AccessSecret:  validAccess,
 					RefreshSecret: defaultJWTRefreshSecret,
 				},
+				SMTP: SMTPConfig{
+					Host: "smtp.example.com",
+				},
 			},
 			wantErr: "default",
 		},
@@ -69,6 +84,9 @@ func TestValidateProductionSecrets(t *testing.T) {
 				JWT: JWTConfig{
 					AccessSecret:  "short-secret",
 					RefreshSecret: validRefresh,
+				},
+				SMTP: SMTPConfig{
+					Host: "smtp.example.com",
 				},
 			},
 			wantErr: "at least 32 characters",
@@ -80,6 +98,9 @@ func TestValidateProductionSecrets(t *testing.T) {
 					AccessSecret:  validAccess,
 					RefreshSecret: "short-secret",
 				},
+				SMTP: SMTPConfig{
+					Host: "smtp.example.com",
+				},
 			},
 			wantErr: "at least 32 characters",
 		},
@@ -90,8 +111,21 @@ func TestValidateProductionSecrets(t *testing.T) {
 					AccessSecret:  validAccess,
 					RefreshSecret: validAccess,
 				},
+				SMTP: SMTPConfig{
+					Host: "smtp.example.com",
+				},
 			},
 			wantErr: "must be different",
+		},
+		{
+			name: "rejects missing SMTP host",
+			cfg: &Config{
+				JWT: JWTConfig{
+					AccessSecret:  validAccess,
+					RefreshSecret: validRefresh,
+				},
+			},
+			wantErr: "SMTP_HOST",
 		},
 	}
 
