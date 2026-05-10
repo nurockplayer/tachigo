@@ -42,10 +42,11 @@ Host key verification failed.
 rtk ssh-keygen -F '[ssh.github.com]:443' -f ~/.ssh/known_hosts
 ```
 
-若沒有紀錄，先掃描並計算 fingerprint：
+若沒有紀錄，先掃描一次並把同一份輸出留作後續寫入：
 
 ```bash
-rtk ssh-keyscan -p 443 -T 10 -t ed25519 ssh.github.com 2>/dev/null | rtk ssh-keygen -lf - -E sha256
+rtk ssh-keyscan -p 443 -T 10 -t ed25519 ssh.github.com 2>/dev/null > /tmp/github_ssh_443_ed25519.pub
+rtk ssh-keygen -lf /tmp/github_ssh_443_ed25519.pub -E sha256
 ```
 
 GitHub 官方 ED25519 fingerprint 目前應為：
@@ -58,12 +59,13 @@ SHA256:+DiY3wvvV6TuJJhbpZisF/zLDA0zPMSvHdkr4UvCOqU
 
 <https://docs.github.com/en/authentication/keeping-your-account-and-data-secure/githubs-ssh-key-fingerprints>
 
-確認 fingerprint 相符後，再新增 host key：
+確認 fingerprint 相符後，再把同一份 key 新增到 `known_hosts`：
 
 ```bash
-rtk ssh-keyscan -p 443 -T 10 -t ed25519 ssh.github.com >> ~/.ssh/known_hosts
+rtk cat /tmp/github_ssh_443_ed25519.pub >> ~/.ssh/known_hosts
 rtk chmod 600 ~/.ssh/known_hosts
 rtk ssh-keygen -F '[ssh.github.com]:443' -f ~/.ssh/known_hosts
+rtk rm -f /tmp/github_ssh_443_ed25519.pub
 ```
 
 ## 驗證 Push 路徑
