@@ -2,6 +2,7 @@ package router
 
 import (
 	"log"
+	"time"
 
 	"github.com/gin-gonic/gin"
 	swaggerFiles "github.com/swaggo/files"
@@ -57,6 +58,15 @@ func New(
 			log.Printf("warning: SetTrustedProxies: %v", err)
 		}
 	}
+	rateLimiter := middleware.NewRateLimiter()
+	publicRateLimit := func(name string) gin.HandlerFunc {
+		return rateLimiter.Limit(middleware.RateLimitConfig{
+			Name:    name,
+			Limit:   60,
+			Window:  time.Minute,
+			KeyFunc: middleware.ClientIPRateLimitKey,
+		})
+	}
 
 	authH := handlers.NewAuthHandler(authSvc, cfg).WithEmailAuth(emailAuthSvc)
 	userH := handlers.NewUserHandler(userSvc)
@@ -75,8 +85,7 @@ func New(
 	r.GET("/health", func(c *gin.Context) {
 		c.JSON(200, gin.H{"status": "ok"})
 	})
-	enableSwagger := cfg == nil || cfg.Server.EnableSwagger
-	if enableSwagger {
+	if config.ShouldEnableSwagger(cfg) {
 		r.GET("/swagger/*any", ginSwagger.WrapHandler(swaggerFiles.Handler))
 	}
 
@@ -85,8 +94,8 @@ func New(
 	// ── Public auth endpoints ─────────────────────────────────────────────
 	auth := v1.Group("/auth")
 	{
-		auth.POST("/register", authH.Register)
-		auth.POST("/login", authH.Login)
+		auth.POST("/register", publicRateLimit("auth_register"), authH.Register)
+		auth.POST("/login", publicRateLimit("auth_login"), authH.Login)
 		auth.POST("/refresh", authH.Refresh)
 		auth.POST("/logout", authH.Logout)
 
@@ -99,15 +108,15 @@ func New(
 		auth.GET("/google/callback", authH.GoogleCallback)
 
 		// Web3 / SIWE
-		auth.POST("/web3/nonce", authH.Web3Nonce)
-		auth.POST("/web3/verify", authH.Web3Verify)
+		auth.POST("/web3/nonce", publicRateLimit("auth_web3_nonce"), authH.Web3Nonce)
+		auth.POST("/web3/verify", publicRateLimit("auth_web3_verify"), authH.Web3Verify)
 
 		// Email verification (confirm is public so users can click link without login)
 		auth.POST("/verify-email/confirm", emailH.ConfirmVerification)
 
 		// Password reset (public)
-		auth.POST("/forgot-password", emailH.ForgotPassword)
-		auth.POST("/reset-password", emailH.ResetPassword)
+		auth.POST("/forgot-password", publicRateLimit("auth_forgot_password"), emailH.ForgotPassword)
+		auth.POST("/reset-password", publicRateLimit("auth_reset_password"), emailH.ResetPassword)
 	}
 
 	// ── Claim endpoints ───────────────────────────────────────────────────
@@ -123,8 +132,8 @@ func New(
 	ext := v1.Group("/extension")
 	{
 		ext.POST("/auth/login", extH.Login)
-		ext.POST("/t-point/complete", extH.TPointComplete)
-		ext.POST("/bits/complete", extH.BitsComplete) // deprecated alias
+		ext.POST("/t-point/complete", publicRateLimit("extension_t_point_complete"), extH.TPointComplete)
+		ext.POST("/bits/complete", publicRateLimit("extension_bits_complete"), extH.BitsComplete) // deprecated alias
 
 		// Raffle result — public read (no auth required)
 		ext.GET("/raffles/:id/result", raffleH.GetResult)

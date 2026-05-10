@@ -925,7 +925,7 @@ test('backend security scanner job installs pinned staticcheck and govulncheck',
   assert.equal(job.name, 'Backend security scanners')
   assert.equal(job.env.STATICCHECK_VERSION, 'v0.7.0')
   assert.equal(job.env.GOVULNCHECK_VERSION, 'v1.3.0')
-  assert.match(jobBlock, /go-version: 1\.25\.10/)
+  assert.match(jobBlock, /go-version: 1\.26\.3/)
   assert.match(jobBlock, /go install honnef\.co\/go\/tools\/cmd\/staticcheck@\$STATICCHECK_VERSION/)
   assert.match(jobBlock, /go install golang\.org\/x\/vuln\/cmd\/govulncheck@\$GOVULNCHECK_VERSION/)
   assert.match(jobBlock, /working-directory: services\/api\n\s+run: staticcheck \.\/\.\.\./)

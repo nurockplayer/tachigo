@@ -55,6 +55,7 @@ type ServerConfig struct {
 	EnvSet            bool
 	LogLevel          string
 	EnableSwagger     bool
+	EnableSwaggerSet  bool
 	EnableAutoMigrate bool
 	EnableScheduler   bool
 	AllowedOrigins    []string
@@ -99,6 +100,7 @@ func Load() *Config {
 	isProduction := appEnvSet && appEnv == "production"
 
 	defaultEnableSwagger := !isProduction
+	enableSwagger, enableSwaggerSet := getBoolEnvWithPresence("ENABLE_SWAGGER", defaultEnableSwagger)
 	defaultGinMode := "debug"
 	if isProduction {
 		defaultGinMode = "release"
@@ -111,7 +113,8 @@ func Load() *Config {
 			Env:               appEnv,
 			EnvSet:            appEnvSet,
 			LogLevel:          getEnv("LOG_LEVEL", "info"),
-			EnableSwagger:     getBoolEnv("ENABLE_SWAGGER", defaultEnableSwagger),
+			EnableSwagger:     enableSwagger,
+			EnableSwaggerSet:  enableSwaggerSet,
 			EnableAutoMigrate: getBoolEnv("ENABLE_AUTOMIGRATE", true),
 			EnableScheduler:   getBoolEnv("ENABLE_SCHEDULER", true),
 			AllowedOrigins:    getCommaEnv("ALLOWED_ORIGINS", defaultAllowedOrigins),
@@ -174,11 +177,39 @@ func getEnvWithPresence(key, fallback string) (string, bool) {
 	return fallback, false
 }
 
+func getBoolEnvWithPresence(key string, fallback bool) (bool, bool) {
+	raw, ok := getEnvWithPresence(key, "")
+	if !ok {
+		return fallback, false
+	}
+	value, err := strconv.ParseBool(raw)
+	if err != nil {
+		return fallback, true
+	}
+	return value, true
+}
+
 func ShouldValidateProductionSecrets(cfg *Config) bool {
 	if cfg == nil {
 		return true
 	}
 	return !cfg.Server.EnvSet || cfg.Server.Env != "development"
+}
+
+func ShouldEnableSwagger(cfg *Config) bool {
+	if cfg == nil {
+		return true
+	}
+	if cfg.Server.EnableSwaggerSet {
+		return cfg.Server.EnableSwagger
+	}
+
+	switch strings.ToLower(cfg.Server.Env) {
+	case "", "development", "dev", "local":
+		return true
+	default:
+		return false
+	}
 }
 
 func ValidateProductionSecrets(cfg *Config) error {
@@ -194,6 +225,9 @@ func ValidateProductionSecrets(cfg *Config) error {
 	}
 	if cfg.JWT.AccessSecret == cfg.JWT.RefreshSecret {
 		return fmt.Errorf("JWT_ACCESS_SECRET and JWT_REFRESH_SECRET must be different")
+	}
+	if cfg.SMTP.Host == "" {
+		return fmt.Errorf("SMTP_HOST must be configured when email-dependent production flows are enabled")
 	}
 
 	return nil
