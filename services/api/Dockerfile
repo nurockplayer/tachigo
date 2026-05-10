@@ -1,5 +1,5 @@
 # ── Dev stage ─────────────────────────────────────────────────────────────────
-FROM golang:1.25-alpine AS dev
+FROM golang:1.26.3-alpine AS dev
 
 RUN apk add --no-cache git build-base && \
     go install github.com/air-verse/air@latest && \
@@ -15,7 +15,7 @@ EXPOSE 8080
 CMD ["air"]
 
 # ── Build stage ───────────────────────────────────────────────────────────────
-FROM golang:1.25-alpine AS builder
+FROM golang:1.26.3-alpine AS builder
 
 RUN apk add --no-cache git tzdata
 
