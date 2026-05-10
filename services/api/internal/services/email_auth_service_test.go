@@ -161,6 +161,36 @@ func TestVerifyEmail_Success(t *testing.T) {
 	}
 }
 
+func TestVerifyEmail_DeleteTokenFailureReturnsError(t *testing.T) {
+	svc, _ := newEmailAuthSvc(t)
+	userID := seedEmailUser(t, svc, "verify-consume-delete-failure@example.com", false)
+
+	rawToken, _ := generateNonce()
+	svc.db.Create(&models.EmailVerification{
+		UserID:    userID,
+		TokenHash: hashToken(rawToken),
+		ExpiresAt: time.Now().Add(time.Hour),
+	})
+
+	if err := svc.db.Exec(`
+		CREATE TRIGGER fail_email_verification_consume_delete
+		BEFORE DELETE ON email_verifications
+		BEGIN
+			SELECT RAISE(ABORT, 'forced email verification consume delete failure');
+		END;
+	`).Error; err != nil {
+		t.Fatalf("create email verification consume delete trigger: %v", err)
+	}
+
+	err := svc.VerifyEmail(rawToken)
+	if err == nil {
+		t.Fatal("want delete error, got nil")
+	}
+	if !strings.Contains(err.Error(), "forced email verification consume delete failure") {
+		t.Fatalf("want forced delete error, got %v", err)
+	}
+}
+
 func TestVerifyEmail_InvalidToken(t *testing.T) {
 	svc, _ := newEmailAuthSvc(t)
 

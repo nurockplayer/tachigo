@@ -92,8 +92,7 @@ func (s *EmailAuthService) VerifyEmail(rawToken string) error {
 		return err
 	}
 
-	s.db.Delete(&record)
-	return nil
+	return s.db.Delete(&record).Error
 }
 
 // ─── Password Reset ───────────────────────────────────────────────────────────
