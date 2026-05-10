@@ -18,7 +18,9 @@ const codexReviewRerequestWorkflowPath = path.join(currentDir, 'codex-review-rer
 const closeIssueOnDevelopMergeWorkflowPath = path.join(currentDir, 'close-issue-on-develop-merge.yml')
 const dependencyInventoryWorkflowPath = path.join(currentDir, 'dependency-inventory.yml')
 const notifyRebaseNeededWorkflowPath = path.join(currentDir, 'notify-rebase-needed.yml')
+const releasePrWorkflowPath = path.join(currentDir, 'release-pr.yml')
 const claudePath = path.join(repoRoot, 'CLAUDE.md')
+const prScopePolicyPath = path.join(repoRoot, 'docs', 'pr-scope-policy.md')
 const dependabotPolicyPath = path.join(repoRoot, 'docs', 'dependabot-update-policy.md')
 const securityScannerEvaluationPath = path.join(repoRoot, 'docs', 'security-scanner-evaluation.md')
 const contractsGasSnapshotPolicyPath = path.join(repoRoot, 'docs', 'contracts-gas-snapshot-policy.md')
@@ -1228,6 +1230,48 @@ test('dependency inventory policy documents OSV triage ownership and non-blockin
   assert.match(policy, /Surface: Go module manifest \/ pnpm lockfiles \/ Container images/)
   assert.match(policy, /Owner:/)
   assert.match(policy, /Expires on:/)
+})
+
+test('release PR workflow gates automated creation by age and merged PR volume', async () => {
+  const workflow = await readFile(releasePrWorkflowPath, 'utf8')
+  const parsedWorkflow = parseYaml(releasePrWorkflowPath)
+  const job = parsedWorkflow.jobs['create-release-pr']
+  const jobBlock = workflowJobBlock(workflow, 'create-release-pr')
+
+  assert.equal(parsedWorkflow.name, 'Release PR')
+  assert.deepEqual(parsedWorkflow.on.schedule, [{ cron: '0 2 * * *' }])
+  assert.ok(Object.hasOwn(parsedWorkflow.on, 'workflow_dispatch'))
+  assert.equal(parsedWorkflow.permissions.contents, 'read')
+  assert.equal(parsedWorkflow.permissions['pull-requests'], 'write')
+  assert.equal(parsedWorkflow.permissions.actions, 'write')
+
+  assert.equal(job['timeout-minutes'], 10)
+  assert.match(jobBlock, pinnedActionRef('actions/checkout', 'v4'))
+  assert.match(jobBlock, /const minElapsedHours = 72/)
+  assert.match(jobBlock, /const minMergedPrs = 10/)
+  assert.match(jobBlock, /const maxElapsedHours = 168/)
+  assert.match(jobBlock, /process\.env\.GITHUB_EVENT_NAME === 'workflow_dispatch'/)
+  assert.match(jobBlock, /const shouldOpen = isManual \|\| \(enoughAge && \(enoughPrs \|\| staleEnough\)\)/)
+  assert.match(jobBlock, /gh pr list --base main --head develop --state open/)
+  assert.match(jobBlock, /gh pr list --base main --head develop --state merged/)
+  assert.match(jobBlock, /gh pr list --base develop --state merged/)
+  assert.match(jobBlock, /gh pr create/)
+  assert.doesNotMatch(jobBlock, /--draft/)
+  assert.doesNotMatch(jobBlock, /--label auto-ready/)
+})
+
+test('release cadence documentation matches the automated gate', async () => {
+  const claude = await readFile(claudePath, 'utf8')
+  const policy = await readFile(prScopePolicyPath, 'utf8')
+
+  for (const doc of [claude, policy]) {
+    assert.match(doc, /72 小時/)
+    assert.match(doc, /10 個 PR/)
+    assert.match(doc, /7 天/)
+  }
+
+  assert.doesNotMatch(claude, /每兩週由 `develop` 開一張正式 release PR 到 `main`/)
+  assert.doesNotMatch(policy, /預設 cadence 為每兩週一次 `develop -> main` release PR/)
 })
 
 test('global auto-merge workflow excludes Dependabot and workflow-file PRs', async () => {

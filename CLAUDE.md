@@ -84,7 +84,10 @@
 4. 正式 release 流程走 Git Flow：
 
    - `main` 不接受日常 feature PR
-   - 每兩週由 `develop` 開一張正式 release PR 到 `main`
+   - `.github/workflows/release-pr.yml` 每天檢查一次是否要由 `develop` 開正式 release PR 到 `main`
+   - 自動 release PR 的門檻：距離上次 release 至少 72 小時，且上次 release 後已 merge 至少 10 個 PR
+   - 若距離上次 release 已滿 7 天，即使 PR 數低於 10 個也可自動開 release PR，避免 `main` 長期落後
+   - `workflow_dispatch` 可手動開 release PR；automation 只開 PR，不自動 merge
    - release PR 使用 `[release]` title prefix
    - `develop -> main` release PR 屬於正式 promotion 流程，不視為 scope exception
    - 目前暫不使用 `release/*` branch
