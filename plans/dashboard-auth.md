@@ -1,5 +1,12 @@
 # 任務：Dashboard 登入與 JWT 管理
 
+> Status: superseded by the dashboard refresh-token migration tracked in #217
+> and implemented by #338/#340. This plan records the original dashboard auth
+> implementation shape and must not be used as the current token-storage
+> contract. Current dashboard auth keeps access tokens in memory, relies on the
+> backend-managed httpOnly refresh cookie, and does not persist
+> `refresh_token` in `localStorage`; see `docs/auth-architecture.md`.
+
 ## 專案背景
 
 這是 tachigo 專案的 Dashboard 前端，位於 `dashboard/` 資料夾。
