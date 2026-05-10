@@ -46,6 +46,10 @@ BEGIN
     END IF;
 END $$;
 
+DO $$ DECLARE conflict_count INTEGER; BEGIN SELECT COUNT(*) INTO conflict_count FROM (SELECT agency_streamers.channel_id FROM agency_streamers JOIN streamers ON streamers.channel_id = agency_streamers.channel_id WHERE streamers.agency_user_id IS NULL GROUP BY agency_streamers.channel_id HAVING COUNT(DISTINCT agency_streamers.agency_id) > 1) conflicts; IF conflict_count > 0 THEN RAISE EXCEPTION 'migration 020 blocked: legacy agency_streamers backfill conflict (% channel(s) map to multiple agencies). resolve data before re-running migration', conflict_count; END IF; END $$;
+
+UPDATE streamers s SET agency_user_id = src.agency_id FROM (SELECT DISTINCT ON (channel_id) channel_id, agency_id FROM agency_streamers ORDER BY channel_id) AS src WHERE s.channel_id = src.channel_id AND s.agency_user_id IS NULL;
+
 CREATE INDEX IF NOT EXISTS idx_streamers_agency_user_id ON streamers (agency_user_id);
 
 CREATE UNIQUE INDEX IF NOT EXISTS idx_streamers_user_channel ON streamers (user_id, channel_id);

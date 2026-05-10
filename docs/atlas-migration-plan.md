@@ -223,14 +223,6 @@ Co-Authored-By: Codex <codex[bot]@openai.com>
 - 不使用 `migrate lint`（Pro gate）
 - 不使用 Community binary（不支援 `external_schema`）
 
-### 已實作項目
-
-- [x] `ci.yml` 的 `atlas-migration-tooling` job 改成 apply 方案（移除舊版 pin、Community binary 與 lint step）
-- [x] 加 ephemeral Postgres service 給 Atlas apply job 用
-- [x] Docker image 的 dev/runtime stages 都透過可覆寫的 `ATLAS_VERSION=1.2.0` Atlas stage 帶入版本化 CLI，entrypoint 會先執行 `atlas migrate apply`，`docker-compose.yml` 提供 `ATLAS_DATABASE_URL`
-- [x] `services/api/Makefile` 加入 `make migrate`，提供本機 CLI apply path
-- [x] 加 destructive DDL grep guard；需要同行或前一行 `-- atlas:nolint` 才允許 destructive statement
-
 ### 運作邊界
 
 - Fresh DB / 新 Docker volume：API Docker entrypoint 會先套用 `001-020`，再啟動 `air`（dev target）或 `/tachigo`（runtime target）；API binary 本身不再執行 schema DDL。
@@ -246,8 +238,6 @@ Co-Authored-By: Codex <codex[bot]@openai.com>
 - [x] `AutoMigrate` 已從 server startup 移除；server 不再執行 schema DDL。
 - [x] Migration runner 存在：Docker image entrypoint 與 `make migrate` 都有 `atlas migrate apply` path，確保 fresh DB / 新 volume 可正確 bootstrap schema。
 - [x] CI 改成 official/latest Atlas + ephemeral Postgres apply（移除舊版 pin、Community binary 與 migrate lint）。
-
-> **2026-05-10 狀態**：working tree 已補上 CI apply guardrail、Docker entrypoint migration runner 與 `make migrate`。這解除 fresh DB / 新 volume 的啟動 blocker；既有舊 dev volume 若沒有 Atlas revision history，仍需 reset 或手動 baseline，不能假裝 Atlas 會自動接管任意歷史狀態。
 
 ## Atlas References
 
