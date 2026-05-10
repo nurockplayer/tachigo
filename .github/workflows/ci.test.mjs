@@ -1,6 +1,7 @@
 import assert from 'node:assert/strict'
 import { execFileSync } from 'node:child_process'
-import { readFile } from 'node:fs/promises'
+import { mkdir, mkdtemp, readFile, rm, writeFile } from 'node:fs/promises'
+import { tmpdir } from 'node:os'
 import path from 'node:path'
 import test from 'node:test'
 import { fileURLToPath } from 'node:url'
@@ -91,6 +92,14 @@ function workflowJobBlock(workflow, jobName) {
   const match = workflow.match(pattern)
   assert.ok(match, `expected workflow to include ${jobName} job`)
   return match[0]
+}
+
+function workflowJobStep(parsedWorkflow, jobName, stepName) {
+  const job = parsedWorkflow.jobs[jobName]
+  assert.ok(job, `expected workflow to include ${jobName} job`)
+  const step = job.steps.find((candidate) => candidate.name === stepName)
+  assert.ok(step, `expected ${jobName} to include ${stepName} step`)
+  return step
 }
 
 function escapeRegExp(value) {
@@ -691,6 +700,46 @@ test('CI workflow validates Atlas migrations against ephemeral PostgreSQL', asyn
   assert.doesNotMatch(atlasJob, /--community|\/tmp\/atlas-community|migrate lint|--git-base|docker:\/\/postgres\/15/)
   assert.doesNotMatch(atlasJob, /version: v0\.37\.0|version: v1\.2\.0/)
   assert.doesNotMatch(atlasJob, /atlas schema apply|docker compose up/)
+})
+
+test('Atlas destructive migration guard blocks high-risk schema rewrites without nolint', async () => {
+  const parsedWorkflow = parseYaml(workflowPath)
+  const step = workflowJobStep(parsedWorkflow, 'atlas-migration-tooling', 'Reject destructive migration statements without nolint')
+  const tempDir = await mkdtemp(path.join(tmpdir(), 'tachigo-atlas-guard-'))
+  const migrationsDir = path.join(tempDir, 'migrations')
+
+  await mkdir(migrationsDir)
+  try {
+    const cases = [
+      ['drop_index', 'DROP INDEX idx_users_email;'],
+      ['rename_column', 'ALTER TABLE users RENAME COLUMN email TO login_email;'],
+      ['rename_table', 'ALTER TABLE users RENAME TO app_users;'],
+      ['alter_column_type', 'ALTER TABLE users ALTER COLUMN score TYPE bigint;'],
+      ['alter_column_set_data_type', 'ALTER TABLE users ALTER COLUMN score SET DATA TYPE bigint;'],
+    ]
+
+    for (const [name, sql] of cases) {
+      const migrationPath = path.join(migrationsDir, `${name}.sql`)
+      await writeFile(migrationPath, `${sql}\n`)
+
+      let failure
+      try {
+        execFileSync('sh', ['-c', step.run], { cwd: tempDir, encoding: 'utf8' })
+      } catch (error) {
+        failure = error
+      }
+
+      assert.ok(failure, `${name} should require -- atlas:nolint`)
+      assert.match(failure.stdout, /destructive migration requires -- atlas:nolint/)
+
+      await writeFile(migrationPath, `-- atlas:nolint\n${sql}\n`)
+      assert.doesNotThrow(() => {
+        execFileSync('sh', ['-c', step.run], { cwd: tempDir, encoding: 'utf8' })
+      })
+    }
+  } finally {
+    await rm(tempDir, { recursive: true, force: true })
+  }
 })
 
 test('backend Docker runtime applies Atlas migrations before starting the API', async () => {
