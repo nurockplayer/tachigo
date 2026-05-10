@@ -76,15 +76,30 @@ func makeExtJWT(t *testing.T, twitchUserID, channelID string) string {
 	return signed
 }
 
-func makeReceiptJWT(t *testing.T, txID, sku string, amount int, txType string) string {
+func makeReceiptJWT(t *testing.T, txID, userID, sku string, amount int, txType string) string {
 	t.Helper()
-	claims := ReceiptClaims{}
-	claims.Data.TransactionID = txID
-	claims.Data.SKU = sku
-	claims.Data.Amount = amount
-	claims.Data.Type = txType
-	claims.RegisteredClaims = jwt.RegisteredClaims{
-		ExpiresAt: jwt.NewNumericDate(time.Now().Add(time.Hour)),
+	type receiptData struct {
+		TransactionID string `json:"transactionId"`
+		UserID        string `json:"userId"`
+		SKU           string `json:"sku"`
+		Amount        int    `json:"amount"`
+		Type          string `json:"type"`
+	}
+	type receiptClaims struct {
+		Data receiptData `json:"data"`
+		jwt.RegisteredClaims
+	}
+	claims := receiptClaims{
+		Data: receiptData{
+			TransactionID: txID,
+			UserID:        userID,
+			SKU:           sku,
+			Amount:        amount,
+			Type:          txType,
+		},
+		RegisteredClaims: jwt.RegisteredClaims{
+			ExpiresAt: jwt.NewNumericDate(time.Now().Add(time.Hour)),
+		},
 	}
 	token := jwt.NewWithClaims(jwt.SigningMethodHS256, claims)
 	signed, err := token.SignedString([]byte(testExtSecretRaw))
@@ -100,7 +115,7 @@ func TestCompleteTPointTransaction_Success(t *testing.T) {
 	channelID := "channel-42"
 
 	extJWT := makeExtJWT(t, twitchID, channelID)
-	receipt := makeReceiptJWT(t, "tx-success-001", "TPOINT100", 100, "bits")
+	receipt := makeReceiptJWT(t, "tx-success-001", twitchID, "TPOINT100", 100, "bits")
 
 	user, tokens, err := svc.CompleteTPointTransaction(extJWT, receipt, "TPOINT100")
 	if err != nil {
@@ -133,7 +148,7 @@ func TestCompleteTPointTransaction_DuplicateTransactionID_ReturnsErrDuplicate(t 
 	channelID := "channel-42"
 
 	extJWT := makeExtJWT(t, twitchID, channelID)
-	receipt := makeReceiptJWT(t, "tx-dup-001", "TPOINT100", 100, "bits")
+	receipt := makeReceiptJWT(t, "tx-dup-001", twitchID, "TPOINT100", 100, "bits")
 
 	if _, _, err := svc.CompleteTPointTransaction(extJWT, receipt, "TPOINT100"); err != nil {
 		t.Fatalf("first call failed: %v", err)
@@ -158,7 +173,7 @@ func TestCompleteTPointTransaction_PointsWriteFailure_ReturnsOriginalError(t *te
 	_, twitchID := seedTwitchUser(t, svc.db)
 	channelID := "channel-42"
 	extJWT := makeExtJWT(t, twitchID, channelID)
-	receipt := makeReceiptJWT(t, "tx-db-fail-001", "TPOINT100", 100, "bits")
+	receipt := makeReceiptJWT(t, "tx-db-fail-001", twitchID, "TPOINT100", 100, "bits")
 
 	if err := svc.db.Exec("DROP TABLE points_transactions").Error; err != nil {
 		t.Fatalf("drop points_transactions: %v", err)
@@ -186,31 +201,37 @@ func TestCompleteTPointTransaction_InvalidReceipt_Errors(t *testing.T) {
 	}{
 		{
 			name:    "amount zero",
-			receipt: func() string { return makeReceiptJWT(t, "tx-v1", "TPOINT100", 0, "bits") },
+			receipt: func() string { return makeReceiptJWT(t, "tx-v1", twitchID, "TPOINT100", 0, "bits") },
 			sku:     "TPOINT100",
 			wantErr: ErrInvalidReceiptAmount,
 		},
 		{
 			name:    "amount negative",
-			receipt: func() string { return makeReceiptJWT(t, "tx-v2", "TPOINT100", -50, "bits") },
+			receipt: func() string { return makeReceiptJWT(t, "tx-v2", twitchID, "TPOINT100", -50, "bits") },
 			sku:     "TPOINT100",
 			wantErr: ErrInvalidReceiptAmount,
 		},
 		{
 			name:    "wrong type",
-			receipt: func() string { return makeReceiptJWT(t, "tx-v3", "TPOINT100", 100, "subscription") },
+			receipt: func() string { return makeReceiptJWT(t, "tx-v3", twitchID, "TPOINT100", 100, "subscription") },
 			sku:     "TPOINT100",
 			wantErr: ErrInvalidReceiptType,
 		},
 		{
 			name:    "sku mismatch",
-			receipt: func() string { return makeReceiptJWT(t, "tx-v4", "OTHER_SKU", 100, "bits") },
+			receipt: func() string { return makeReceiptJWT(t, "tx-v4", twitchID, "OTHER_SKU", 100, "bits") },
 			sku:     "TPOINT100",
 			wantErr: ErrInvalidReceipt,
 		},
 		{
 			name:    "empty transactionId",
-			receipt: func() string { return makeReceiptJWT(t, "", "TPOINT100", 100, "bits") },
+			receipt: func() string { return makeReceiptJWT(t, "", twitchID, "TPOINT100", 100, "bits") },
+			sku:     "TPOINT100",
+			wantErr: ErrInvalidReceipt,
+		},
+		{
+			name:    "missing userId",
+			receipt: func() string { return makeReceiptJWT(t, "tx-v5", "", "TPOINT100", 100, "bits") },
 			sku:     "TPOINT100",
 			wantErr: ErrInvalidReceipt,
 		},
@@ -232,7 +253,7 @@ func TestCompleteTPointTransaction_TokenIssueFailure_PointsCreditedOnce_RetryErr
 	userID, twitchID := seedTwitchUser(t, svc.db)
 	channelID := "channel-retry"
 	extJWT := makeExtJWT(t, twitchID, channelID)
-	receipt := makeReceiptJWT(t, "tx-retry-001", "TPOINT100", 100, "bits")
+	receipt := makeReceiptJWT(t, "tx-retry-001", twitchID, "TPOINT100", 100, "bits")
 
 	// Drop refresh_tokens so issueTokenPair fails after points are written.
 	if err := svc.db.Exec("DROP TABLE refresh_tokens").Error; err != nil {
@@ -265,7 +286,7 @@ func TestCompleteTPointTransaction_PointsWriteFailure_NoOrphanRefreshToken(t *te
 	svc, _ := newExtSvc(t)
 	_, twitchID := seedTwitchUser(t, svc.db)
 	extJWT := makeExtJWT(t, twitchID, "channel-42")
-	receipt := makeReceiptJWT(t, "tx-orphan-001", "TPOINT100", 100, "bits")
+	receipt := makeReceiptJWT(t, "tx-orphan-001", twitchID, "TPOINT100", 100, "bits")
 
 	// newTestDB provides per-test DB isolation: DROP TABLE here only affects this test.
 	// RefreshToken has no DeletedAt, so Count() is a direct row count.
@@ -285,5 +306,28 @@ func TestCompleteTPointTransaction_PointsWriteFailure_NoOrphanRefreshToken(t *te
 	svc.db.Model(&models.RefreshToken{}).Count(&countAfter)
 	if countAfter != countBefore {
 		t.Errorf("points write failure must not create refresh tokens: got %d new record(s)", countAfter-countBefore)
+	}
+}
+
+func TestCompleteTPointTransaction_ReceiptUserMismatch_DoesNotCreditPoints(t *testing.T) {
+	svc, pointsSvc := newExtSvc(t)
+	userID, twitchID := seedTwitchUser(t, svc.db)
+	_, otherTwitchID := seedTwitchUser(t, svc.db)
+	channelID := "channel-42"
+
+	extJWT := makeExtJWT(t, twitchID, channelID)
+	receipt := makeReceiptJWT(t, "tx-cross-user-001", otherTwitchID, "TPOINT100", 100, "bits")
+
+	_, _, err := svc.CompleteTPointTransaction(extJWT, receipt, "TPOINT100")
+	if !errors.Is(err, ErrInvalidReceipt) {
+		t.Fatalf("want ErrInvalidReceipt for receipt user mismatch, got %v", err)
+	}
+
+	bal, err := pointsSvc.GetBalance(userID, channelID)
+	if err != nil {
+		t.Fatalf("GetBalance: %v", err)
+	}
+	if bal.SpendableBalance != 0 {
+		t.Fatalf("receipt user mismatch must not credit points: got balance=%d", bal.SpendableBalance)
 	}
 }
