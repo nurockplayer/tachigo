@@ -161,6 +161,46 @@ func TestRegister_DuplicateUsername(t *testing.T) {
 	}
 }
 
+func TestRegister_EmailProviderCreateFailureReturnsError(t *testing.T) {
+	db := newTestDB(t)
+	svc := NewAuthService(db, testConfig())
+
+	if err := db.Exec(`
+		CREATE TRIGGER fail_email_auth_provider_insert
+		BEFORE INSERT ON auth_providers
+		WHEN NEW.provider = 'email'
+		BEGIN
+			SELECT RAISE(ABORT, 'forced email auth provider create failure');
+		END;
+	`).Error; err != nil {
+		t.Fatalf("create email auth provider trigger: %v", err)
+	}
+
+	user, tokens, err := svc.Register(RegisterInput{
+		Username: "email-provider-failure",
+		Email:    "email-provider-failure@example.com",
+		Password: "password123",
+	})
+	if err == nil {
+		t.Fatalf("want email auth provider create error, got nil (user=%#v tokens=%#v)", user, tokens)
+	}
+	if !strings.Contains(err.Error(), "forced email auth provider create failure") {
+		t.Fatalf("want forced email auth provider error, got %v", err)
+	}
+
+	var userCount int64
+	db.Model(&models.User{}).Where("email = ?", "email-provider-failure@example.com").Count(&userCount)
+	if userCount != 0 {
+		t.Fatalf("user should roll back after email provider create failure, got %d rows", userCount)
+	}
+
+	var tokenCount int64
+	db.Model(&models.RefreshToken{}).Count(&tokenCount)
+	if tokenCount != 0 {
+		t.Fatalf("refresh token should not be created after email provider failure, got %d rows", tokenCount)
+	}
+}
+
 // ─── Login ───────────────────────────────────────────────────────────────────
 
 func TestLogin_Success(t *testing.T) {
@@ -242,6 +282,63 @@ func TestRefresh_ExpiredToken(t *testing.T) {
 	_, err := svc.Refresh(tokens.RefreshToken)
 	if err != ErrInvalidToken {
 		t.Errorf("want ErrInvalidToken, got %v", err)
+	}
+}
+
+func TestRefresh_DeleteFailureReturnsError(t *testing.T) {
+	db := newTestDB(t)
+	svc := NewAuthService(db, testConfig())
+	_, tokens, _ := svc.Register(RegisterInput{Username: "refresh-delete", Email: "refresh-delete@example.com", Password: "password123"})
+
+	if err := db.Exec(`
+		CREATE TRIGGER fail_refresh_token_delete
+		BEFORE DELETE ON refresh_tokens
+		BEGIN
+			SELECT RAISE(ABORT, 'forced refresh token delete failure');
+		END;
+	`).Error; err != nil {
+		t.Fatalf("create refresh token delete trigger: %v", err)
+	}
+
+	newTokens, err := svc.Refresh(tokens.RefreshToken)
+	if err == nil {
+		t.Fatalf("want refresh token delete error, got nil (tokens=%#v)", newTokens)
+	}
+	if !strings.Contains(err.Error(), "forced refresh token delete failure") {
+		t.Fatalf("want forced refresh token delete error, got %v", err)
+	}
+
+	var tokenCount int64
+	db.Model(&models.RefreshToken{}).Count(&tokenCount)
+	if tokenCount != 1 {
+		t.Fatalf("delete failure should not issue a new refresh token, got %d rows", tokenCount)
+	}
+}
+
+func TestRefresh_ExpiredTokenDeleteFailureReturnsError(t *testing.T) {
+	db := newTestDB(t)
+	svc := NewAuthService(db, testConfig())
+	_, tokens, _ := svc.Register(RegisterInput{Username: "expired-delete", Email: "expired-delete@example.com", Password: "password123"})
+
+	hash := hashToken(tokens.RefreshToken)
+	db.Model(&models.RefreshToken{}).Where("token_hash = ?", hash).Update("expires_at", time.Now().Add(-time.Hour))
+
+	if err := db.Exec(`
+		CREATE TRIGGER fail_expired_refresh_token_delete
+		BEFORE DELETE ON refresh_tokens
+		BEGIN
+			SELECT RAISE(ABORT, 'forced expired refresh token delete failure');
+		END;
+	`).Error; err != nil {
+		t.Fatalf("create expired refresh token delete trigger: %v", err)
+	}
+
+	newTokens, err := svc.Refresh(tokens.RefreshToken)
+	if err == nil {
+		t.Fatalf("want expired refresh token delete error, got nil (tokens=%#v)", newTokens)
+	}
+	if !strings.Contains(err.Error(), "forced expired refresh token delete failure") {
+		t.Fatalf("want forced expired refresh token delete error, got %v", err)
 	}
 }
 
@@ -342,6 +439,39 @@ func TestWeb3Nonce_ReplacesExisting(t *testing.T) {
 	db.Model(&models.Web3Nonce{}).Where("address = ?", strings.ToLower(address)).Count(&count)
 	if count != 1 {
 		t.Errorf("expected 1 nonce record, got %d", count)
+	}
+}
+
+func TestWeb3Nonce_DeleteExistingFailureReturnsError(t *testing.T) {
+	db := newTestDB(t)
+	svc := NewAuthService(db, testConfig())
+	address := "0xd8dA6BF26964aF9D7eEd9e03E53415D37aA96045"
+
+	if _, _, err := svc.Web3Nonce(address); err != nil {
+		t.Fatalf("first Web3Nonce call failed: %v", err)
+	}
+	if err := db.Exec(`
+		CREATE TRIGGER fail_web3_nonce_replace_delete
+		BEFORE DELETE ON web3_nonces
+		BEGIN
+			SELECT RAISE(ABORT, 'forced web3 nonce replace delete failure');
+		END;
+	`).Error; err != nil {
+		t.Fatalf("create web3 nonce delete trigger: %v", err)
+	}
+
+	nonce, _, err := svc.Web3Nonce(address)
+	if err == nil {
+		t.Fatalf("want existing nonce delete error, got nil (nonce=%s)", nonce)
+	}
+	if !strings.Contains(err.Error(), "forced web3 nonce replace delete failure") {
+		t.Fatalf("want forced web3 nonce replace delete error, got %v", err)
+	}
+
+	var count int64
+	db.Model(&models.Web3Nonce{}).Where("address = ?", strings.ToLower(address)).Count(&count)
+	if count != 1 {
+		t.Fatalf("failed nonce replacement should keep the existing row only, got %d rows", count)
 	}
 }
 
@@ -473,6 +603,18 @@ func TestWeb3Verify_ProviderCreateFailureReturnsError(t *testing.T) {
 	if tokenCount != 0 {
 		t.Fatalf("refresh token should not be created after provider create failure, got %d rows", tokenCount)
 	}
+
+	var userCount int64
+	db.Model(&models.User{}).Count(&userCount)
+	if userCount != 0 {
+		t.Fatalf("user should roll back after provider create failure, got %d rows", userCount)
+	}
+
+	var nonceCount int64
+	db.Model(&models.Web3Nonce{}).Where("nonce = ?", nonce).Count(&nonceCount)
+	if nonceCount != 1 {
+		t.Fatalf("nonce should roll back after provider create failure, got %d rows", nonceCount)
+	}
 }
 
 func TestWeb3Verify_RefreshTokenCreateFailureReturnsError(t *testing.T) {
@@ -502,6 +644,24 @@ func TestWeb3Verify_RefreshTokenCreateFailureReturnsError(t *testing.T) {
 	}
 	if !strings.Contains(err.Error(), "no such table: refresh_tokens") {
 		t.Fatalf("want refresh token table error, got %v", err)
+	}
+
+	var userCount int64
+	db.Model(&models.User{}).Count(&userCount)
+	if userCount != 0 {
+		t.Fatalf("user should roll back after refresh token create failure, got %d rows", userCount)
+	}
+
+	var providerCount int64
+	db.Model(&models.AuthProvider{}).Where("provider = ?", models.ProviderWeb3).Count(&providerCount)
+	if providerCount != 0 {
+		t.Fatalf("provider should roll back after refresh token create failure, got %d rows", providerCount)
+	}
+
+	var nonceCount int64
+	db.Model(&models.Web3Nonce{}).Where("nonce = ?", nonce).Count(&nonceCount)
+	if nonceCount != 1 {
+		t.Fatalf("nonce should roll back after refresh token create failure, got %d rows", nonceCount)
 	}
 }
 
@@ -631,6 +791,61 @@ func TestWeb3Verify_ExpiredNonceDeleteFailureStillReturnsInvalidNonce(t *testing
 	db.Model(&models.RefreshToken{}).Count(&tokenCount)
 	if tokenCount != 0 {
 		t.Fatalf("refresh token should not be created after expired nonce, got %d rows", tokenCount)
+	}
+}
+
+func TestUpsertOAuthUser_ExistingProviderSaveFailureReturnsError(t *testing.T) {
+	db := newTestDB(t)
+	svc := NewAuthService(db, testConfig())
+	userID := uuid.New()
+	if err := db.Create(&models.User{
+		ID:   userID,
+		Role: models.RoleViewer,
+	}).Error; err != nil {
+		t.Fatalf("seed user: %v", err)
+	}
+	if err := db.Create(&models.AuthProvider{
+		UserID:     userID,
+		Provider:   models.ProviderGoogle,
+		ProviderID: "google-existing-provider",
+	}).Error; err != nil {
+		t.Fatalf("seed auth provider: %v", err)
+	}
+
+	if err := db.Exec(`
+		CREATE TRIGGER fail_auth_provider_token_update
+		BEFORE UPDATE ON auth_providers
+		BEGIN
+			SELECT RAISE(ABORT, 'forced auth provider token update failure');
+		END;
+	`).Error; err != nil {
+		t.Fatalf("create auth provider update trigger: %v", err)
+	}
+
+	user, tokens, err := svc.upsertOAuthUser(
+		context.Background(),
+		models.ProviderGoogle,
+		"google-existing-provider",
+		"existing-user",
+		"existing@example.com",
+		nil,
+		&oauth2.Token{
+			AccessToken:  "new-access-token",
+			RefreshToken: "new-refresh-token",
+			Expiry:       time.Now().Add(time.Hour),
+		},
+	)
+	if err == nil {
+		t.Fatalf("want auth provider save error, got nil (user=%#v tokens=%#v)", user, tokens)
+	}
+	if !strings.Contains(err.Error(), "forced auth provider token update failure") {
+		t.Fatalf("want forced auth provider token update error, got %v", err)
+	}
+
+	var tokenCount int64
+	db.Model(&models.RefreshToken{}).Count(&tokenCount)
+	if tokenCount != 0 {
+		t.Fatalf("refresh token should not be created after provider save failure, got %d rows", tokenCount)
 	}
 }
 

@@ -131,6 +131,29 @@ func migratePGTestDB(db *gorm.DB) error {
 			updated_at TIMESTAMPTZ,
 			deleted_at TIMESTAMPTZ
 		)`,
+		`CREATE TABLE IF NOT EXISTS auth_providers (
+			id UUID PRIMARY KEY DEFAULT gen_random_uuid(),
+			user_id UUID NOT NULL REFERENCES users(id) ON DELETE CASCADE,
+			provider VARCHAR(20) NOT NULL,
+			provider_id VARCHAR(255) NOT NULL,
+			access_token TEXT,
+			refresh_token TEXT,
+			token_expires_at TIMESTAMPTZ,
+			metadata JSONB,
+			created_at TIMESTAMPTZ,
+			updated_at TIMESTAMPTZ,
+			deleted_at TIMESTAMPTZ
+		)`,
+		`CREATE INDEX IF NOT EXISTS idx_auth_providers_user_id
+			ON auth_providers (user_id)`,
+		`CREATE INDEX IF NOT EXISTS idx_auth_providers_deleted_at
+			ON auth_providers (deleted_at)`,
+		`CREATE UNIQUE INDEX IF NOT EXISTS idx_auth_providers_provider_provider_id_active
+			ON auth_providers (provider, provider_id)
+			WHERE deleted_at IS NULL`,
+		`CREATE UNIQUE INDEX IF NOT EXISTS idx_auth_providers_web3_user_active
+			ON auth_providers (user_id, provider)
+			WHERE provider = 'web3' AND deleted_at IS NULL`,
 		`CREATE TABLE IF NOT EXISTS watch_sessions (
 			id UUID PRIMARY KEY,
 			user_id UUID NOT NULL,

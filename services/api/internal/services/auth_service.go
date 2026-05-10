@@ -111,19 +111,30 @@ func (s *AuthService) Register(input RegisterInput) (*models.User, *TokenPair, e
 		Role:         models.RoleViewer,
 	}
 
-	if err := s.db.Create(user).Error; err != nil {
+	var tokens *TokenPair
+	if err := s.db.Transaction(func(tx *gorm.DB) error {
+		if err := tx.Create(user).Error; err != nil {
+			return err
+		}
+
+		// Also create an email AuthProvider record for consistency.
+		if err := tx.Create(&models.AuthProvider{
+			UserID:     user.ID,
+			Provider:   models.ProviderEmail,
+			ProviderID: input.Email,
+		}).Error; err != nil {
+			return err
+		}
+
+		txSvc := *s
+		txSvc.db = tx
+		var err error
+		tokens, err = txSvc.issueTokenPair(user)
+		return err
+	}); err != nil {
 		return nil, nil, err
 	}
-
-	// Also create an email AuthProvider record for consistency
-	s.db.Create(&models.AuthProvider{
-		UserID:     user.ID,
-		Provider:   models.ProviderEmail,
-		ProviderID: input.Email,
-	})
-
-	tokens, err := s.issueTokenPair(user)
-	return user, tokens, err
+	return user, tokens, nil
 }
 
 type LoginInput struct {
@@ -181,7 +192,9 @@ func (s *AuthService) Refresh(rawRefreshToken string) (*TokenPair, error) {
 		return err
 	})
 	if errors.Is(err, errRefreshTokenExpired) {
-		s.db.Where("token_hash = ?", hash).Delete(&models.RefreshToken{})
+		if err := s.db.Where("token_hash = ?", hash).Delete(&models.RefreshToken{}).Error; err != nil {
+			return nil, err
+		}
 		return nil, ErrInvalidToken
 	}
 	if err != nil {
@@ -259,15 +272,18 @@ func (s *AuthService) Web3Nonce(address string) (string, time.Time, error) {
 		return "", time.Time{}, err
 	}
 
-	// Delete any existing nonces for this address
-	s.db.Where("address = ?", address).Delete(&models.Web3Nonce{})
-
 	record := &models.Web3Nonce{
 		Nonce:     nonce,
 		Address:   address,
 		ExpiresAt: time.Now().Add(5 * time.Minute),
 	}
-	if err := s.db.Create(record).Error; err != nil {
+	if err := s.db.Transaction(func(tx *gorm.DB) error {
+		// Delete any existing nonces for this address.
+		if err := tx.Where("address = ?", address).Delete(&models.Web3Nonce{}).Error; err != nil {
+			return err
+		}
+		return tx.Create(record).Error
+	}); err != nil {
 		return "", time.Time{}, err
 	}
 	return nonce, record.CreatedAt, nil
@@ -297,14 +313,28 @@ func (s *AuthService) Web3Verify(input Web3VerifyInput) (*models.User, *TokenPai
 		return nil, nil, ErrInvalidSignature
 	}
 
-	// Nonce is consumed
-	if err := s.db.Delete(&nonceRecord).Error; err != nil {
+	// Nonce is consumed together with the auth upsert.
+	checksumAddr := common.HexToAddress(input.Address).Hex()
+	var user *models.User
+	var tokens *TokenPair
+	if err := s.db.Transaction(func(tx *gorm.DB) error {
+		result := tx.Delete(&nonceRecord)
+		if result.Error != nil {
+			return result.Error
+		}
+		if result.RowsAffected != 1 {
+			return ErrInvalidNonce
+		}
+
+		txSvc := *s
+		txSvc.db = tx
+		var err error
+		user, tokens, err = txSvc.upsertOAuthUser(context.Background(), models.ProviderWeb3, checksumAddr, "", "", nil, nil)
+		return err
+	}); err != nil {
 		return nil, nil, err
 	}
-
-	// Upsert user
-	checksumAddr := common.HexToAddress(input.Address).Hex()
-	return s.upsertOAuthUser(context.Background(), models.ProviderWeb3, checksumAddr, "", "", nil, nil)
+	return user, tokens, nil
 }
 
 func (s *AuthService) UnlinkProvider(userID uuid.UUID, provider models.ProviderType) error {
