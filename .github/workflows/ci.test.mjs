@@ -924,6 +924,7 @@ test('Dependabot pnpm lockfile repair is scoped to same-repo Dependabot PRs', as
 
   assert.equal(job.name, 'Repair pnpm lockfiles')
   assert.equal(job.permissions.contents, 'write')
+  assert.equal(job.permissions.actions, 'write')
   assert.equal(job.permissions['pull-requests'], 'read')
   assert.match(job.if, /github\.event\.pull_request\.user\.login == 'dependabot\[bot\]'/)
   assert.match(job.if, /github\.event\.pull_request\.head\.repo\.full_name == github\.repository/)
