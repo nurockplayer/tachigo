@@ -4,7 +4,7 @@
 
 **目標：** 將 `services/api` 的 schema 管理由 GORM `AutoMigrate` 遷移到 Atlas，同時不削弱既有資料庫 invariant，也不送出不安全的 baseline。
 
-**架構：** Atlas 遷移必須拆成多個小型、可獨立 review 的 PR。先導入 tooling 與 CI validation，再盤點現有 schema source，接著決定並驗證 baseline 策略，最後在 staging 驗證後才移除 runtime `AutoMigrate` 與手寫 schema patches。
+**架構：** Atlas 遷移原本規劃拆成多個小型、可獨立 review 的 PR：先導入 tooling 與 CI validation，再盤點現有 schema source，接著決定並驗證 baseline 策略，最後移除 runtime `AutoMigrate` 與手寫 schema patches。2026-05-10 後續決策改為由 PR `#588` 一次交付完整 runtime migration path，因為專案尚未正式上線，保留半套 migration ownership 反而會增加風險。
 
 **Tech Stack：** Go、GORM、PostgreSQL、Atlas、`atlas-provider-gorm`、GitHub Actions。
 
@@ -163,7 +163,7 @@ refs #463
 Co-Authored-By: Codex <codex[bot]@openai.com>
 ```
 
-### PR 4：Remove Runtime AutoMigrate After Reconciliation Migration
+### PR 4：Remove Runtime AutoMigrate After Reconciliation Migration（歷史計畫；已由 PR `#588` 完成）
 
 **目的：** 讓 Atlas 成為 runtime schema owner。
 
@@ -181,7 +181,7 @@ Co-Authored-By: Codex <codex[bot]@openai.com>
 
 **Implementation Steps：**
 
-- [ ] 從 server startup 移除 `db.AutoMigrate(...)`。
+- [x] 從 server startup 移除 `db.AutoMigrate(...)`（PR `#588`）。
 - [ ] 移除已由 Atlas migration 表達的 manual schema patches。
 - [ ] 只在仍有必要且有文件說明時，保留非 schema 的 runtime data repair code。
 - [ ] 新增 startup guard 或 log，明確表示 API process 不再執行 schema DDL。
