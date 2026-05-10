@@ -1143,7 +1143,7 @@ test('dependency inventory policy documents OSV triage ownership and non-blockin
   assert.match(policy, /Expires on:/)
 })
 
-test('global auto-merge workflow excludes Dependabot PRs', async () => {
+test('global auto-merge workflow excludes Dependabot and workflow-file PRs', async () => {
   const workflow = await readFile(autoMergeWorkflowPath, 'utf8')
   const parsedWorkflow = parseYaml(autoMergeWorkflowPath)
 
@@ -1156,6 +1156,8 @@ test('global auto-merge workflow excludes Dependabot PRs', async () => {
     parsedWorkflow.jobs['enable-auto-merge'].if,
     "github.event.pull_request.draft == false && github.event.pull_request.user.login != 'dependabot[bot]'",
   )
+  assert.match(workflow, /Skipping auto-merge for workflow-file PR/)
+  assert.ok(workflow.includes("grep -Eq '^\\.github/workflows/'"))
   assert.doesNotMatch(workflow, /if: github\.event\.pull_request\.draft == false\s*$/m)
 })
 
