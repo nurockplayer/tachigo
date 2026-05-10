@@ -6,7 +6,7 @@ on:
     branches: [develop]
 
 permissions:
-  pull-requests: write
+  pull-requests: read
   issues: write
 
 jobs:
@@ -55,18 +55,34 @@ jobs:
             }
 
             for (const pr of dirty) {
+              const headSha = pr.head?.sha || pr.updated_at || 'unknown'
+              const marker = `<!-- notify-rebase-needed:head=${headSha} -->`
+              const body = [
+                marker,
+                `> [!WARNING]`,
+                `> **PR #${mergedPR.number}** ([${mergedPR.title}](${mergedPR.html_url})) 已 merge 進 \`develop\`，本 PR 目前有衝突，請 rebase。`,
+                `>`,
+                `> \`\`\`bash`,
+                `> git fetch origin && git rebase origin/develop`,
+                `> \`\`\``,
+              ].join('\n')
+
+              const existingComments = await github.paginate(github.rest.issues.listComments, {
+                owner,
+                repo,
+                issue_number: pr.number,
+                per_page: 100,
+              })
+              if (existingComments.some((comment) => comment.body?.includes(marker))) {
+                core.info(`PR #${pr.number} already has a rebase notification for head ${headSha}.`)
+                continue
+              }
+
               await github.rest.issues.createComment({
                 owner,
                 repo,
                 issue_number: pr.number,
-                body: [
-                  `> [!WARNING]`,
-                  `> **PR #${mergedPR.number}** ([${mergedPR.title}](${mergedPR.html_url})) 已 merge 進 \`develop\`，本 PR 目前有衝突，請 rebase。`,
-                  `>`,
-                  `> \`\`\`bash`,
-                  `> git fetch origin && git rebase origin/develop`,
-                  `> \`\`\``,
-                ].join('\n'),
+                body,
               })
               core.info(`Notified PR #${pr.number}`)
             }
