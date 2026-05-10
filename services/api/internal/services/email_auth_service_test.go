@@ -254,6 +254,42 @@ func TestVerifyEmail_RoundTrip(t *testing.T) {
 	}
 }
 
+func TestVerifyEmail_RollsBackUserUpdateWhenTokenDeleteFails(t *testing.T) {
+	svc, _ := newEmailAuthSvc(t)
+	userID := seedEmailUser(t, svc, "rollback_verify@example.com", false)
+
+	rawToken, _ := generateNonce()
+	svc.db.Create(&models.EmailVerification{
+		UserID:    userID,
+		TokenHash: hashToken(rawToken),
+		ExpiresAt: time.Now().Add(time.Hour),
+	})
+	if err := svc.db.Exec(`
+		CREATE TRIGGER fail_email_verification_delete
+		BEFORE DELETE ON email_verifications
+		BEGIN
+			SELECT RAISE(FAIL, 'forced email verification delete failure');
+		END;
+	`).Error; err != nil {
+		t.Fatalf("create delete failure trigger: %v", err)
+	}
+
+	if err := svc.VerifyEmail(rawToken); err == nil {
+		t.Fatal("expected VerifyEmail to return delete failure")
+	}
+
+	var user models.User
+	svc.db.First(&user, "id = ?", userID)
+	if user.EmailVerified {
+		t.Error("email_verified should remain false when token delete fails")
+	}
+	var count int64
+	svc.db.Model(&models.EmailVerification{}).Where("user_id = ?", userID).Count(&count)
+	if count != 1 {
+		t.Errorf("expected verification token to remain after rollback, got %d", count)
+	}
+}
+
 // ─── ForgotPassword ───────────────────────────────────────────────────────────
 
 func TestForgotPassword_KnownEmail_SendsEmail(t *testing.T) {
@@ -455,5 +491,55 @@ func TestResetPassword_AllowsLoginWithNewPassword(t *testing.T) {
 	// New password should work
 	if _, _, err := authSvc.Login(LoginInput{Email: *user.Email, Password: "newpassword123"}); err != nil {
 		t.Errorf("new password should work, got %v", err)
+	}
+}
+
+func TestResetPassword_RollsBackPasswordHashWhenTokenDeleteFails(t *testing.T) {
+	db := newTestDB(t)
+	cfg := testConfig()
+	cfg.App.FrontendURL = "http://localhost:3000"
+	mailer := &mockMailer{}
+	emailSvc := NewEmailAuthService(db, cfg, mailer)
+	authSvc := NewAuthService(db, cfg)
+
+	user, _, err := authSvc.Register(RegisterInput{
+		Username: "rollbackreset",
+		Email:    "rollbackreset@example.com",
+		Password: "oldpassword",
+	})
+	if err != nil {
+		t.Fatalf("register: %v", err)
+	}
+
+	rawToken, _ := generateNonce()
+	db.Create(&models.PasswordReset{
+		Email:     *user.Email,
+		TokenHash: hashToken(rawToken),
+		ExpiresAt: time.Now().Add(time.Hour),
+	})
+	if err := db.Exec(`
+		CREATE TRIGGER fail_password_reset_delete
+		BEFORE DELETE ON password_resets
+		BEGIN
+			SELECT RAISE(FAIL, 'forced password reset delete failure');
+		END;
+	`).Error; err != nil {
+		t.Fatalf("create delete failure trigger: %v", err)
+	}
+
+	if err := emailSvc.ResetPassword(rawToken, "newpassword123"); err == nil {
+		t.Fatal("expected ResetPassword to return delete failure")
+	}
+
+	if _, _, err := authSvc.Login(LoginInput{Email: *user.Email, Password: "oldpassword"}); err != nil {
+		t.Errorf("old password should still work after rollback, got %v", err)
+	}
+	if _, _, err := authSvc.Login(LoginInput{Email: *user.Email, Password: "newpassword123"}); err != ErrInvalidCredentials {
+		t.Errorf("new password should not be active after rollback, got %v", err)
+	}
+	var count int64
+	db.Model(&models.PasswordReset{}).Where("email = ?", *user.Email).Count(&count)
+	if count != 1 {
+		t.Errorf("expected reset token to remain after rollback, got %d", count)
 	}
 }
