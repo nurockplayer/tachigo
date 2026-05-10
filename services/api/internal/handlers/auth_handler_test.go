@@ -32,7 +32,7 @@ func TestRegisterHandler_Success(t *testing.T) {
 		t.Error("want success: true")
 	}
 	assertRefreshCookieSet(t, w, "", http.SameSiteLaxMode, false)
-	assertTokenPayloadHasAccessOnly(t, resp)
+	assertTokenPayloadHasBrowserTokens(t, resp)
 }
 
 func TestRegisterHandler_DuplicateEmail(t *testing.T) {
@@ -108,7 +108,7 @@ func TestLoginHandler_Success(t *testing.T) {
 		t.Errorf("want 200, got %d: %s", w.Code, w.Body.String())
 	}
 	assertRefreshCookieSet(t, w, "", http.SameSiteLaxMode, false)
-	assertTokenPayloadHasAccessOnly(t, parseBody(t, w.Body.Bytes()))
+	assertTokenPayloadHasBrowserTokens(t, parseBody(t, w.Body.Bytes()))
 }
 
 func TestLoginHandler_SetsSecureRefreshCookieInProduction(t *testing.T) {
@@ -203,7 +203,7 @@ func TestRefreshHandler_Success(t *testing.T) {
 		t.Errorf("want 200, got %d: %s", w.Code, w.Body.String())
 	}
 	assertRefreshCookieSet(t, w, refreshToken, http.SameSiteLaxMode, false)
-	assertTokenPayloadHasAccessOnly(t, parseBody(t, w.Body.Bytes()))
+	assertTokenPayloadHasBrowserTokens(t, parseBody(t, w.Body.Bytes()))
 }
 
 func TestRefreshHandler_SuccessWithCookie(t *testing.T) {
@@ -220,7 +220,7 @@ func TestRefreshHandler_SuccessWithCookie(t *testing.T) {
 		t.Errorf("want 200, got %d: %s", w.Code, w.Body.String())
 	}
 	assertRefreshCookieSet(t, w, refreshToken, http.SameSiteLaxMode, false)
-	assertTokenPayloadHasAccessOnly(t, parseBody(t, w.Body.Bytes()))
+	assertTokenPayloadHasBrowserTokens(t, parseBody(t, w.Body.Bytes()))
 }
 
 func TestRefreshHandler_PrefersCookieOverBodyToken(t *testing.T) {
@@ -498,6 +498,10 @@ func TestWeb3VerifyHandler_SuccessSetsRefreshCookieAndConsumesNonce(t *testing.T
 	if _, ok := tokens["refresh_token"]; ok {
 		t.Fatalf("refresh_token must not be returned in JSON response: %#v", tokens)
 	}
+	expiresIn, ok := tokens["expires_in"].(float64)
+	if !ok || expiresIn <= 0 {
+		t.Fatalf("expected positive expires_in in response: %#v", tokens)
+	}
 
 	var provider models.AuthProvider
 	if err := env.db.Where("provider = ? AND provider_id = ?", models.ProviderWeb3, addr).First(&provider).Error; err != nil {
@@ -511,7 +515,7 @@ func TestWeb3VerifyHandler_SuccessSetsRefreshCookieAndConsumesNonce(t *testing.T
 	}
 }
 
-func assertTokenPayloadHasAccessOnly(t *testing.T, resp map[string]interface{}) {
+func assertTokenPayloadHasBrowserTokens(t *testing.T, resp map[string]interface{}) {
 	t.Helper()
 
 	data, ok := resp["data"].(map[string]interface{})
@@ -529,6 +533,15 @@ func assertTokenPayloadHasAccessOnly(t *testing.T, resp map[string]interface{}) 
 	if _, ok := tokens["refresh_token"]; ok {
 		t.Fatalf("refresh_token must not be returned in JSON response: %#v", tokens)
 	}
+	expiresIn, ok := tokens["expires_in"].(float64)
+	if !ok || expiresIn <= 0 {
+		t.Fatalf("expected positive expires_in in response: %#v", tokens)
+	}
+}
+
+func assertTokenPayloadHasAccessOnly(t *testing.T, resp map[string]interface{}) {
+	t.Helper()
+	assertTokenPayloadHasBrowserTokens(t, resp)
 }
 
 func TestWeb3VerifyHandler_InvalidSignatureReturns401AndKeepsNonce(t *testing.T) {

@@ -2370,9 +2370,16 @@ const docTemplate = `{
         },
         "handlers.BrowserTokenPair": {
             "type": "object",
+            "required": [
+                "access_token",
+                "expires_in"
+            ],
             "properties": {
                 "access_token": {
                     "type": "string"
+                },
+                "expires_in": {
+                    "type": "integer"
                 }
             }
         },
