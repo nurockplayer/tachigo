@@ -151,23 +151,39 @@ func (s *AuthService) Login(input LoginInput) (*models.User, *TokenPair, error) 
 func (s *AuthService) Refresh(rawRefreshToken string) (*TokenPair, error) {
 	hash := hashToken(rawRefreshToken)
 
-	var stored models.RefreshToken
-	if err := s.db.Where("token_hash = ?", hash).First(&stored).Error; err != nil {
-		return nil, ErrInvalidToken
-	}
-	if stored.IsExpired() {
-		s.db.Delete(&stored)
-		return nil, ErrInvalidToken
-	}
+	var tokenPair *TokenPair
+	err := s.db.Transaction(func(tx *gorm.DB) error {
+		var stored models.RefreshToken
+		if err := tx.Where("token_hash = ?", hash).First(&stored).Error; err != nil {
+			return ErrInvalidToken
+		}
+		if stored.IsExpired() {
+			tx.Delete(&stored)
+			return ErrInvalidToken
+		}
 
-	var user models.User
-	if err := s.db.First(&user, "id = ?", stored.UserID).Error; err != nil {
-		return nil, ErrUserNotFound
-	}
+		var user models.User
+		if err := tx.First(&user, "id = ?", stored.UserID).Error; err != nil {
+			return ErrUserNotFound
+		}
 
-	// Rotate: delete old, issue new
-	s.db.Delete(&stored)
-	return s.issueTokenPair(&user)
+		// Atomic rotation: zero affected rows means another request already used it.
+		result := tx.Delete(&stored)
+		if result.Error != nil {
+			return result.Error
+		}
+		if result.RowsAffected == 0 {
+			return ErrInvalidToken
+		}
+
+		var err error
+		tokenPair, err = s.issueTokenPairTx(tx, &user)
+		return err
+	})
+	if err != nil {
+		return nil, err
+	}
+	return tokenPair, nil
 }
 
 func (s *AuthService) Logout(rawRefreshToken string) error {
@@ -320,7 +336,7 @@ func (s *AuthService) ValidateAccessToken(tokenStr string) (*Claims, error) {
 	return claims, nil
 }
 
-func (s *AuthService) issueTokenPair(user *models.User) (*TokenPair, error) {
+func (s *AuthService) issueTokenPairTx(tx *gorm.DB, user *models.User) (*TokenPair, error) {
 	// Access token
 	accessClaims := Claims{
 		UserID: user.ID.String(),
@@ -341,7 +357,7 @@ func (s *AuthService) issueTokenPair(user *models.User) (*TokenPair, error) {
 	if err != nil {
 		return nil, err
 	}
-	if err := s.db.Create(&models.RefreshToken{
+	if err := tx.Create(&models.RefreshToken{
 		UserID:    user.ID,
 		TokenHash: hashToken(rawRefresh),
 		ExpiresAt: time.Now().Add(s.cfg.JWT.RefreshTTL),
@@ -354,6 +370,10 @@ func (s *AuthService) issueTokenPair(user *models.User) (*TokenPair, error) {
 		RefreshToken: rawRefresh,
 		ExpiresIn:    int(s.cfg.JWT.AccessTTL.Seconds()),
 	}, nil
+}
+
+func (s *AuthService) issueTokenPair(user *models.User) (*TokenPair, error) {
+	return s.issueTokenPairTx(s.db, user)
 }
 
 // ─── OAuth upsert helper ─────────────────────────────────────────────────────
