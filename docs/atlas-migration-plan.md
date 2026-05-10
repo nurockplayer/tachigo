@@ -23,7 +23,7 @@
 
 ## Guardrails
 
-- 不得把 tooling、baseline SQL、`AutoMigrate` removal 合併在同一個 PR。
+- 歷史 guardrail：原本不得把 tooling、baseline SQL、`AutoMigrate` removal 合併在同一個 PR；PR `#588` 例外承擔完整 runtime path，避免新專案保留半套 schema ownership。
 - `docs/atlas-schema-reconciliation.md` review 前，不得產生大型 baseline migration。
 - 不得因為 `atlas migrate lint` 通過就宣稱 baseline 安全；lint 驗證 migration mechanics，不驗證 production data compatibility。
 - 不得移除 GORM model structs；`atlas-provider-gorm` 仍需要讀取它們。

@@ -119,13 +119,13 @@ swag init -g cmd/server/main.go --output docs --quiet
 
 ## 資料庫與 migrations
 
-目前 server startup 會執行：
+API container startup 會先透過 Atlas 套用 migrations，API process 本身不再執行 schema DDL：
 
-- 建立 `user_role` enum
-- `db.AutoMigrate(schema.AutoMigrateModels()...)`
-- 需要 PostgreSQL partial index / FK / runtime repair 的 idempotent SQL patch
+- Docker entrypoint 執行 `atlas migrate apply`
+- `cmd/server` 不再執行 `db.AutoMigrate(...)`
+- 只保留非 schema 的 legacy raffle claim token hash repair
 
-[`migrations/`](migrations/) 內的 `001-019` SQL 是現有 schema history / manual setup reference。Atlas 遷移正在 #463 路線中推進；在正式 runner 完成前，不要把這個目錄誤認為 production migration pipeline。
+[`migrations/`](migrations/) 內的 `001-020` SQL 與 `atlas.sum` 是 Atlas-owned migration directory；本機與 Docker runtime 都應透過 Atlas apply path 套用。
 
 若需要在乾淨 local PostgreSQL 上重播目前 SQL reference，可以使用：
 
@@ -152,8 +152,8 @@ done
 | `internal/handlers` | HTTP request / response layer |
 | `internal/services` | domain logic 與 transaction boundaries |
 | `internal/models` | GORM models 與 persisted schema shape |
-| `internal/schema` | server AutoMigrate 與 Atlas loader 共用的 model list |
-| `migrations` | historical / manual SQL migration reference |
+| `internal/schema` | Atlas loader 使用的 GORM model list |
+| `migrations` | Atlas-owned SQL migration directory |
 | `docs` | generated Swagger artifacts |
 
 通常修改順序：
