@@ -115,10 +115,16 @@ async function runWithAuthRecovery<T>(
 
 interface HeartbeatResponse {
   balance: number
+  cumulativeTotal: number | null
 }
 
 interface TachiBalanceResponse {
   tachiBalance: number
+}
+
+interface PointBalanceResponse {
+  spendableBalance: number
+  cumulativeTotal: number
 }
 
 export interface RedeemCouponResponse {
@@ -139,27 +145,30 @@ function parsePointsEarnedFromPayload(payload: unknown): number | null {
   return value
 }
 
-function parseBalanceFromPayload(payload: unknown): number {
+function parsePointBalanceFromPayload(payload: unknown): PointBalanceResponse {
   if (!payload || typeof payload !== 'object') {
-    throw new Error('Invalid balance response')
+    throw new Error('Invalid point balance response')
   }
 
   // eslint-disable-next-line @typescript-eslint/no-explicit-any
   const raw = payload as any
-  const direct = raw.balance
-  const nested = raw.data?.balance
   const legacy = raw.points_balance
   const spendable = raw.spendable_balance
   const nestedSpendable = raw.data?.spendable_balance
+  const cumulative = raw.cumulative_total
+  const nestedCumulative = raw.data?.cumulative_total
 
-  const value = [direct, nested, legacy, spendable, nestedSpendable].find(
+  const spendableBalance = [spendable, nestedSpendable, legacy].find(
     (candidate) => typeof candidate === 'number',
   )
-  if (typeof value !== 'number') {
-    throw new Error('Balance response missing balance')
+  const cumulativeTotal = [cumulative, nestedCumulative, spendableBalance].find(
+    (candidate) => typeof candidate === 'number',
+  )
+  if (typeof spendableBalance !== 'number' || typeof cumulativeTotal !== 'number') {
+    throw new Error('Point balance response missing balance')
   }
 
-  return value
+  return { spendableBalance, cumulativeTotal }
 }
 
 function parseTachiBalanceFromPayload(payload: unknown): number {
@@ -188,13 +197,13 @@ async function ensureWatchSession(channelId: string) {
   await runWithAuthRecovery((config) => client.post('/api/v1/extension/watch/start', { channel_id: channelId }, config))
 }
 
-async function getWatchBalance(channelId: string): Promise<number> {
-  const { data } = await runWithAuthRecovery((config) => client.get('/api/v1/extension/watch/balance', {
+export async function getPointBalance(channelId: string): Promise<PointBalanceResponse> {
+  const { data } = await runWithAuthRecovery((config) => client.get('/api/v1/users/me/points', {
     ...config,
     params: { channel_id: channelId },
   }))
 
-  return parseBalanceFromPayload(data)
+  return parsePointBalanceFromPayload(data)
 }
 
 export async function sendClick(channelId: string): Promise<ClickResponse> {
@@ -266,19 +275,23 @@ export async function sendHeartbeat(
     }, config))
 
   try {
+    const pointBalance = await getPointBalance(channelId)
     return {
-      balance: await getWatchBalance(channelId),
+      balance: pointBalance.spendableBalance,
+      cumulativeTotal: pointBalance.cumulativeTotal,
     }
   } catch {
     const pointsEarned = parsePointsEarnedFromPayload(heartbeatResponse.data)
     if (typeof previousBalance === 'number') {
       return {
         balance: previousBalance + Math.max(pointsEarned ?? 0, 0),
+        cumulativeTotal: null,
       }
     }
 
     return {
       balance: Math.max(pointsEarned ?? 0, 0),
+      cumulativeTotal: null,
     }
   }
 }

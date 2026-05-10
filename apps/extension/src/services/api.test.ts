@@ -52,7 +52,7 @@ async function readJsonBody(req: http.IncomingMessage): Promise<unknown> {
   return JSON.parse(Buffer.concat(chunks).toString('utf8'))
 }
 
-test('sendHeartbeat starts a watch session, sends heartbeat, then refreshes balance', async () => {
+test('sendHeartbeat starts a watch session, sends heartbeat, then refreshes point balance', async () => {
   await withApiServer(
     (requests) => async (req, res) => {
       const body = await readJsonBody(req)
@@ -75,12 +75,12 @@ test('sendHeartbeat starts a watch session, sends heartbeat, then refreshes bala
         return
       }
 
-      if (req.method === 'GET' && req.url === '/api/v1/extension/watch/balance?channel_id=channel-123') {
+      if (req.method === 'GET' && req.url === '/api/v1/users/me/points?channel_id=channel-123') {
         res.writeHead(200, { 'Content-Type': 'application/json' })
         res.end(
           JSON.stringify({
             success: true,
-            data: { spendable_balance: 42, cumulative_total: 42 },
+            data: { spendable_balance: 42, cumulative_total: 77 },
           }),
         )
         return
@@ -100,7 +100,7 @@ test('sendHeartbeat starts a watch session, sends heartbeat, then refreshes bala
         api.setAuthToken('tachigo-access-token')
         const result = await api.sendHeartbeat('channel-123')
 
-        assert.equal(result.balance, 42)
+        assert.deepEqual(result, { balance: 42, cumulativeTotal: 77 })
         assert.deepEqual(
           requests.map(({ method, url, authorization, body }) => ({
             method,
@@ -123,7 +123,7 @@ test('sendHeartbeat starts a watch session, sends heartbeat, then refreshes bala
             },
             {
               method: 'GET',
-              url: '/api/v1/extension/watch/balance?channel_id=channel-123',
+              url: '/api/v1/users/me/points?channel_id=channel-123',
               authorization: 'Bearer tachigo-access-token',
               body: null,
             },
@@ -322,7 +322,7 @@ test('sendHeartbeat re-authenticates after 401 and falls back to previous balanc
         return
       }
 
-      if (req.method === 'GET' && req.url === '/api/v1/extension/watch/balance?channel_id=channel-123') {
+      if (req.method === 'GET' && req.url === '/api/v1/users/me/points?channel_id=channel-123') {
         res.writeHead(503, { 'Content-Type': 'application/json' })
         res.end(JSON.stringify({ success: false, error: 'temporary unavailable' }))
         return
@@ -343,7 +343,7 @@ test('sendHeartbeat re-authenticates after 401 and falls back to previous balanc
         api.setAuthToken('expired-access-token')
         const result = await api.sendHeartbeat('channel-123', 40)
 
-        assert.equal(result.balance, 42)
+        assert.deepEqual(result, { balance: 42, cumulativeTotal: null })
         assert.deepEqual(
           requests.map(({ method, url, authorization, body }) => ({
             method,
@@ -378,7 +378,7 @@ test('sendHeartbeat re-authenticates after 401 and falls back to previous balanc
             },
             {
               method: 'GET',
-              url: '/api/v1/extension/watch/balance?channel_id=channel-123',
+              url: '/api/v1/users/me/points?channel_id=channel-123',
               authorization: 'Bearer refreshed-access-token',
               body: null,
             },

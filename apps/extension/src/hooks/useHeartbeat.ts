@@ -9,6 +9,7 @@ interface UseHeartbeatOptions {
 export function useHeartbeat(channelId: string | undefined, options: UseHeartbeatOptions = {}) {
   const { enabled = true, intervalMs = 30_000 } = options
   const [balance, setBalance] = useState<number | null>(null)
+  const [cumulativeTotal, setCumulativeTotal] = useState<number | null>(null)
   const [gain, setGain] = useState<number | null>(null)
   const [isAnimating, setIsAnimating] = useState(false)
   const [error, setError] = useState<string | null>(null)
@@ -26,6 +27,7 @@ export function useHeartbeat(channelId: string | undefined, options: UseHeartbea
     clearAnimationTimer()
     lastBalanceRef.current = null
     setBalance(null)
+    setCumulativeTotal(null)
     setGain(null)
     setIsAnimating(false)
     setError(null)
@@ -69,6 +71,7 @@ export function useHeartbeat(channelId: string | undefined, options: UseHeartbea
         const nextBalance = data.balance
         const prevBalance = lastBalanceRef.current
         setBalance(nextBalance)
+        setCumulativeTotal(data.cumulativeTotal)
 
         if (prevBalance !== null && nextBalance > prevBalance) {
           setGain(nextBalance - prevBalance)
@@ -121,5 +124,5 @@ export function useHeartbeat(channelId: string | undefined, options: UseHeartbea
     setBalance(newBalance)
   }, [])
 
-  return { balance, gain, isAnimating, error, syncBalance }
+  return { balance, cumulativeTotal, gain, isAnimating, error, syncBalance }
 }

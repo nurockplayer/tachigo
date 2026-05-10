@@ -5,6 +5,7 @@ import { useTPoint } from './hooks/useTPoint'
 import { useHeartbeat } from './hooks/useHeartbeat'
 import { useClickBoost } from './hooks/useClickBoost'
 import { claimPoints, getTachiBalance } from './services/api'
+import { PointsDisplay } from './components/PointsDisplay'
 
 type ClaimErrorKey = 'loadBalanceFailed' | 'claimFailed'
 
@@ -16,7 +17,7 @@ export default function App() {
   const [tachiBalance, setTachiBalance] = useState<number | null>(null)
   const [claimStatus, setClaimStatus] = useState<'idle' | 'pending' | 'success' | 'error'>('idle')
   const [claimError, setClaimError] = useState<ClaimErrorKey | null>(null)
-  const { balance, gain, isAnimating, syncBalance } = useHeartbeat(context?.channelId, {
+  const { balance, cumulativeTotal, gain, isAnimating, syncBalance } = useHeartbeat(context?.channelId, {
     enabled: isViewer && backendReady,
   })
   const {
@@ -108,15 +109,12 @@ export default function App() {
       </header>
 
       <div className="ext-body">
-        <section className="ext-balance-wrap">
-          <div className={`ext-balance ${isAnimating ? 'ext-balance--bump' : ''}`}>
-            <span className="ext-balance__label">Points</span>
-            <strong className="ext-balance__value">{balance?.toLocaleString() ?? '—'}</strong>
-          </div>
-          {gain !== null && gain > 0 && (
-            <span className="ext-balance-gain">+{gain.toLocaleString()} {t('common.points')}</span>
-          )}
-        </section>
+        <PointsDisplay
+          spendableBalance={balance}
+          cumulativeTotal={cumulativeTotal}
+          gain={gain}
+          isAnimating={isAnimating}
+        />
 
         <section className="ext-claim">
           <div>
