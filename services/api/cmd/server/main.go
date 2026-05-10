@@ -39,7 +39,10 @@ func main() {
 
 	addr := ":" + cfg.Server.Port
 	log.Printf("server starting on %s (env=%s)", addr, cfg.Server.Env)
-	if err := r.Run(addr); err != nil {
+	srv := newHTTPServer(addr, r)
+	if err := runHTTPServer(serverCtx, srv, func() error {
+		return closeDatabase(db)
+	}); err != nil {
 		log.Fatalf("server error: %v", err)
 	}
 }
