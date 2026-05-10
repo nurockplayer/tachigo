@@ -161,11 +161,11 @@ function parsePointBalanceFromPayload(payload: unknown): PointBalanceResponse {
   const spendableBalance = [spendable, nestedSpendable, legacy].find(
     (candidate) => typeof candidate === 'number',
   )
-  const cumulativeTotal = [cumulative, nestedCumulative, spendableBalance].find(
+  const cumulativeTotal = [cumulative, nestedCumulative].find(
     (candidate) => typeof candidate === 'number',
   )
   if (typeof spendableBalance !== 'number' || typeof cumulativeTotal !== 'number') {
-    throw new Error('Point balance response missing balance')
+    throw new Error('Point balance response missing cumulative_total or spendable_balance')
   }
 
   return { spendableBalance, cumulativeTotal }

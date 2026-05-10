@@ -140,6 +140,61 @@ test('sendHeartbeat starts a watch session, sends heartbeat, then refreshes poin
   )
 })
 
+test('sendHeartbeat falls back when point balance response is missing cumulative total', async () => {
+  await withApiServer(
+    (requests) => async (req, res) => {
+      const body = await readJsonBody(req)
+      requests.push({
+        method: req.method ?? 'GET',
+        url: req.url ?? '/',
+        authorization: req.headers.authorization,
+        body,
+      })
+
+      if (req.method === 'POST' && req.url === '/api/v1/extension/watch/start') {
+        res.writeHead(200, { 'Content-Type': 'application/json' })
+        res.end(JSON.stringify({ success: true, data: { started: true } }))
+        return
+      }
+
+      if (req.method === 'POST' && req.url === '/api/v1/extension/watch/heartbeat') {
+        res.writeHead(200, { 'Content-Type': 'application/json' })
+        res.end(JSON.stringify({ success: true, data: { points_earned: 2 } }))
+        return
+      }
+
+      if (req.method === 'GET' && req.url === '/api/v1/users/me/points?channel_id=channel-123') {
+        res.writeHead(200, { 'Content-Type': 'application/json' })
+        res.end(JSON.stringify({ success: true, data: { spendable_balance: 42 } }))
+        return
+      }
+
+      res.writeHead(404, { 'Content-Type': 'application/json' })
+      res.end(JSON.stringify({ success: false, error: 'not found' }))
+    },
+    async (baseUrl) => {
+      const originalBaseUrl = process.env.VITE_TACHIGO_API_URL
+      process.env.VITE_TACHIGO_API_URL = baseUrl
+
+      try {
+        vi.resetModules()
+        const api = await import('./api.ts')
+
+        api.setAuthToken('tachigo-access-token')
+        const result = await api.sendHeartbeat('channel-123', 40)
+
+        assert.deepEqual(result, { balance: 42, cumulativeTotal: null })
+      } finally {
+        if (originalBaseUrl === undefined) {
+          delete process.env.VITE_TACHIGO_API_URL
+        } else {
+          process.env.VITE_TACHIGO_API_URL = originalBaseUrl
+        }
+      }
+    },
+  )
+})
+
 test('sendClick ensures the watch session exists before sending click rewards', async () => {
   await withApiServer(
     (requests) => async (req, res) => {
