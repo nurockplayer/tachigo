@@ -2,6 +2,7 @@ package middleware_test
 
 import (
 	"context"
+	"encoding/json"
 	"net/http"
 	"net/http/httptest"
 	"testing"
@@ -74,6 +75,20 @@ func TestRequestTimeout_Returns504WhenHandlerStopsOnDeadline(t *testing.T) {
 
 	if rec.Code != http.StatusGatewayTimeout {
 		t.Fatalf("want 504, got %d: %s", rec.Code, rec.Body.String())
+	}
+
+	var body struct {
+		Success bool   `json:"success"`
+		Error   string `json:"error"`
+	}
+	if err := json.Unmarshal(rec.Body.Bytes(), &body); err != nil {
+		t.Fatalf("decode response body: %v", err)
+	}
+	if body.Success {
+		t.Fatal("expected success=false")
+	}
+	if body.Error != "request timeout" {
+		t.Fatalf("want error %q, got %q", "request timeout", body.Error)
 	}
 }
 

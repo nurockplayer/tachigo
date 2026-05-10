@@ -13,6 +13,7 @@ const (
 	defaultJWTRefreshSecret   = "change-me-refresh-secret"
 	minJWTSecretLength        = 32
 	defaultSepoliaRPCEndpoint = "https://ethereum-sepolia-rpc.publicnode.com"
+	defaultRequestTimeoutSec  = 30
 )
 
 type Config struct {
@@ -98,7 +99,7 @@ func Load() *Config {
 	accessTTL, _ := strconv.Atoi(getEnv("JWT_ACCESS_TTL_MINUTES", "15"))
 	refreshTTL, _ := strconv.Atoi(getEnv("JWT_REFRESH_TTL_DAYS", "30"))
 	smtpPort, _ := strconv.Atoi(getEnv("SMTP_PORT", "587"))
-	requestTimeoutSeconds, _ := strconv.Atoi(getEnv("REQUEST_TIMEOUT_SECONDS", "30"))
+	requestTimeoutSeconds := getPositiveIntEnv("REQUEST_TIMEOUT_SECONDS", defaultRequestTimeoutSec)
 	appEnv, appEnvSet := getEnvWithPresence("APP_ENV", "development")
 	isProduction := appEnvSet && appEnv == "production"
 
@@ -261,6 +262,18 @@ func getBoolEnv(key string, fallback bool) bool {
 		return fallback
 	}
 	return b
+}
+
+func getPositiveIntEnv(key string, fallback int) int {
+	raw := os.Getenv(key)
+	if raw == "" {
+		return fallback
+	}
+	value, err := strconv.Atoi(raw)
+	if err != nil || value <= 0 {
+		return fallback
+	}
+	return value
 }
 
 func getCommaEnv(key string, fallback []string) []string {

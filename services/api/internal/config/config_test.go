@@ -300,6 +300,47 @@ func TestLoad_ContractRPCEndpoint(t *testing.T) {
 	})
 }
 
+func TestLoad_RequestTimeoutSecondsValidation(t *testing.T) {
+	tests := []struct {
+		name     string
+		envValue string
+		want     time.Duration
+	}{
+		{
+			name:     "falls back to default when invalid",
+			envValue: "invalid",
+			want:     30 * time.Second,
+		},
+		{
+			name:     "falls back to default when zero",
+			envValue: "0",
+			want:     30 * time.Second,
+		},
+		{
+			name:     "falls back to default when negative",
+			envValue: "-1",
+			want:     30 * time.Second,
+		},
+		{
+			name:     "uses positive override",
+			envValue: "45",
+			want:     45 * time.Second,
+		},
+	}
+
+	for _, tc := range tests {
+		t.Run(tc.name, func(t *testing.T) {
+			t.Setenv("REQUEST_TIMEOUT_SECONDS", tc.envValue)
+
+			cfg := Load()
+
+			if cfg.Server.RequestTimeout != tc.want {
+				t.Fatalf("RequestTimeout: want %v, got %v", tc.want, cfg.Server.RequestTimeout)
+			}
+		})
+	}
+}
+
 func TestGetBoolEnv(t *testing.T) {
 	tests := []struct {
 		name     string
