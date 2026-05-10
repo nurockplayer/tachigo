@@ -23,15 +23,16 @@ import (
 )
 
 var (
-	ErrUserNotFound       = errors.New("user not found")
-	ErrInvalidCredentials = errors.New("invalid credentials")
-	ErrEmailExists        = errors.New("email already registered")
-	ErrUsernameExists     = errors.New("username already taken")
-	ErrInvalidToken       = errors.New("invalid or expired token")
-	ErrProviderLinked     = errors.New("provider already linked to another account")
-	ErrInvalidNonce       = errors.New("invalid or expired nonce")
-	ErrInvalidSignature   = errors.New("invalid wallet signature")
-	ErrLastProvider       = errors.New("cannot unlink the only login method")
+	ErrUserNotFound        = errors.New("user not found")
+	ErrInvalidCredentials  = errors.New("invalid credentials")
+	ErrEmailExists         = errors.New("email already registered")
+	ErrUsernameExists      = errors.New("username already taken")
+	ErrInvalidToken        = errors.New("invalid or expired token")
+	errRefreshTokenExpired = errors.New("refresh token expired")
+	ErrProviderLinked      = errors.New("provider already linked to another account")
+	ErrInvalidNonce        = errors.New("invalid or expired nonce")
+	ErrInvalidSignature    = errors.New("invalid wallet signature")
+	ErrLastProvider        = errors.New("cannot unlink the only login method")
 )
 
 type TokenPair struct {
@@ -158,8 +159,7 @@ func (s *AuthService) Refresh(rawRefreshToken string) (*TokenPair, error) {
 			return ErrInvalidToken
 		}
 		if stored.IsExpired() {
-			tx.Delete(&stored)
-			return ErrInvalidToken
+			return errRefreshTokenExpired
 		}
 
 		var user models.User
@@ -180,6 +180,10 @@ func (s *AuthService) Refresh(rawRefreshToken string) (*TokenPair, error) {
 		tokenPair, err = s.issueTokenPairTx(tx, &user)
 		return err
 	})
+	if errors.Is(err, errRefreshTokenExpired) {
+		s.db.Where("token_hash = ?", hash).Delete(&models.RefreshToken{})
+		return nil, ErrInvalidToken
+	}
 	if err != nil {
 		return nil, err
 	}
