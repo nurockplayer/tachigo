@@ -33,6 +33,7 @@
 |---|---|
 | [`atlas-migration-plan.md`](atlas-migration-plan.md) | #463 Atlas migration 拆分實作計畫；不得單獨視為已完成狀態 |
 | [`atlas-schema-reconciliation.md`](atlas-schema-reconciliation.md) | #463 baseline 前 schema reconciliation evidence / procedure |
+| [`non-web3-launch-readiness.md`](non-web3-launch-readiness.md) | 暫時捨棄 Web3 上鏈部分後的上線距離、Codex 自動化能力與真人介入層級 snapshot |
 
 ## Root Reference / Discussion Notes
 

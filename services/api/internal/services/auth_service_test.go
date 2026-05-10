@@ -2,6 +2,7 @@ package services
 
 import (
 	"context"
+	"errors"
 	"strings"
 	"testing"
 	"time"
@@ -874,6 +875,26 @@ func TestDeleteExpiredRefreshTokens_RemovesExpiredOnly(t *testing.T) {
 	svc.db.Model(&models.RefreshToken{}).Where("token_hash = ?", hashToken(tokens.RefreshToken)).Count(&count)
 	if count != 1 {
 		t.Errorf("valid token should still exist, got count=%d", count)
+	}
+}
+
+func TestRefresh_SecondUseOfSameToken_ReturnsErrInvalidToken(t *testing.T) {
+	svc := NewAuthService(newTestDB(t), testConfig())
+	_, tokens, err := svc.Register(RegisterInput{
+		Email: "replay@example.com", Username: "replay_user", Password: "Password1!",
+	})
+	if err != nil {
+		t.Fatalf("Register: %v", err)
+	}
+
+	if _, err := svc.Refresh(tokens.RefreshToken); err != nil {
+		t.Fatalf("first Refresh: %v", err)
+	}
+
+	// Second use of the same token must fail.
+	_, err = svc.Refresh(tokens.RefreshToken)
+	if !errors.Is(err, ErrInvalidToken) {
+		t.Errorf("want ErrInvalidToken on second refresh, got %v", err)
 	}
 }
 

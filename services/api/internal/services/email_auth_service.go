@@ -87,12 +87,16 @@ func (s *EmailAuthService) VerifyEmail(rawToken string) error {
 		return ErrInvalidVerifyToken
 	}
 
-	if err := s.db.Model(&models.User{}).Where("id = ?", record.UserID).
-		Update("email_verified", true).Error; err != nil {
-		return err
-	}
-
-	return s.db.Delete(&record).Error
+	return s.db.Transaction(func(tx *gorm.DB) error {
+		if err := tx.Model(&models.User{}).Where("id = ?", record.UserID).
+			Update("email_verified", true).Error; err != nil {
+			return err
+		}
+		if err := tx.Delete(&record).Error; err != nil {
+			return err
+		}
+		return nil
+	})
 }
 
 // ─── Password Reset ───────────────────────────────────────────────────────────
@@ -153,12 +157,16 @@ func (s *EmailAuthService) ResetPassword(rawToken, newPassword string) error {
 		return err
 	}
 
-	if err := s.db.Model(&models.User{}).Where("email = ?", record.Email).
-		Update("password_hash", string(hashed)).Error; err != nil {
-		return err
-	}
-
-	return s.db.Delete(&record).Error
+	return s.db.Transaction(func(tx *gorm.DB) error {
+		if err := tx.Model(&models.User{}).Where("email = ?", record.Email).
+			Update("password_hash", string(hashed)).Error; err != nil {
+			return err
+		}
+		if err := tx.Delete(&record).Error; err != nil {
+			return err
+		}
+		return nil
+	})
 }
 
 // ─── Email templates ──────────────────────────────────────────────────────────

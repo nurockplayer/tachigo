@@ -29,12 +29,12 @@ func (w *WatchTimeStat) BeforeCreate(tx *gorm.DB) error {
 // BroadcastTimeStat accumulates total broadcast seconds per streamer per channel.
 // Each row is unique on (streamer_id, channel_id); seconds are upserted atomically.
 type BroadcastTimeStat struct {
-	ID                     uuid.UUID `gorm:"type:uuid;primaryKey;default:gen_random_uuid()"                    json:"id"`
-	StreamerID             uuid.UUID `gorm:"type:uuid;not null;uniqueIndex:idx_broadcast_time_streamer_channel" json:"streamer_id"`
-	ChannelID              string    `gorm:"type:varchar(255);not null;uniqueIndex:idx_broadcast_time_streamer_channel" json:"channel_id"`
-	TotalBroadcastSeconds  int64     `gorm:"not null;default:0"                                                json:"total_broadcast_seconds"`
-	CreatedAt              time.Time `                                                                          json:"created_at"`
-	UpdatedAt              time.Time `                                                                          json:"updated_at"`
+	ID                    uuid.UUID `gorm:"type:uuid;primaryKey;default:gen_random_uuid()"                    json:"id"`
+	StreamerID            uuid.UUID `gorm:"type:uuid;not null;uniqueIndex:idx_broadcast_time_streamer_channel" json:"streamer_id"`
+	ChannelID             string    `gorm:"type:varchar(255);not null;uniqueIndex:idx_broadcast_time_streamer_channel" json:"channel_id"`
+	TotalBroadcastSeconds int64     `gorm:"not null;default:0"                                                json:"total_broadcast_seconds"`
+	CreatedAt             time.Time `                                                                          json:"created_at"`
+	UpdatedAt             time.Time `                                                                          json:"updated_at"`
 }
 
 func (b *BroadcastTimeStat) BeforeCreate(tx *gorm.DB) error {
