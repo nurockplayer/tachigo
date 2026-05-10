@@ -487,6 +487,16 @@ jobs:
         working-directory: services/api
         run: atlas migrate apply --dir file://migrations --url "postgres://postgres:postgres@localhost:5432/tachigo?sslmode=disable"
 
+      - name: Apply migrations to GORM-shape baseline
+        working-directory: services/api
+        env:
+          GORM_BASELINE_DATABASE_URL: postgres://postgres:postgres@localhost:5432/tachigo_gorm_baseline?sslmode=disable
+        run: |
+          psql "postgres://postgres:postgres@localhost:5432/postgres?sslmode=disable" -v ON_ERROR_STOP=1 -c "CREATE DATABASE tachigo_gorm_baseline"
+          go run ./cmd/loader/main.go > /tmp/tachigo-gorm-schema.sql
+          psql "$GORM_BASELINE_DATABASE_URL" -v ON_ERROR_STOP=1 -f /tmp/tachigo-gorm-schema.sql
+          atlas migrate apply --dir file://migrations --url "$GORM_BASELINE_DATABASE_URL" --baseline 019
+
   backend-integration:
     timeout-minutes: 20
     name: Backend integration tests
