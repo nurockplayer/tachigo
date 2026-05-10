@@ -15,10 +15,10 @@ import (
 )
 
 var (
-	ErrAlreadyVerified          = errors.New("email already verified")
-	ErrInvalidVerifyToken        = errors.New("invalid or expired verification token")
-	ErrInvalidResetToken         = errors.New("invalid or expired password reset token")
-	ErrPasswordResetEmailSend    = errors.New("failed to send password reset email")
+	ErrAlreadyVerified        = errors.New("email already verified")
+	ErrInvalidVerifyToken     = errors.New("invalid or expired verification token")
+	ErrInvalidResetToken      = errors.New("invalid or expired password reset token")
+	ErrPasswordResetEmailSend = errors.New("failed to send password reset email")
 )
 
 const (
@@ -57,7 +57,9 @@ func (s *EmailAuthService) SendVerificationEmail(ctx context.Context, userID uui
 	}
 
 	// Replace any existing verification token for this user
-	s.db.Where("user_id = ?", userID).Delete(&models.EmailVerification{})
+	if err := s.db.Where("user_id = ?", userID).Delete(&models.EmailVerification{}).Error; err != nil {
+		return err
+	}
 
 	if err := s.db.Create(&models.EmailVerification{
 		UserID:    userID,
@@ -90,8 +92,7 @@ func (s *EmailAuthService) VerifyEmail(rawToken string) error {
 		return err
 	}
 
-	s.db.Delete(&record)
-	return nil
+	return s.db.Delete(&record).Error
 }
 
 // ─── Password Reset ───────────────────────────────────────────────────────────
@@ -114,7 +115,9 @@ func (s *EmailAuthService) ForgotPassword(ctx context.Context, email string) err
 	}
 
 	// Replace any existing reset token for this email
-	s.db.Where("email = ?", email).Delete(&models.PasswordReset{})
+	if err := s.db.Where("email = ?", email).Delete(&models.PasswordReset{}).Error; err != nil {
+		return err
+	}
 
 	if err := s.db.Create(&models.PasswordReset{
 		Email:     email,
@@ -155,8 +158,7 @@ func (s *EmailAuthService) ResetPassword(rawToken, newPassword string) error {
 		return err
 	}
 
-	s.db.Delete(&record)
-	return nil
+	return s.db.Delete(&record).Error
 }
 
 // ─── Email templates ──────────────────────────────────────────────────────────
