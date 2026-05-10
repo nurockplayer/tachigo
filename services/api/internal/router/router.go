@@ -1,6 +1,8 @@
 package router
 
 import (
+	"log"
+
 	"github.com/gin-gonic/gin"
 	swaggerFiles "github.com/swaggo/files"
 	ginSwagger "github.com/swaggo/gin-swagger"
@@ -37,13 +39,23 @@ func New(
 	allowedOrigins []string,
 	internalRouterConfig ...InternalRouterConfig,
 ) *gin.Engine {
+	var cfg *config.Config
+	if len(internalRouterConfig) > 0 {
+		cfg = internalRouterConfig[0].Config
+	}
+
+	if cfg != nil && cfg.Server.GinMode != "" {
+		gin.SetMode(cfg.Server.GinMode)
+	}
+
 	r := gin.New()
 	r.Use(gin.Logger(), gin.Recovery())
 	r.Use(middleware.CORS(allowedOrigins))
 
-	var cfg *config.Config
-	if len(internalRouterConfig) > 0 {
-		cfg = internalRouterConfig[0].Config
+	if cfg != nil {
+		if err := r.SetTrustedProxies(cfg.Server.TrustedProxies); err != nil {
+			log.Printf("warning: SetTrustedProxies: %v", err)
+		}
 	}
 
 	authH := handlers.NewAuthHandler(authSvc, cfg).WithEmailAuth(emailAuthSvc)
@@ -63,7 +75,10 @@ func New(
 	r.GET("/health", func(c *gin.Context) {
 		c.JSON(200, gin.H{"status": "ok"})
 	})
-	r.GET("/swagger/*any", ginSwagger.WrapHandler(swaggerFiles.Handler))
+	enableSwagger := cfg == nil || cfg.Server.EnableSwagger
+	if enableSwagger {
+		r.GET("/swagger/*any", ginSwagger.WrapHandler(swaggerFiles.Handler))
+	}
 
 	v1 := r.Group("/api/v1")
 
