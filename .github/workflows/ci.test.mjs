@@ -714,8 +714,13 @@ test('backend Docker runtime applies Atlas migrations before starting the API', 
   assert.match(dockerfile, /CMD \["\/tachigo"\]/)
 
   assert.match(entrypoint, /ATLAS_DATABASE_URL is required to apply database migrations/)
+  assert.match(entrypoint, /case "\$\{1:-\}" in/)
+  assert.match(entrypoint, /air\|\/tachigo\|tachigo\)/)
   const migrateIndex = entrypoint.indexOf('atlas migrate apply')
   const execIndex = entrypoint.indexOf('exec "$@"')
+  const commandGateIndex = entrypoint.indexOf('case "${1:-}" in')
+  assert.ok(commandGateIndex >= 0, 'entrypoint must gate migration by startup command')
+  assert.ok(commandGateIndex < migrateIndex, 'entrypoint must decide whether to migrate before applying migrations')
   assert.ok(migrateIndex >= 0, 'entrypoint must apply Atlas migrations')
   assert.ok(execIndex > migrateIndex, 'entrypoint must start the API only after migrations apply')
 
