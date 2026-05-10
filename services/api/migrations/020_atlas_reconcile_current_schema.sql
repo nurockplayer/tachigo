@@ -69,22 +69,15 @@ BEGIN
     END IF;
 END $$;
 
-CREATE INDEX IF NOT EXISTS idx_streamers_agency_user_id
-    ON streamers (agency_user_id);
+CREATE INDEX IF NOT EXISTS idx_streamers_agency_user_id ON streamers (agency_user_id);
 
-CREATE UNIQUE INDEX IF NOT EXISTS idx_streamers_user_channel
-    ON streamers (user_id, channel_id);
+CREATE UNIQUE INDEX IF NOT EXISTS idx_streamers_user_channel ON streamers (user_id, channel_id);
 
-CREATE UNIQUE INDEX IF NOT EXISTS idx_points_ledgers_user_channel
-    ON points_ledgers (user_id, channel_id);
+CREATE UNIQUE INDEX IF NOT EXISTS idx_points_ledgers_user_channel ON points_ledgers (user_id, channel_id);
 
-CREATE UNIQUE INDEX IF NOT EXISTS idx_points_transactions_external_transaction_id
-    ON points_transactions (external_transaction_id)
-    WHERE external_transaction_id IS NOT NULL;
+CREATE UNIQUE INDEX IF NOT EXISTS idx_points_transactions_external_transaction_id ON points_transactions (external_transaction_id) WHERE external_transaction_id IS NOT NULL;
 
-CREATE UNIQUE INDEX IF NOT EXISTS idx_claims_tx_hash_not_null
-    ON claims (tx_hash)
-    WHERE tx_hash IS NOT NULL;
+CREATE UNIQUE INDEX IF NOT EXISTS idx_claims_tx_hash_not_null ON claims (tx_hash) WHERE tx_hash IS NOT NULL;
 
 DO $$
 BEGIN
@@ -108,19 +101,14 @@ BEGIN
     END IF;
 END $$;
 
-CREATE INDEX IF NOT EXISTS idx_coupon_redemptions_compensation
-    ON coupon_redemptions (status)
-    WHERE status = 'compensation-needed';
+CREATE INDEX IF NOT EXISTS idx_coupon_redemptions_compensation ON coupon_redemptions (status) WHERE status = 'compensation-needed';
 
 -- Preserve historical claim consistency invariants before Atlas diffs from GORM.
-CREATE UNIQUE INDEX IF NOT EXISTS idx_claims_id_user_id
-    ON claims (id, user_id);
+CREATE UNIQUE INDEX IF NOT EXISTS idx_claims_id_user_id ON claims (id, user_id);
 
-CREATE UNIQUE INDEX IF NOT EXISTS idx_points_ledgers_id_user_id
-    ON points_ledgers (id, user_id);
+CREATE UNIQUE INDEX IF NOT EXISTS idx_points_ledgers_id_user_id ON points_ledgers (id, user_id);
 
-CREATE UNIQUE INDEX IF NOT EXISTS idx_points_transactions_id_ledger_id
-    ON points_transactions (id, ledger_id);
+CREATE UNIQUE INDEX IF NOT EXISTS idx_points_transactions_id_ledger_id ON points_transactions (id, ledger_id);
 
 ALTER TABLE claim_items
     ADD COLUMN IF NOT EXISTS claim_user_id UUID;
@@ -224,58 +212,41 @@ END $$;
 DO $$
 BEGIN
     IF NOT EXISTS (SELECT 1 FROM pg_constraint WHERE conname = 'fk_raffles_user') THEN
-        ALTER TABLE raffles
-            ADD CONSTRAINT fk_raffles_user
-            FOREIGN KEY (user_id) REFERENCES users(id);
+        ALTER TABLE raffles ADD CONSTRAINT fk_raffles_user FOREIGN KEY (user_id) REFERENCES users(id);
     END IF;
 END $$;
 
 DO $$
 BEGIN
     IF NOT EXISTS (SELECT 1 FROM pg_constraint WHERE conname = 'fk_raffle_entries_raffle') THEN
-        ALTER TABLE raffle_entries
-            ADD CONSTRAINT fk_raffle_entries_raffle
-            FOREIGN KEY (raffle_id) REFERENCES raffles(id)
-            ON UPDATE CASCADE ON DELETE CASCADE;
+        ALTER TABLE raffle_entries ADD CONSTRAINT fk_raffle_entries_raffle FOREIGN KEY (raffle_id) REFERENCES raffles(id) ON UPDATE CASCADE ON DELETE CASCADE;
     END IF;
 END $$;
 
 DO $$
 BEGIN
     IF NOT EXISTS (SELECT 1 FROM pg_constraint WHERE conname = 'fk_raffle_entries_user') THEN
-        ALTER TABLE raffle_entries
-            ADD CONSTRAINT fk_raffle_entries_user
-            FOREIGN KEY (user_id) REFERENCES users(id)
-            ON UPDATE CASCADE ON DELETE SET NULL;
+        ALTER TABLE raffle_entries ADD CONSTRAINT fk_raffle_entries_user FOREIGN KEY (user_id) REFERENCES users(id) ON UPDATE CASCADE ON DELETE SET NULL;
     END IF;
 END $$;
 
 DO $$
 BEGIN
     IF NOT EXISTS (SELECT 1 FROM pg_constraint WHERE conname = 'fk_raffle_draws_raffle') THEN
-        ALTER TABLE raffle_draws
-            ADD CONSTRAINT fk_raffle_draws_raffle
-            FOREIGN KEY (raffle_id) REFERENCES raffles(id)
-            ON UPDATE CASCADE ON DELETE CASCADE;
+        ALTER TABLE raffle_draws ADD CONSTRAINT fk_raffle_draws_raffle FOREIGN KEY (raffle_id) REFERENCES raffles(id) ON UPDATE CASCADE ON DELETE CASCADE;
     END IF;
 END $$;
 
 DO $$
 BEGIN
     IF NOT EXISTS (SELECT 1 FROM pg_constraint WHERE conname = 'fk_raffle_draws_entry') THEN
-        ALTER TABLE raffle_draws
-            ADD CONSTRAINT fk_raffle_draws_entry
-            FOREIGN KEY (entry_id, raffle_id) REFERENCES raffle_entries(id, raffle_id)
-            ON UPDATE CASCADE ON DELETE CASCADE;
+        ALTER TABLE raffle_draws ADD CONSTRAINT fk_raffle_draws_entry FOREIGN KEY (entry_id, raffle_id) REFERENCES raffle_entries(id, raffle_id) ON UPDATE CASCADE ON DELETE CASCADE;
     END IF;
 END $$;
 
 DO $$
 BEGIN
     IF NOT EXISTS (SELECT 1 FROM pg_constraint WHERE conname = 'fk_raffle_claims_draw') THEN
-        ALTER TABLE raffle_claims
-            ADD CONSTRAINT fk_raffle_claims_draw
-            FOREIGN KEY (draw_id) REFERENCES raffle_draws(id)
-            ON UPDATE CASCADE ON DELETE CASCADE;
+        ALTER TABLE raffle_claims ADD CONSTRAINT fk_raffle_claims_draw FOREIGN KEY (draw_id) REFERENCES raffle_draws(id) ON UPDATE CASCADE ON DELETE CASCADE;
     END IF;
 END $$;
