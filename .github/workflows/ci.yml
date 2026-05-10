@@ -468,7 +468,11 @@ jobs:
               upper = toupper($0)
               destructive = upper ~ /(^|[^A-Z_])DROP[[:space:]]+TABLE([^A-Z_]|$)/ ||
                 upper ~ /(^|[^A-Z_])TRUNCATE[[:space:]]+TABLE([^A-Z_]|$)/ ||
-                upper ~ /(^|[^A-Z_])DROP[[:space:]]+COLUMN([^A-Z_]|$)/
+                upper ~ /(^|[^A-Z_])DROP[[:space:]]+COLUMN([^A-Z_]|$)/ ||
+                upper ~ /(^|[^A-Z_])DROP[[:space:]]+INDEX([^A-Z_]|$)/ ||
+                upper ~ /(^|[^A-Z_])RENAME[[:space:]]+COLUMN([^A-Z_]|$)/ ||
+                upper ~ /(^|[^A-Z_])RENAME[[:space:]]+TO([^A-Z_]|$)/ ||
+                upper ~ /ALTER[[:space:]]+COLUMN[[:space:]].*[[:space:]]TYPE([[:space:]]|$)/
               allowed = $0 ~ /--[[:space:]]*atlas:nolint/ || previous ~ /--[[:space:]]*atlas:nolint/
               if (destructive && !allowed) {
                 printf "%s:%d: destructive migration requires -- atlas:nolint on the same or previous line\n", FILENAME, FNR
