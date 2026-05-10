@@ -4,6 +4,7 @@ import (
 	"fmt"
 	"os"
 	"strconv"
+	"strings"
 	"time"
 )
 
@@ -49,9 +50,11 @@ type AppConfig struct {
 }
 
 type ServerConfig struct {
-	Port   string
-	Env    string
-	EnvSet bool
+	Port             string
+	Env              string
+	EnvSet           bool
+	EnableSwagger    bool
+	EnableSwaggerSet bool
 }
 
 type DatabaseConfig struct {
@@ -88,12 +91,15 @@ func Load() *Config {
 	refreshTTL, _ := strconv.Atoi(getEnv("JWT_REFRESH_TTL_DAYS", "30"))
 	smtpPort, _ := strconv.Atoi(getEnv("SMTP_PORT", "587"))
 	appEnv, appEnvSet := getEnvWithPresence("APP_ENV", "development")
+	enableSwagger, enableSwaggerSet := getBoolEnvWithPresence("ENABLE_SWAGGER", false)
 
 	return &Config{
 		Server: ServerConfig{
-			Port:   getEnv("PORT", "8080"),
-			Env:    appEnv,
-			EnvSet: appEnvSet,
+			Port:             getEnv("PORT", "8080"),
+			Env:              appEnv,
+			EnvSet:           appEnvSet,
+			EnableSwagger:    enableSwagger,
+			EnableSwaggerSet: enableSwaggerSet,
 		},
 		Database: DatabaseConfig{
 			DSN: getEnv("DATABASE_URL", "host=localhost user=postgres password=postgres dbname=tachigo port=5432 sslmode=disable"),
@@ -151,11 +157,39 @@ func getEnvWithPresence(key, fallback string) (string, bool) {
 	return fallback, false
 }
 
+func getBoolEnvWithPresence(key string, fallback bool) (bool, bool) {
+	raw, ok := getEnvWithPresence(key, "")
+	if !ok {
+		return fallback, false
+	}
+	value, err := strconv.ParseBool(raw)
+	if err != nil {
+		return fallback, true
+	}
+	return value, true
+}
+
 func ShouldValidateProductionSecrets(cfg *Config) bool {
 	if cfg == nil {
 		return true
 	}
 	return !cfg.Server.EnvSet || cfg.Server.Env != "development"
+}
+
+func ShouldEnableSwagger(cfg *Config) bool {
+	if cfg == nil {
+		return true
+	}
+	if cfg.Server.EnableSwaggerSet {
+		return cfg.Server.EnableSwagger
+	}
+
+	switch strings.ToLower(cfg.Server.Env) {
+	case "", "development", "dev", "local":
+		return true
+	default:
+		return false
+	}
 }
 
 func ValidateProductionSecrets(cfg *Config) error {

@@ -37,7 +37,7 @@ type routerTestEnv struct {
 	router  *gin.Engine
 }
 
-func newRouterTestEnv(t *testing.T) *routerTestEnv {
+func newRouterTestEnv(t *testing.T, routerConfigs ...*config.Config) *routerTestEnv {
 	t.Helper()
 
 	dbName := strings.NewReplacer("/", "_", " ", "_").Replace(t.Name())
@@ -74,6 +74,9 @@ func newRouterTestEnv(t *testing.T) *routerTestEnv {
 			FrontendURL: "http://localhost:3000",
 		},
 	}
+	if len(routerConfigs) > 0 {
+		cfg = routerConfigs[0]
+	}
 	authSvc := services.NewAuthService(db, cfg)
 	userSvc := services.NewUserService(db)
 	addrSvc := services.NewAddressService(db)
@@ -89,6 +92,11 @@ func newRouterTestEnv(t *testing.T) *routerTestEnv {
 	spendSvc := services.NewSpendService(db, config.ContractConfig{}, nil, nil)
 	raffleSvc := services.NewRaffleService(db, "", "", nil)
 	agencyHandler := handlers.NewAgencyHandler(agencySvc, emailAuthSvc)
+
+	internalRouterConfigs := []router.InternalRouterConfig{}
+	if len(routerConfigs) > 0 {
+		internalRouterConfigs = append(internalRouterConfigs, router.InternalRouterConfig{DB: db, Config: cfg})
+	}
 
 	engine := router.New(
 		authSvc,
@@ -107,12 +115,74 @@ func newRouterTestEnv(t *testing.T) *routerTestEnv {
 		raffleSvc,
 		agencyHandler,
 		[]string{"http://localhost:3000"},
+		internalRouterConfigs...,
 	)
 
 	return &routerTestEnv{
 		db:      db,
 		authSvc: authSvc,
 		router:  engine,
+	}
+}
+
+func TestSwaggerRoute_DevelopmentDefaultExposesSwagger(t *testing.T) {
+	env := newRouterTestEnv(t, routerTestConfig("development", false, false))
+
+	assertSwaggerExposed(t, env.router)
+}
+
+func TestSwaggerRoute_ProductionDefaultHidesSwagger(t *testing.T) {
+	env := newRouterTestEnv(t, routerTestConfig("production", false, false))
+
+	assertSwaggerHidden(t, env.router)
+}
+
+func TestSwaggerRoute_ProductionExplicitFlagExposesSwagger(t *testing.T) {
+	env := newRouterTestEnv(t, routerTestConfig("production", true, true))
+
+	assertSwaggerExposed(t, env.router)
+}
+
+func routerTestConfig(serverEnv string, enableSwagger, enableSwaggerSet bool) *config.Config {
+	return &config.Config{
+		Server: config.ServerConfig{
+			Env:              serverEnv,
+			EnableSwagger:    enableSwagger,
+			EnableSwaggerSet: enableSwaggerSet,
+		},
+		JWT: config.JWTConfig{
+			AccessSecret:  "test-access-secret-at-least-32-chars!",
+			RefreshSecret: "test-refresh-secret",
+			AccessTTL:     15 * time.Minute,
+			RefreshTTL:    30 * 24 * time.Hour,
+		},
+		App: config.AppConfig{
+			FrontendURL: "http://localhost:3000",
+		},
+	}
+}
+
+func assertSwaggerExposed(t *testing.T, engine *gin.Engine) {
+	t.Helper()
+
+	req := httptest.NewRequest(http.MethodGet, "/swagger/index.html", nil)
+	rec := httptest.NewRecorder()
+	engine.ServeHTTP(rec, req)
+
+	if rec.Code == http.StatusNotFound {
+		t.Fatalf("expected swagger route to be exposed, got 404: %s", rec.Body.String())
+	}
+}
+
+func assertSwaggerHidden(t *testing.T, engine *gin.Engine) {
+	t.Helper()
+
+	req := httptest.NewRequest(http.MethodGet, "/swagger/index.html", nil)
+	rec := httptest.NewRecorder()
+	engine.ServeHTTP(rec, req)
+
+	if rec.Code != http.StatusNotFound {
+		t.Fatalf("expected swagger route to be hidden with 404, got %d: %s", rec.Code, rec.Body.String())
 	}
 }
 
