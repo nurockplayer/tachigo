@@ -1,0 +1,67 @@
+name: Dependabot pnpm Lockfile Repair
+
+on:
+  pull_request:
+    types: [opened, synchronize, reopened]
+    paths:
+      - apps/dashboard/package.json
+      - apps/extension/package.json
+
+jobs:
+  repair-lockfiles:
+    name: Repair pnpm lockfiles
+    if: github.event.pull_request.user.login == 'dependabot[bot]' && github.event.pull_request.head.repo.full_name == github.repository
+    permissions:
+      contents: write
+      pull-requests: read
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+        with:
+          ref: ${{ github.event.pull_request.head.ref }}
+          repository: ${{ github.event.pull_request.head.repo.full_name }}
+          token: ${{ secrets.GITHUB_TOKEN }}
+
+      - uses: actions/setup-node@v4
+        with:
+          node-version: 22.12.0
+
+      - name: Enable pnpm
+        run: corepack enable && corepack prepare pnpm@10.33.0 --activate
+
+      - name: Detect changed frontend manifests
+        id: changed
+        uses: actions/github-script@v7
+        with:
+          script: |
+            const files = await github.paginate(github.rest.pulls.listFiles, {
+              owner: context.repo.owner,
+              repo: context.repo.repo,
+              pull_number: context.payload.pull_request.number,
+              per_page: 100,
+            })
+            const filenames = new Set(files.map((file) => file.filename))
+            core.setOutput('dashboard', filenames.has('apps/dashboard/package.json') ? 'true' : 'false')
+            core.setOutput('extension', filenames.has('apps/extension/package.json') ? 'true' : 'false')
+
+      - name: Repair dashboard lockfile
+        if: steps.changed.outputs.dashboard == 'true'
+        working-directory: apps/dashboard
+        run: pnpm install --lockfile-only --ignore-scripts --config.shared-workspace-lockfile=false
+
+      - name: Repair extension lockfile
+        if: steps.changed.outputs.extension == 'true'
+        working-directory: apps/extension
+        run: pnpm install --lockfile-only --ignore-scripts --config.shared-workspace-lockfile=false
+
+      - name: Commit repaired lockfiles
+        run: |
+          git config user.name "github-actions[bot]"
+          git config user.email "41898282+github-actions[bot]@users.noreply.github.com"
+          git add pnpm-lock.yaml apps/dashboard/pnpm-lock.yaml apps/extension/pnpm-lock.yaml
+          if git diff --cached --quiet; then
+            echo "No pnpm lockfile repair needed."
+          else
+            git commit -m "chore(deps): repair pnpm lockfiles"
+            git push
+          fi

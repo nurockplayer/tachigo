@@ -11,6 +11,7 @@ const workflowPath = path.join(currentDir, 'ci.yml')
 const scopePolicePath = path.join(currentDir, 'pr-scope-police.yml')
 const dependabotConfigPath = path.join(repoRoot, '.github', 'dependabot.yml')
 const dependabotAutomergeWorkflowPath = path.join(currentDir, 'dependabot-automerge.yml')
+const dependabotPnpmLockfileWorkflowPath = path.join(currentDir, 'dependabot-pnpm-lockfile.yml')
 const autoMergeWorkflowPath = path.join(currentDir, 'auto-merge.yml')
 const autoReadyWorkflowPath = path.join(currentDir, 'auto-ready-pr.yml')
 const codexReviewRerequestWorkflowPath = path.join(currentDir, 'codex-review-rerequest.yml')
@@ -880,6 +881,8 @@ test('dependency review policy documents Dependabot split and waiver handling', 
   assert.match(policy, /high\/critical production dependency vulnerabilities/)
   assert.match(policy, /development dependency findings are report-only/)
   assert.match(policy, /Dependabot opens routine version update PRs for the configured update levels/)
+  assert.match(policy, /dependabot-pnpm-lockfile\.yml/)
+  assert.match(policy, /shared-workspace-lockfile=false/)
   assert.match(policy, /security update PRs for alert-triggered fixes/)
   assert.match(policy, /Production security update\s+PRs remain manual-review changes/)
   assert.match(policy, /False Positives And Waivers/)
@@ -911,6 +914,33 @@ test('Dependabot pnpm version updates skip routine production patch releases', (
       },
     ])
   }
+})
+
+test('Dependabot pnpm lockfile repair is scoped to same-repo Dependabot PRs', async () => {
+  const workflow = await readFile(dependabotPnpmLockfileWorkflowPath, 'utf8')
+  const parsedWorkflow = parseYaml(dependabotPnpmLockfileWorkflowPath)
+  const job = parsedWorkflow.jobs['repair-lockfiles']
+  const jobBlock = workflowJobBlock(workflow, 'repair-lockfiles')
+
+  assert.equal(job.name, 'Repair pnpm lockfiles')
+  assert.equal(job.permissions.contents, 'write')
+  assert.equal(job.permissions['pull-requests'], 'read')
+  assert.match(job.if, /github\.event\.pull_request\.user\.login == 'dependabot\[bot\]'/)
+  assert.match(job.if, /github\.event\.pull_request\.head\.repo\.full_name == github\.repository/)
+  assert.match(jobBlock, /ref: \$\{\{ github\.event\.pull_request\.head\.ref \}\}/)
+  assert.match(jobBlock, /repository: \$\{\{ github\.event\.pull_request\.head\.repo\.full_name \}\}/)
+  assert.match(jobBlock, /corepack prepare pnpm@10\.33\.0 --activate/)
+  assert.match(
+    jobBlock,
+    /working-directory: apps\/dashboard\n\s+run: pnpm install --lockfile-only --ignore-scripts --config\.shared-workspace-lockfile=false/,
+  )
+  assert.match(
+    jobBlock,
+    /working-directory: apps\/extension\n\s+run: pnpm install --lockfile-only --ignore-scripts --config\.shared-workspace-lockfile=false/,
+  )
+  assert.match(jobBlock, /git add pnpm-lock\.yaml apps\/dashboard\/pnpm-lock\.yaml apps\/extension\/pnpm-lock\.yaml/)
+  assert.match(jobBlock, /git commit -m "chore\(deps\): repair pnpm lockfiles"/)
+  assert.match(jobBlock, /git push/)
 })
 
 test('Dependabot auto-merge keeps production dependency updates on manual review', async () => {
