@@ -27,11 +27,10 @@ The repo currently contains multiple client surfaces that touch auth:
 - `tachimint`
   - Twitch Extension panel
   - runs inside a Twitch-controlled iframe
-- `extensions/tachigo-demo-sidepanel`
-  - Chrome sidepanel demo client
-  - separate from `tachimint`
 
 These surfaces should not be treated as one single runtime. Their current auth behavior and constraints are different.
+
+The retired `extensions/tachigo-demo-sidepanel` source directory is no longer a current auth surface.
 
 ## Current Shared Identity Baseline
 
@@ -84,23 +83,12 @@ Current documented and observed flow:
 - backend returns a tachigo token for follow-up requests
 - existing watch flows already assume tachigo JWT usage after successful extension login
 
-### `tachigo-demo-sidepanel`
-
-`extensions/tachigo-demo-sidepanel` should be treated as a demo or exploratory client, not as a production auth reference.
-
-Observed behavior:
-
-- it has a login UI
-- the login completion is currently simulated locally
-- it is not yet wired to a real backend-integrated production auth flow
-
 ## Current Cross-Client Observations
 
 Based on the current repo state, these cross-client distinctions are observable today:
 
 - dashboard and extension do not currently present the same auth contract
 - dashboard auth behavior does not currently describe extension auth behavior
-- `tachimint` and `tachigo-demo-sidepanel` do not currently behave as the same runtime
 - backend auth endpoints and JWT-based flows already exist and may already be depended on by current clients
 
 This section records current-state observations only. It does not adopt new cross-client rules by itself.
