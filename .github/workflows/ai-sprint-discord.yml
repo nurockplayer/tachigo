@@ -1,0 +1,65 @@
+name: AI sprint Discord summary
+
+on:
+  workflow_dispatch:
+    inputs:
+      summary:
+        description: Discord-ready sprint summary content.
+        required: true
+        type: string
+
+permissions:
+  contents: read
+
+jobs:
+  notify-discord:
+    timeout-minutes: 5
+    name: Notify AI sprint Discord channel
+    runs-on: ubuntu-latest
+    steps:
+      - name: Send sprint summary
+        env:
+          DISCORD_WEBHOOK_URL: ${{ secrets.DISCORD_AI_SPRINT_WEBHOOK_URL }}
+          DISCORD_SUMMARY: ${{ inputs.summary }}
+        run: |
+          if [ -z "$DISCORD_WEBHOOK_URL" ]; then
+            echo "DISCORD_AI_SPRINT_WEBHOOK_URL is not configured; skipping Discord notification."
+            exit 0
+          fi
+
+          node --input-type=module <<'NODE'
+          const webhookUrl = process.env.DISCORD_WEBHOOK_URL
+          const summary = (process.env.DISCORD_SUMMARY || '').trim()
+
+          if (!summary) {
+            throw new Error('summary input is required')
+          }
+
+          const maxDescriptionLength = 4000
+          const description =
+            summary.length > maxDescriptionLength
+              ? `${summary.slice(0, maxDescriptionLength - 20)}\n...(truncated)`
+              : summary
+
+          const response = await fetch(webhookUrl, {
+            method: 'POST',
+            headers: { 'Content-Type': 'application/json' },
+            body: JSON.stringify({
+              username: 'tachigo AI sprint',
+              embeds: [
+                {
+                  title: 'tachigo AI sprint summary',
+                  description,
+                  color: 0x2f81f7,
+                },
+              ],
+            }),
+          })
+
+          if (!response.ok) {
+            const body = await response.text()
+            throw new Error(`Discord webhook POST failed (${response.status}): ${body}`)
+          }
+
+          console.log(`Discord sprint summary sent (${response.status}).`)
+          NODE
