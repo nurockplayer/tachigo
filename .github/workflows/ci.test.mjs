@@ -251,6 +251,98 @@ async function runCiScopeGateWorkflow({ eventName = 'pull_request', prOverrides 
   return { notices, outputs: Object.fromEntries(outputs) }
 }
 
+async function runScopePoliceWorkflow({
+  body,
+  title = '[chore] Template refresh',
+  labels = [],
+  files = [{ filename: '.github/PULL_REQUEST_TEMPLATE.md', status: 'modified', additions: 1, deletions: 1 }],
+  existingComments = [],
+  prOverrides = {},
+} = {}) {
+  const parsedWorkflow = parseYaml(scopePolicePath)
+  const script = parsedWorkflow.jobs['scope-police'].steps[0].with.script
+  const notices = []
+  const failures = []
+  const comments = []
+  const labelsAdded = []
+  const labelsRemoved = []
+  const labelsCreated = []
+  const pr = {
+    number: 623,
+    state: 'open',
+    body,
+    title,
+    base: { ref: 'develop' },
+    head: { ref: 'feature/template-refresh', repo: { full_name: 'nurockplayer/tachigo' } },
+    labels,
+    user: { login: 'nurockplayer' },
+    ...prOverrides,
+    base: { ref: 'develop', ...(prOverrides.base || {}) },
+    head: {
+      ref: 'feature/template-refresh',
+      repo: { full_name: 'nurockplayer/tachigo' },
+      ...(prOverrides.head || {}),
+      repo: { full_name: 'nurockplayer/tachigo', ...(prOverrides.head?.repo || {}) },
+    },
+    labels: prOverrides.labels || labels,
+  }
+  const github = {
+    rest: {
+      pulls: {
+        listFiles: async () => ({ data: files }),
+        update: async () => ({ data: { state: 'closed' } }),
+      },
+      issues: {
+        listComments: async () => ({ data: existingComments }),
+        createComment: async (args) => {
+          comments.push({ type: 'create', ...args })
+          return { data: { id: comments.length, body: args.body } }
+        },
+        updateComment: async (args) => {
+          comments.push({ type: 'update', ...args })
+          return { data: { id: args.comment_id, body: args.body } }
+        },
+        getLabel: async () => ({ data: { name: 'scope-violation' } }),
+        createLabel: async (args) => {
+          labelsCreated.push(args)
+          return { data: { name: args.name } }
+        },
+        addLabels: async ({ issue_number, labels: nextLabels }) => {
+          labelsAdded.push({ issue_number, labels: nextLabels })
+          return { data: nextLabels.map((name) => ({ name })) }
+        },
+        removeLabel: async ({ issue_number, name }) => {
+          labelsRemoved.push({ issue_number, name })
+          return { data: { name } }
+        },
+      },
+    },
+    paginate: async (fn, args) => {
+      const result = await fn(args)
+      return result.data || result
+    },
+  }
+  const context = {
+    repo: { owner: 'nurockplayer', repo: 'tachigo' },
+    eventName: 'pull_request',
+    payload: { pull_request: pr },
+  }
+  const core = {
+    notice: (message) => notices.push(message),
+    setFailed: (message) => failures.push(message),
+  }
+
+  await AsyncFunction('context', 'github', 'core', script)(context, github, core)
+  return {
+    notices,
+    failures,
+    comments,
+    labelsAdded,
+    labelsRemoved,
+    labelsCreated,
+  }
+}
+
 async function runAutoReadyScript({
   script,
   eventName = 'pull_request',
@@ -901,6 +993,9 @@ test('autonomous work entrypoints require start-of-work delegation and point to 
   assert.match(workflow, /## Start-of-work Delegation Gate/)
   assert.match(workflow, /## Issue Delegation Plan/)
   assert.match(workflow, /## PR Delegation Execution Log/)
+  assert.match(workflow, /### Worker Lifecycle Closeout/)
+  assert.match(workflow, /close worker session/)
+  assert.match(workflow, /stale handle/)
 })
 
 test('Codex issue template requires an autonomous worker delegation plan textarea', async () => {
@@ -926,31 +1021,205 @@ test('PR template includes a delegation execution log for autonomous work', asyn
   assert.match(prTemplate, /Model strength：/)
   assert.match(prTemplate, /Verification evidence：/)
   assert.match(prTemplate, /Self-review \/ exception reason：/)
+  assert.match(prTemplate, /Worker session closeout：/)
 })
 
-test('PR scope police recognizes autonomous PR labels and delegation log requirements', async () => {
-  const scopePolice = await readFile(scopePolicePath, 'utf8')
+test('PR scope police only treats a delegation log as autonomous when it has real content', async () => {
+  const prTemplateBody = await readFile(prTemplatePath, 'utf8')
 
-  assert.match(scopePolice, /const autonomousLabels = new Set\(\['codex', 'codex-automation', 'auto-ready'\]\)/)
-  assert.match(scopePolice, /const bodyForAutonomousGate = \(pr\.body \|\| ''\)\.replace\(\/<!--\[\\s\\S\]\*\?-->\//)
-  assert.match(scopePolice, /const isAutonomousPr =/)
-  assert.match(scopePolice, /autonomousLabels\.has\(label\)/)
-  assert.match(scopePolice, /Delegation Execution Log\\b/i)
-  assert.match(scopePolice, /const hasDelegationExecutionLog =/)
-  assert.match(scopePolice, /const hasExplicitWorkerProfile = workerProfiles\.some/)
-  assert.match(scopePolice, /const hasTrivialExceptionReason =\n/)
-  assert.ok(scopePolice.includes('Self-review\\s*\\/\\s*exception reason'))
-  assert.match(scopePolice, /const selfReviewExceptionReasonMatch = bodyForAutonomousGate\.match/)
-  assert.match(scopePolice, /const hasExplicitSelfReviewExceptionReason =/)
-  assert.match(scopePolice, /\\b\(\?:trivial\|self-only\)\\b/)
-  assert.match(scopePolice, /Autonomous PR must include a `Delegation Execution Log` section\./)
+  const emptyTemplateRun = await runScopePoliceWorkflow({ body: prTemplateBody })
+  assert.equal(emptyTemplateRun.failures.length, 0)
+  assert.equal(emptyTemplateRun.comments.length, 1)
+  assert.match(emptyTemplateRun.comments[0].body, /- Autonomous PR: no/)
+  assert.doesNotMatch(
+    emptyTemplateRun.comments[0].body,
+    /Autonomous PR must include a `Delegation Execution Log` section\./,
+  )
+
+  const filledDelegationLogBody = `
+## Delegation Execution Log
+- Source issue delegation plan：#623 的 issue delegation plan
+- Actual worker profile(s)：controller / test_worker
+- Model strength：controller = high；test_worker = medium
+- Verification evidence：git diff --check；node --test .github/workflows/ci.test.mjs
+- Self-review / exception reason：已完成 self-review
+- Worker session closeout：已讀回 worker 結果並 close
+`
+  const filledLogRun = await runScopePoliceWorkflow({ body: filledDelegationLogBody })
+  assert.equal(filledLogRun.failures.length, 0)
+  assert.equal(filledLogRun.comments.length, 1)
+  assert.match(filledLogRun.comments[0].body, /- Autonomous PR: yes/)
+
+  const multilineActualWorkerProfileBody = `
+## Delegation Execution Log
+- Actual worker profile(s)：
+  - controller
+  - test_worker
+`
+  const multilineActualWorkerProfileRun = await runScopePoliceWorkflow({
+    body: multilineActualWorkerProfileBody,
+  })
+  assert.equal(multilineActualWorkerProfileRun.failures.length, 1)
   assert.match(
-    scopePolice,
+    multilineActualWorkerProfileRun.comments[0].body,
+    /Autonomous PR must include a meaningful `Worker session closeout` value/,
+  )
+
+  const multilineActualWorkerProfileWithCloseoutBody = `
+## Delegation Execution Log
+- Actual worker profile(s)：
+  - controller
+  - test_worker
+- Worker session closeout：
+  - 已讀回 worker 結果並 close
+`
+  const multilineActualWorkerProfileWithCloseoutRun = await runScopePoliceWorkflow({
+    body: multilineActualWorkerProfileWithCloseoutBody,
+  })
+  assert.equal(multilineActualWorkerProfileWithCloseoutRun.failures.length, 0)
+  assert.match(multilineActualWorkerProfileWithCloseoutRun.comments[0].body, /- Autonomous PR: yes/)
+
+  const multilineVerificationEvidenceBody = `
+## Delegation Execution Log
+- Verification evidence：
+  - git diff --check
+  - node --test .github/workflows/ci.test.mjs
+`
+  const multilineVerificationEvidenceRun = await runScopePoliceWorkflow({
+    body: multilineVerificationEvidenceBody,
+  })
+  assert.equal(multilineVerificationEvidenceRun.failures.length, 1)
+  assert.match(multilineVerificationEvidenceRun.comments[0].body, /- Autonomous PR: yes/)
+  assert.match(
+    multilineVerificationEvidenceRun.comments[0].body,
     /Autonomous PR must name at least one explicit worker profile or provide a trivial\/self-only exception reason\./,
   )
-  assert.match(scopePolice, /- Autonomous PR: \${isAutonomousPr \? 'yes' : 'no'}/)
-  assert.match(scopePolice, /Scope checks bypassed by scope-exception label; autonomous delegation gate still enforced\./)
-  assert.match(scopePolice, /if \(!isDependabotPr\) \{[\s\S]*?if \(isAutonomousPr\) \{/)
+  assert.match(
+    multilineVerificationEvidenceRun.comments[0].body,
+    /Autonomous PR must include a meaningful `Worker session closeout` value/,
+  )
+
+  const selfReviewOnlyBody = `
+## Delegation Execution Log
+- Self-review / exception reason：已完成 self-review
+`
+  const selfReviewOnlyRun = await runScopePoliceWorkflow({ body: selfReviewOnlyBody })
+  assert.equal(selfReviewOnlyRun.failures.length, 1)
+  assert.match(selfReviewOnlyRun.comments[0].body, /- Autonomous PR: yes/)
+  assert.match(
+    selfReviewOnlyRun.comments[0].body,
+    /Autonomous PR must name at least one explicit worker profile or provide a trivial\/self-only exception reason\./,
+  )
+  assert.match(
+    selfReviewOnlyRun.comments[0].body,
+    /Autonomous PR must include a meaningful `Worker session closeout` value/,
+  )
+
+  const selfReviewTrivialExceptionBody = `
+## Delegation Execution Log
+- Self-review / exception reason：trivial/self-only exception for a single-line metadata correction
+  `
+  const selfReviewTrivialExceptionRun = await runScopePoliceWorkflow({ body: selfReviewTrivialExceptionBody })
+  assert.equal(selfReviewTrivialExceptionRun.failures.length, 1)
+  assert.match(selfReviewTrivialExceptionRun.comments[0].body, /- Autonomous PR: yes/)
+  assert.match(
+    selfReviewTrivialExceptionRun.comments[0].body,
+    /Autonomous PR must include a meaningful `Worker session closeout` value/,
+  )
+
+  const trivialExceptionNaBody = `
+## Delegation Execution Log
+- Trivial/self-only exception reason: n/a
+`
+  const trivialExceptionNaRun = await runScopePoliceWorkflow({ body: trivialExceptionNaBody })
+  assert.equal(trivialExceptionNaRun.failures.length, 0)
+  assert.match(trivialExceptionNaRun.comments[0].body, /- Autonomous PR: no/)
+  assert.doesNotMatch(
+    trivialExceptionNaRun.comments[0].body,
+    /Autonomous PR must include a `Delegation Execution Log` section\./,
+  )
+
+  const freeNotesBody = `
+## Delegation Execution Log
+- pending follow-up
+`
+  const freeNotesRun = await runScopePoliceWorkflow({ body: freeNotesBody })
+  assert.equal(freeNotesRun.failures.length, 0)
+  assert.match(freeNotesRun.comments[0].body, /- Autonomous PR: no/)
+  assert.doesNotMatch(
+    freeNotesRun.comments[0].body,
+    /Autonomous PR must include a `Delegation Execution Log` section\./,
+  )
+
+  const verificationEvidenceNaBody = `
+## Delegation Execution Log
+- Verification evidence：n/a
+`
+  const verificationEvidenceNaRun = await runScopePoliceWorkflow({ body: verificationEvidenceNaBody })
+  assert.equal(verificationEvidenceNaRun.failures.length, 0)
+  assert.match(verificationEvidenceNaRun.comments[0].body, /- Autonomous PR: no/)
+  assert.doesNotMatch(
+    verificationEvidenceNaRun.comments[0].body,
+    /Autonomous PR must include a `Delegation Execution Log` section\./,
+  )
+
+  const missingCloseoutBody = `
+## Delegation Execution Log
+- Source issue delegation plan：#620 的 issue delegation plan
+- Actual worker profile(s)：
+  - controller
+  - test_worker
+`
+  const missingCloseoutRun = await runScopePoliceWorkflow({
+    body: missingCloseoutBody,
+  })
+  assert.equal(missingCloseoutRun.failures.length, 1)
+  assert.match(missingCloseoutRun.comments[0].body, /- Autonomous PR: yes/)
+  assert.match(
+    missingCloseoutRun.comments[0].body,
+    /Autonomous PR must include a meaningful `Worker session closeout` value/,
+  )
+
+  const closeoutNaBody = `
+## Delegation Execution Log
+- Source issue delegation plan：#620 的 issue delegation plan
+- Actual worker profile(s)：controller / test_worker
+- Worker session closeout：n/a
+`
+  const closeoutNaRun = await runScopePoliceWorkflow({
+    body: closeoutNaBody,
+  })
+  assert.equal(closeoutNaRun.failures.length, 1)
+  assert.match(closeoutNaRun.comments[0].body, /- Autonomous PR: yes/)
+  assert.match(
+    closeoutNaRun.comments[0].body,
+    /Autonomous PR must include a meaningful `Worker session closeout` value/,
+  )
+
+  const labelWithoutCloseoutRun = await runScopePoliceWorkflow({
+    body: missingCloseoutBody,
+    labels: [{ name: 'codex' }],
+  })
+  assert.equal(labelWithoutCloseoutRun.failures.length, 1)
+  assert.match(labelWithoutCloseoutRun.comments[0].body, /- Autonomous PR: yes/)
+  assert.match(
+    labelWithoutCloseoutRun.comments[0].body,
+    /Autonomous PR must include a meaningful `Worker session closeout` value/,
+  )
+
+  const labelsToTrigger = ['codex', 'codex-automation', 'auto-ready']
+  for (const label of labelsToTrigger) {
+    const labelTriggeredRun = await runScopePoliceWorkflow({
+      body: prTemplateBody,
+      labels: [{ name: label }],
+    })
+    assert.equal(labelTriggeredRun.failures.length, 1)
+    assert.match(labelTriggeredRun.comments[0].body, /- Autonomous PR: yes/)
+    assert.match(
+      labelTriggeredRun.comments[0].body,
+      /Autonomous PR must include a `Delegation Execution Log` section\./,
+    )
+  }
 })
 
 test('docs/template-only PRs skip heavy product CI in scope gate', async () => {

@@ -39,10 +39,78 @@ jobs:
 
             const autonomousLabels = new Set(['codex', 'codex-automation', 'auto-ready'])
             const bodyForAutonomousGate = (pr.body || '').replace(/<!--[\s\S]*?-->/g, '')
+            const delegationExecutionLogSectionMatch = bodyForAutonomousGate.match(
+              /(?:^|\n)\s*##\s*Delegation Execution Log\b[^\n]*\n([\s\S]*?)(?=\n\s*##\s+|\n*$)/i,
+            )
+            const delegationExecutionLogSection = delegationExecutionLogSectionMatch?.[1] || ''
+            const hasNoDelegationMeaning = (value) =>
+              !value?.trim() || /^(?:n\/a|none|無|不適用)$/i.test(value.trim())
+            const hasMeaningfulValue = (value) => !hasNoDelegationMeaning(value)
+            const delegationFieldPattern =
+              /^(Source issue delegation plan|Actual worker profile\(s\)|Model strength|Verification evidence|Self-review\s*\/\s*exception reason)\s*[：:]\s*(.*?)$/i
+            const closeoutFieldPattern =
+              /^Worker session closeout\s*[：:]\s*(.*?)$/i
+
+            const isDelegationFieldHeader = (line) =>
+              delegationFieldPattern.test(line) || closeoutFieldPattern.test(line)
+
+            const hasMeaningfulDelegationValue = (lines, startIndex, fieldPattern) => {
+              const line = lines[startIndex]
+              const normalized = line.trim().replace(/^[*-]\s*/, '').trim()
+              if (!normalized) {
+                return false
+              }
+
+              const headerMatch = normalized.match(fieldPattern)
+              if (!headerMatch) {
+                return false
+              }
+
+              const value =
+                headerMatch[2] !== undefined
+                  ? headerMatch[2].trim()
+                  : headerMatch[1]?.trim()
+              if (hasMeaningfulValue(value)) {
+                return true
+              }
+
+              for (let nestedIndex = startIndex + 1; nestedIndex < lines.length; nestedIndex += 1) {
+                const rawNestedLine = lines[nestedIndex]
+                const nestedTrimmed = rawNestedLine.trim()
+
+                if (!nestedTrimmed) {
+                  continue
+                }
+
+                if (!/^\s+/.test(rawNestedLine)) {
+                  break
+                }
+
+                const normalizedNested = nestedTrimmed.replace(/^[*-]\s*/, '').trim()
+                if (!normalizedNested) {
+                  continue
+                }
+
+                if (isDelegationFieldHeader(normalizedNested)) {
+                  break
+                }
+
+                if (hasMeaningfulValue(normalizedNested)) {
+                  return true
+                }
+              }
+
+              return false
+            }
+            const delegationExecutionLogLines = delegationExecutionLogSection.split('\n')
+            const hasDelegationExecutionLog = delegationExecutionLogLines.some((line, index) =>
+              hasMeaningfulDelegationValue(delegationExecutionLogLines, index, delegationFieldPattern),
+            )
+            const hasWorkerSessionCloseout = delegationExecutionLogLines.some((line, index) =>
+              hasMeaningfulDelegationValue(delegationExecutionLogLines, index, closeoutFieldPattern),
+            )
             const isAutonomousPr =
-              labels.some((label) => autonomousLabels.has(label)) ||
-              /(?:^|\n)\s*##\s*Delegation Execution Log\b/i.test(bodyForAutonomousGate)
-            const hasDelegationExecutionLog = /(?:^|\n)\s*##\s*Delegation Execution Log\b/i.test(bodyForAutonomousGate)
+              labels.some((label) => autonomousLabels.has(label)) || hasDelegationExecutionLog
             const workerProfiles = [
               'controller',
               'ops_spark',
@@ -163,6 +231,12 @@ jobs:
                     'Autonomous PR must name at least one explicit worker profile or provide a trivial/self-only exception reason.',
                   )
                 }
+
+                if (hasDelegationExecutionLog && !hasWorkerSessionCloseout) {
+                  policyFailures.push(
+                    'Autonomous PR must include a meaningful `Worker session closeout` value (not blank / n/a / none / 無 / 不適用).',
+                  )
+                }
               }
 
               if (bypassed) {
@@ -256,7 +330,7 @@ jobs:
 
               if (!isReleasePromotionPr && diffLines > hardMaxDiffLines) {
                 const message =
-                  `PR diff size is ${diffLines} lines (+/-), which exceeds the hard limit of ${hardMaxDiffLines}. Split the PR before review. (Use \`scope-exception\` label only for maintainer-approved changes that truly cannot be split; it fully bypasses this workflow.)`
+                  `PR diff size is ${diffLines} lines (+/-), which exceeds the hard limit of ${hardMaxDiffLines}. Split the PR before review. (Use \`scope-exception\` label only for maintainer-approved changes that truly cannot be split; it bypasses general scope / size / product-surface checks, not the autonomous delegation gate.)`
                 failures.push(message)
                 severeFailures.push(message)
               }

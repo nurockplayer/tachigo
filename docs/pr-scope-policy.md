@@ -149,6 +149,14 @@ Dependabot maintenance PR 目前不會套用 frontend/backend 依賴關係用的
 這個 label 目前會 bypass 一般 scope / size / product-surface checks，沒有額外的例外行數上限。
 若 PR 屬於 Codex autonomous PR，`scope-exception` 不會 bypass autonomous delegation gate；PR 仍必須填寫 `Delegation Execution Log`，並列出 worker profile 或 trivial/self-only exception reason。
 
+關於 autonomous PR 的判定與觸發條件：
+
+- `codex` / `codex-automation` / `auto-ready` label 或 `Delegation Execution Log` 在正式欄位（`Source issue delegation plan`、`Actual worker profile(s)`、`Model strength`、`Verification evidence`、`Self-review / exception reason`）有實質內容時，視為 autonomous PR。
+- 自動化 PR 還須在同區塊填寫 `Worker session closeout`，且內容不可空白、`n/a`、`none`、`無`、`不適用`。
+- section 內只要是空白、`n/a`、`none`、`無`、`不適用`，或非正式欄位的自由備註，不會啟動 delegation gate。
+- 只有 section 標題但欄位空白，不算 autonomous PR，也不會觸發 delegation gate。
+- 一般非 autonomous PR 不需要填寫 worker profile；不因 `Delegation Execution Log` 缺漏而被視為流程違規。
+
 使用原則：
 
 - 只有 maintainer 可以加
