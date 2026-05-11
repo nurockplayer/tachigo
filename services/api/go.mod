@@ -3,7 +3,7 @@ module github.com/tachigo/tachigo
 go 1.26.3
 
 require (
-	ariga.io/atlas v0.36.2-0.20250806044935-5bb51a0a956e
+	ariga.io/atlas v1.2.0
 	ariga.io/atlas-provider-gorm v0.6.0
 	github.com/ethereum/go-ethereum v1.17.2
 	github.com/gin-contrib/cors v1.7.7
