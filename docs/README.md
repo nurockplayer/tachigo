@@ -18,6 +18,7 @@
 |---|---|
 | [`architecture.md`](architecture.md) | 系統整體架構與主要資料流 |
 | [`auth-architecture.md`](auth-architecture.md) | Auth 現況與 migration guardrails |
+| [`backend-permissions.md`](backend-permissions.md) | Backend role / permission 現況與變更 guardrails |
 | [`auto-merge-policy.md`](auto-merge-policy.md) | Auto-merge 與 approve 語義 |
 | [`dependabot-update-policy.md`](dependabot-update-policy.md) | Dependabot 更新政策 |
 | [`draft-pr-auto-ready.md`](draft-pr-auto-ready.md) | Draft PR auto-ready 現行流程 |
