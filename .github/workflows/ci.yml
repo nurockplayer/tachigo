@@ -480,13 +480,13 @@ jobs:
                 upper ~ /ALTER[[:space:]]+COLUMN[[:space:]].*[[:space:]]TYPE([[:space:]]|$)/
               # Keep already-applied Atlas migrations hash-stable; allow only their known historical DROP CONSTRAINT statements.
               legacy_drop_constraint = FILENAME == "migrations/014_auth_provider_partial_unique.sql" &&
-                upper ~ /DROP[[:space:]]+CONSTRAINT[[:space:]]+IF[[:space:]]+EXISTS[[:space:]]+AUTH_PROVIDERS_PROVIDER_PROVIDER_ID_KEY/ ||
+                upper ~ /DROP[[:space:]]+CONSTRAINT[[:space:]]+IF[[:space:]]+EXISTS[[:space:]]+AUTH_PROVIDERS_PROVIDER_PROVIDER_ID_KEY([^A-Z_]|$)/ ||
                 FILENAME == "migrations/017_claim_finalize_failed.sql" &&
-                upper ~ /ALTER[[:space:]]+TABLE[[:space:]]+CLAIMS[[:space:]]+DROP[[:space:]]+CONSTRAINT[[:space:]]+%I/ ||
+                upper ~ /ALTER[[:space:]]+TABLE[[:space:]]+CLAIMS[[:space:]]+DROP[[:space:]]+CONSTRAINT[[:space:]]+%I([^A-Z_]|$)/ ||
                 FILENAME == "migrations/017_claim_finalize_failed.sql" &&
-                upper ~ /DROP[[:space:]]+CONSTRAINT[[:space:]]+IF[[:space:]]+EXISTS[[:space:]]+CLAIMS_STATUS_CHECK/ ||
+                upper ~ /DROP[[:space:]]+CONSTRAINT[[:space:]]+IF[[:space:]]+EXISTS[[:space:]]+CLAIMS_STATUS_CHECK([^A-Z_]|$)/ ||
                 FILENAME == "migrations/017_claim_finalize_failed.sql" &&
-                upper ~ /DROP[[:space:]]+CONSTRAINT[[:space:]]+IF[[:space:]]+EXISTS[[:space:]]+CHK_CLAIM_STATUS/
+                upper ~ /DROP[[:space:]]+CONSTRAINT[[:space:]]+IF[[:space:]]+EXISTS[[:space:]]+CHK_CLAIM_STATUS([^A-Z_]|$)/
               allowed = $0 ~ /--[[:space:]]*atlas:nolint/ || previous ~ /--[[:space:]]*atlas:nolint/ || legacy_drop_constraint
               if (destructive && !allowed) {
                 printf "%s:%d: destructive migration requires -- atlas:nolint on the same or previous line\n", FILENAME, FNR

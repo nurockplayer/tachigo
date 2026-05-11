@@ -750,7 +750,7 @@ test('Atlas destructive migration guard blocks high-risk schema rewrites without
     const legacyAuthProviderConstraint = 'auth_providers_provider_provider_id_key'
     const legacyClaimStatusConstraint = 'claims_status_check'
     const legacyClaimStatusCheckConstraint = 'chk_claim_status'
-    const unexpectedLegacyConstraint = 'unexpected_constraint'
+    const prefixedLegacyConstraint = `${legacyAuthProviderConstraint}_extra`
 
     await writeFile(
       path.join(migrationsDir, legacyAuthProviderMigration),
@@ -771,7 +771,7 @@ test('Atlas destructive migration guard blocks high-risk schema rewrites without
 
     await writeFile(
       path.join(migrationsDir, legacyAuthProviderMigration),
-      `ALTER TABLE auth_providers DROP CONSTRAINT IF EXISTS ${unexpectedLegacyConstraint};\n`,
+      `ALTER TABLE auth_providers DROP CONSTRAINT IF EXISTS ${prefixedLegacyConstraint};\n`,
     )
     assert.throws(() => {
       execFileSync('sh', ['-c', step.run], { cwd: tempDir, encoding: 'utf8' })
