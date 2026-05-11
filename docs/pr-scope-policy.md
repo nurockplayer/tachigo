@@ -35,7 +35,7 @@ repo 目前有一個 GitHub Actions workflow：
 - 產品程式碼 PR 必須明確標記 backend contract 是否已經在 `develop`
 - PR body 必須包含 `本 PR 明確不做`
 - PR 變更檔案數超過 `35` 個時 fail
-- PR diff 超過 `1500` 行時 fail
+- PR diff 超過 `600` 行時 warning，超過 `1000` 行時 fail
 - PR 不可同時改多個 product surface：
   - backend surface：`services/api/`（舊路徑 `backend/` 仍作為歷史 PR 判斷）
   - frontend surface：`apps/dashboard/`、`apps/extension/`（舊路徑 `dashboard/`、`tachimint/` 仍作為歷史 PR 判斷）
@@ -114,7 +114,7 @@ Dependabot maintenance PR 目前不會套用 frontend/backend 依賴關係用的
 這類 PR 的性質是把已在 `develop` 收斂完成的內容整批 promotion 到 `main`，因此：
 
 - 不套用一般 feature PR 的檔案數上限 `35`
-- 不套用一般 feature PR 的 diff 行數上限 `1800`
+- 不套用一般 feature PR 的 diff 行數上限 `1000`
 - 不套用單一 product surface 限制
 - 不會因為大包而被 `PR Scope Police` 自動關閉
 - 仍會要求 PR body 補齊基本資訊，例如 `Source of truth`、`Depends on PR`、`Backend contract already in develop`、`本 PR 明確不做`
@@ -134,7 +134,7 @@ Dependabot maintenance PR 目前不會套用 frontend/backend 依賴關係用的
 目前視為嚴重違規的情況：
 
 - 檔案數超過 `35`
-- diff 超過 `1500` 行
+- diff 超過 `1000` 行
 - 同時改多個 product surface
 - `[backend]` PR 去改 frontend surface
 - `[frontend]` PR 去改 backend
@@ -146,7 +146,7 @@ Dependabot maintenance PR 目前不會套用 frontend/backend 依賴關係用的
 
 - `scope-exception`
 
-這個 label 會 bypass `PR Scope Police`。
+這個 label 目前會完整 bypass `PR Scope Police` 與 scope gate，沒有額外的例外行數上限。
 
 使用原則：
 
@@ -154,6 +154,7 @@ Dependabot maintenance PR 目前不會套用 frontend/backend 依賴關係用的
 - 預設不加
 - 只有在「同一張票的必要前置真的無法拆開」時才使用
 - 不能把它當成超大包 PR 的常態逃生門
+- 若未來需要保留例外 PR 的行數上限，必須先同步修改 `.github/workflows/pr-scope-police.yml` 與 `.github/workflows/ci.yml`，讓上限真的在 CI 生效
 
 注意：
 

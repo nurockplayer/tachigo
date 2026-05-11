@@ -107,7 +107,7 @@
 | **軟提示門檻** | 400+ | 建議拆分（不阻擋） |
 | **警告門檻** | 600+ | 需在 PR body 說明為何不拆（不阻擋） |
 | **硬限制** | 1000+ | 自動擋下（`scope-violation` label） |
-| **例外上限** | 1500 | migration / generated code / dependency bump 可用 `scope-exception` label |
+| **例外 bypass** | 無固定上限 | `scope-exception` 目前會完整 bypass scope police；只能由 maintainer 明確決定使用 |
 | **發佈無限** | — | release promotion PR (develop → main) 不受限制 |
 
 ---
