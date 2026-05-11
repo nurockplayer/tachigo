@@ -17,14 +17,11 @@ BEGIN
           AND pg_get_constraintdef(c.oid) LIKE '%confirmed%'
           AND pg_get_constraintdef(c.oid) LIKE '%failed%'
     LOOP
-        -- atlas:nolint
         EXECUTE format('ALTER TABLE claims DROP CONSTRAINT %I', constraint_name);
     END LOOP;
 END $$;
 
--- atlas:nolint
 ALTER TABLE claims DROP CONSTRAINT IF EXISTS claims_status_check;
--- atlas:nolint
 ALTER TABLE claims DROP CONSTRAINT IF EXISTS chk_claim_status;
 
 ALTER TABLE claims

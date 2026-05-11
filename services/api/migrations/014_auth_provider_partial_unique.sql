@@ -2,7 +2,6 @@
 -- Soft-deleted rows (deleted_at IS NOT NULL) must not block re-binding
 -- the same wallet, so we replace it with partial unique indexes.
 ALTER TABLE auth_providers
-    -- atlas:nolint
     DROP CONSTRAINT IF EXISTS auth_providers_provider_provider_id_key;
 
 CREATE UNIQUE INDEX IF NOT EXISTS
