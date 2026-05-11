@@ -1435,7 +1435,7 @@ test('release PR workflow includes grouped PR summaries in generated body', asyn
   const jobBlock = workflowJobBlock(workflow, 'create-release-pr')
 
   assert.match(jobBlock, /gh pr list --base develop --state merged --limit 300 --json number,title,mergedAt,url,author,mergeCommit/)
-  assert.match(jobBlock, /gh pr list --base develop --state open --json number,title,url,labels/)
+  assert.match(jobBlock, /gh pr list --base develop --state open --limit 300 --json number,title,url,labels/)
   assert.match(jobBlock, /const titleGroups = \[/)
   assert.match(jobBlock, /\/tmp\/release-pr-summary\.md/)
   assert.match(jobBlock, /## Included PRs/)

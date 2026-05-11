@@ -158,7 +158,7 @@ jobs:
           LAST_RELEASE="${{ steps.gate.outputs.last_release }}"
           LAST_RELEASE_AT="${{ steps.gate.outputs.last_release_at }}"
           export LAST_RELEASE_AT
-          gh pr list --base develop --state open --json number,title,url,labels > /tmp/open-develop-prs.json
+          gh pr list --base develop --state open --limit 300 --json number,title,url,labels > /tmp/open-develop-prs.json
           node <<'NODE'
           const fs = require('node:fs')
 
