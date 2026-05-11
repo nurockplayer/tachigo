@@ -50,11 +50,27 @@ jobs:
               /^(Source issue delegation plan|Actual worker profile\(s\)|Model strength|Verification evidence|Self-review\s*\/\s*exception reason)\s*[：:]\s*(.*?)$/i
             const closeoutFieldPattern =
               /^Worker session closeout\s*[：:]\s*(.*?)$/i
+            const actualWorkerProfileFieldPattern =
+              /^Actual worker profile\(s\)\s*[：:]\s*(.*?)$/i
+            const hasMeaningfulExceptionReason = (value) =>
+              Boolean(value?.trim()) && !/^(?:n\/a|none|無|不適用)$/i.test(value.trim())
+            const hasSelfReviewTrivialExceptionReason = (value) =>
+              hasMeaningfulExceptionReason(value) && /\b(?:trivial|self-only)\b/i.test(value)
+            const trivialExceptionFieldPatterns = [
+              {
+                pattern: /^(Trivial\/self-only exception reason|Self-only exception reason|Trivial exception reason)\s*[：:]\s*(.*?)$/i,
+                valueEvaluator: hasMeaningfulExceptionReason,
+              },
+              {
+                pattern: /^Self-review\s*\/\s*exception reason\s*[：:]\s*(.*?)$/i,
+                valueEvaluator: hasSelfReviewTrivialExceptionReason,
+              },
+            ]
 
             const isDelegationFieldHeader = (line) =>
               delegationFieldPattern.test(line) || closeoutFieldPattern.test(line)
 
-            const hasMeaningfulDelegationValue = (lines, startIndex, fieldPattern) => {
+            const hasMeaningfulDelegationValue = (lines, startIndex, fieldPattern, valueEvaluator = hasMeaningfulValue) => {
               const line = lines[startIndex]
               const normalized = line.trim().replace(/^[*-]\s*/, '').trim()
               if (!normalized) {
@@ -70,7 +86,7 @@ jobs:
                 headerMatch[2] !== undefined
                   ? headerMatch[2].trim()
                   : headerMatch[1]?.trim()
-              if (hasMeaningfulValue(value)) {
+              if (valueEvaluator(value)) {
                 return true
               }
 
@@ -95,7 +111,7 @@ jobs:
                   break
                 }
 
-                if (hasMeaningfulValue(normalizedNested)) {
+                if (valueEvaluator(normalizedNested)) {
                   return true
                 }
               }
@@ -109,8 +125,6 @@ jobs:
             const hasWorkerSessionCloseout = delegationExecutionLogLines.some((line, index) =>
               hasMeaningfulDelegationValue(delegationExecutionLogLines, index, closeoutFieldPattern),
             )
-            const isAutonomousPr =
-              labels.some((label) => autonomousLabels.has(label)) || hasDelegationExecutionLog
             const workerProfiles = [
               'controller',
               'ops_spark',
@@ -122,23 +136,23 @@ jobs:
               'schema_worker',
               'review_worker',
             ]
-            const hasExplicitWorkerProfile = workerProfiles.some((profile) =>
-              new RegExp(`(?:^|[^A-Za-z0-9_])${profile}(?:$|[^A-Za-z0-9_])`, 'i').test(bodyForAutonomousGate),
+            const hasWorkerProfileInValue = (value) =>
+              workerProfiles.some((profile) =>
+                new RegExp(`(?:^|[^A-Za-z0-9_])${profile}(?:$|[^A-Za-z0-9_])`, 'i').test(value || ''),
+              )
+            const hasActualWorkerProfile = delegationExecutionLogLines.some((line, index) =>
+              hasMeaningfulDelegationValue(delegationExecutionLogLines, index, actualWorkerProfileFieldPattern, hasWorkerProfileInValue),
             )
-            const hasMeaningfulExceptionReason = (value) =>
-              Boolean(value?.trim()) && !/^(?:n\/a|none|無|不適用)$/i.test(value.trim())
+            const isAutonomousPr =
+              labels.some((label) => autonomousLabels.has(label)) || hasDelegationExecutionLog
             const trivialExceptionReasonMatch = bodyForAutonomousGate.match(
-              /(?:^|\n)\s*-\s*(?:Trivial\/self-only exception reason|Self-only exception reason|Trivial exception reason)\s*[：:]\s*(.+)/i,
+              /(?:^|\n)\s*-\s*(?:Trivial\/self-only exception reason|Self-only exception reason|Trivial exception reason)\s*[：:][^\S\r\n]*([^\r\n]+)(?:\r?\n|$)/i,
             )
-            const selfReviewExceptionReasonMatch = bodyForAutonomousGate.match(
-              /(?:^|\n)\s*-\s*Self-review\s*\/\s*exception reason\s*[：:]\s*(.+)/i,
-            )
-            const selfReviewExceptionReason = selfReviewExceptionReasonMatch?.[1]?.trim()
-            const hasExplicitSelfReviewExceptionReason =
-              hasMeaningfulExceptionReason(selfReviewExceptionReason) &&
-              /\b(?:trivial|self-only)\b/i.test(selfReviewExceptionReason)
-            const hasTrivialExceptionReason =
-              hasMeaningfulExceptionReason(trivialExceptionReasonMatch?.[1]) || hasExplicitSelfReviewExceptionReason
+            const hasTrivialExceptionReason = trivialExceptionFieldPatterns.some((fieldPattern) =>
+              delegationExecutionLogLines.some((line, index) =>
+                hasMeaningfulDelegationValue(delegationExecutionLogLines, index, fieldPattern.pattern, fieldPattern.valueEvaluator),
+              ),
+            ) || hasMeaningfulExceptionReason(trivialExceptionReasonMatch?.[1])
 
             const hardMaxChangedFiles = 35
             const hardMaxDiffLines = 1000
@@ -226,7 +240,7 @@ jobs:
                   policyFailures.push('Autonomous PR must include a `Delegation Execution Log` section.')
                 }
 
-                if (!hasExplicitWorkerProfile && !hasTrivialExceptionReason) {
+                if (!hasActualWorkerProfile && !hasTrivialExceptionReason) {
                   policyFailures.push(
                     'Autonomous PR must name at least one explicit worker profile or provide a trivial/self-only exception reason.',
                   )

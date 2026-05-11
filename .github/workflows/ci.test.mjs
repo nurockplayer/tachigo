@@ -1139,6 +1139,99 @@ test('PR scope police only treats a delegation log as autonomous when it has rea
     /Autonomous PR must include a `Delegation Execution Log` section\./,
   )
 
+  const sourceIssueControllerNoWorkerProfileBody = `
+## Delegation Execution Log
+- Source issue delegation plan：
+  - controller: #456
+- Actual worker profile(s)：
+- Worker session closeout：
+  - 已讀回 worker 結果並 close
+`
+  const sourceIssueControllerNoWorkerProfileRun = await runScopePoliceWorkflow({
+    body: sourceIssueControllerNoWorkerProfileBody,
+  })
+  assert.equal(sourceIssueControllerNoWorkerProfileRun.failures.length, 1)
+  assert.match(sourceIssueControllerNoWorkerProfileRun.comments[0].body, /- Autonomous PR: yes/)
+  assert.match(
+    sourceIssueControllerNoWorkerProfileRun.comments[0].body,
+    /Autonomous PR must name at least one explicit worker profile or provide a trivial\/self-only exception reason\./,
+  )
+  assert.doesNotMatch(
+    sourceIssueControllerNoWorkerProfileRun.comments[0].body,
+    /Autonomous PR must include a meaningful `Worker session closeout` value/,
+  )
+
+  const trivialExceptionWithNestedMeaningBody = `
+## Delegation Execution Log
+- Source issue delegation plan：
+  - docs_worker: #456
+- Actual worker profile(s)：
+  - n/a
+- Trivial/self-only exception reason：
+  - This is a closeout-only docs typo update.
+- Worker session closeout：
+  - 已讀回 worker 結果並 close
+`
+  const trivialExceptionWithNestedMeaningRun = await runScopePoliceWorkflow({
+    body: trivialExceptionWithNestedMeaningBody,
+  })
+  assert.equal(trivialExceptionWithNestedMeaningRun.failures.length, 0)
+  assert.match(trivialExceptionWithNestedMeaningRun.comments[0].body, /- Autonomous PR: yes/)
+
+  const selfReviewNestedTrivialExceptionBody = `
+## Delegation Execution Log
+- Source issue delegation plan：
+  - docs_worker: #456
+- Actual worker profile(s)：
+  - n/a
+- Self-review / exception reason：
+  - trivial/self-only exception for a single-line metadata correction
+- Worker session closeout：
+  - 已讀回 worker 結果並 close
+`
+  const selfReviewNestedTrivialExceptionRun = await runScopePoliceWorkflow({
+    body: selfReviewNestedTrivialExceptionBody,
+  })
+  assert.equal(selfReviewNestedTrivialExceptionRun.failures.length, 0)
+  assert.match(selfReviewNestedTrivialExceptionRun.comments[0].body, /- Autonomous PR: yes/)
+
+  const trivialExceptionNameOnlyBody = `
+## Delegation Execution Log
+- Source issue delegation plan：
+  - docs_worker: #456
+- Actual worker profile(s)：
+  - n/a
+- Trivial/self-only exception reason：
+- Worker session closeout：
+  - 已讀回 worker 結果並 close
+`
+  const trivialExceptionNaOnlyBody = `
+## Delegation Execution Log
+- Source issue delegation plan：
+  - docs_worker: #456
+- Actual worker profile(s)：
+  - n/a
+- Trivial/self-only exception reason：
+  - n/a
+- Worker session closeout：
+  - 已讀回 worker 結果並 close
+`
+  const trivialExceptionNameOnlyRun = await runScopePoliceWorkflow({ body: trivialExceptionNameOnlyBody })
+  const trivialExceptionNaOnlyRun = await runScopePoliceWorkflow({ body: trivialExceptionNaOnlyBody })
+
+  assert.equal(trivialExceptionNameOnlyRun.failures.length, 1)
+  assert.match(trivialExceptionNameOnlyRun.comments[0].body, /- Autonomous PR: yes/)
+  assert.match(
+    trivialExceptionNameOnlyRun.comments[0].body,
+    /Autonomous PR must name at least one explicit worker profile or provide a trivial\/self-only exception reason\./,
+  )
+  assert.equal(trivialExceptionNaOnlyRun.failures.length, 1)
+  assert.match(trivialExceptionNaOnlyRun.comments[0].body, /- Autonomous PR: yes/)
+  assert.match(
+    trivialExceptionNaOnlyRun.comments[0].body,
+    /Autonomous PR must name at least one explicit worker profile or provide a trivial\/self-only exception reason\./,
+  )
+
   const freeNotesBody = `
 ## Delegation Execution Log
 - pending follow-up
