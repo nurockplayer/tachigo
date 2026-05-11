@@ -27,7 +27,7 @@ jobs:
             exit 0
           fi
 
-          node <<'NODE'
+          node --input-type=module <<'NODE'
           const webhookUrl = process.env.DISCORD_WEBHOOK_URL
           const summary = (process.env.DISCORD_SUMMARY || '').trim()
 
