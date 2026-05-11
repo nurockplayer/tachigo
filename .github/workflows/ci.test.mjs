@@ -878,11 +878,12 @@ test('PR size thresholds match CLAUDE.md', async () => {
 
   assert.match(claude, /\|\s+\*\*警告門檻\*\*\s+\|\s+600\+\s+\|/)
   assert.match(claude, /\|\s+\*\*硬限制\*\*\s+\|\s+1000\+\s+\|/)
-  assert.match(claude, /\|\s+\*\*例外上限\*\*\s+\|\s+1500\s+\|/)
+  assert.match(claude, /\|\s+\*\*例外 bypass\*\*\s+\|\s+無固定上限\s+\|/)
   assert.match(workflow, /const hardMaxDiffLines = 1000/)
   assert.match(scopePolice, /const warningDiffLines = 600/)
   assert.match(scopePolice, /const hardMaxDiffLines = 1000/)
-  assert.match(scopePolice, /const exceptionMaxDiffLines = 1500/)
+  assert.match(scopePolice, /core\.notice\('Scope police bypassed by scope-exception label\.'\)\n\s+return/)
+  assert.doesNotMatch(scopePolice, /exceptionMaxDiffLines/)
 })
 
 test('docs/template-only PRs skip heavy product CI in scope gate', async () => {

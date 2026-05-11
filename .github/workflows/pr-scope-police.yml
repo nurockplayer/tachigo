@@ -45,7 +45,6 @@ jobs:
             const hardMaxChangedFiles = 35
             const hardMaxDiffLines = 1000
             const warningDiffLines = 600
-            const exceptionMaxDiffLines = 1500  // max for scope-exception PRs
             const autoCloseLabel = 'scope-violation'
             const dependencyLabel = 'blocked-by-dependency'
             const owner = context.repo.owner
@@ -208,19 +207,10 @@ jobs:
               }
 
               if (!isReleasePromotionPr && diffLines > hardMaxDiffLines) {
-                const hasException = bypassed
-                const limit = hasException ? exceptionMaxDiffLines : hardMaxDiffLines
-                if (diffLines > limit) {
-                  const message =
-                    `PR diff size is ${diffLines} lines (+/-), which exceeds the ${hasException ? 'exception' : 'hard'} limit of ${limit}. Only release promotion PRs (develop -> main) can exceed this.`
-                  failures.push(message)
-                  severeFailures.push(message)
-                } else if (!hasException) {
-                  const message =
-                    `PR diff size is ${diffLines} lines (+/-), which exceeds the hard limit of ${hardMaxDiffLines}. Split the PR before review. (Use \`scope-exception\` label only for migration/generated/dependency changes that truly cannot be split.)`
-                  failures.push(message)
-                  severeFailures.push(message)
-                }
+                const message =
+                  `PR diff size is ${diffLines} lines (+/-), which exceeds the hard limit of ${hardMaxDiffLines}. Split the PR before review. (Use \`scope-exception\` label only for maintainer-approved changes that truly cannot be split; it fully bypasses this workflow.)`
+                failures.push(message)
+                severeFailures.push(message)
               }
 
               if (!isReleasePromotionPr && productSurfaces.length > 1) {

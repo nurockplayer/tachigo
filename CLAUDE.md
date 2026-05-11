@@ -107,7 +107,7 @@
 | **軟提示門檻** | 400+ | 建議拆分（不阻擋） |
 | **警告門檻** | 600+ | 需在 PR body 說明為何不拆（不阻擋） |
 | **硬限制** | 1000+ | 自動擋下（`scope-violation` label） |
-| **例外上限** | 1500 | migration / generated code / dependency bump 可用 `scope-exception` label |
+| **例外 bypass** | 無固定上限 | `scope-exception` 目前會完整 bypass scope police；只能由 maintainer 明確決定使用 |
 | **發佈無限** | — | release promotion PR (develop → main) 不受限制 |
 
 ---
@@ -115,6 +115,8 @@
 ## AI 分工
 
 本專案使用 Claude Code + Gemini CLI + Codex CLI 協作開發。
+
+若使用者授權 autonomous product work，Codex / Claude 應採用 [docs/ai/codex-autonomous-workflow.md](docs/ai/codex-autonomous-workflow.md) 的 Worker Profiles、issue-first、review gate、CodeRabbit fallback 與 PR Scope Police 合約。
 
 **預設工作流程：**
 
