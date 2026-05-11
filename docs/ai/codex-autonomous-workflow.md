@@ -19,7 +19,7 @@
 建議使用者在新對話框貼以下啟動語：
 
 ```text
-請以 /Users/erickwang/Desktop/tachigo 為工作目錄。
+請以 <你的本機 tachigo 專案路徑> 為工作目錄（例如：~/workspace/tachigo）。
 
 開始前請先讀：
 - AGENTS.md
@@ -39,6 +39,8 @@
 - 不要直接 push develop/main
 - 不要 merge，除非我明確授權
 ```
+
+貼上前請先把 `<你的本機 tachigo 專案路徑>` 換成目前 clone 的 repo 根目錄，避免 agent 在錯誤目錄讀取文件或執行 GitHub / git 操作。
 
 接到這段啟動語後，總控 agent 的第一輪動作必須是：
 
