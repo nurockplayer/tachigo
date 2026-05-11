@@ -884,7 +884,8 @@ test('PR size thresholds match CLAUDE.md', async () => {
   assert.match(workflow, /const hardMaxDiffLines = 1000/)
   assert.match(scopePolice, /const warningDiffLines = 600/)
   assert.match(scopePolice, /const hardMaxDiffLines = 1000/)
-  assert.match(scopePolice, /core\.notice\('Scope police bypassed by scope-exception label\.'\)\n\s+return/)
+  assert.match(scopePolice, /Scope checks bypassed by scope-exception label; autonomous delegation gate still enforced\./)
+  assert.doesNotMatch(scopePolice, /Scope police bypassed by scope-exception label\.'\)\n\s+return/)
   assert.doesNotMatch(scopePolice, /exceptionMaxDiffLines/)
 })
 
@@ -938,13 +939,14 @@ test('PR scope police recognizes autonomous PR labels and delegation log require
   assert.match(scopePolice, /const hasDelegationExecutionLog =/)
   assert.match(scopePolice, /const hasExplicitWorkerProfile = workerProfiles\.some/)
   assert.match(scopePolice, /const hasTrivialExceptionReason = /)
+  assert.ok(scopePolice.includes('Self-review\\s*\\/\\s*exception reason'))
   assert.match(scopePolice, /Autonomous PR must include a `Delegation Execution Log` section\./)
   assert.match(
     scopePolice,
     /Autonomous PR must name at least one explicit worker profile or provide a trivial\/self-only exception reason\./,
   )
   assert.match(scopePolice, /- Autonomous PR: \${isAutonomousPr \? 'yes' : 'no'}/)
-  assert.match(scopePolice, /Scope police bypassed by scope-exception label\./)
+  assert.match(scopePolice, /Scope checks bypassed by scope-exception label; autonomous delegation gate still enforced\./)
   assert.match(scopePolice, /if \(!isDependabotPr\) \{[\s\S]*?if \(isAutonomousPr\) \{/)
 })
 

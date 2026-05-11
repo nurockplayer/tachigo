@@ -146,7 +146,8 @@ Dependabot maintenance PR 目前不會套用 frontend/backend 依賴關係用的
 
 - `scope-exception`
 
-這個 label 目前會完整 bypass `PR Scope Police` 與 scope gate，沒有額外的例外行數上限。
+這個 label 目前會 bypass 一般 scope / size / product-surface checks，沒有額外的例外行數上限。
+若 PR 屬於 Codex autonomous PR，`scope-exception` 不會 bypass autonomous delegation gate；PR 仍必須填寫 `Delegation Execution Log`，並列出 worker profile 或 trivial/self-only exception reason。
 
 使用原則：
 

@@ -37,11 +37,6 @@ jobs:
             const labels = (pr.labels || []).map((label) => label.name)
             const bypassed = labels.some((label) => bypassLabels.has(label))
 
-            if (bypassed) {
-              core.notice('Scope police bypassed by scope-exception label.')
-              return
-            }
-
             const autonomousLabels = new Set(['codex', 'codex-automation', 'auto-ready'])
             const bodyForAutonomousGate = (pr.body || '').replace(/<!--[\s\S]*?-->/g, '')
             const isAutonomousPr =
@@ -62,7 +57,7 @@ jobs:
             const hasExplicitWorkerProfile = workerProfiles.some((profile) =>
               new RegExp(`(?:^|[^A-Za-z0-9_])${profile}(?:$|[^A-Za-z0-9_])`, 'i').test(bodyForAutonomousGate),
             )
-            const hasTrivialExceptionReason = /(?:^|\n)\s*-\s*(?:Trivial\/self-only exception reason|Self-only exception reason|Trivial exception reason)\s*[：:]\s*(?!n\/a\b|none\b|無\b|不適用\b)\S/i.test(
+            const hasTrivialExceptionReason = /(?:^|\n)\s*-\s*(?:Trivial\/self-only exception reason|Self-only exception reason|Trivial exception reason|Self-review\s*\/\s*exception reason)\s*[：:]\s*(?!n\/a\b|none\b|無\b|不適用\b)\S/i.test(
               bodyForAutonomousGate,
             )
 
@@ -159,6 +154,11 @@ jobs:
                 }
               }
 
+              if (bypassed) {
+                core.notice('Scope checks bypassed by scope-exception label; autonomous delegation gate still enforced.')
+              }
+
+              if (!bypassed) {
               if (!titlePrefix) {
                 policyFailures.push(
                   `PR title must start with one of: ${allowedPrefixes.join(', ')}. Current title: "${title}".`,
@@ -210,9 +210,10 @@ jobs:
                   )
                 }
               }
+              }
             }
 
-            if (titlePrefix === '[frontend]' && dependsOnPrMatch && backendContractNo) {
+            if (!bypassed && titlePrefix === '[frontend]' && dependsOnPrMatch && backendContractNo) {
               const depNumber = parseInt(dependsOnPrMatch[1], 10)
               let depState = 'unknown'
               try {
@@ -228,7 +229,7 @@ jobs:
               dependencyFailures.push(message)
             }
 
-            if (!isDependabotPr) {
+            if (!isDependabotPr && !bypassed) {
               if (!isReleasePromotionPr && filenames.length > hardMaxChangedFiles) {
                 const message =
                   `PR changes ${filenames.length} files, which exceeds the hard limit of ${hardMaxChangedFiles}. Split the PR before review.`
@@ -276,7 +277,7 @@ jobs:
               }
             }
 
-            if (titlePrefix === '[discussion]' && productSurfaces.length > 0) {
+            if (!bypassed && titlePrefix === '[discussion]' && productSurfaces.length > 0) {
               warnings.push(
                 '[discussion] PR is changing product code. Consider moving implementation work to a feature PR.',
               )

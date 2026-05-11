@@ -151,9 +151,9 @@ CodeRabbit 由 `.coderabbit.yaml` 設定 `reviews.auto_review.base_branches: [".
 - PR body 必須包含 `Depends on PR: none` 或 `Depends on PR: #123`。
 - PR body 必須包含 `本 PR 明確不做`。
 - Changed files 不得超過 35。
-- Diff lines 超過 600 會警告，超過 1000 會 fail；目前 `scope-exception` 會完整 bypass scope police，因此只能用於 maintainer 已明確接受的大型或例外 PR。
+- Diff lines 超過 600 會警告，超過 1000 會 fail；`scope-exception` 只 bypass 一般 scope / size / surface gate，不會 bypass autonomous delegation gate。
 - 同一 PR 不得混 backend、frontend、contract product surface。
-- 不得把 `scope-exception` 當作一般擴大 scope 的工具；若需要保留行數上限，必須先改 workflow 讓上限真的生效。
+- 不得把 `scope-exception` 當作一般擴大 scope 的工具；也不得用它豁免 `Delegation Execution Log`、worker profile 或 trivial/self-only exception reason。
 
 ## Standard Autonomous Loop
 
