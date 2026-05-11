@@ -58,6 +58,35 @@ body:
       required: true
 
   - type: textarea
+    id: delegation_plan
+    attributes:
+      label: Autonomous Worker Delegation Plan
+      description: 開工前必填。請先寫出 worker profile、任務切分、模型強度、驗證證據；若要用 trivial/self-only exception，也必須在這裡明寫原因。
+      placeholder: |
+        Source issue: #620
+
+        Worker profile(s):
+        - controller
+        - docs_worker
+
+        Model strength:
+        - controller: high
+        - docs_worker: medium
+
+        Task split:
+        - controller: 定義 Start-of-work Delegation Gate 與 PR gate 規則
+        - docs_worker: 補 docs / templates
+
+        Evidence / validation:
+        - git diff --check
+        - node --test .github/workflows/ci.test.mjs
+
+        Trivial/self-only exception reason:
+        - n/a
+    validations:
+      required: true
+
+  - type: textarea
     id: acceptance_criteria
     attributes:
       label: Acceptance Criteria

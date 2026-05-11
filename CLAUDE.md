@@ -118,6 +118,8 @@
 
 若使用者授權 autonomous product work，Codex / Claude 應採用 [docs/ai/codex-autonomous-workflow.md](docs/ai/codex-autonomous-workflow.md) 的 Worker Profiles、issue-first、review gate、CodeRabbit fallback 與 PR Scope Police 合約。
 
+autonomous work 一開始就必須先分派 worker，再進入計劃、開 issue、讀資料或實作；只有 `trivial/self-only exception` 可以不分派，但必須明寫原因。
+
 **預設工作流程：**
 
 1. 大範圍掃描 / 重複性工作 → **Gemini**

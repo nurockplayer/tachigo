@@ -12,6 +12,55 @@
 - 能用 Spark 或低推理成本 worker 完成的 routine 工作，優先交給低成本 worker。
 - schema、migration、auth、wallet signature、points ledger、金流、權限模型、merge decision 必須由總控或高推理 worker 審查。
 
+## Start-of-work Delegation Gate
+
+- 只要是 autonomous work，第一步必須先分派 worker，再進入計劃、開 issue、讀資料、或開始實作。
+- 必須先讀 GitHub issue、相關文件、以及現有 metadata，才能決定 worker profile、模型強度與切分方式。
+- 必須在 issue body 先寫 `Issue Delegation Plan`，才能把任務交給 worker；不得先做一部分再補 plan。
+- 必須在 PR body 先寫 `Delegation Execution Log`，才能把實作結果交回；不得只交 diff 不交執行紀錄。
+- 只有 `trivial/self-only exception` 可以不分派 worker；它必須是單一檔案或單一小改動，沒有跨檔案影響，沒有需要並行驗證的切面，而且總控可以獨立完成。
+- 只要使用 `trivial/self-only exception`，就必須在 `Issue Delegation Plan` 或 `Delegation Execution Log` 內明講原因與範圍；不得把例外原因藏在備註。
+- `scope-exception` 只影響 PR Scope Police，不能拿來豁免開工前分派。
+
+### Autonomous PR 判定
+
+- `Autonomous PR` 只有在以下任一條件成立時才成立：
+  - PR 本身有 `codex` / `codex-automation` / `auto-ready` label；或
+  - `Delegation Execution Log` 區塊有實質填寫內容，且至少有一個正式欄位有內容（`Source issue delegation plan` / `Actual worker profile(s)` / `Model strength` / `Verification evidence` / `Self-review / exception reason`），且不是 `n/a`、`none`、`無`、`不適用`。
+- Autonomous PR 還須在 `Worker session closeout` 欄位填寫有意義內容（不得空白、`n/a`、`none`、`無`、`不適用`）。
+- 自由備註（例如 `- pending follow-up`）不會單獨判定為有實質內容。
+- 僅有 `## Delegation Execution Log` 標題而欄位空白，不會啟動 autonomous gate。
+- 非 autonomous PR 不需要填寫 worker profile，也不需遵守 `Delegation Execution Log`/`Issue Delegation Plan` 的實作義務；只要是一般 PR，照一般 PR template 完成即可。
+
+## Issue Delegation Plan
+
+- 每張 autonomous issue 必須包含 `Issue Delegation Plan`。
+- `Issue Delegation Plan` 必須明列 source issue、worker profile、預期模型強度、任務切分、驗證方式、以及預期產物。
+- `Issue Delegation Plan` 必須用明確欄位寫出誰負責讀資料、誰負責實作、誰負責驗證、誰負責最後 readback。
+- 只有 `trivial/self-only exception` 可以寫成不分派 worker；這種情況必須寫明為什麼不需要 worker、為什麼可以由總控單獨完成、以及會用什麼驗證證據收尾。
+- 不得把 `Issue Delegation Plan` 寫成空泛目標或大綱；它必須足夠讓 worker 直接開工。
+
+## PR Delegation Execution Log
+
+- 每張 autonomous PR 必須包含 `Delegation Execution Log`。
+- `Delegation Execution Log` 必須對照 source issue 的 `Issue Delegation Plan`，寫出實際使用的 worker profile、實際模型強度、實際驗證證據、以及最後自審結果。
+- `Delegation Execution Log` 必須說明哪些工作交給 worker，哪些工作由總控保留，不能只寫完成摘要。
+- 如果真的用了 `trivial/self-only exception`，`Delegation Execution Log` 必須明講例外原因、例外範圍、以及為什麼不需要 worker。
+- 不得把 `Delegation Execution Log` 當成可省略的附註；沒有這一段，就不算 autonomous PR 完成交付。
+
+### Review Finding 修正規則（硬規則）
+
+- 一旦接到 actionable review finding，總控不得先自行修正再補派 worker；先要立刻派出適合的 worker 先實作修正，再要求總控做 self-review 與 readback。
+- `trivial/self-only exception` 仍可適用，但必須先在原本的 `Issue Delegation Plan / Delegation Execution Log` 記明是例外，不能等修完再補理由。
+
+### Worker Lifecycle Closeout
+
+- worker/subagent 回報完成後，總控必須讀回結果、判斷是否還需要追加任務。
+- `Worker session closeout` 請直接寫入 `PR Delegation Execution Log`，至少要包含「已讀回 worker 結果並 close」或等效實質敘述，不可留空白或填 `n/a`、`none`、`無`、`不適用`。
+- 若暫時不需要該 worker，總控必須立刻 close worker session，避免後續派工被 thread limit 卡住。
+- 如果工具端回報 agent id `not found`，代表目前可操作 handle 已被回收或不在本次 active context；總控需要在回報中說明這是 stale handle，不得誤認為 worker 還在執行。
+- `Delegation Execution Log` 應記錄 worker closeout 狀態；若 worker 無法關閉，需記錄原因與是否仍有 active handle。
+
 ## 新對話啟動 Checklist
 
 新對話框不要只靠使用者貼一段提示詞來維持一致性。提示詞只負責啟動流程；真正的 source of truth 是 repo 內文件與 GitHub issue / PR metadata。
@@ -125,9 +174,9 @@ CodeRabbit 由 `.coderabbit.yaml` 設定 `reviews.auto_review.base_branches: [".
 - PR body 必須包含 `Depends on PR: none` 或 `Depends on PR: #123`。
 - PR body 必須包含 `本 PR 明確不做`。
 - Changed files 不得超過 35。
-- Diff lines 超過 600 會警告，超過 1000 會 fail；目前 `scope-exception` 會完整 bypass scope police，因此只能用於 maintainer 已明確接受的大型或例外 PR。
+- Diff lines 超過 600 會警告，超過 1000 會 fail；`scope-exception` 只 bypass 一般 scope / size / surface gate，不會 bypass autonomous delegation gate。
 - 同一 PR 不得混 backend、frontend、contract product surface。
-- 不得把 `scope-exception` 當作一般擴大 scope 的工具；若需要保留行數上限，必須先改 workflow 讓上限真的生效。
+- 不得把 `scope-exception` 當作一般擴大 scope 的工具；也不得用它豁免 `Delegation Execution Log`、worker profile 或 trivial/self-only exception reason。
 
 ## Standard Autonomous Loop
 
@@ -136,13 +185,14 @@ CodeRabbit 由 `.coderabbit.yaml` 設定 `reviews.auto_review.base_branches: [".
 3. 從最新 `origin/develop` 建 scoped branch 或乾淨 worktree。
 4. 依任務類型指派 worker。
 5. worker 回報變更、驗證與剩餘風險。
-6. 總控審查 diff，補必要修正。
-7. 跑 relevant validation；高風險改動需 full validation。
-8. 用 `.github/PULL_REQUEST_TEMPLATE.md` 或 `make pr-open` 開 PR 到 `develop`，body 必須含 source issue、dependency、non-goals、validation。
-9. 等 CI/checks/review 狀態 fresh readback。
-10. Merge 前完成 Automated Review Gate。
-11. 使用 guarded merge，並以 latest head SHA 防止 stale merge。
-12. Merge 後補 issue evidence，確認 issue state / labels / closeout。
+6. 總控讀回 worker 結果；若不需追加任務，立即 close worker session。
+7. 總控審查 diff，補必要修正。
+8. 跑 relevant validation；高風險改動需 full validation。
+9. 用 `.github/PULL_REQUEST_TEMPLATE.md` 或 `make pr-open` 開 PR 到 `develop`，body 必須含 source issue、dependency、non-goals、validation。
+10. 等 CI/checks/review 狀態 fresh readback。
+11. Merge 前完成 Automated Review Gate。
+12. 使用 guarded merge，並以 latest head SHA 防止 stale merge。
+13. Merge 後補 issue evidence，確認 issue state / labels / closeout。
 
 ## Validation Policy
 
