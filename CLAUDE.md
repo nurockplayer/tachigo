@@ -116,6 +116,8 @@
 
 本專案使用 Claude Code + Gemini CLI + Codex CLI 協作開發。
 
+若使用者授權 autonomous product work，Codex / Claude 應採用 [docs/ai/codex-autonomous-workflow.md](docs/ai/codex-autonomous-workflow.md) 的 Worker Profiles、issue-first、review gate、CodeRabbit fallback 與 PR Scope Police 合約。
+
 **預設工作流程：**
 
 1. 大範圍掃描 / 重複性工作 → **Gemini**
