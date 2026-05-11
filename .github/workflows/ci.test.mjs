@@ -732,11 +732,54 @@ test('Atlas destructive migration guard blocks high-risk schema rewrites without
   try {
     const cases = [
       ['drop_index', 'DROP INDEX idx_users_email;'],
+      ['drop_constraint', 'ALTER TABLE users DROP CONSTRAINT users_email_key;'],
       ['rename_column', 'ALTER TABLE users RENAME COLUMN email TO login_email;'],
       ['rename_table', 'ALTER TABLE users RENAME TO app_users;'],
       ['alter_column_type', 'ALTER TABLE users ALTER COLUMN score TYPE bigint;'],
       ['alter_column_set_data_type', 'ALTER TABLE users ALTER COLUMN score SET DATA TYPE bigint;'],
     ]
+
+    await writeFile(path.join(migrationsDir, 'comment_only.sql'), '-- DROP CONSTRAINT is documentation only\n')
+    assert.doesNotThrow(() => {
+      execFileSync('sh', ['-c', step.run], { cwd: tempDir, encoding: 'utf8' })
+    })
+
+    // Mirrors the narrow CI allowlist so old applied migrations stay hash-stable.
+    const legacyAuthProviderMigration = '014_auth_provider_partial_unique.sql'
+    const legacyClaimStatusMigration = '017_claim_finalize_failed.sql'
+    const legacyAuthProviderConstraint = 'auth_providers_provider_provider_id_key'
+    const legacyClaimStatusConstraint = 'claims_status_check'
+    const legacyClaimStatusCheckConstraint = 'chk_claim_status'
+    const prefixedLegacyConstraint = `${legacyAuthProviderConstraint}_extra`
+
+    await writeFile(
+      path.join(migrationsDir, legacyAuthProviderMigration),
+      `ALTER TABLE auth_providers\n    DROP CONSTRAINT IF EXISTS ${legacyAuthProviderConstraint};\n`,
+    )
+    await writeFile(
+      path.join(migrationsDir, legacyClaimStatusMigration),
+      [
+        "EXECUTE format('ALTER TABLE claims DROP CONSTRAINT %I', constraint_name);",
+        `ALTER TABLE claims DROP CONSTRAINT IF EXISTS ${legacyClaimStatusConstraint};`,
+        `ALTER TABLE claims DROP CONSTRAINT IF EXISTS ${legacyClaimStatusCheckConstraint};`,
+        '',
+      ].join('\n'),
+    )
+    assert.doesNotThrow(() => {
+      execFileSync('sh', ['-c', step.run], { cwd: tempDir, encoding: 'utf8' })
+    })
+
+    await writeFile(
+      path.join(migrationsDir, legacyAuthProviderMigration),
+      `ALTER TABLE auth_providers DROP CONSTRAINT IF EXISTS ${prefixedLegacyConstraint};\n`,
+    )
+    assert.throws(() => {
+      execFileSync('sh', ['-c', step.run], { cwd: tempDir, encoding: 'utf8' })
+    })
+    await writeFile(
+      path.join(migrationsDir, legacyAuthProviderMigration),
+      `ALTER TABLE auth_providers\n    DROP CONSTRAINT IF EXISTS ${legacyAuthProviderConstraint};\n`,
+    )
 
     for (const [name, sql] of cases) {
       const migrationPath = path.join(migrationsDir, `${name}.sql`)
