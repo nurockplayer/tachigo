@@ -19,7 +19,7 @@ func TestSwaggerArtifacts_NoInvalidEmptySecurityScheme(t *testing.T) {
 	}
 }
 
-func TestSwaggerArtifacts_IncludeRootHealthEndpoints(t *testing.T) {
+func TestSwaggerArtifacts_DoNotDocumentRootHealthEndpoints(t *testing.T) {
 	path := filepath.Join("swagger.json")
 	raw, err := os.ReadFile(path)
 	if err != nil {
@@ -27,8 +27,8 @@ func TestSwaggerArtifacts_IncludeRootHealthEndpoints(t *testing.T) {
 	}
 
 	for _, endpoint := range []string{`"/health"`, `"/readyz"`} {
-		if !strings.Contains(string(raw), endpoint) {
-			t.Fatalf("%s missing root endpoint %s", path, endpoint)
+		if strings.Contains(string(raw), endpoint) {
+			t.Fatalf("%s documents root operational endpoint %s", path, endpoint)
 		}
 	}
 }

@@ -1555,52 +1555,6 @@ const docTemplate = `{
                 }
             }
         },
-        "/health": {
-            "get": {
-                "description": "Reports API liveness and database reachability. Database failures keep liveness at HTTP 200 and mark db unavailable.",
-                "produces": [
-                    "application/json"
-                ],
-                "tags": [
-                    "health"
-                ],
-                "summary": "Liveness health check",
-                "responses": {
-                    "200": {
-                        "description": "OK",
-                        "schema": {
-                            "$ref": "#/definitions/handlers.HealthStatusResponse"
-                        }
-                    }
-                }
-            }
-        },
-        "/readyz": {
-            "get": {
-                "description": "Reports whether the API is ready to serve traffic. Returns HTTP 503 when the database is unavailable.",
-                "produces": [
-                    "application/json"
-                ],
-                "tags": [
-                    "health"
-                ],
-                "summary": "Readiness health check",
-                "responses": {
-                    "200": {
-                        "description": "OK",
-                        "schema": {
-                            "$ref": "#/definitions/handlers.HealthStatusResponse"
-                        }
-                    },
-                    "503": {
-                        "description": "Service Unavailable",
-                        "schema": {
-                            "$ref": "#/definitions/handlers.HealthStatusResponse"
-                        }
-                    }
-                }
-            }
-        },
         "/spend/redeem": {
             "post": {
                 "security": [
@@ -2426,17 +2380,6 @@ const docTemplate = `{
                 },
                 "expires_in": {
                     "type": "integer"
-                }
-            }
-        },
-        "handlers.HealthStatusResponse": {
-            "type": "object",
-            "properties": {
-                "db": {
-                    "type": "string"
-                },
-                "status": {
-                    "type": "string"
                 }
             }
         },

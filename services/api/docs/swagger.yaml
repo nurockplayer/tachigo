@@ -29,13 +29,6 @@ definitions:
     - access_token
     - expires_in
     type: object
-  handlers.HealthStatusResponse:
-    properties:
-      db:
-        type: string
-      status:
-        type: string
-    type: object
   handlers.MessageResponse:
     properties:
       message:
@@ -1289,38 +1282,6 @@ paths:
       summary: Complete a T-point transaction
       tags:
       - extension
-  /health:
-    get:
-      description: Reports API liveness and database reachability. Database failures
-        keep liveness at HTTP 200 and mark db unavailable.
-      produces:
-      - application/json
-      responses:
-        "200":
-          description: OK
-          schema:
-            $ref: '#/definitions/handlers.HealthStatusResponse'
-      summary: Liveness health check
-      tags:
-      - health
-  /readyz:
-    get:
-      description: Reports whether the API is ready to serve traffic. Returns HTTP
-        503 when the database is unavailable.
-      produces:
-      - application/json
-      responses:
-        "200":
-          description: OK
-          schema:
-            $ref: '#/definitions/handlers.HealthStatusResponse'
-        "503":
-          description: Service Unavailable
-          schema:
-            $ref: '#/definitions/handlers.HealthStatusResponse'
-      summary: Readiness health check
-      tags:
-      - health
   /spend/redeem:
     post:
       consumes:
