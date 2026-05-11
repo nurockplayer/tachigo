@@ -14,7 +14,6 @@ tachigo/
 ├── deployments/      # Chain deployment metadata
 ├── design/           # Product and UI design artifacts
 ├── docs/             # Architecture, policies, decisions, and AI workflow docs
-├── extensions/       # Legacy / migration-stage extension artifacts
 ├── infra/            # Repo automation scripts and git hooks
 ├── plans/            # Planning notes and implementation breakdowns
 ├── services/
