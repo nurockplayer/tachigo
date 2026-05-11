@@ -938,8 +938,11 @@ test('PR scope police recognizes autonomous PR labels and delegation log require
   assert.match(scopePolice, /Delegation Execution Log\\b/i)
   assert.match(scopePolice, /const hasDelegationExecutionLog =/)
   assert.match(scopePolice, /const hasExplicitWorkerProfile = workerProfiles\.some/)
-  assert.match(scopePolice, /const hasTrivialExceptionReason = /)
+  assert.match(scopePolice, /const hasTrivialExceptionReason =\n/)
   assert.ok(scopePolice.includes('Self-review\\s*\\/\\s*exception reason'))
+  assert.match(scopePolice, /const selfReviewExceptionReasonMatch = bodyForAutonomousGate\.match/)
+  assert.match(scopePolice, /const hasExplicitSelfReviewExceptionReason =/)
+  assert.match(scopePolice, /\\b\(\?:trivial\|self-only\)\\b/)
   assert.match(scopePolice, /Autonomous PR must include a `Delegation Execution Log` section\./)
   assert.match(
     scopePolice,

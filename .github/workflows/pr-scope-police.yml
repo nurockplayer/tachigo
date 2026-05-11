@@ -57,9 +57,20 @@ jobs:
             const hasExplicitWorkerProfile = workerProfiles.some((profile) =>
               new RegExp(`(?:^|[^A-Za-z0-9_])${profile}(?:$|[^A-Za-z0-9_])`, 'i').test(bodyForAutonomousGate),
             )
-            const hasTrivialExceptionReason = /(?:^|\n)\s*-\s*(?:Trivial\/self-only exception reason|Self-only exception reason|Trivial exception reason|Self-review\s*\/\s*exception reason)\s*[：:]\s*(?!n\/a\b|none\b|無\b|不適用\b)\S/i.test(
-              bodyForAutonomousGate,
+            const hasMeaningfulExceptionReason = (value) =>
+              Boolean(value?.trim()) && !/^(?:n\/a|none|無|不適用)$/i.test(value.trim())
+            const trivialExceptionReasonMatch = bodyForAutonomousGate.match(
+              /(?:^|\n)\s*-\s*(?:Trivial\/self-only exception reason|Self-only exception reason|Trivial exception reason)\s*[：:]\s*(.+)/i,
             )
+            const selfReviewExceptionReasonMatch = bodyForAutonomousGate.match(
+              /(?:^|\n)\s*-\s*Self-review\s*\/\s*exception reason\s*[：:]\s*(.+)/i,
+            )
+            const selfReviewExceptionReason = selfReviewExceptionReasonMatch?.[1]?.trim()
+            const hasExplicitSelfReviewExceptionReason =
+              hasMeaningfulExceptionReason(selfReviewExceptionReason) &&
+              /\b(?:trivial|self-only)\b/i.test(selfReviewExceptionReason)
+            const hasTrivialExceptionReason =
+              hasMeaningfulExceptionReason(trivialExceptionReasonMatch?.[1]) || hasExplicitSelfReviewExceptionReason
 
             const hardMaxChangedFiles = 35
             const hardMaxDiffLines = 1000
