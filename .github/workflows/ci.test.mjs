@@ -739,6 +739,11 @@ test('Atlas destructive migration guard blocks high-risk schema rewrites without
       ['alter_column_set_data_type', 'ALTER TABLE users ALTER COLUMN score SET DATA TYPE bigint;'],
     ]
 
+    await writeFile(path.join(migrationsDir, 'comment_only.sql'), '-- DROP CONSTRAINT is documentation only\n')
+    assert.doesNotThrow(() => {
+      execFileSync('sh', ['-c', step.run], { cwd: tempDir, encoding: 'utf8' })
+    })
+
     for (const [name, sql] of cases) {
       const migrationPath = path.join(migrationsDir, `${name}.sql`)
       await writeFile(migrationPath, `${sql}\n`)
