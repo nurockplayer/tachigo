@@ -732,6 +732,7 @@ test('Atlas destructive migration guard blocks high-risk schema rewrites without
   try {
     const cases = [
       ['drop_index', 'DROP INDEX idx_users_email;'],
+      ['drop_constraint', 'ALTER TABLE users DROP CONSTRAINT users_email_key;'],
       ['rename_column', 'ALTER TABLE users RENAME COLUMN email TO login_email;'],
       ['rename_table', 'ALTER TABLE users RENAME TO app_users;'],
       ['alter_column_type', 'ALTER TABLE users ALTER COLUMN score TYPE bigint;'],

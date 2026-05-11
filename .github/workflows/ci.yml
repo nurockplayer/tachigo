@@ -469,6 +469,7 @@ jobs:
               destructive = upper ~ /(^|[^A-Z_])DROP[[:space:]]+TABLE([^A-Z_]|$)/ ||
                 upper ~ /(^|[^A-Z_])TRUNCATE[[:space:]]+TABLE([^A-Z_]|$)/ ||
                 upper ~ /(^|[^A-Z_])DROP[[:space:]]+COLUMN([^A-Z_]|$)/ ||
+                upper ~ /(^|[^A-Z_])DROP[[:space:]]+CONSTRAINT([^A-Z_]|$)/ ||
                 upper ~ /(^|[^A-Z_])DROP[[:space:]]+INDEX([^A-Z_]|$)/ ||
                 upper ~ /(^|[^A-Z_])RENAME[[:space:]]+COLUMN([^A-Z_]|$)/ ||
                 upper ~ /(^|[^A-Z_])RENAME[[:space:]]+TO([^A-Z_]|$)/ ||
