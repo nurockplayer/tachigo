@@ -12,6 +12,42 @@
 - 能用 Spark 或低推理成本 worker 完成的 routine 工作，優先交給低成本 worker。
 - schema、migration、auth、wallet signature、points ledger、金流、權限模型、merge decision 必須由總控或高推理 worker 審查。
 
+## 新對話啟動 Checklist
+
+新對話框不要只靠使用者貼一段提示詞來維持一致性。提示詞只負責啟動流程；真正的 source of truth 是 repo 內文件與 GitHub issue / PR metadata。
+
+建議使用者在新對話框貼以下啟動語：
+
+```text
+請以 /Users/erickwang/Desktop/tachigo 為工作目錄。
+
+開始前請先讀：
+- AGENTS.md
+- CLAUDE.md
+- docs/ai/codex-autonomous-workflow.md
+- docs/pr-scope-policy.md
+
+之後所有工作都照 tachigo 的 Autonomous Worker Profiles 執行：
+- 先找或開 GitHub issue
+- 從 develop 開 branch
+- PR 目標一律 develop
+- PR body 必須符合 template 與 PR Scope Police
+- 可委派 worker/subagent，但總控保留 scope、架構、review、merge decision
+- merge 前必須等待 CodeRabbit 與 chatgpt-codex-connector review/readback
+- CodeRabbit rate limit 時改由總控 self-review 並留下證據
+- chatgpt-codex-connector 沒 comment 但有 reaction 可視為已看過
+- 不要直接 push develop/main
+- 不要 merge，除非我明確授權
+```
+
+接到這段啟動語後，總控 agent 的第一輪動作必須是：
+
+1. 讀取上列文件，而不是只依賴提示詞記憶。
+2. 回報目前工作目錄、branch、dirty state、target base branch。
+3. 搜尋既有 issue，避免重複開票。
+4. 若需要新 issue，先建立 source issue，再開始實作。
+5. 若主 worktree 已 dirty，改用乾淨 worktree 或停止回報，不覆蓋使用者變更。
+
 ## Worker Profiles
 
 | Profile | Preferred model | Reasoning | 用途 |
