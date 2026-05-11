@@ -177,6 +177,7 @@ jobs:
             return Number.isNaN(parsed) ? null : parsed
           }
           const cleanTitle = (title) => String(title || '').replace(/\s+/g, ' ').trim()
+          const escapeMarkdown = (text) => String(text || '').replace(/([\\`*_{}\[\]()#+\-.!|>])/g, '\\$1')
           const shortOid = (oid) => (oid ? String(oid).slice(0, 12) : 'unknown')
           const lastReleaseAt = parseTime(process.env.LAST_RELEASE_AT)
           const prs = JSON.parse(fs.readFileSync('/tmp/develop-merged-prs.json', 'utf8'))
@@ -209,7 +210,8 @@ jobs:
               for (const pr of entries) {
                 const author = pr.author?.login ? `@${pr.author.login}` : '@unknown'
                 const mergeCommit = shortOid(pr.mergeCommit?.oid)
-                lines.push(`- [#${pr.number}](${pr.url}) ${cleanTitle(pr.title)} by ${author} (merge commit: \`${mergeCommit}\`)`)
+                const safeTitle = escapeMarkdown(cleanTitle(pr.title))
+                lines.push(`- [#${pr.number}](${pr.url}) ${safeTitle} by ${author} (merge commit: \`${mergeCommit}\`)`)
               }
               lines.push('')
             }
@@ -220,7 +222,8 @@ jobs:
             lines.push('', '## Release Warnings', '')
             for (const pr of blockedOpenPrs) {
               const labels = pr.labels.map((label) => label.name).filter((name) => ['changes-requested', 'scope-violation'].includes(name)).join(', ')
-              lines.push(`- [#${pr.number}](${pr.url}) has ${labels}: ${cleanTitle(pr.title)}`)
+              const safeTitle = escapeMarkdown(cleanTitle(pr.title))
+              lines.push(`- [#${pr.number}](${pr.url}) has ${labels}: ${safeTitle}`)
             }
           }
           fs.writeFileSync('/tmp/release-pr-summary.md', `${lines.join('\n').trimEnd()}\n`)

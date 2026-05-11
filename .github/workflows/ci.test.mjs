@@ -1442,6 +1442,10 @@ test('release PR workflow includes grouped PR summaries in generated body', asyn
   assert.match(jobBlock, /Unprefixed \/ Other/)
   assert.match(jobBlock, /## Release Warnings/)
   assert.match(jobBlock, /changes-requested|scope-violation/)
+  assert.match(jobBlock, /const escapeMarkdown = /)
+  assert.match(jobBlock, /const safeTitle = escapeMarkdown\(cleanTitle\(pr\.title\)\)/)
+  assert.match(jobBlock, /by \$\{author\}/)
+  assert.match(jobBlock, /merge commit: \\\`\$\{mergeCommit\}\\\`/)
   assert.match(jobBlock, /\$\(cat \/tmp\/release-pr-summary\.md\)/)
 })
 
