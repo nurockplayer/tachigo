@@ -313,6 +313,13 @@ func New(
 	return r
 }
 
+// Health godoc
+// @Summary      Liveness health check
+// @Description  Reports API liveness and database reachability. Database failures keep liveness at HTTP 200 and mark db unavailable.
+// @Tags         health
+// @Produce      json
+// @Success      200  {object}  handlers.HealthStatusResponse
+// @Router       /health [get]
 func healthHandler(db *gorm.DB) gin.HandlerFunc {
 	return func(c *gin.Context) {
 		dbStatus, err := databaseStatus(c.Request.Context(), db)
@@ -326,6 +333,14 @@ func healthHandler(db *gorm.DB) gin.HandlerFunc {
 	}
 }
 
+// Readiness godoc
+// @Summary      Readiness health check
+// @Description  Reports whether the API is ready to serve traffic. Returns HTTP 503 when the database is unavailable.
+// @Tags         health
+// @Produce      json
+// @Success      200  {object}  handlers.HealthStatusResponse
+// @Failure      503  {object}  handlers.HealthStatusResponse
+// @Router       /readyz [get]
 func readinessHandler(db *gorm.DB) gin.HandlerFunc {
 	return func(c *gin.Context) {
 		dbStatus, err := databaseStatus(c.Request.Context(), db)

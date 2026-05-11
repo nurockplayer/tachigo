@@ -22,6 +22,12 @@ type MessageResponse struct {
 	Message string `json:"message"`
 }
 
+// HealthStatusResponse is returned by root liveness/readiness probes.
+type HealthStatusResponse struct {
+	Status string `json:"status"`
+	DB     string `json:"db"`
+}
+
 // UserResponse wraps a single user.
 type UserResponse struct {
 	User models.User `json:"user"`
