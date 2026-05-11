@@ -58,6 +58,9 @@ func New(
 
 	r := gin.New()
 	r.Use(gin.Logger(), gin.Recovery())
+	if cfg != nil {
+		r.Use(middleware.RequestTimeout(cfg.Server.RequestTimeout))
+	}
 	r.Use(middleware.CORS(allowedOrigins))
 
 	if cfg != nil && len(cfg.Server.TrustedProxies) > 0 {

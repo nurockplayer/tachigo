@@ -144,6 +144,29 @@ func TestSwaggerRoute_ProductionExplicitFlagExposesSwagger(t *testing.T) {
 	assertSwaggerExposed(t, env.router)
 }
 
+func TestRouter_AppliesRequestTimeoutMiddleware(t *testing.T) {
+	cfg := routerTestConfig("development", false, false)
+	cfg.Server.RequestTimeout = 50 * time.Millisecond
+	env := newRouterTestEnv(t, cfg)
+
+	var sawDeadline bool
+	env.router.GET("/test-timeout-deadline", func(c *gin.Context) {
+		_, sawDeadline = c.Request.Context().Deadline()
+		c.JSON(http.StatusOK, gin.H{"ok": true})
+	})
+
+	req := httptest.NewRequest(http.MethodGet, "/test-timeout-deadline", nil)
+	rec := httptest.NewRecorder()
+	env.router.ServeHTTP(rec, req)
+
+	if rec.Code != http.StatusOK {
+		t.Fatalf("want 200, got %d: %s", rec.Code, rec.Body.String())
+	}
+	if !sawDeadline {
+		t.Fatal("expected router to attach request context deadline")
+	}
+}
+
 func routerTestConfig(serverEnv string, enableSwagger, enableSwaggerSet bool) *config.Config {
 	return &config.Config{
 		Server: config.ServerConfig{
