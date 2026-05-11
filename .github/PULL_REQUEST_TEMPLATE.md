@@ -30,6 +30,19 @@
 - 本 PR 明確不做：
   - <!-- 例：不做 future panels / 不做 router / 不做 dashboard UI -->
 
+## Delegation Execution Log
+<!-- Codex autonomous PR 必填。請對照 source issue 的 delegation plan，交代實際執行。 -->
+- Source issue delegation plan：
+  - <!-- 例：#620 的 Issue Delegation Plan -->
+- Actual worker profile(s)：
+  - <!-- 例：controller / docs_worker / ops_spark -->
+- Model strength：
+  - <!-- 例：controller = high；docs_worker = medium -->
+- Verification evidence：
+  - <!-- 例：git diff --check；node --test .github/workflows/ci.test.mjs -->
+- Self-review / exception reason：
+  - <!-- 例：已完成 self-review；或 trivial/self-only exception reason -->
+
 ## PR 拆分檢查
 <!-- 一個 PR = 一個可獨立理解、可獨立驗證的行為變更。若超過 400 行、同時改 backend/frontend、或同時包含 schema/service/handler/UI 任兩種以上，請優先拆 PR。 -->
 - 這個 PR 的單一句子目的：

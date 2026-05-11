@@ -42,6 +42,30 @@ jobs:
               return
             }
 
+            const autonomousLabels = new Set(['codex', 'codex-automation', 'auto-ready'])
+            const bodyForAutonomousGate = (pr.body || '').replace(/<!--[\s\S]*?-->/g, '')
+            const isAutonomousPr =
+              labels.some((label) => autonomousLabels.has(label)) ||
+              /(?:^|\n)\s*##\s*Delegation Execution Log\b/i.test(bodyForAutonomousGate)
+            const hasDelegationExecutionLog = /(?:^|\n)\s*##\s*Delegation Execution Log\b/i.test(bodyForAutonomousGate)
+            const workerProfiles = [
+              'controller',
+              'ops_spark',
+              'repo_scout',
+              'docs_worker',
+              'test_worker',
+              'backend_worker',
+              'frontend_worker',
+              'schema_worker',
+              'review_worker',
+            ]
+            const hasExplicitWorkerProfile = workerProfiles.some((profile) =>
+              new RegExp(`(?:^|[^A-Za-z0-9_])${profile}(?:$|[^A-Za-z0-9_])`, 'i').test(bodyForAutonomousGate),
+            )
+            const hasTrivialExceptionReason = /(?:^|\n)\s*-\s*(?:Trivial\/self-only exception reason|Self-only exception reason|Trivial exception reason)\s*[：:]\s*(?!n\/a\b|none\b|無\b|不適用\b)\S/i.test(
+              bodyForAutonomousGate,
+            )
+
             const hardMaxChangedFiles = 35
             const hardMaxDiffLines = 1000
             const warningDiffLines = 600
@@ -123,6 +147,18 @@ jobs:
             const intentionallyBlocked = /If no, this PR is:[\s\S]*?- \[[xX]\] intentionally blocked until dependency merges/i.test(body)
 
             if (!isDependabotPr) {
+              if (isAutonomousPr) {
+                if (!hasDelegationExecutionLog) {
+                  policyFailures.push('Autonomous PR must include a `Delegation Execution Log` section.')
+                }
+
+                if (!hasExplicitWorkerProfile && !hasTrivialExceptionReason) {
+                  policyFailures.push(
+                    'Autonomous PR must name at least one explicit worker profile or provide a trivial/self-only exception reason.',
+                  )
+                }
+              }
+
               if (!titlePrefix) {
                 policyFailures.push(
                   `PR title must start with one of: ${allowedPrefixes.join(', ')}. Current title: "${title}".`,
@@ -318,6 +354,7 @@ jobs:
               `- Product surfaces: ${productSurfaces.length > 0 ? productSurfaces.join(', ') : 'none'}`,
             )
             summaryLines.push(`- Dependency blocked: ${dependencyFailures.length > 0 ? 'yes' : 'no'}`)
+            summaryLines.push(`- Autonomous PR: ${isAutonomousPr ? 'yes' : 'no'}`)
             summaryLines.push(
               `- Auto-close triggered: ${severeFailures.length > 0 ? 'yes' : 'no'}`,
             )

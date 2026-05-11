@@ -15,6 +15,8 @@ const backendDockerfilePath = path.join(repoRoot, 'services', 'api', 'Dockerfile
 const backendMakefilePath = path.join(repoRoot, 'services', 'api', 'Makefile')
 const backendDockerEntrypointPath = path.join(repoRoot, 'services', 'api', 'docker-entrypoint.sh')
 const scopePolicePath = path.join(currentDir, 'pr-scope-police.yml')
+const issueTemplatePath = path.join(repoRoot, '.github', 'ISSUE_TEMPLATE', 'codex-task.yml')
+const prTemplatePath = path.join(repoRoot, '.github', 'PULL_REQUEST_TEMPLATE.md')
 const dependabotConfigPath = path.join(repoRoot, '.github', 'dependabot.yml')
 const dependabotAutomergeWorkflowPath = path.join(currentDir, 'dependabot-automerge.yml')
 const dependabotPnpmLockfileWorkflowPath = path.join(currentDir, 'dependabot-pnpm-lockfile.yml')
@@ -884,6 +886,66 @@ test('PR size thresholds match CLAUDE.md', async () => {
   assert.match(scopePolice, /const hardMaxDiffLines = 1000/)
   assert.match(scopePolice, /core\.notice\('Scope police bypassed by scope-exception label\.'\)\n\s+return/)
   assert.doesNotMatch(scopePolice, /exceptionMaxDiffLines/)
+})
+
+test('autonomous work entrypoints require start-of-work delegation and point to the workflow guide', async () => {
+  const agents = await readFile(path.join(repoRoot, 'AGENTS.md'), 'utf8')
+  const claude = await readFile(claudePath, 'utf8')
+  const workflow = await readFile(path.join(repoRoot, 'docs', 'ai', 'codex-autonomous-workflow.md'), 'utf8')
+
+  assert.match(agents, /autonomous work 一開始就必須先分派 worker/)
+  assert.match(agents, /docs\/ai\/codex-autonomous-workflow\.md/)
+  assert.match(claude, /autonomous work 一開始就必須先分派 worker/)
+  assert.match(claude, /docs\/ai\/codex-autonomous-workflow\.md/)
+  assert.match(workflow, /## Start-of-work Delegation Gate/)
+  assert.match(workflow, /## Issue Delegation Plan/)
+  assert.match(workflow, /## PR Delegation Execution Log/)
+})
+
+test('Codex issue template requires an autonomous worker delegation plan textarea', async () => {
+  const template = parseYaml(issueTemplatePath)
+  const delegationPlan = template.body.find((section) => section.id === 'delegation_plan')
+
+  assert.ok(delegationPlan)
+  assert.equal(delegationPlan.type, 'textarea')
+  assert.equal(delegationPlan.attributes.label, 'Autonomous Worker Delegation Plan')
+  assert.match(delegationPlan.attributes.description, /開工前必填/)
+  assert.match(delegationPlan.attributes.placeholder, /Worker profile\(s\):/)
+  assert.match(delegationPlan.attributes.placeholder, /Evidence \/ validation:/)
+  assert.match(delegationPlan.attributes.placeholder, /Trivial\/self-only exception reason:/)
+  assert.equal(delegationPlan.validations.required, true)
+})
+
+test('PR template includes a delegation execution log for autonomous work', async () => {
+  const prTemplate = await readFile(prTemplatePath, 'utf8')
+
+  assert.match(prTemplate, /## Delegation Execution Log/)
+  assert.match(prTemplate, /Source issue delegation plan：/)
+  assert.match(prTemplate, /Actual worker profile\(s\)：/)
+  assert.match(prTemplate, /Model strength：/)
+  assert.match(prTemplate, /Verification evidence：/)
+  assert.match(prTemplate, /Self-review \/ exception reason：/)
+})
+
+test('PR scope police recognizes autonomous PR labels and delegation log requirements', async () => {
+  const scopePolice = await readFile(scopePolicePath, 'utf8')
+
+  assert.match(scopePolice, /const autonomousLabels = new Set\(\['codex', 'codex-automation', 'auto-ready'\]\)/)
+  assert.match(scopePolice, /const bodyForAutonomousGate = \(pr\.body \|\| ''\)\.replace\(\/<!--\[\\s\\S\]\*\?-->\//)
+  assert.match(scopePolice, /const isAutonomousPr =/)
+  assert.match(scopePolice, /autonomousLabels\.has\(label\)/)
+  assert.match(scopePolice, /Delegation Execution Log\\b/i)
+  assert.match(scopePolice, /const hasDelegationExecutionLog =/)
+  assert.match(scopePolice, /const hasExplicitWorkerProfile = workerProfiles\.some/)
+  assert.match(scopePolice, /const hasTrivialExceptionReason = /)
+  assert.match(scopePolice, /Autonomous PR must include a `Delegation Execution Log` section\./)
+  assert.match(
+    scopePolice,
+    /Autonomous PR must name at least one explicit worker profile or provide a trivial\/self-only exception reason\./,
+  )
+  assert.match(scopePolice, /- Autonomous PR: \${isAutonomousPr \? 'yes' : 'no'}/)
+  assert.match(scopePolice, /Scope police bypassed by scope-exception label\./)
+  assert.match(scopePolice, /if \(!isDependabotPr\) \{[\s\S]*?if \(isAutonomousPr\) \{/)
 })
 
 test('docs/template-only PRs skip heavy product CI in scope gate', async () => {

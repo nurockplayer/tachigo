@@ -12,6 +12,32 @@
 - 能用 Spark 或低推理成本 worker 完成的 routine 工作，優先交給低成本 worker。
 - schema、migration、auth、wallet signature、points ledger、金流、權限模型、merge decision 必須由總控或高推理 worker 審查。
 
+## Start-of-work Delegation Gate
+
+- 只要是 autonomous work，第一步必須先分派 worker，再進入計劃、開 issue、讀資料、或開始實作。
+- 必須先讀 GitHub issue、相關文件、以及現有 metadata，才能決定 worker profile、模型強度與切分方式。
+- 必須在 issue body 先寫 `Issue Delegation Plan`，才能把任務交給 worker；不得先做一部分再補 plan。
+- 必須在 PR body 先寫 `Delegation Execution Log`，才能把實作結果交回；不得只交 diff 不交執行紀錄。
+- 只有 `trivial/self-only exception` 可以不分派 worker；它必須是單一檔案或單一小改動，沒有跨檔案影響，沒有需要並行驗證的切面，而且總控可以獨立完成。
+- 只要使用 `trivial/self-only exception`，就必須在 `Issue Delegation Plan` 或 `Delegation Execution Log` 內明講原因與範圍；不得把例外原因藏在備註。
+- `scope-exception` 只影響 PR Scope Police，不能拿來豁免開工前分派。
+
+## Issue Delegation Plan
+
+- 每張 autonomous issue 必須包含 `Issue Delegation Plan`。
+- `Issue Delegation Plan` 必須明列 source issue、worker profile、預期模型強度、任務切分、驗證方式、以及預期產物。
+- `Issue Delegation Plan` 必須用明確欄位寫出誰負責讀資料、誰負責實作、誰負責驗證、誰負責最後 readback。
+- 只有 `trivial/self-only exception` 可以寫成不分派 worker；這種情況必須寫明為什麼不需要 worker、為什麼可以由總控單獨完成、以及會用什麼驗證證據收尾。
+- 不得把 `Issue Delegation Plan` 寫成空泛目標或大綱；它必須足夠讓 worker 直接開工。
+
+## PR Delegation Execution Log
+
+- 每張 autonomous PR 必須包含 `Delegation Execution Log`。
+- `Delegation Execution Log` 必須對照 source issue 的 `Issue Delegation Plan`，寫出實際使用的 worker profile、實際模型強度、實際驗證證據、以及最後自審結果。
+- `Delegation Execution Log` 必須說明哪些工作交給 worker，哪些工作由總控保留，不能只寫完成摘要。
+- 如果真的用了 `trivial/self-only exception`，`Delegation Execution Log` 必須明講例外原因、例外範圍、以及為什麼不需要 worker。
+- 不得把 `Delegation Execution Log` 當成可省略的附註；沒有這一段，就不算 autonomous PR 完成交付。
+
 ## 新對話啟動 Checklist
 
 新對話框不要只靠使用者貼一段提示詞來維持一致性。提示詞只負責啟動流程；真正的 source of truth 是 repo 內文件與 GitHub issue / PR metadata。
