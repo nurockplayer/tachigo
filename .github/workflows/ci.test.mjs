@@ -1139,6 +1139,30 @@ test('PR scope police only treats a delegation log as autonomous when it has rea
     /Autonomous PR must include a `Delegation Execution Log` section\./,
   )
 
+  const nonDelegationTrivialExceptionBody = `
+## Delegation Execution Log
+- Source issue delegation plan：
+  - docs_worker: #456
+- Worker session closeout：
+  - 已讀回 worker 結果並 close
+
+## 備註
+- Trivial/self-only exception reason：trivial/self-only metadata-only docs tweak
+`
+  const nonDelegationTrivialExceptionRun = await runScopePoliceWorkflow({
+    body: nonDelegationTrivialExceptionBody,
+  })
+  assert.equal(nonDelegationTrivialExceptionRun.failures.length, 1)
+  assert.match(nonDelegationTrivialExceptionRun.comments[0].body, /- Autonomous PR: yes/)
+  assert.match(
+    nonDelegationTrivialExceptionRun.comments[0].body,
+    /Autonomous PR must name at least one explicit worker profile or provide a trivial\/self-only exception reason\./,
+  )
+  assert.doesNotMatch(
+    nonDelegationTrivialExceptionRun.comments[0].body,
+    /Autonomous PR must include a meaningful `Worker session closeout` value/,
+  )
+
   const sourceIssueControllerNoWorkerProfileBody = `
 ## Delegation Execution Log
 - Source issue delegation plan：

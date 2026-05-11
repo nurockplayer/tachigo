@@ -145,14 +145,11 @@ jobs:
             )
             const isAutonomousPr =
               labels.some((label) => autonomousLabels.has(label)) || hasDelegationExecutionLog
-            const trivialExceptionReasonMatch = bodyForAutonomousGate.match(
-              /(?:^|\n)\s*-\s*(?:Trivial\/self-only exception reason|Self-only exception reason|Trivial exception reason)\s*[：:][^\S\r\n]*([^\r\n]+)(?:\r?\n|$)/i,
-            )
             const hasTrivialExceptionReason = trivialExceptionFieldPatterns.some((fieldPattern) =>
               delegationExecutionLogLines.some((line, index) =>
                 hasMeaningfulDelegationValue(delegationExecutionLogLines, index, fieldPattern.pattern, fieldPattern.valueEvaluator),
               ),
-            ) || hasMeaningfulExceptionReason(trivialExceptionReasonMatch?.[1])
+            )
 
             const hardMaxChangedFiles = 35
             const hardMaxDiffLines = 1000
