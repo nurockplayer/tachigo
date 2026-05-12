@@ -5,9 +5,9 @@
 │                           CLIENT LAYER                             │
 │                                                                    │
 │  ┌──────────────────┐  ┌──────────────────┐  ┌──────────────────┐  │
-│  │ Chrome Sidepanel │  │  Dashboard [TBD] │  │  Wallet [Phs.2]  │  │
-│  │   (tachimint)    │  │  Agency/Streamer │  │  Claim on-chain  │  │
-│  │ React+TypeScript │  │  Mgmt Interface  │  │                  │  │
+│  │ Chrome Sidepanel │  │  Dashboard [MVP] │  │  Wallet [Phs.2]  │  │
+│  │   (tachimint)    │  │ React+Vite+Refine│  │  Claim on-chain  │  │
+│  │ React+TypeScript │  │ Agency/Strm Mgmt │  │                  │  │
 │  └────────┬─────────┘  └────────┬─────────┘  └────────┬─────────┘  │
 └───────────┼─────────────────────┼─────────────────────┼────────────┘
             │ Heartbeat + JWT     │ Admin API           │ Claim
@@ -46,7 +46,7 @@
                                             │  Private stream [Phs2] │
                                             └────────────────────────┘
 
-[done] = 已完成    [TBD] = MVP 待實作    [Phs.2] = Phase 2+
+[done] = 已完成    [MVP] = MVP 已進入實作    [TBD] = MVP 待實作    [Phs.2] = Phase 2+
 ```
 
 ## 主要資料流

@@ -88,10 +88,16 @@ docker compose logs -f        # tail all logs
 
 - Hot reload via [air](https://github.com/air-verse/air) — save any `.go` file to rebuild
 - Swagger docs regenerated automatically on each build (`swag init`)
-- Tests use SQLite in-memory — no Postgres required
+- Unit tests mostly use SQLite in-memory.
+- Schema/migration validation uses PostgreSQL via Atlas and CI.
+- Changes touching migrations, PostgreSQL constraints, partial indexes, or the Atlas loader must be verified against PostgreSQL.
 
 ```bash
+# Unit tests
 docker compose run --no-deps --rm app go test ./...
+
+# Integration / PostgreSQL-related tests
+docker compose run --rm app go test -tags integration ./...
 ```
 
 ### Frontend (`apps/extension/`)

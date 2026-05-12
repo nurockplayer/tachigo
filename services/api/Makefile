@@ -1,9 +1,12 @@
-.PHONY: run build tidy migrate db-up db-down up down logs lint test
+.PHONY: run run-no-migrate build tidy migrate db-up db-down up down logs lint test
 
 ATLAS_DATABASE_URL ?= postgres://postgres:postgres@localhost:5432/tachigo?sslmode=disable
 
 # ── Dev ───────────────────────────────────────────────────────────────────────
-run:
+run: migrate
+	go run ./cmd/server
+
+run-no-migrate:
 	go run ./cmd/server
 
 build:

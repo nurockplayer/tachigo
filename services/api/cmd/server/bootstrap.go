@@ -24,6 +24,9 @@ func bootstrap(cfg *config.Config) *gorm.DB {
 }
 
 func hashLegacyRaffleClaimTokens(ctx context.Context, db *gorm.DB) error {
+	// Data repair only. Do not add schema DDL here.
+	// Prefer Atlas migrations for schema changes and explicit data migrations
+	// or ops runbooks for one-time data changes.
 	// claim_token was previously a raw UUIDv7 (36 chars); it now stores the
 	// SHA-256 hex digest (64 chars). This idempotent repair is data-only.
 	return db.WithContext(ctx).Exec(`

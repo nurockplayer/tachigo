@@ -8,12 +8,12 @@ import (
 	"github.com/tachigo/tachigo/internal/schema"
 )
 
-func TestAtlasModelsUseSharedAutoMigrateModels(t *testing.T) {
+func TestAtlasModelsUseSharedAtlasSchemaModels(t *testing.T) {
 	got := modelTypeNames(atlasModels())
-	want := modelTypeNames(schema.AutoMigrateModels())
+	want := modelTypeNames(schema.AtlasSchemaModels())
 
 	if !reflect.DeepEqual(got, want) {
-		t.Fatalf("atlas model list drifted from shared AutoMigrate model list\nwant: %#v\n got: %#v", want, got)
+		t.Fatalf("atlas model list drifted from shared Atlas schema model list\nwant: %#v\n got: %#v", want, got)
 	}
 }
 
