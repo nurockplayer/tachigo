@@ -118,6 +118,8 @@
 
 若使用者授權 autonomous product work，Codex / Claude 應採用 [docs/ai/codex-autonomous-workflow.md](docs/ai/codex-autonomous-workflow.md) 的 Worker Profiles、issue-first、review gate、CodeRabbit fallback 與 PR Scope Police 合約。
 
+Autonomous Worker Profiles 的 follow-up 改善以「約 40% infra 本質複雜、約 60% 工作流自己製造摩擦」為基準：infra 複雜度用固定 readback 與 gate 管住；流程摩擦要靠 `ops_spark` routing、review closeout evidence、subagent lifecycle cleanup、issue-first planning 與 follow-up split 降低。
+
 autonomous work 一開始就必須先分派 worker，再進入計劃、開 issue、讀資料或實作；只有 `trivial/self-only exception` 可以不分派，但必須明寫原因。
 
 **預設工作流程：**
