@@ -700,6 +700,11 @@ test('scope gate and scope police use rename-aware allFilePaths for touches', as
   assert.match(workflow, /touches = \{[\s\S]*?allFilePaths\.some/, 'ci.yml touches must use allFilePaths')
   assert.match(scopePolice, /touches = \{[\s\S]*?allFilePaths\.some/, 'pr-scope-police.yml touches must use allFilePaths')
   assert.match(scopePolice, /isDocsTemplateOrMetadataOnly[\s\S]*?allFilePaths\.every/, 'pr-scope-police.yml isDocsTemplateOrMetadataOnly must use allFilePaths')
+  assert.doesNotMatch(
+    scopePolice,
+    /name\.startsWith\('\.github\/workflows\/'\)/,
+    'workflow changes must not be classified as metadata-only in pr-scope-police.yml',
+  )
 })
 
 test('scope gate and scope police recognize legacy and monorepo frontend/backend paths', async () => {
@@ -987,15 +992,25 @@ test('autonomous work entrypoints require start-of-work delegation and point to 
   const workflow = await readFile(path.join(repoRoot, 'docs', 'ai', 'codex-autonomous-workflow.md'), 'utf8')
 
   assert.match(agents, /autonomous work 一開始就必須先分派 worker/)
+  assert.match(agents, /約 40% infra 本質複雜、約 60% 工作流自己製造摩擦/)
   assert.match(agents, /docs\/ai\/codex-autonomous-workflow\.md/)
   assert.match(claude, /autonomous work 一開始就必須先分派 worker/)
+  assert.match(claude, /約 40% infra 本質複雜、約 60% 工作流自己製造摩擦/)
   assert.match(claude, /docs\/ai\/codex-autonomous-workflow\.md/)
   assert.match(workflow, /## Start-of-work Delegation Gate/)
+  assert.match(workflow, /## Cost Model 與摩擦預算/)
+  assert.match(workflow, /### ops_spark Routing Hardening/)
+  assert.match(workflow, /### Review Closeout Evidence Matrix/)
+  assert.match(workflow, /## Subagent Lifecycle 與 Thread-limit Cleanup/)
+  assert.match(workflow, /## Issue-first 與 Follow-up Split Policy/)
+  assert.match(workflow, /## PR Template 與 Policy-test Hardening/)
   assert.match(workflow, /## Issue Delegation Plan/)
   assert.match(workflow, /## PR Delegation Execution Log/)
   assert.match(workflow, /### Worker Lifecycle Closeout/)
   assert.match(workflow, /close worker session/)
   assert.match(workflow, /stale handle/)
+  assert.match(workflow, /CodeRabbit rate limit/)
+  assert.match(workflow, /chatgpt-codex-connector/)
 })
 
 test('Codex issue template requires an autonomous worker delegation plan textarea', async () => {
@@ -1022,6 +1037,9 @@ test('PR template includes a delegation execution log for autonomous work', asyn
   assert.match(prTemplate, /Verification evidence：/)
   assert.match(prTemplate, /Self-review \/ exception reason：/)
   assert.match(prTemplate, /Worker session closeout：/)
+  assert.match(prTemplate, /Workflow friction \/ follow-up split：/)
+  assert.match(prTemplate, /約 40% infra 複雜 \/ 約 60% 工作流摩擦/)
+  assert.match(prTemplate, /改到 `\.github\/workflows\/\*\*` 時也不是 metadata-only，仍需勾選/)
 })
 
 test('PR scope police only treats a delegation log as autonomous when it has real content', async () => {

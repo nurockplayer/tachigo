@@ -19,6 +19,7 @@
 - Source of truth：<!-- issue / PR / 文件，例如 #115 -->
 - Depends on PR：<!-- `none` 或 `#123` -->
 - Backend contract already in develop:
+  <!-- 必填：只要不是純 docs/template/metadata PR 都要勾。改到 `.github/workflows/**` 時也不是 metadata-only，仍需勾選。 -->
   - [ ] yes
   - [ ] no
 - If no, this PR is:
@@ -44,6 +45,8 @@
   - <!-- 例：已完成 self-review；或 trivial/self-only exception reason -->
 - Worker session closeout：
   - <!-- 例：已讀回 worker 結果，不需追加任務的 worker session 已 close；stale handle / not found 已說明 -->
+- Workflow friction / follow-up split：
+  - <!-- autonomous PR 請說明本次約 40% infra 複雜 / 約 60% 工作流摩擦中，哪些已由 worker routing / closeout / follow-up issue 收斂；非 autonomous PR 可填 n/a -->
 
 ## PR 拆分檢查
 <!-- 一個 PR = 一個可獨立理解、可獨立驗證的行為變更。若超過 400 行、同時改 backend/frontend、或同時包含 schema/service/handler/UI 任兩種以上，請優先拆 PR。 -->
