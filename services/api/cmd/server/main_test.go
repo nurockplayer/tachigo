@@ -1,111 +1,289 @@
 package main
 
 import (
+	"context"
+	"errors"
+	"net/http"
 	"os"
 	"path/filepath"
 	"runtime"
 	"strings"
+	"sync"
+	"sync/atomic"
 	"testing"
-
-	"github.com/jackc/pgx/v5/pgconn"
+	"time"
 )
 
-func TestServerAutoMigrateUsesSharedSchemaModelList(t *testing.T) {
+func TestServerStartupDoesNotRunSchemaDDL(t *testing.T) {
 	_, file, _, ok := runtime.Caller(0)
 	if !ok {
 		t.Fatal("resolve current test file")
 	}
 
-	body, err := os.ReadFile(filepath.Join(filepath.Dir(file), "main.go"))
+	dir := filepath.Dir(file)
+	var source strings.Builder
+	for _, name := range []string{"main.go", "bootstrap.go", "wiring.go"} {
+		body, err := os.ReadFile(filepath.Join(dir, name))
+		if err != nil {
+			t.Fatalf("read %s: %v", name, err)
+		}
+		source.Write(body)
+	}
+	for _, forbidden := range []string{
+		"AutoMigrate(",
+		"initializeUserRoleEnum(",
+		"ensureCouponRedemptionRuntimeSchema(",
+		"CREATE UNIQUE INDEX IF NOT EXISTS",
+		"ALTER TABLE tachi_balances ADD CONSTRAINT",
+		"applyStreamerAgencyMigration(db)",
+	} {
+		if strings.Contains(source.String(), forbidden) {
+			t.Fatalf("server startup must not run schema DDL %q after Atlas owns migrations", forbidden)
+		}
+	}
+	bootstrapBody, err := os.ReadFile(filepath.Join(dir, "bootstrap.go"))
+	if err != nil {
+		t.Fatalf("read bootstrap.go: %v", err)
+	}
+	bootstrapSource := string(bootstrapBody)
+	if !strings.Contains(bootstrapSource, "hashLegacyRaffleClaimTokens(hashCtx, db)") {
+		t.Fatalf("bootstrap should keep the non-schema raffle claim token data repair")
+	}
+	if !strings.Contains(bootstrapSource, "db.WithContext(ctx).Exec") {
+		t.Fatalf("legacy raffle claim token repair must respect startup timeout context")
+	}
+}
+
+func TestServerStartupIsSplitByResponsibility(t *testing.T) {
+	_, file, _, ok := runtime.Caller(0)
+	if !ok {
+		t.Fatal("resolve current test file")
+	}
+	dir := filepath.Dir(file)
+
+	mainBody, err := os.ReadFile(filepath.Join(dir, "main.go"))
 	if err != nil {
 		t.Fatalf("read main.go: %v", err)
 	}
-
-	source := string(body)
-	if !strings.Contains(source, "db.AutoMigrate(schema.AutoMigrateModels()...)") {
-		t.Fatalf("server AutoMigrate must use shared schema.AutoMigrateModels list")
+	if lines := strings.Count(string(mainBody), "\n"); lines > 50 {
+		t.Fatalf("main.go should stay at 50 lines or fewer after bootstrap/wiring split, got %d", lines)
 	}
-	if strings.Contains(source, "&models.") {
-		t.Fatalf("server AutoMigrate must not keep a separate hard-coded models list")
-	}
-}
-
-func TestInitializeUserRoleEnumFreshDatabase(t *testing.T) {
-	var statements []string
-
-	err := initializeUserRoleEnum(func(query string) error {
-		statements = append(statements, normalizeSQL(query))
-		return nil
-	})
-	if err != nil {
-		t.Fatalf("initializeUserRoleEnum returned error: %v", err)
-	}
-
-	if len(statements) != 2 {
-		t.Fatalf("expected 2 statements, got %d", len(statements))
-	}
-	if !strings.Contains(statements[0], "CREATE TYPE user_role AS ENUM ('viewer', 'streamer', 'agency', 'admin')") {
-		t.Fatalf("statement should create enum, got %q", statements[0])
-	}
-	if !strings.Contains(statements[1], "ALTER TYPE user_role ADD VALUE IF NOT EXISTS 'agency'") {
-		t.Fatalf("statement should alter enum, got %q", statements[1])
-	}
-}
-
-func TestInitializeUserRoleEnumExistingDatabase(t *testing.T) {
-	var statements []string
-	callCount := 0
-
-	err := initializeUserRoleEnum(func(query string) error {
-		statements = append(statements, normalizeSQL(query))
-		callCount++
-		if callCount == 1 {
-			return &pgconn.PgError{Code: "42710"}
-		}
-		return nil
-	})
-	if err != nil {
-		t.Fatalf("initializeUserRoleEnum returned error: %v", err)
-	}
-
-	if len(statements) != 2 {
-		t.Fatalf("expected 2 statements, got %d", len(statements))
-	}
-	if !strings.Contains(statements[0], "CREATE TYPE user_role AS ENUM") {
-		t.Fatalf("first statement should create enum, got %q", statements[0])
-	}
-	if !strings.Contains(statements[1], "ALTER TYPE user_role ADD VALUE IF NOT EXISTS 'agency'") {
-		t.Fatalf("second statement should alter enum, got %q", statements[1])
-	}
-}
-
-func TestEnsureCouponRedemptionRuntimeSchema(t *testing.T) {
-	var statements []string
-
-	err := ensureCouponRedemptionRuntimeSchema(func(query string) error {
-		statements = append(statements, normalizeSQL(query))
-		return nil
-	})
-	if err != nil {
-		t.Fatalf("ensureCouponRedemptionRuntimeSchema returned error: %v", err)
-	}
-
-	joined := strings.Join(statements, " ")
 	for _, want := range []string{
-		"CONSTRAINT chk_coupon_redemptions_amount_gt_0",
-		"CHECK (amount > 0)",
-		"EXCEPTION WHEN duplicate_object THEN NULL",
-		"CONSTRAINT chk_coupon_redemptions_status",
-		"status IN ('pending','redeemed','compensation-needed')",
-		"CREATE INDEX IF NOT EXISTS idx_coupon_redemptions_compensation",
-		"WHERE status = 'compensation-needed'",
+		"bootstrap(cfg)",
+		"wire(db, cfg, serverCtx)",
 	} {
-		if !strings.Contains(joined, want) {
-			t.Fatalf("runtime schema SQL missing %q:\n%s", want, joined)
+		if !strings.Contains(string(mainBody), want) {
+			t.Fatalf("main.go should delegate startup with %q", want)
+		}
+	}
+
+	bootstrapBody, err := os.ReadFile(filepath.Join(dir, "bootstrap.go"))
+	if err != nil {
+		t.Fatalf("read bootstrap.go: %v", err)
+	}
+	bootstrapSource := string(bootstrapBody)
+	for _, want := range []string{
+		"func bootstrap(cfg *config.Config) *gorm.DB",
+		"database.Connect(cfg.Database.DSN)",
+		"hashLegacyRaffleClaimTokens(hashCtx, db)",
+	} {
+		if !strings.Contains(bootstrapSource, want) {
+			t.Fatalf("bootstrap.go should own %q", want)
+		}
+	}
+
+	wiringBody, err := os.ReadFile(filepath.Join(dir, "wiring.go"))
+	if err != nil {
+		t.Fatalf("read wiring.go: %v", err)
+	}
+	wiringSource := string(wiringBody)
+	for _, want := range []string{
+		"func wire(db *gorm.DB, cfg *config.Config, ctx context.Context) *gin.Engine",
+		"services.NewAuthService(db, cfg)",
+		"context.WithTimeout(ctx, 10*time.Second)",
+		"services.NewRaffleScheduler(raffleSvc).Start(ctx)",
+		"router.New(",
+	} {
+		if !strings.Contains(wiringSource, want) {
+			t.Fatalf("wiring.go should own %q", want)
+		}
+	}
+	if strings.Contains(wiringSource, "context.WithTimeout(context.Background(), 10*time.Second)") {
+		t.Fatalf("Sepolia RPC dial timeout should inherit the server context")
+	}
+}
+
+func TestHTTPServerConfiguresProductionTimeouts(t *testing.T) {
+	handler := http.NewServeMux()
+
+	srv := newHTTPServer(":8080", handler)
+
+	if srv.Addr != ":8080" {
+		t.Fatalf("Addr: want :8080, got %q", srv.Addr)
+	}
+	if srv.Handler != handler {
+		t.Fatalf("Handler: want configured handler")
+	}
+	if srv.ReadTimeout <= 0 {
+		t.Fatalf("ReadTimeout should be set")
+	}
+	if srv.WriteTimeout <= 0 {
+		t.Fatalf("WriteTimeout should be set")
+	}
+	if srv.IdleTimeout <= 0 {
+		t.Fatalf("IdleTimeout should be set")
+	}
+}
+
+func TestRunHTTPServerShutsDownOnContextCancelAndClosesDatabase(t *testing.T) {
+	ctx, cancel := context.WithCancel(context.Background())
+	defer cancel()
+	fake := newFakeGracefulServer()
+	var closeCalls atomic.Int32
+
+	errCh := make(chan error, 1)
+	go func() {
+		errCh <- runHTTPServer(ctx, fake, func() error {
+			closeCalls.Add(1)
+			return nil
+		})
+	}()
+
+	<-fake.listenStarted
+	cancel()
+	<-fake.shutdownCalled
+	fake.finish(http.ErrServerClosed)
+
+	select {
+	case err := <-errCh:
+		if err != nil {
+			t.Fatalf("runHTTPServer returned error: %v", err)
+		}
+	case <-time.After(time.Second):
+		t.Fatal("runHTTPServer did not return after shutdown")
+	}
+	if closeCalls.Load() != 1 {
+		t.Fatalf("close hook calls: want 1, got %d", closeCalls.Load())
+	}
+}
+
+func TestRunHTTPServerReturnsListenErrorAndClosesDatabase(t *testing.T) {
+	ctx := context.Background()
+	fake := newFakeGracefulServer()
+	listenErr := errors.New("bind failed")
+	var closeCalls atomic.Int32
+
+	errCh := make(chan error, 1)
+	go func() {
+		errCh <- runHTTPServer(ctx, fake, func() error {
+			closeCalls.Add(1)
+			return nil
+		})
+	}()
+
+	<-fake.listenStarted
+	fake.finish(listenErr)
+
+	select {
+	case err := <-errCh:
+		if !errors.Is(err, listenErr) {
+			t.Fatalf("runHTTPServer error: want %v, got %v", listenErr, err)
+		}
+	case <-time.After(time.Second):
+		t.Fatal("runHTTPServer did not return after listen error")
+	}
+	if closeCalls.Load() != 1 {
+		t.Fatalf("close hook calls: want 1, got %d", closeCalls.Load())
+	}
+}
+
+func TestRunHTTPServerReturnsShutdownErrorAndClosesDatabase(t *testing.T) {
+	ctx, cancel := context.WithCancel(context.Background())
+	defer cancel()
+	shutdownErr := errors.New("shutdown failed")
+	fake := newFakeGracefulServer()
+	fake.shutdownErr = shutdownErr
+	var closeCalls atomic.Int32
+
+	errCh := make(chan error, 1)
+	go func() {
+		errCh <- runHTTPServer(ctx, fake, func() error {
+			closeCalls.Add(1)
+			return nil
+		})
+	}()
+
+	<-fake.listenStarted
+	cancel()
+	<-fake.shutdownCalled
+	fake.finish(http.ErrServerClosed)
+
+	select {
+	case err := <-errCh:
+		if !errors.Is(err, shutdownErr) {
+			t.Fatalf("runHTTPServer error: want shutdown error %v, got %v", shutdownErr, err)
+		}
+	case <-time.After(time.Second):
+		t.Fatal("runHTTPServer did not return after shutdown error")
+	}
+	if closeCalls.Load() != 1 {
+		t.Fatalf("close hook calls: want 1, got %d", closeCalls.Load())
+	}
+}
+
+func TestMainUsesHTTPServerGracefulShutdown(t *testing.T) {
+	_, file, _, ok := runtime.Caller(0)
+	if !ok {
+		t.Fatal("resolve current test file")
+	}
+	dir := filepath.Dir(file)
+
+	mainBody, err := os.ReadFile(filepath.Join(dir, "main.go"))
+	if err != nil {
+		t.Fatalf("read main.go: %v", err)
+	}
+	mainSource := string(mainBody)
+	if strings.Contains(mainSource, ".Run(") {
+		t.Fatalf("main.go should not start Gin with Run after graceful shutdown support is added")
+	}
+	for _, want := range []string{
+		"newHTTPServer(addr, r)",
+		"runHTTPServer(serverCtx, srv,",
+		"closeDatabase(db)",
+	} {
+		if !strings.Contains(mainSource, want) {
+			t.Fatalf("main.go should use graceful HTTP server wiring %q", want)
 		}
 	}
 }
 
-func normalizeSQL(query string) string {
-	return strings.Join(strings.Fields(query), " ")
+type fakeGracefulServer struct {
+	listenStarted  chan struct{}
+	shutdownCalled chan struct{}
+	done           chan error
+	shutdownErr    error
+	closeStarted   sync.Once
+	closeShutdown  sync.Once
+}
+
+func newFakeGracefulServer() *fakeGracefulServer {
+	return &fakeGracefulServer{
+		listenStarted:  make(chan struct{}),
+		shutdownCalled: make(chan struct{}),
+		done:           make(chan error, 1),
+	}
+}
+
+func (f *fakeGracefulServer) ListenAndServe() error {
+	f.closeStarted.Do(func() { close(f.listenStarted) })
+	return <-f.done
+}
+
+func (f *fakeGracefulServer) Shutdown(context.Context) error {
+	f.closeShutdown.Do(func() { close(f.shutdownCalled) })
+	return f.shutdownErr
+}
+
+func (f *fakeGracefulServer) finish(err error) {
+	f.done <- err
 }

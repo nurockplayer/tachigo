@@ -9,6 +9,7 @@ services:
         required: false
     environment:
       DATABASE_URL: host=postgres user=postgres password=postgres dbname=tachigo port=5432 sslmode=disable
+      ATLAS_DATABASE_URL: postgres://postgres:postgres@postgres:5432/tachigo?sslmode=disable
     depends_on:
       postgres:
         condition: service_healthy

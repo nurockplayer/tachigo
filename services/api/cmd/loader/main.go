@@ -29,8 +29,8 @@ func loadAtlasSchema() (string, error) {
 	return strings.Join([]string{
 		atlasCustomPostgresTypes(),
 		stmts,
-		atlasCustomPostgresConstraints(),
 		atlasCustomPostgresIndexes(),
+		atlasCustomPostgresConstraints(),
 	}, "\n\n"), nil
 }
 
@@ -45,8 +45,8 @@ func atlasModels() []any {
 func atlasCustomPostgresSchema() string {
 	return strings.Join([]string{
 		atlasCustomPostgresTypes(),
-		atlasCustomPostgresConstraints(),
 		atlasCustomPostgresIndexes(),
+		atlasCustomPostgresConstraints(),
 	}, "\n\n")
 }
 
@@ -55,8 +55,18 @@ func atlasCustomPostgresTypes() string {
 }
 
 func atlasCustomPostgresConstraints() string {
-	return `ALTER TABLE tachi_balances ADD CONSTRAINT fk_tachi_balances_user_id
-FOREIGN KEY (user_id) REFERENCES users(id) ON DELETE CASCADE;`
+	return strings.Join([]string{
+		`ALTER TABLE tachi_balances ADD CONSTRAINT fk_tachi_balances_user_id
+FOREIGN KEY (user_id) REFERENCES users(id) ON DELETE CASCADE;`,
+		`ALTER TABLE streamers ADD CONSTRAINT fk_streamers_agency_user_id
+FOREIGN KEY (agency_user_id) REFERENCES users(id);`,
+		`ALTER TABLE claim_items ADD CONSTRAINT fk_claim_items_claim_user
+FOREIGN KEY (claim_id, claim_user_id) REFERENCES claims(id, user_id) ON DELETE CASCADE;`,
+		`ALTER TABLE claim_items ADD CONSTRAINT fk_claim_items_ledger_user
+FOREIGN KEY (ledger_id, claim_user_id) REFERENCES points_ledgers(id, user_id);`,
+		`ALTER TABLE claim_items ADD CONSTRAINT fk_claim_items_tx_ledger
+FOREIGN KEY (points_transaction_id, ledger_id) REFERENCES points_transactions(id, ledger_id);`,
+	}, "\n\n")
 }
 
 func atlasCustomPostgresIndexes() string {
@@ -75,6 +85,15 @@ ON points_ledgers (user_id, channel_id);`,
 		`CREATE UNIQUE INDEX idx_points_transactions_external_transaction_id
 ON points_transactions (external_transaction_id)
 WHERE external_transaction_id IS NOT NULL;`,
+		`CREATE UNIQUE INDEX idx_claims_tx_hash_not_null
+ON claims (tx_hash)
+WHERE tx_hash IS NOT NULL;`,
+		`CREATE UNIQUE INDEX idx_claims_id_user_id
+ON claims (id, user_id);`,
+		`CREATE UNIQUE INDEX idx_points_ledgers_id_user_id
+ON points_ledgers (id, user_id);`,
+		`CREATE UNIQUE INDEX idx_points_transactions_id_ledger_id
+ON points_transactions (id, ledger_id);`,
 		`CREATE INDEX idx_coupon_redemptions_compensation
 ON coupon_redemptions (status)
 WHERE status = 'compensation-needed';`,

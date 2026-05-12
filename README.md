@@ -7,12 +7,45 @@ Viewers spend Bits to earn on-chain tokens; streamers manage rewards from the da
 
 ```
 tachigo/
+├── apps/
+│   ├── dashboard/    # Streamer / agency admin dashboard (React + TypeScript + Vite)
+│   └── extension/    # Chrome sidepanel frontend (React + TypeScript + Vite)
+├── contracts/        # Foundry smart contracts for TACHI token flows
+├── deployments/      # Chain deployment metadata
+├── design/           # Product and UI design artifacts
+├── docs/             # Architecture, policies, decisions, and AI workflow docs
+├── infra/            # Repo automation scripts and git hooks
+├── plans/            # Planning notes and implementation breakdowns
 ├── services/
 │   └── api/          # Go API (Gin + GORM + PostgreSQL)
-└── apps/
-    ├── extension/    # Chrome sidepanel frontend (React + TypeScript + Vite)
-    └── dashboard/    # Admin dashboard (React + TypeScript + Vite)
+└── docker-compose.yml
 ```
+
+## Documentation
+
+| Area | Link |
+|------|------|
+| System architecture | [docs/architecture.md](docs/architecture.md) |
+| Auth baseline | [docs/auth-architecture.md](docs/auth-architecture.md) |
+| Backend permissions | [docs/backend-permissions.md](docs/backend-permissions.md) |
+| Chrome sidepanel migration | [docs/history/2026-04-16-tachimint-chrome-sidepanel-migration.md](docs/history/2026-04-16-tachimint-chrome-sidepanel-migration.md) |
+| PR scope policy | [docs/pr-scope-policy.md](docs/pr-scope-policy.md) |
+| Dependency update policy | [docs/dependabot-update-policy.md](docs/dependabot-update-policy.md) |
+| Dependency inventory policy | [docs/dependency-inventory-policy.md](docs/dependency-inventory-policy.md) |
+| Contracts gas snapshot policy | [docs/contracts-gas-snapshot-policy.md](docs/contracts-gas-snapshot-policy.md) |
+| Repo automation | [infra/README.md](infra/README.md) |
+| AI collaboration | [docs/ai/README.md](docs/ai/README.md) |
+| Agent rules | [CLAUDE.md](CLAUDE.md), [AGENTS.md](AGENTS.md) |
+
+## Features
+
+- **Watch Points** — viewers earn off-chain points from watch heartbeat activity.
+- **TACHI claim / spend flows** — backend services track spendable balances and bridge selected flows to on-chain mint / burn behavior.
+- **Twitch Extension / Chrome sidepanel** — `apps/extension` hosts the migration-stage viewer experience with Twitch identity and extension auth compatibility.
+- **Streamer / agency dashboard** — `apps/dashboard` provides the management surface for channels, streamers, and operational settings.
+- **Agency and channel configuration** — backend services model agency ownership, streamer relationships, and per-channel reward settings.
+- **Airdrop and raffle systems** — backend jobs and APIs support viewer rewards, campaign-style interactions, and result delivery.
+- **Security and dependency operations** — CI includes scope gates, backend scanners, dependency inventory reports, and PR review automation.
 
 ## Quick start
 
@@ -105,17 +138,6 @@ Key backend variables:
 
 See [docs/architecture.md](docs/architecture.md) for the full system diagram.
 For the frontend migration decision record, see [docs/history/2026-04-16-tachimint-chrome-sidepanel-migration.md](docs/history/2026-04-16-tachimint-chrome-sidepanel-migration.md).
-
-## Documentation
-
-- [docs/auth-architecture.md](docs/auth-architecture.md) — current auth state 與 migration guardrails baseline
-- [docs/architecture.md](docs/architecture.md) — system architecture
-- [docs/ai/README.md](docs/ai/README.md) — AI 協作文檔首頁與 root entrypoint 例外
-- [docs/ai/claude-codex-cheatsheet.md](docs/ai/claude-codex-cheatsheet.md) — quick reference for Claude Code + Codex collaboration
-- [docs/ai/claude-codex-workflow.md](docs/ai/claude-codex-workflow.md) — full workflow guide for low-token Claude Code usage
-- [infra/README.md](infra/README.md) — repo automation scripts and git hooks
-- [docs/pr-scope-policy.md](docs/pr-scope-policy.md) — PR 邊界規則、required checks、scope police 設定
-- [CLAUDE.md](CLAUDE.md) — repo-specific collaboration rules and command entry points
 
 ## CI
 

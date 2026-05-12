@@ -23,15 +23,16 @@ import (
 )
 
 var (
-	ErrUserNotFound       = errors.New("user not found")
-	ErrInvalidCredentials = errors.New("invalid credentials")
-	ErrEmailExists        = errors.New("email already registered")
-	ErrUsernameExists     = errors.New("username already taken")
-	ErrInvalidToken       = errors.New("invalid or expired token")
-	ErrProviderLinked     = errors.New("provider already linked to another account")
-	ErrInvalidNonce       = errors.New("invalid or expired nonce")
-	ErrInvalidSignature   = errors.New("invalid wallet signature")
-	ErrLastProvider       = errors.New("cannot unlink the only login method")
+	ErrUserNotFound        = errors.New("user not found")
+	ErrInvalidCredentials  = errors.New("invalid credentials")
+	ErrEmailExists         = errors.New("email already registered")
+	ErrUsernameExists      = errors.New("username already taken")
+	ErrInvalidToken        = errors.New("invalid or expired token")
+	errRefreshTokenExpired = errors.New("refresh token expired")
+	ErrProviderLinked      = errors.New("provider already linked to another account")
+	ErrInvalidNonce        = errors.New("invalid or expired nonce")
+	ErrInvalidSignature    = errors.New("invalid wallet signature")
+	ErrLastProvider        = errors.New("cannot unlink the only login method")
 )
 
 type TokenPair struct {
@@ -110,19 +111,30 @@ func (s *AuthService) Register(input RegisterInput) (*models.User, *TokenPair, e
 		Role:         models.RoleViewer,
 	}
 
-	if err := s.db.Create(user).Error; err != nil {
+	var tokens *TokenPair
+	if err := s.db.Transaction(func(tx *gorm.DB) error {
+		if err := tx.Create(user).Error; err != nil {
+			return err
+		}
+
+		// Also create an email AuthProvider record for consistency.
+		if err := tx.Create(&models.AuthProvider{
+			UserID:     user.ID,
+			Provider:   models.ProviderEmail,
+			ProviderID: input.Email,
+		}).Error; err != nil {
+			return err
+		}
+
+		txSvc := *s
+		txSvc.db = tx
+		var err error
+		tokens, err = txSvc.issueTokenPair(user)
+		return err
+	}); err != nil {
 		return nil, nil, err
 	}
-
-	// Also create an email AuthProvider record for consistency
-	s.db.Create(&models.AuthProvider{
-		UserID:     user.ID,
-		Provider:   models.ProviderEmail,
-		ProviderID: input.Email,
-	})
-
-	tokens, err := s.issueTokenPair(user)
-	return user, tokens, err
+	return user, tokens, nil
 }
 
 type LoginInput struct {
@@ -151,23 +163,44 @@ func (s *AuthService) Login(input LoginInput) (*models.User, *TokenPair, error) 
 func (s *AuthService) Refresh(rawRefreshToken string) (*TokenPair, error) {
 	hash := hashToken(rawRefreshToken)
 
-	var stored models.RefreshToken
-	if err := s.db.Where("token_hash = ?", hash).First(&stored).Error; err != nil {
+	var tokenPair *TokenPair
+	err := s.db.Transaction(func(tx *gorm.DB) error {
+		var stored models.RefreshToken
+		if err := tx.Where("token_hash = ?", hash).First(&stored).Error; err != nil {
+			return ErrInvalidToken
+		}
+		if stored.IsExpired() {
+			return errRefreshTokenExpired
+		}
+
+		var user models.User
+		if err := tx.First(&user, "id = ?", stored.UserID).Error; err != nil {
+			return ErrUserNotFound
+		}
+
+		// Atomic rotation: zero affected rows means another request already used it.
+		result := tx.Delete(&stored)
+		if result.Error != nil {
+			return result.Error
+		}
+		if result.RowsAffected == 0 {
+			return ErrInvalidToken
+		}
+
+		var err error
+		tokenPair, err = s.issueTokenPairTx(tx, &user)
+		return err
+	})
+	if errors.Is(err, errRefreshTokenExpired) {
+		if err := s.db.Where("token_hash = ?", hash).Delete(&models.RefreshToken{}).Error; err != nil {
+			return nil, err
+		}
 		return nil, ErrInvalidToken
 	}
-	if stored.IsExpired() {
-		s.db.Delete(&stored)
-		return nil, ErrInvalidToken
+	if err != nil {
+		return nil, err
 	}
-
-	var user models.User
-	if err := s.db.First(&user, "id = ?", stored.UserID).Error; err != nil {
-		return nil, ErrUserNotFound
-	}
-
-	// Rotate: delete old, issue new
-	s.db.Delete(&stored)
-	return s.issueTokenPair(&user)
+	return tokenPair, nil
 }
 
 func (s *AuthService) Logout(rawRefreshToken string) error {
@@ -239,15 +272,18 @@ func (s *AuthService) Web3Nonce(address string) (string, time.Time, error) {
 		return "", time.Time{}, err
 	}
 
-	// Delete any existing nonces for this address
-	s.db.Where("address = ?", address).Delete(&models.Web3Nonce{})
-
 	record := &models.Web3Nonce{
 		Nonce:     nonce,
 		Address:   address,
 		ExpiresAt: time.Now().Add(5 * time.Minute),
 	}
-	if err := s.db.Create(record).Error; err != nil {
+	if err := s.db.Transaction(func(tx *gorm.DB) error {
+		// Delete any existing nonces for this address.
+		if err := tx.Where("address = ?", address).Delete(&models.Web3Nonce{}).Error; err != nil {
+			return err
+		}
+		return tx.Create(record).Error
+	}); err != nil {
 		return "", time.Time{}, err
 	}
 	return nonce, record.CreatedAt, nil
@@ -277,12 +313,28 @@ func (s *AuthService) Web3Verify(input Web3VerifyInput) (*models.User, *TokenPai
 		return nil, nil, ErrInvalidSignature
 	}
 
-	// Nonce is consumed
-	s.db.Delete(&nonceRecord)
-
-	// Upsert user
+	// Nonce is consumed together with the auth upsert.
 	checksumAddr := common.HexToAddress(input.Address).Hex()
-	return s.upsertOAuthUser(context.Background(), models.ProviderWeb3, checksumAddr, "", "", nil, nil)
+	var user *models.User
+	var tokens *TokenPair
+	if err := s.db.Transaction(func(tx *gorm.DB) error {
+		result := tx.Delete(&nonceRecord)
+		if result.Error != nil {
+			return result.Error
+		}
+		if result.RowsAffected != 1 {
+			return ErrInvalidNonce
+		}
+
+		txSvc := *s
+		txSvc.db = tx
+		var err error
+		user, tokens, err = txSvc.upsertOAuthUser(context.Background(), models.ProviderWeb3, checksumAddr, "", "", nil, nil)
+		return err
+	}); err != nil {
+		return nil, nil, err
+	}
+	return user, tokens, nil
 }
 
 func (s *AuthService) UnlinkProvider(userID uuid.UUID, provider models.ProviderType) error {
@@ -320,7 +372,7 @@ func (s *AuthService) ValidateAccessToken(tokenStr string) (*Claims, error) {
 	return claims, nil
 }
 
-func (s *AuthService) issueTokenPair(user *models.User) (*TokenPair, error) {
+func (s *AuthService) issueTokenPairTx(tx *gorm.DB, user *models.User) (*TokenPair, error) {
 	// Access token
 	accessClaims := Claims{
 		UserID: user.ID.String(),
@@ -341,7 +393,7 @@ func (s *AuthService) issueTokenPair(user *models.User) (*TokenPair, error) {
 	if err != nil {
 		return nil, err
 	}
-	if err := s.db.Create(&models.RefreshToken{
+	if err := tx.Create(&models.RefreshToken{
 		UserID:    user.ID,
 		TokenHash: hashToken(rawRefresh),
 		ExpiresAt: time.Now().Add(s.cfg.JWT.RefreshTTL),
@@ -354,6 +406,10 @@ func (s *AuthService) issueTokenPair(user *models.User) (*TokenPair, error) {
 		RefreshToken: rawRefresh,
 		ExpiresIn:    int(s.cfg.JWT.AccessTTL.Seconds()),
 	}, nil
+}
+
+func (s *AuthService) issueTokenPair(user *models.User) (*TokenPair, error) {
+	return s.issueTokenPairTx(s.db, user)
 }
 
 // ─── OAuth upsert helper ─────────────────────────────────────────────────────
@@ -379,12 +435,12 @@ func (s *AuthService) upsertOAuthUser(
 	if err == nil {
 		// Already linked – update tokens, return user
 		if token != nil {
-			at := token.AccessToken
-			rt := token.RefreshToken
-			ap.AccessToken = &at
-			ap.RefreshToken = &rt
-			ap.TokenExpiresAt = &token.Expiry
-			s.db.Save(&ap)
+			if err := s.assignProviderTokens(&ap, provider, token); err != nil {
+				return nil, nil, err
+			}
+			if err := s.db.Save(&ap).Error; err != nil {
+				return nil, nil, err
+			}
 		}
 		var user models.User
 		if err := s.db.First(&user, "id = ?", ap.UserID).Error; err != nil {
@@ -423,16 +479,47 @@ func (s *AuthService) upsertOAuthUser(
 		ProviderID: providerID,
 	}
 	if token != nil {
-		at := token.AccessToken
-		rt := token.RefreshToken
-		newAP.AccessToken = &at
-		newAP.RefreshToken = &rt
-		newAP.TokenExpiresAt = &token.Expiry
+		if err := s.assignProviderTokens(&newAP, provider, token); err != nil {
+			return nil, nil, err
+		}
 	}
-	s.db.Create(&newAP)
+	if err := s.db.Create(&newAP).Error; err != nil {
+		return nil, nil, err
+	}
 
 	tokens, err := s.issueTokenPair(&user)
 	return &user, tokens, err
+}
+
+func (s *AuthService) assignProviderTokens(ap *models.AuthProvider, provider models.ProviderType, token *oauth2.Token) error {
+	ap.AccessToken = nil
+	ap.RefreshToken = nil
+	ap.TokenExpiresAt = nil
+
+	if provider != models.ProviderTwitch || token == nil || token.AccessToken == "" {
+		return nil
+	}
+
+	cipher := newOAuthTokenCipher(s.oauthTokenEncryptionSecret())
+	encrypted, err := cipher.encrypt(token.AccessToken)
+	if err != nil {
+		return err
+	}
+	ap.AccessToken = &encrypted
+	if !token.Expiry.IsZero() {
+		ap.TokenExpiresAt = &token.Expiry
+	}
+	return nil
+}
+
+func (s *AuthService) oauthTokenEncryptionSecret() string {
+	if s == nil || s.cfg == nil {
+		return ""
+	}
+	if s.cfg.OAuth.TokenEncryptionKey != "" {
+		return s.cfg.OAuth.TokenEncryptionKey
+	}
+	return s.cfg.JWT.RefreshSecret
 }
 
 // ─── Utility ─────────────────────────────────────────────────────────────────

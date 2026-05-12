@@ -17,6 +17,10 @@ export function useTPoint(jwt: string) {
       setError(null)
 
       ext.bits.onTransactionComplete(async (tx: TPointTransaction) => {
+        if (tx.initiator !== 'current_user') {
+          return
+        }
+
         try {
           await completeTPointTransaction(jwt, tx.transactionReceipt, tx.product.sku)
           setStatus('success')

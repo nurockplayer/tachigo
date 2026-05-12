@@ -1,6 +1,12 @@
 package router
 
 import (
+	"context"
+	"errors"
+	"log"
+	"net/http"
+	"time"
+
 	"github.com/gin-gonic/gin"
 	swaggerFiles "github.com/swaggo/files"
 	ginSwagger "github.com/swaggo/gin-swagger"
@@ -12,6 +18,8 @@ import (
 	"github.com/tachigo/tachigo/internal/models"
 	"github.com/tachigo/tachigo/internal/services"
 )
+
+const databasePingTimeout = 2 * time.Second
 
 type InternalRouterConfig struct {
 	DB     *gorm.DB
@@ -37,13 +45,37 @@ func New(
 	allowedOrigins []string,
 	internalRouterConfig ...InternalRouterConfig,
 ) *gin.Engine {
-	r := gin.New()
-	r.Use(gin.Logger(), gin.Recovery())
-	r.Use(middleware.CORS(allowedOrigins))
-
 	var cfg *config.Config
+	var db *gorm.DB
 	if len(internalRouterConfig) > 0 {
 		cfg = internalRouterConfig[0].Config
+		db = internalRouterConfig[0].DB
+	}
+
+	if cfg != nil && cfg.Server.GinMode != "" {
+		gin.SetMode(cfg.Server.GinMode)
+	}
+
+	r := gin.New()
+	r.Use(gin.Logger(), gin.Recovery())
+	if cfg != nil {
+		r.Use(middleware.RequestTimeout(cfg.Server.RequestTimeout))
+	}
+	r.Use(middleware.CORS(allowedOrigins))
+
+	if cfg != nil && len(cfg.Server.TrustedProxies) > 0 {
+		if err := r.SetTrustedProxies(cfg.Server.TrustedProxies); err != nil {
+			log.Printf("warning: SetTrustedProxies: %v", err)
+		}
+	}
+	rateLimiter := middleware.NewRateLimiter()
+	publicRateLimit := func(name string) gin.HandlerFunc {
+		return rateLimiter.Limit(middleware.RateLimitConfig{
+			Name:    name,
+			Limit:   60,
+			Window:  time.Minute,
+			KeyFunc: middleware.ClientIPRateLimitKey,
+		})
 	}
 
 	authH := handlers.NewAuthHandler(authSvc, cfg).WithEmailAuth(emailAuthSvc)
@@ -60,18 +92,19 @@ func New(
 	airdropH := handlers.NewAirdropHandler(airdropSvc, agencySvc, streamerSvc)
 	raffleH := handlers.NewRaffleHandler(raffleSvc)
 
-	r.GET("/health", func(c *gin.Context) {
-		c.JSON(200, gin.H{"status": "ok"})
-	})
-	r.GET("/swagger/*any", ginSwagger.WrapHandler(swaggerFiles.Handler))
+	r.GET("/health", healthHandler(db))
+	r.GET("/readyz", readinessHandler(db))
+	if config.ShouldEnableSwagger(cfg) {
+		r.GET("/swagger/*any", ginSwagger.WrapHandler(swaggerFiles.Handler))
+	}
 
 	v1 := r.Group("/api/v1")
 
 	// ── Public auth endpoints ─────────────────────────────────────────────
 	auth := v1.Group("/auth")
 	{
-		auth.POST("/register", authH.Register)
-		auth.POST("/login", authH.Login)
+		auth.POST("/register", publicRateLimit("auth_register"), authH.Register)
+		auth.POST("/login", publicRateLimit("auth_login"), authH.Login)
 		auth.POST("/refresh", authH.Refresh)
 		auth.POST("/logout", authH.Logout)
 
@@ -84,15 +117,15 @@ func New(
 		auth.GET("/google/callback", authH.GoogleCallback)
 
 		// Web3 / SIWE
-		auth.POST("/web3/nonce", authH.Web3Nonce)
-		auth.POST("/web3/verify", authH.Web3Verify)
+		auth.POST("/web3/nonce", publicRateLimit("auth_web3_nonce"), authH.Web3Nonce)
+		auth.POST("/web3/verify", publicRateLimit("auth_web3_verify"), authH.Web3Verify)
 
 		// Email verification (confirm is public so users can click link without login)
 		auth.POST("/verify-email/confirm", emailH.ConfirmVerification)
 
 		// Password reset (public)
-		auth.POST("/forgot-password", emailH.ForgotPassword)
-		auth.POST("/reset-password", emailH.ResetPassword)
+		auth.POST("/forgot-password", publicRateLimit("auth_forgot_password"), emailH.ForgotPassword)
+		auth.POST("/reset-password", publicRateLimit("auth_reset_password"), emailH.ResetPassword)
 	}
 
 	// ── Claim endpoints ───────────────────────────────────────────────────
@@ -108,8 +141,8 @@ func New(
 	ext := v1.Group("/extension")
 	{
 		ext.POST("/auth/login", extH.Login)
-		ext.POST("/t-point/complete", extH.TPointComplete)
-		ext.POST("/bits/complete", extH.BitsComplete) // deprecated alias
+		ext.POST("/t-point/complete", publicRateLimit("extension_t_point_complete"), extH.TPointComplete)
+		ext.POST("/bits/complete", publicRateLimit("extension_bits_complete"), extH.BitsComplete) // deprecated alias
 
 		// Raffle result — public read (no auth required)
 		ext.GET("/raffles/:id/result", raffleH.GetResult)
@@ -224,13 +257,12 @@ func New(
 		dashboardAirdrop.POST("/airdrop", airdropH.Airdrop)
 	}
 
-	if len(internalRouterConfig) > 0 &&
-		internalRouterConfig[0].DB != nil &&
-		internalRouterConfig[0].Config != nil &&
-		internalRouterConfig[0].Config.Internal.TachiyaSharedSecret != "" {
-		internalPointsH := handlers.NewInternalPointsHandler(internalRouterConfig[0].DB)
+	if db != nil &&
+		cfg != nil &&
+		cfg.Internal.TachiyaSharedSecret != "" {
+		internalPointsH := handlers.NewInternalPointsHandler(db)
 		internal := v1.Group("/internal/tachiya")
-		internal.Use(middleware.TachiyaInternalAuth(internalRouterConfig[0].Config))
+		internal.Use(middleware.TachiyaInternalAuth(cfg))
 		{
 			internal.GET("/users/points/balance", internalPointsH.GetUserPointsBalance)
 		}
@@ -282,4 +314,54 @@ func New(
 	}
 
 	return r
+}
+
+func healthHandler(db *gorm.DB) gin.HandlerFunc {
+	return func(c *gin.Context) {
+		dbStatus, err := databaseStatus(c.Request.Context(), db)
+		if err != nil {
+			log.Printf("health db check failed: %v", err)
+		}
+		c.JSON(http.StatusOK, gin.H{
+			"status": "ok",
+			"db":     dbStatus,
+		})
+	}
+}
+
+func readinessHandler(db *gorm.DB) gin.HandlerFunc {
+	return func(c *gin.Context) {
+		dbStatus, err := databaseStatus(c.Request.Context(), db)
+		if err != nil {
+			log.Printf("readyz db check failed: %v", err)
+		}
+		if dbStatus != "ok" {
+			c.JSON(http.StatusServiceUnavailable, gin.H{
+				"status": "unavailable",
+				"db":     "unavailable",
+			})
+			return
+		}
+
+		c.JSON(http.StatusOK, gin.H{
+			"status": "ready",
+			"db":     "ok",
+		})
+	}
+}
+
+func databaseStatus(ctx context.Context, db *gorm.DB) (string, error) {
+	if db == nil {
+		return "unavailable", errors.New("database handle is not configured")
+	}
+	sqlDB, err := db.DB()
+	if err != nil {
+		return "unavailable", err
+	}
+	pingCtx, cancel := context.WithTimeout(ctx, databasePingTimeout)
+	defer cancel()
+	if err := sqlDB.PingContext(pingCtx); err != nil {
+		return "unavailable", err
+	}
+	return "ok", nil
 }

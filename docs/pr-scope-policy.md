@@ -6,7 +6,10 @@
 
 - 日常功能開發與功能 PR 一律先進 `develop`
 - `main` 只接受正式 release promotion
-- 預設 cadence 為每兩週一次 `develop -> main` release PR
+- `.github/workflows/release-pr.yml` 每天檢查一次 `develop -> main` release PR
+- 自動 release PR 需距離上次 release 至少 72 小時，且上次 release 後已 merge 至少 10 個 PR
+- 若距離上次 release 已滿 7 天，即使 PR 數低於 10 個也可自動開 release PR，避免 `main` 長期落後
+- `workflow_dispatch` 可手動開 release PR；automation 只開 PR，不自動 merge
 - 目前暫不使用 `release/*` branch
 - 待未來有正式部署、freeze window、hotfix/backport 需求時，再升級為完整 release branch 流程
 
@@ -32,7 +35,7 @@ repo 目前有一個 GitHub Actions workflow：
 - 產品程式碼 PR 必須明確標記 backend contract 是否已經在 `develop`
 - PR body 必須包含 `本 PR 明確不做`
 - PR 變更檔案數超過 `35` 個時 fail
-- PR diff 超過 `1500` 行時 fail
+- PR diff 超過 `600` 行時 warning，超過 `1000` 行時 fail
 - PR 不可同時改多個 product surface：
   - backend surface：`services/api/`（舊路徑 `backend/` 仍作為歷史 PR 判斷）
   - frontend surface：`apps/dashboard/`、`apps/extension/`（舊路徑 `dashboard/`、`tachimint/` 仍作為歷史 PR 判斷）
@@ -111,7 +114,7 @@ Dependabot maintenance PR 目前不會套用 frontend/backend 依賴關係用的
 這類 PR 的性質是把已在 `develop` 收斂完成的內容整批 promotion 到 `main`，因此：
 
 - 不套用一般 feature PR 的檔案數上限 `35`
-- 不套用一般 feature PR 的 diff 行數上限 `1800`
+- 不套用一般 feature PR 的 diff 行數上限 `1000`
 - 不套用單一 product surface 限制
 - 不會因為大包而被 `PR Scope Police` 自動關閉
 - 仍會要求 PR body 補齊基本資訊，例如 `Source of truth`、`Depends on PR`、`Backend contract already in develop`、`本 PR 明確不做`
@@ -131,7 +134,7 @@ Dependabot maintenance PR 目前不會套用 frontend/backend 依賴關係用的
 目前視為嚴重違規的情況：
 
 - 檔案數超過 `35`
-- diff 超過 `1500` 行
+- diff 超過 `1000` 行
 - 同時改多個 product surface
 - `[backend]` PR 去改 frontend surface
 - `[frontend]` PR 去改 backend
@@ -143,7 +146,16 @@ Dependabot maintenance PR 目前不會套用 frontend/backend 依賴關係用的
 
 - `scope-exception`
 
-這個 label 會 bypass `PR Scope Police`。
+這個 label 目前會 bypass 一般 scope / size / product-surface checks，沒有額外的例外行數上限。
+若 PR 屬於 Codex autonomous PR，`scope-exception` 不會 bypass autonomous delegation gate；PR 仍必須填寫 `Delegation Execution Log`，並列出 worker profile 或 trivial/self-only exception reason。
+
+關於 autonomous PR 的判定與觸發條件：
+
+- `codex` / `codex-automation` / `auto-ready` label 或 `Delegation Execution Log` 在正式欄位（`Source issue delegation plan`、`Actual worker profile(s)`、`Model strength`、`Verification evidence`、`Self-review / exception reason`）有實質內容時，視為 autonomous PR。
+- 自動化 PR 還須在同區塊填寫 `Worker session closeout`，且內容不可空白、`n/a`、`none`、`無`、`不適用`。
+- section 內只要是空白、`n/a`、`none`、`無`、`不適用`，或非正式欄位的自由備註，不會啟動 delegation gate。
+- 只有 section 標題但欄位空白，不算 autonomous PR，也不會觸發 delegation gate。
+- 一般非 autonomous PR 不需要填寫 worker profile；不因 `Delegation Execution Log` 缺漏而被視為流程違規。
 
 使用原則：
 
@@ -151,6 +163,7 @@ Dependabot maintenance PR 目前不會套用 frontend/backend 依賴關係用的
 - 預設不加
 - 只有在「同一張票的必要前置真的無法拆開」時才使用
 - 不能把它當成超大包 PR 的常態逃生門
+- 若未來需要保留例外 PR 的行數上限，必須先同步修改 `.github/workflows/pr-scope-police.yml` 與 `.github/workflows/ci.yml`，讓上限真的在 CI 生效
 
 注意：
 

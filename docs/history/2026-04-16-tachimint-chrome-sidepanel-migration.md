@@ -3,7 +3,7 @@
 > 用途：記錄 `tachimint` 前端 migration 的已定案方向，作為後續 PR 的共同 source of truth。
 > 狀態：歷史 migration decision record，不是完整實作 spec。
 > 最後更新：2026-04-16
-> 最後校正：2026-05-05（#490 docs root audit）
+> 最後校正：2026-05-12（#321 legacy demo sidepanel cleanup）
 
 ---
 
@@ -15,7 +15,7 @@
 2. 前端 runtime 由舊的 Twitch-hosted panel，遷移為 Chrome sidepanel extension
 3. 身份來源在本階段仍沿用 Twitch 相關流程
 4. backend contract 在本階段沿用既有 API，不於本輪重設
-5. `extensions/tachigo-demo-sidepanel/` 視為 migration source，不是長期保留的正式產品入口
+5. `extensions/tachigo-demo-sidepanel/` 曾作為 migration source；migration 內容已搬入 `apps/extension/`，legacy source directory 不再是現役開發入口
 
 ---
 
@@ -33,12 +33,12 @@
 
 ## 3. 為什麼要這樣切
 
-目前 `tachimint` 內仍有既有產品邏輯與後端契約，例如 Twitch auth、heartbeat、claim 與相關 API wiring；另一方面，`extensions/tachigo-demo-sidepanel/` 已經提供較接近目標方向的 Chrome sidepanel shell 與新 UI。
+決策當時 `tachimint` 內仍有既有產品邏輯與後端契約，例如 Twitch auth、heartbeat、claim 與相關 API wiring；另一方面，當時的 `extensions/tachigo-demo-sidepanel/` 提供了較接近目標方向的 Chrome sidepanel shell 與新 UI。
 
 因此這次 migration 採用的策略是：
 
 - 保留 `apps/extension/` 作為唯一正式 extension 前端 surface
-- 以 `extensions/` 的 runtime 與 UI 作為 migration source
+- 將 legacy demo sidepanel 的 runtime 與 UI 視為一次性 migration source，搬入 `apps/extension/` 後不再維護原目錄
 - 逐步把既有 `tachimint` 的產品邏輯接回新的 sidepanel shell
 
 ---
@@ -78,7 +78,7 @@ Chrome storage 為主要儲存，localStorage 作為持續同步的 fallback mir
 
 - 不含 UI 元件（LoginScreen / HUD / ClaimPanel / CouponShopPanel）
 - 不改 App 進入點或路由邏輯
-- 不移除 `extensions/tachigo-demo-sidepanel/`
+- 不在 Slice 1 同時移除 `extensions/tachigo-demo-sidepanel/`；legacy source directory cleanup 另由 #321 處理
 
 ---
 

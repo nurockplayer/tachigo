@@ -2,6 +2,7 @@ package router_test
 
 import (
 	"context"
+	"encoding/json"
 	"fmt"
 	"net/http"
 	"net/http/httptest"
@@ -37,7 +38,7 @@ type routerTestEnv struct {
 	router  *gin.Engine
 }
 
-func newRouterTestEnv(t *testing.T) *routerTestEnv {
+func newRouterTestEnv(t *testing.T, routerConfigs ...*config.Config) *routerTestEnv {
 	t.Helper()
 
 	dbName := strings.NewReplacer("/", "_", " ", "_").Replace(t.Name())
@@ -74,6 +75,9 @@ func newRouterTestEnv(t *testing.T) *routerTestEnv {
 			FrontendURL: "http://localhost:3000",
 		},
 	}
+	if len(routerConfigs) > 0 {
+		cfg = routerConfigs[0]
+	}
 	authSvc := services.NewAuthService(db, cfg)
 	userSvc := services.NewUserService(db)
 	addrSvc := services.NewAddressService(db)
@@ -89,6 +93,11 @@ func newRouterTestEnv(t *testing.T) *routerTestEnv {
 	spendSvc := services.NewSpendService(db, config.ContractConfig{}, nil, nil)
 	raffleSvc := services.NewRaffleService(db, "", "", nil)
 	agencyHandler := handlers.NewAgencyHandler(agencySvc, emailAuthSvc)
+
+	internalRouterConfigs := []router.InternalRouterConfig{}
+	if len(routerConfigs) > 0 {
+		internalRouterConfigs = append(internalRouterConfigs, router.InternalRouterConfig{DB: db, Config: cfg})
+	}
 
 	engine := router.New(
 		authSvc,
@@ -107,6 +116,7 @@ func newRouterTestEnv(t *testing.T) *routerTestEnv {
 		raffleSvc,
 		agencyHandler,
 		[]string{"http://localhost:3000"},
+		internalRouterConfigs...,
 	)
 
 	return &routerTestEnv{
@@ -114,6 +124,209 @@ func newRouterTestEnv(t *testing.T) *routerTestEnv {
 		authSvc: authSvc,
 		router:  engine,
 	}
+}
+
+func TestSwaggerRoute_DevelopmentDefaultExposesSwagger(t *testing.T) {
+	env := newRouterTestEnv(t, routerTestConfig("development", false, false))
+
+	assertSwaggerExposed(t, env.router)
+}
+
+func TestSwaggerRoute_ProductionDefaultHidesSwagger(t *testing.T) {
+	env := newRouterTestEnv(t, routerTestConfig("production", false, false))
+
+	assertSwaggerHidden(t, env.router)
+}
+
+func TestSwaggerRoute_ProductionExplicitFlagExposesSwagger(t *testing.T) {
+	env := newRouterTestEnv(t, routerTestConfig("production", true, true))
+
+	assertSwaggerExposed(t, env.router)
+}
+
+func TestRouter_AppliesRequestTimeoutMiddleware(t *testing.T) {
+	cfg := routerTestConfig("development", false, false)
+	cfg.Server.RequestTimeout = 50 * time.Millisecond
+	env := newRouterTestEnv(t, cfg)
+
+	var sawDeadline bool
+	env.router.GET("/test-timeout-deadline", func(c *gin.Context) {
+		_, sawDeadline = c.Request.Context().Deadline()
+		c.JSON(http.StatusOK, gin.H{"ok": true})
+	})
+
+	req := httptest.NewRequest(http.MethodGet, "/test-timeout-deadline", nil)
+	rec := httptest.NewRecorder()
+	env.router.ServeHTTP(rec, req)
+
+	if rec.Code != http.StatusOK {
+		t.Fatalf("want 200, got %d: %s", rec.Code, rec.Body.String())
+	}
+	if !sawDeadline {
+		t.Fatal("expected router to attach request context deadline")
+	}
+}
+
+func routerTestConfig(serverEnv string, enableSwagger, enableSwaggerSet bool) *config.Config {
+	return &config.Config{
+		Server: config.ServerConfig{
+			Env:              serverEnv,
+			EnableSwagger:    enableSwagger,
+			EnableSwaggerSet: enableSwaggerSet,
+		},
+		JWT: config.JWTConfig{
+			AccessSecret:  "test-access-secret-at-least-32-chars!",
+			RefreshSecret: "test-refresh-secret",
+			AccessTTL:     15 * time.Minute,
+			RefreshTTL:    30 * 24 * time.Hour,
+		},
+		App: config.AppConfig{
+			FrontendURL: "http://localhost:3000",
+		},
+	}
+}
+
+func assertSwaggerExposed(t *testing.T, engine *gin.Engine) {
+	t.Helper()
+
+	req := httptest.NewRequest(http.MethodGet, "/swagger/index.html", nil)
+	rec := httptest.NewRecorder()
+	engine.ServeHTTP(rec, req)
+
+	if rec.Code == http.StatusNotFound {
+		t.Fatalf("expected swagger route to be exposed, got 404: %s", rec.Body.String())
+	}
+}
+
+func assertSwaggerHidden(t *testing.T, engine *gin.Engine) {
+	t.Helper()
+
+	req := httptest.NewRequest(http.MethodGet, "/swagger/index.html", nil)
+	rec := httptest.NewRecorder()
+	engine.ServeHTTP(rec, req)
+
+	if rec.Code != http.StatusNotFound {
+		t.Fatalf("expected swagger route to be hidden with 404, got %d: %s", rec.Code, rec.Body.String())
+	}
+}
+
+func TestHealthIncludesDatabaseStatus(t *testing.T) {
+	env := newRouterTestEnv(t, routerTestConfig("development", false, false))
+
+	req := httptest.NewRequest(http.MethodGet, "/health", nil)
+	rec := httptest.NewRecorder()
+	env.router.ServeHTTP(rec, req)
+
+	if rec.Code != http.StatusOK {
+		t.Fatalf("want 200, got %d: %s", rec.Code, rec.Body.String())
+	}
+	body := decodeJSONBody(t, rec)
+	if body["status"] != "ok" {
+		t.Fatalf("want status=ok, got %v", body["status"])
+	}
+	if body["db"] != "ok" {
+		t.Fatalf("want db=ok, got %v", body["db"])
+	}
+}
+
+func TestReadyzReturnsReadyWhenDatabasePingSucceeds(t *testing.T) {
+	env := newRouterTestEnv(t, routerTestConfig("development", false, false))
+
+	req := httptest.NewRequest(http.MethodGet, "/readyz", nil)
+	rec := httptest.NewRecorder()
+	env.router.ServeHTTP(rec, req)
+
+	if rec.Code != http.StatusOK {
+		t.Fatalf("want 200, got %d: %s", rec.Code, rec.Body.String())
+	}
+	body := decodeJSONBody(t, rec)
+	if body["status"] != "ready" {
+		t.Fatalf("want status=ready, got %v", body["status"])
+	}
+	if body["db"] != "ok" {
+		t.Fatalf("want db=ok, got %v", body["db"])
+	}
+}
+
+func TestReadyzReturnsUnavailableWhenDatabasePingFails(t *testing.T) {
+	env := newRouterTestEnv(t, routerTestConfig("development", false, false))
+	sqlDB, err := env.db.DB()
+	if err != nil {
+		t.Fatalf("db handle: %v", err)
+	}
+	if err := sqlDB.Close(); err != nil {
+		t.Fatalf("close db: %v", err)
+	}
+
+	req := httptest.NewRequest(http.MethodGet, "/readyz", nil)
+	rec := httptest.NewRecorder()
+	env.router.ServeHTTP(rec, req)
+
+	if rec.Code != http.StatusServiceUnavailable {
+		t.Fatalf("want 503, got %d: %s", rec.Code, rec.Body.String())
+	}
+	body := decodeJSONBody(t, rec)
+	if body["status"] != "unavailable" {
+		t.Fatalf("want status=unavailable, got %v", body["status"])
+	}
+	if body["db"] != "unavailable" {
+		t.Fatalf("want db=unavailable, got %v", body["db"])
+	}
+}
+
+func TestReadyzReturnsUnavailableWhenDatabaseIsNotInjected(t *testing.T) {
+	env := newRouterTestEnv(t)
+
+	req := httptest.NewRequest(http.MethodGet, "/readyz", nil)
+	rec := httptest.NewRecorder()
+	env.router.ServeHTTP(rec, req)
+
+	if rec.Code != http.StatusServiceUnavailable {
+		t.Fatalf("want 503, got %d: %s", rec.Code, rec.Body.String())
+	}
+	body := decodeJSONBody(t, rec)
+	if body["status"] != "unavailable" {
+		t.Fatalf("want status=unavailable, got %v", body["status"])
+	}
+	if body["db"] != "unavailable" {
+		t.Fatalf("want db=unavailable, got %v", body["db"])
+	}
+}
+
+func TestHealthReportsDatabaseUnavailableWithoutFailingLiveness(t *testing.T) {
+	env := newRouterTestEnv(t, routerTestConfig("development", false, false))
+	sqlDB, err := env.db.DB()
+	if err != nil {
+		t.Fatalf("db handle: %v", err)
+	}
+	if err := sqlDB.Close(); err != nil {
+		t.Fatalf("close db: %v", err)
+	}
+
+	req := httptest.NewRequest(http.MethodGet, "/health", nil)
+	rec := httptest.NewRecorder()
+	env.router.ServeHTTP(rec, req)
+
+	if rec.Code != http.StatusOK {
+		t.Fatalf("want 200, got %d: %s", rec.Code, rec.Body.String())
+	}
+	body := decodeJSONBody(t, rec)
+	if body["status"] != "ok" {
+		t.Fatalf("want status=ok, got %v", body["status"])
+	}
+	if body["db"] != "unavailable" {
+		t.Fatalf("want db=unavailable, got %v", body["db"])
+	}
+}
+
+func decodeJSONBody(t *testing.T, rec *httptest.ResponseRecorder) map[string]any {
+	t.Helper()
+
+	var body map[string]any
+	if err := json.Unmarshal(rec.Body.Bytes(), &body); err != nil {
+		t.Fatalf("decode JSON body: %v", err)
+	}
+	return body
 }
 
 func migrateTestDB(db *gorm.DB) error {
@@ -344,6 +557,77 @@ func migrateTestDB(db *gorm.DB) error {
 	}
 
 	return nil
+}
+
+func TestPublicEndpointRateLimits(t *testing.T) {
+	env := newRouterTestEnv(t)
+
+	tests := []struct {
+		name string
+		path string
+		body string
+	}{
+		{
+			name: "register",
+			path: "/api/v1/auth/register",
+			body: `{}`,
+		},
+		{
+			name: "login",
+			path: "/api/v1/auth/login",
+			body: `{}`,
+		},
+		{
+			name: "forgot password",
+			path: "/api/v1/auth/forgot-password",
+			body: `{}`,
+		},
+		{
+			name: "reset password",
+			path: "/api/v1/auth/reset-password",
+			body: `{}`,
+		},
+		{
+			name: "web3 nonce",
+			path: "/api/v1/auth/web3/nonce",
+			body: `{}`,
+		},
+		{
+			name: "web3 verify",
+			path: "/api/v1/auth/web3/verify",
+			body: `{}`,
+		},
+		{
+			name: "receipt completion",
+			path: "/api/v1/extension/t-point/complete",
+			body: `{}`,
+		},
+		{
+			name: "bits receipt completion",
+			path: "/api/v1/extension/bits/complete",
+			body: `{}`,
+		},
+	}
+
+	for _, tt := range tests {
+		t.Run(tt.name, func(t *testing.T) {
+			for i := 0; i < 70; i++ {
+				req := httptest.NewRequest(http.MethodPost, tt.path, strings.NewReader(tt.body))
+				req.Header.Set("Content-Type", "application/json")
+				rec := httptest.NewRecorder()
+				env.router.ServeHTTP(rec, req)
+
+				if rec.Code == http.StatusTooManyRequests {
+					if !strings.Contains(rec.Body.String(), "rate limit exceeded") {
+						t.Fatalf("want deterministic rate limit error, got %s", rec.Body.String())
+					}
+					return
+				}
+			}
+
+			t.Fatal("expected endpoint to return 429 after repeated requests")
+		})
+	}
 }
 
 func (e *routerTestEnv) tokenForRole(t *testing.T, role models.UserRole, prefix string) (string, string) {

@@ -2,6 +2,7 @@ package handlers_test
 
 import (
 	"bytes"
+	"context"
 	"crypto/tls"
 	"fmt"
 	"net/http"
@@ -11,6 +12,7 @@ import (
 	"time"
 
 	"github.com/tachigo/tachigo/internal/models"
+	"golang.org/x/oauth2"
 )
 
 // ─── Register ────────────────────────────────────────────────────────────────
@@ -32,6 +34,7 @@ func TestRegisterHandler_Success(t *testing.T) {
 		t.Error("want success: true")
 	}
 	assertRefreshCookieSet(t, w, "", http.SameSiteLaxMode, false)
+	assertTokenPayloadHasBrowserTokens(t, resp)
 }
 
 func TestRegisterHandler_DuplicateEmail(t *testing.T) {
@@ -107,6 +110,7 @@ func TestLoginHandler_Success(t *testing.T) {
 		t.Errorf("want 200, got %d: %s", w.Code, w.Body.String())
 	}
 	assertRefreshCookieSet(t, w, "", http.SameSiteLaxMode, false)
+	assertTokenPayloadHasBrowserTokens(t, parseBody(t, w.Body.Bytes()))
 }
 
 func TestLoginHandler_SetsSecureRefreshCookieInProduction(t *testing.T) {
@@ -201,6 +205,7 @@ func TestRefreshHandler_Success(t *testing.T) {
 		t.Errorf("want 200, got %d: %s", w.Code, w.Body.String())
 	}
 	assertRefreshCookieSet(t, w, refreshToken, http.SameSiteLaxMode, false)
+	assertTokenPayloadHasBrowserTokens(t, parseBody(t, w.Body.Bytes()))
 }
 
 func TestRefreshHandler_SuccessWithCookie(t *testing.T) {
@@ -217,6 +222,7 @@ func TestRefreshHandler_SuccessWithCookie(t *testing.T) {
 		t.Errorf("want 200, got %d: %s", w.Code, w.Body.String())
 	}
 	assertRefreshCookieSet(t, w, refreshToken, http.SameSiteLaxMode, false)
+	assertTokenPayloadHasBrowserTokens(t, parseBody(t, w.Body.Bytes()))
 }
 
 func TestRefreshHandler_PrefersCookieOverBodyToken(t *testing.T) {
@@ -350,6 +356,64 @@ func TestLogoutHandler_MissingToken(t *testing.T) {
 	}
 }
 
+// ─── OAuth state cookie ──────────────────────────────────────────────────────
+
+func TestOAuthStateCookie_DevelopmentAllowsInsecureLocalRedirects(t *testing.T) {
+	env := newTestEnvWithServerEnv(t, "development")
+
+	req := httptest.NewRequest(http.MethodGet, "/api/v1/auth/twitch", nil)
+	w := httptest.NewRecorder()
+	env.router.ServeHTTP(w, req)
+
+	if w.Code != http.StatusFound {
+		t.Fatalf("want 302, got %d: %s", w.Code, w.Body.String())
+	}
+	assertOAuthStateCookieSet(t, w, http.SameSiteLaxMode, false)
+}
+
+func TestOAuthStateCookie_ProductionIsSecureAndHTTPOnly(t *testing.T) {
+	env := newTestEnvWithServerEnv(t, "production")
+
+	req := httptest.NewRequest(http.MethodGet, "/api/v1/auth/twitch", nil)
+	w := httptest.NewRecorder()
+	env.router.ServeHTTP(w, req)
+
+	if w.Code != http.StatusFound {
+		t.Fatalf("want 302, got %d: %s", w.Code, w.Body.String())
+	}
+	assertOAuthStateCookieSet(t, w, http.SameSiteLaxMode, true)
+}
+
+func TestOAuthCallback_StateMismatchRejectsAndClearsStateCookie(t *testing.T) {
+	env := newTestEnv(t)
+
+	req := httptest.NewRequest(http.MethodGet, "/api/v1/auth/twitch/callback?code=code&state=actual", nil)
+	req.AddCookie(&http.Cookie{Name: "oauth_state", Value: "expected", Path: "/"})
+	w := httptest.NewRecorder()
+	env.router.ServeHTTP(w, req)
+
+	if w.Code != http.StatusBadRequest {
+		t.Fatalf("want 400, got %d: %s", w.Code, w.Body.String())
+	}
+	assertOAuthStateCookieCleared(t, w, http.SameSiteLaxMode, false)
+}
+
+func TestOAuthCallback_ValidStateClearsStateCookieBeforeOAuthExchange(t *testing.T) {
+	env := newTestEnv(t)
+	httpClient := &http.Client{Transport: failingRoundTripper{}}
+	ctx := context.WithValue(context.Background(), oauth2.HTTPClient, httpClient)
+
+	req := httptest.NewRequest(http.MethodGet, "/api/v1/auth/twitch/callback?code=code&state=expected", nil).WithContext(ctx)
+	req.AddCookie(&http.Cookie{Name: "oauth_state", Value: "expected", Path: "/"})
+	w := httptest.NewRecorder()
+	env.router.ServeHTTP(w, req)
+
+	if w.Code != http.StatusInternalServerError {
+		t.Fatalf("want 500 from mocked OAuth exchange failure, got %d: %s", w.Code, w.Body.String())
+	}
+	assertOAuthStateCookieCleared(t, w, http.SameSiteLaxMode, false)
+}
+
 func assertRefreshCookieSet(
 	t *testing.T,
 	w *httptest.ResponseRecorder,
@@ -424,6 +488,70 @@ func responseCookie(t *testing.T, w *httptest.ResponseRecorder, name string) *ht
 	return nil
 }
 
+func assertOAuthStateCookieSet(
+	t *testing.T,
+	w *httptest.ResponseRecorder,
+	expectedSameSite http.SameSite,
+	expectedSecure bool,
+) {
+	t.Helper()
+
+	cookie := responseCookie(t, w, "oauth_state")
+	if cookie.Value == "" {
+		t.Fatal("expected oauth state cookie to be set")
+	}
+	if cookie.MaxAge <= 0 {
+		t.Fatalf("expected oauth state cookie MaxAge > 0, got %d", cookie.MaxAge)
+	}
+	if cookie.Path != "/" {
+		t.Fatalf("expected oauth state cookie path /, got %q", cookie.Path)
+	}
+	if !cookie.HttpOnly {
+		t.Fatal("expected oauth state cookie to be HttpOnly")
+	}
+	if cookie.SameSite != expectedSameSite {
+		t.Fatalf("expected oauth state cookie SameSite %v, got %v", expectedSameSite, cookie.SameSite)
+	}
+	if cookie.Secure != expectedSecure {
+		t.Fatalf("expected oauth state cookie Secure %t, got %t", expectedSecure, cookie.Secure)
+	}
+}
+
+func assertOAuthStateCookieCleared(
+	t *testing.T,
+	w *httptest.ResponseRecorder,
+	expectedSameSite http.SameSite,
+	expectedSecure bool,
+) {
+	t.Helper()
+
+	cookie := responseCookie(t, w, "oauth_state")
+	if cookie.Value != "" {
+		t.Fatalf("expected cleared oauth state cookie, got %q", cookie.Value)
+	}
+	if cookie.MaxAge >= 0 {
+		t.Fatalf("expected cleared oauth state cookie MaxAge < 0, got %d", cookie.MaxAge)
+	}
+	if cookie.Path != "/" {
+		t.Fatalf("expected oauth state cookie path /, got %q", cookie.Path)
+	}
+	if !cookie.HttpOnly {
+		t.Fatal("expected cleared oauth state cookie to be HttpOnly")
+	}
+	if cookie.SameSite != expectedSameSite {
+		t.Fatalf("expected cleared oauth state cookie SameSite %v, got %v", expectedSameSite, cookie.SameSite)
+	}
+	if cookie.Secure != expectedSecure {
+		t.Fatalf("expected cleared oauth state cookie Secure %t, got %t", expectedSecure, cookie.Secure)
+	}
+}
+
+type failingRoundTripper struct{}
+
+func (failingRoundTripper) RoundTrip(*http.Request) (*http.Response, error) {
+	return nil, fmt.Errorf("blocked test OAuth request")
+}
+
 // ─── Web3 Nonce ───────────────────────────────────────────────────────────────
 
 func TestWeb3NonceHandler_Success(t *testing.T) {
@@ -491,9 +619,12 @@ func TestWeb3VerifyHandler_SuccessSetsRefreshCookieAndConsumesNonce(t *testing.T
 	if !ok || accessToken == "" {
 		t.Fatalf("expected non-empty access_token in response: %#v", tokens)
 	}
-	refreshToken, ok := tokens["refresh_token"].(string)
-	if !ok || refreshToken == "" {
-		t.Fatalf("expected non-empty refresh_token in response: %#v", tokens)
+	if _, ok := tokens["refresh_token"]; ok {
+		t.Fatalf("refresh_token must not be returned in JSON response: %#v", tokens)
+	}
+	expiresIn, ok := tokens["expires_in"].(float64)
+	if !ok || expiresIn <= 0 {
+		t.Fatalf("expected positive expires_in in response: %#v", tokens)
 	}
 
 	var provider models.AuthProvider
@@ -506,6 +637,35 @@ func TestWeb3VerifyHandler_SuccessSetsRefreshCookieAndConsumesNonce(t *testing.T
 	if nonceCount != 0 {
 		t.Fatalf("nonce should be consumed, got %d rows", nonceCount)
 	}
+}
+
+func assertTokenPayloadHasBrowserTokens(t *testing.T, resp map[string]interface{}) {
+	t.Helper()
+
+	data, ok := resp["data"].(map[string]interface{})
+	if !ok || data == nil {
+		t.Fatalf("expected data map in response, resp=%#v", resp)
+	}
+	tokens, ok := data["tokens"].(map[string]interface{})
+	if !ok || tokens == nil {
+		t.Fatalf("expected tokens map in response, data=%#v", data)
+	}
+	accessToken, ok := tokens["access_token"].(string)
+	if !ok || accessToken == "" {
+		t.Fatalf("expected non-empty access_token in response: %#v", tokens)
+	}
+	if _, ok := tokens["refresh_token"]; ok {
+		t.Fatalf("refresh_token must not be returned in JSON response: %#v", tokens)
+	}
+	expiresIn, ok := tokens["expires_in"].(float64)
+	if !ok || expiresIn <= 0 {
+		t.Fatalf("expected positive expires_in in response: %#v", tokens)
+	}
+}
+
+func assertTokenPayloadHasAccessOnly(t *testing.T, resp map[string]interface{}) {
+	t.Helper()
+	assertTokenPayloadHasBrowserTokens(t, resp)
 }
 
 func TestWeb3VerifyHandler_InvalidSignatureReturns401AndKeepsNonce(t *testing.T) {

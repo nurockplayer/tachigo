@@ -1,6 +1,7 @@
 import assert from 'node:assert/strict'
 import { execFileSync } from 'node:child_process'
-import { readFile } from 'node:fs/promises'
+import { mkdir, mkdtemp, readFile, rm, writeFile } from 'node:fs/promises'
+import { tmpdir } from 'node:os'
 import path from 'node:path'
 import test from 'node:test'
 import { fileURLToPath } from 'node:url'
@@ -8,15 +9,27 @@ import { fileURLToPath } from 'node:url'
 const currentDir = path.dirname(fileURLToPath(import.meta.url))
 const repoRoot = path.join(currentDir, '..', '..')
 const workflowPath = path.join(currentDir, 'ci.yml')
+const dockerComposePath = path.join(repoRoot, 'docker-compose.yml')
+const dockerComposeOverridePath = path.join(repoRoot, 'docker-compose.override.yml')
+const backendDockerfilePath = path.join(repoRoot, 'services', 'api', 'Dockerfile')
+const backendMakefilePath = path.join(repoRoot, 'services', 'api', 'Makefile')
+const backendDockerEntrypointPath = path.join(repoRoot, 'services', 'api', 'docker-entrypoint.sh')
 const scopePolicePath = path.join(currentDir, 'pr-scope-police.yml')
+const issueTemplatePath = path.join(repoRoot, '.github', 'ISSUE_TEMPLATE', 'codex-task.yml')
+const prTemplatePath = path.join(repoRoot, '.github', 'PULL_REQUEST_TEMPLATE.md')
 const dependabotConfigPath = path.join(repoRoot, '.github', 'dependabot.yml')
 const dependabotAutomergeWorkflowPath = path.join(currentDir, 'dependabot-automerge.yml')
+const dependabotPnpmLockfileWorkflowPath = path.join(currentDir, 'dependabot-pnpm-lockfile.yml')
 const autoMergeWorkflowPath = path.join(currentDir, 'auto-merge.yml')
 const autoReadyWorkflowPath = path.join(currentDir, 'auto-ready-pr.yml')
+const aiSprintDiscordWorkflowPath = path.join(currentDir, 'ai-sprint-discord.yml')
 const codexReviewRerequestWorkflowPath = path.join(currentDir, 'codex-review-rerequest.yml')
 const closeIssueOnDevelopMergeWorkflowPath = path.join(currentDir, 'close-issue-on-develop-merge.yml')
 const dependencyInventoryWorkflowPath = path.join(currentDir, 'dependency-inventory.yml')
+const notifyRebaseNeededWorkflowPath = path.join(currentDir, 'notify-rebase-needed.yml')
+const releasePrWorkflowPath = path.join(currentDir, 'release-pr.yml')
 const claudePath = path.join(repoRoot, 'CLAUDE.md')
+const prScopePolicyPath = path.join(repoRoot, 'docs', 'pr-scope-policy.md')
 const dependabotPolicyPath = path.join(repoRoot, 'docs', 'dependabot-update-policy.md')
 const securityScannerEvaluationPath = path.join(repoRoot, 'docs', 'security-scanner-evaluation.md')
 const contractsGasSnapshotPolicyPath = path.join(repoRoot, 'docs', 'contracts-gas-snapshot-policy.md')
@@ -82,6 +95,22 @@ function workflowJobBlock(workflow, jobName) {
   const match = workflow.match(pattern)
   assert.ok(match, `expected workflow to include ${jobName} job`)
   return match[0]
+}
+
+function workflowJobStep(parsedWorkflow, jobName, stepName) {
+  const job = parsedWorkflow.jobs[jobName]
+  assert.ok(job, `expected workflow to include ${jobName} job`)
+  const step = job.steps.find((candidate) => candidate.name === stepName)
+  assert.ok(step, `expected ${jobName} to include ${stepName} step`)
+  return step
+}
+
+function escapeRegExp(value) {
+  return value.replace(/[.*+?^${}()|[\]\\]/g, '\\$&')
+}
+
+function pinnedActionRef(actionName, versionLabel) {
+  return new RegExp(`uses: ${escapeRegExp(actionName)}@[0-9a-f]{40} # ${escapeRegExp(versionLabel)}`)
 }
 
 function extractRequiredCheckSnapshots(script) {
@@ -220,6 +249,98 @@ async function runCiScopeGateWorkflow({ eventName = 'pull_request', prOverrides 
 
   await AsyncFunction('context', 'github', 'core', script)(context, github, core)
   return { notices, outputs: Object.fromEntries(outputs) }
+}
+
+async function runScopePoliceWorkflow({
+  body,
+  title = '[chore] Template refresh',
+  labels = [],
+  files = [{ filename: '.github/PULL_REQUEST_TEMPLATE.md', status: 'modified', additions: 1, deletions: 1 }],
+  existingComments = [],
+  prOverrides = {},
+} = {}) {
+  const parsedWorkflow = parseYaml(scopePolicePath)
+  const script = parsedWorkflow.jobs['scope-police'].steps[0].with.script
+  const notices = []
+  const failures = []
+  const comments = []
+  const labelsAdded = []
+  const labelsRemoved = []
+  const labelsCreated = []
+  const pr = {
+    number: 623,
+    state: 'open',
+    body,
+    title,
+    base: { ref: 'develop' },
+    head: { ref: 'feature/template-refresh', repo: { full_name: 'nurockplayer/tachigo' } },
+    labels,
+    user: { login: 'nurockplayer' },
+    ...prOverrides,
+    base: { ref: 'develop', ...(prOverrides.base || {}) },
+    head: {
+      ref: 'feature/template-refresh',
+      repo: { full_name: 'nurockplayer/tachigo' },
+      ...(prOverrides.head || {}),
+      repo: { full_name: 'nurockplayer/tachigo', ...(prOverrides.head?.repo || {}) },
+    },
+    labels: prOverrides.labels || labels,
+  }
+  const github = {
+    rest: {
+      pulls: {
+        listFiles: async () => ({ data: files }),
+        update: async () => ({ data: { state: 'closed' } }),
+      },
+      issues: {
+        listComments: async () => ({ data: existingComments }),
+        createComment: async (args) => {
+          comments.push({ type: 'create', ...args })
+          return { data: { id: comments.length, body: args.body } }
+        },
+        updateComment: async (args) => {
+          comments.push({ type: 'update', ...args })
+          return { data: { id: args.comment_id, body: args.body } }
+        },
+        getLabel: async () => ({ data: { name: 'scope-violation' } }),
+        createLabel: async (args) => {
+          labelsCreated.push(args)
+          return { data: { name: args.name } }
+        },
+        addLabels: async ({ issue_number, labels: nextLabels }) => {
+          labelsAdded.push({ issue_number, labels: nextLabels })
+          return { data: nextLabels.map((name) => ({ name })) }
+        },
+        removeLabel: async ({ issue_number, name }) => {
+          labelsRemoved.push({ issue_number, name })
+          return { data: { name } }
+        },
+      },
+    },
+    paginate: async (fn, args) => {
+      const result = await fn(args)
+      return result.data || result
+    },
+  }
+  const context = {
+    repo: { owner: 'nurockplayer', repo: 'tachigo' },
+    eventName: 'pull_request',
+    payload: { pull_request: pr },
+  }
+  const core = {
+    notice: (message) => notices.push(message),
+    setFailed: (message) => failures.push(message),
+  }
+
+  await AsyncFunction('context', 'github', 'core', script)(context, github, core)
+  return {
+    notices,
+    failures,
+    comments,
+    labelsAdded,
+    labelsRemoved,
+    labelsCreated,
+  }
 }
 
 async function runAutoReadyScript({
@@ -425,6 +546,68 @@ async function runCloseIssueOnDevelopMergeWorkflow({
   return { closed, comments, errors, failures, notices, requestedCommits, warnings }
 }
 
+async function runNotifyRebaseNeededWorkflow({
+  mergedPrOverrides = {},
+  openPRs = [],
+  freshPRsByNumber = {},
+  commentsByIssueNumber = {},
+} = {}) {
+  const parsedWorkflow = parseYaml(notifyRebaseNeededWorkflowPath)
+  const script = parsedWorkflow.jobs.notify.steps[0].with.script
+  const commentsCreated = []
+  const commentsListed = []
+  const infos = []
+  const mergedPR = {
+    number: 600,
+    title: 'Merged backend fix',
+    html_url: 'https://github.com/nurockplayer/tachigo/pull/600',
+    ...mergedPrOverrides,
+  }
+  const github = {
+    rest: {
+      pulls: {
+        list: async () => ({ data: openPRs }),
+        get: async ({ pull_number }) => ({
+          data: freshPRsByNumber[pull_number] || openPRs.find((pr) => pr.number === pull_number),
+        }),
+      },
+      issues: {
+        listComments: async (args) => {
+          commentsListed.push(args)
+          return { data: commentsByIssueNumber[args.issue_number] || [] }
+        },
+        createComment: async (args) => {
+          commentsCreated.push(args)
+          return { data: { id: commentsCreated.length } }
+        },
+      },
+    },
+    paginate: async (fn, args) => {
+      const result = await fn(args)
+      return result.data || result
+    },
+  }
+  const core = {
+    info: (message) => infos.push(message),
+  }
+  const context = {
+    repo: { owner: 'nurockplayer', repo: 'tachigo' },
+    payload: { pull_request: mergedPR },
+  }
+
+  await AsyncFunction('context', 'github', 'core', 'setTimeout', script)(
+    context,
+    github,
+    core,
+    (callback) => {
+      callback()
+      return 0
+    },
+  )
+
+  return { commentsCreated, commentsListed, infos }
+}
+
 test('frontend CI job runs the frontend test command', async () => {
   const workflow = await readFile(workflowPath, 'utf8')
 
@@ -449,13 +632,25 @@ test('CI workflow uses infra script entrypoints', async () => {
   assert.doesNotMatch(workflow, /run: bash scripts\//)
 })
 
+test('CI workflow pins action references to full commit SHAs', async () => {
+  const workflow = await readFile(workflowPath, 'utf8')
+  const actionRefs = [...workflow.matchAll(/uses:\s+([^@\s#]+)@([^\s#]+)(?:\s+#\s+([^\n]+))?/g)]
+
+  assert.ok(actionRefs.length > 0)
+
+  for (const [, actionName, ref, versionLabel] of actionRefs) {
+    assert.match(ref, /^[0-9a-f]{40}$/, `${actionName} must use a full 40-character SHA`)
+    assert.ok(versionLabel?.startsWith('v'), `${actionName} must keep the original version tag as a comment`)
+  }
+})
+
 test('backend CI job runs go test and go vet natively from services/api', async () => {
   const workflow = await readFile(workflowPath, 'utf8')
   const backendJob = workflowJobBlock(workflow, 'backend')
 
   assert.match(
     backendJob,
-    /uses: actions\/setup-go@v6\n\s+with:\n\s+go-version-file: services\/api\/go\.mod/,
+    /uses: actions\/setup-go@[0-9a-f]{40} # v6\n\s+with:\n\s+go-version-file: services\/api\/go\.mod/,
   )
 
   assert.match(
@@ -505,6 +700,11 @@ test('scope gate and scope police use rename-aware allFilePaths for touches', as
   assert.match(workflow, /touches = \{[\s\S]*?allFilePaths\.some/, 'ci.yml touches must use allFilePaths')
   assert.match(scopePolice, /touches = \{[\s\S]*?allFilePaths\.some/, 'pr-scope-police.yml touches must use allFilePaths')
   assert.match(scopePolice, /isDocsTemplateOrMetadataOnly[\s\S]*?allFilePaths\.every/, 'pr-scope-police.yml isDocsTemplateOrMetadataOnly must use allFilePaths')
+  assert.doesNotMatch(
+    scopePolice,
+    /name\.startsWith\('\.github\/workflows\/'\)/,
+    'workflow changes must not be classified as metadata-only in pr-scope-police.yml',
+  )
 })
 
 test('scope gate and scope police recognize legacy and monorepo frontend/backend paths', async () => {
@@ -565,16 +765,22 @@ test('backend CI uses services/api as the Go service root', async () => {
   )
 })
 
-test('CI workflow validates Atlas migration tooling without applying migrations', async () => {
+test('CI workflow validates Atlas migrations against ephemeral PostgreSQL', async () => {
   const workflow = await readFile(workflowPath, 'utf8')
   const atlasJob = workflowJobBlock(workflow, 'atlas-migration-tooling')
 
   assert.match(
     atlasJob,
-    /uses: actions\/setup-go@v6\n\s+with:\n\s+go-version-file: services\/api\/go\.mod/,
+    /uses: actions\/setup-go@[0-9a-f]{40} # v6\n\s+with:\n\s+go-version-file: services\/api\/go\.mod/,
   )
-  assert.match(atlasJob, /uses: ariga\/setup-atlas@v0/)
-  assert.match(atlasJob, /version: v0\.37\.0/)
+  assert.match(atlasJob, /services:\n\s+postgres:\n\s+image: postgres:16-alpine/)
+  assert.match(atlasJob, /POSTGRES_DB: tachigo/)
+  assert.match(atlasJob, /5432:5432/)
+  assert.match(
+    atlasJob,
+    /--health-cmd "pg_isready -U postgres -d tachigo"/,
+  )
+  assert.match(atlasJob, pinnedActionRef('ariga/setup-atlas', 'v0'))
   assert.match(
     atlasJob,
     /working-directory: services\/api\n\s+run: go run \.\/cmd\/loader\/main\.go > \/tmp\/tachigo-gorm-schema\.sql/,
@@ -583,12 +789,159 @@ test('CI workflow validates Atlas migration tooling without applying migrations'
     atlasJob,
     /atlas schema inspect --env gorm --url env:\/\/src --format '\{\{ sql \. \}\}' > \/tmp\/tachigo-atlas-inspect-schema\.sql/,
   )
-  assert.match(atlasJob, /services\/api\/migrations\/.*\.sql/)
   assert.match(
     atlasJob,
-    /atlas migrate lint --env gorm --git-base "origin\/\$\{\{ github\.base_ref \}\}"/,
+    /Reject destructive migration statements without nolint/,
   )
-  assert.doesNotMatch(atlasJob, /atlas migrate apply|atlas schema apply|docker compose up/)
+  assert.match(
+    atlasJob,
+    /atlas migrate apply --dir file:\/\/migrations --url "postgres:\/\/postgres:postgres@localhost:5432\/tachigo\?sslmode=disable"/,
+  )
+  assert.match(
+    atlasJob,
+    /Apply migrations to GORM-shape baseline/,
+  )
+  assert.match(
+    atlasJob,
+    /GORM_BASELINE_DATABASE_URL: postgres:\/\/postgres:postgres@localhost:5432\/tachigo_gorm_baseline\?sslmode=disable/,
+  )
+  assert.match(
+    atlasJob,
+    /psql "postgres:\/\/postgres:postgres@localhost:5432\/postgres\?sslmode=disable" -v ON_ERROR_STOP=1 -c "CREATE DATABASE tachigo_gorm_baseline"/,
+  )
+  assert.match(
+    atlasJob,
+    /psql "\$GORM_BASELINE_DATABASE_URL" -v ON_ERROR_STOP=1 -f \/tmp\/tachigo-gorm-schema\.sql/,
+  )
+  assert.match(
+    atlasJob,
+    /atlas migrate apply --dir file:\/\/migrations --url "\$GORM_BASELINE_DATABASE_URL" --baseline 019/,
+  )
+  assert.doesNotMatch(atlasJob, /--community|\/tmp\/atlas-community|migrate lint|--git-base|docker:\/\/postgres\/15/)
+  assert.doesNotMatch(atlasJob, /version: v0\.37\.0|version: v1\.2\.0/)
+  assert.doesNotMatch(atlasJob, /atlas schema apply|docker compose up/)
+})
+
+test('Atlas destructive migration guard blocks high-risk schema rewrites without nolint', async () => {
+  const parsedWorkflow = parseYaml(workflowPath)
+  const step = workflowJobStep(parsedWorkflow, 'atlas-migration-tooling', 'Reject destructive migration statements without nolint')
+  const tempDir = await mkdtemp(path.join(tmpdir(), 'tachigo-atlas-guard-'))
+  const migrationsDir = path.join(tempDir, 'migrations')
+
+  await mkdir(migrationsDir)
+  try {
+    const cases = [
+      ['drop_index', 'DROP INDEX idx_users_email;'],
+      ['drop_constraint', 'ALTER TABLE users DROP CONSTRAINT users_email_key;'],
+      ['rename_column', 'ALTER TABLE users RENAME COLUMN email TO login_email;'],
+      ['rename_table', 'ALTER TABLE users RENAME TO app_users;'],
+      ['alter_column_type', 'ALTER TABLE users ALTER COLUMN score TYPE bigint;'],
+      ['alter_column_set_data_type', 'ALTER TABLE users ALTER COLUMN score SET DATA TYPE bigint;'],
+    ]
+
+    await writeFile(path.join(migrationsDir, 'comment_only.sql'), '-- DROP CONSTRAINT is documentation only\n')
+    assert.doesNotThrow(() => {
+      execFileSync('sh', ['-c', step.run], { cwd: tempDir, encoding: 'utf8' })
+    })
+
+    // Mirrors the narrow CI allowlist so old applied migrations stay hash-stable.
+    const legacyAuthProviderMigration = '014_auth_provider_partial_unique.sql'
+    const legacyClaimStatusMigration = '017_claim_finalize_failed.sql'
+    const legacyAuthProviderConstraint = 'auth_providers_provider_provider_id_key'
+    const legacyClaimStatusConstraint = 'claims_status_check'
+    const legacyClaimStatusCheckConstraint = 'chk_claim_status'
+    const prefixedLegacyConstraint = `${legacyAuthProviderConstraint}_extra`
+
+    await writeFile(
+      path.join(migrationsDir, legacyAuthProviderMigration),
+      `ALTER TABLE auth_providers\n    DROP CONSTRAINT IF EXISTS ${legacyAuthProviderConstraint};\n`,
+    )
+    await writeFile(
+      path.join(migrationsDir, legacyClaimStatusMigration),
+      [
+        "EXECUTE format('ALTER TABLE claims DROP CONSTRAINT %I', constraint_name);",
+        `ALTER TABLE claims DROP CONSTRAINT IF EXISTS ${legacyClaimStatusConstraint};`,
+        `ALTER TABLE claims DROP CONSTRAINT IF EXISTS ${legacyClaimStatusCheckConstraint};`,
+        '',
+      ].join('\n'),
+    )
+    assert.doesNotThrow(() => {
+      execFileSync('sh', ['-c', step.run], { cwd: tempDir, encoding: 'utf8' })
+    })
+
+    await writeFile(
+      path.join(migrationsDir, legacyAuthProviderMigration),
+      `ALTER TABLE auth_providers DROP CONSTRAINT IF EXISTS ${prefixedLegacyConstraint};\n`,
+    )
+    assert.throws(() => {
+      execFileSync('sh', ['-c', step.run], { cwd: tempDir, encoding: 'utf8' })
+    })
+    await writeFile(
+      path.join(migrationsDir, legacyAuthProviderMigration),
+      `ALTER TABLE auth_providers\n    DROP CONSTRAINT IF EXISTS ${legacyAuthProviderConstraint};\n`,
+    )
+
+    for (const [name, sql] of cases) {
+      const migrationPath = path.join(migrationsDir, `${name}.sql`)
+      await writeFile(migrationPath, `${sql}\n`)
+
+      let failure
+      try {
+        execFileSync('sh', ['-c', step.run], { cwd: tempDir, encoding: 'utf8' })
+      } catch (error) {
+        failure = error
+      }
+
+      assert.ok(failure, `${name} should require -- atlas:nolint`)
+      assert.match(failure.stdout, /destructive migration requires -- atlas:nolint/)
+
+      await writeFile(migrationPath, `-- atlas:nolint\n${sql}\n`)
+      assert.doesNotThrow(() => {
+        execFileSync('sh', ['-c', step.run], { cwd: tempDir, encoding: 'utf8' })
+      })
+    }
+  } finally {
+    await rm(tempDir, { recursive: true, force: true })
+  }
+})
+
+test('backend Docker runtime applies Atlas migrations before starting the API', async () => {
+  const dockerfile = await readFile(backendDockerfilePath, 'utf8')
+  const makefile = await readFile(backendMakefilePath, 'utf8')
+  const entrypoint = await readFile(backendDockerEntrypointPath, 'utf8')
+  const compose = await readFile(dockerComposePath, 'utf8')
+  const composeOverride = await readFile(dockerComposeOverridePath, 'utf8')
+
+  assert.match(dockerfile, /ARG ATLAS_VERSION=1\.2\.0\nFROM arigaio\/atlas:\$\{ATLAS_VERSION\} AS atlas/)
+  assert.doesNotMatch(dockerfile, /FROM arigaio\/atlas:latest/)
+  assert.equal(
+    (dockerfile.match(/COPY --from=atlas \/atlas \/usr\/local\/bin\/atlas/g) ?? []).length,
+    2,
+    'both dev and runtime Docker stages must include the Atlas CLI',
+  )
+  assert.match(dockerfile, /COPY --from=builder \/app\/migrations \.\/migrations/)
+  assert.equal(
+    (dockerfile.match(/ENTRYPOINT \["\/docker-entrypoint\.sh"\]/g) ?? []).length,
+    2,
+    'both dev and runtime Docker stages must run the migration entrypoint',
+  )
+  assert.match(dockerfile, /mkdir -p \/home\/nonroot/)
+  assert.match(dockerfile, /CMD \["\/tachigo"\]/)
+
+  assert.match(entrypoint, /ATLAS_DATABASE_URL is required to apply database migrations/)
+  assert.match(entrypoint, /case "\$\{1:-\}" in/)
+  assert.match(entrypoint, /air\|\/tachigo\|tachigo\)/)
+  const migrateIndex = entrypoint.indexOf('atlas migrate apply')
+  const execIndex = entrypoint.indexOf('exec "$@"')
+  const commandGateIndex = entrypoint.indexOf('case "${1:-}" in')
+  assert.ok(commandGateIndex >= 0, 'entrypoint must gate migration by startup command')
+  assert.ok(commandGateIndex < migrateIndex, 'entrypoint must decide whether to migrate before applying migrations')
+  assert.ok(migrateIndex >= 0, 'entrypoint must apply Atlas migrations')
+  assert.ok(execIndex > migrateIndex, 'entrypoint must start the API only after migrations apply')
+
+  assert.match(makefile, /^migrate:\n\tatlas migrate apply --dir file:\/\/migrations --url "\$\(ATLAS_DATABASE_URL\)"/m)
+  assert.match(compose, /ATLAS_DATABASE_URL: postgres:\/\/postgres:postgres@postgres:5432\/tachigo\?sslmode=disable/)
+  assert.match(composeOverride, /target: dev/)
 })
 
 test('scope gate backend contract regex accepts full-width and half-width colons', async () => {
@@ -624,11 +977,384 @@ test('PR size thresholds match CLAUDE.md', async () => {
 
   assert.match(claude, /\|\s+\*\*警告門檻\*\*\s+\|\s+600\+\s+\|/)
   assert.match(claude, /\|\s+\*\*硬限制\*\*\s+\|\s+1000\+\s+\|/)
-  assert.match(claude, /\|\s+\*\*例外上限\*\*\s+\|\s+1500\s+\|/)
+  assert.match(claude, /\|\s+\*\*例外 bypass\*\*\s+\|\s+無固定上限\s+\|/)
   assert.match(workflow, /const hardMaxDiffLines = 1000/)
   assert.match(scopePolice, /const warningDiffLines = 600/)
   assert.match(scopePolice, /const hardMaxDiffLines = 1000/)
-  assert.match(scopePolice, /const exceptionMaxDiffLines = 1500/)
+  assert.match(scopePolice, /Scope checks bypassed by scope-exception label; autonomous delegation gate still enforced\./)
+  assert.doesNotMatch(scopePolice, /Scope police bypassed by scope-exception label\.'\)\n\s+return/)
+  assert.doesNotMatch(scopePolice, /exceptionMaxDiffLines/)
+})
+
+test('autonomous work entrypoints require start-of-work delegation and point to the workflow guide', async () => {
+  const agents = await readFile(path.join(repoRoot, 'AGENTS.md'), 'utf8')
+  const claude = await readFile(claudePath, 'utf8')
+  const workflow = await readFile(path.join(repoRoot, 'docs', 'ai', 'codex-autonomous-workflow.md'), 'utf8')
+
+  assert.match(agents, /autonomous work 一開始就必須先分派 worker/)
+  assert.match(agents, /約 40% infra 本質複雜、約 60% 工作流自己製造摩擦/)
+  assert.match(agents, /docs\/ai\/codex-autonomous-workflow\.md/)
+  assert.match(claude, /autonomous work 一開始就必須先分派 worker/)
+  assert.match(claude, /約 40% infra 本質複雜、約 60% 工作流自己製造摩擦/)
+  assert.match(claude, /docs\/ai\/codex-autonomous-workflow\.md/)
+  assert.match(workflow, /## Start-of-work Delegation Gate/)
+  assert.match(workflow, /## Cost Model 與摩擦預算/)
+  assert.match(workflow, /### ops_spark Routing Hardening/)
+  assert.match(workflow, /### Review Closeout Evidence Matrix/)
+  assert.match(workflow, /## Subagent Lifecycle 與 Thread-limit Cleanup/)
+  assert.match(workflow, /## Issue-first 與 Follow-up Split Policy/)
+  assert.match(workflow, /## PR Template 與 Policy-test Hardening/)
+  assert.match(workflow, /## Issue Delegation Plan/)
+  assert.match(workflow, /## PR Delegation Execution Log/)
+  assert.match(workflow, /### Worker Lifecycle Closeout/)
+  assert.match(workflow, /close worker session/)
+  assert.match(workflow, /stale handle/)
+  assert.match(workflow, /CodeRabbit rate limit/)
+  assert.match(workflow, /chatgpt-codex-connector/)
+})
+
+test('Codex issue template requires an autonomous worker delegation plan textarea', async () => {
+  const template = parseYaml(issueTemplatePath)
+  const delegationPlan = template.body.find((section) => section.id === 'delegation_plan')
+
+  assert.ok(delegationPlan)
+  assert.equal(delegationPlan.type, 'textarea')
+  assert.equal(delegationPlan.attributes.label, 'Autonomous Worker Delegation Plan')
+  assert.match(delegationPlan.attributes.description, /開工前必填/)
+  assert.match(delegationPlan.attributes.placeholder, /Worker profile\(s\):/)
+  assert.match(delegationPlan.attributes.placeholder, /Evidence \/ validation:/)
+  assert.match(delegationPlan.attributes.placeholder, /Trivial\/self-only exception reason:/)
+  assert.equal(delegationPlan.validations.required, true)
+})
+
+test('PR template includes a delegation execution log for autonomous work', async () => {
+  const prTemplate = await readFile(prTemplatePath, 'utf8')
+
+  assert.match(prTemplate, /## Delegation Execution Log/)
+  assert.match(prTemplate, /Source issue delegation plan：/)
+  assert.match(prTemplate, /Actual worker profile\(s\)：/)
+  assert.match(prTemplate, /Model strength：/)
+  assert.match(prTemplate, /Verification evidence：/)
+  assert.match(prTemplate, /Self-review \/ exception reason：/)
+  assert.match(prTemplate, /Worker session closeout：/)
+  assert.match(prTemplate, /Workflow friction \/ follow-up split：/)
+  assert.match(prTemplate, /約 40% infra 複雜 \/ 約 60% 工作流摩擦/)
+  assert.match(prTemplate, /改到 `\.github\/workflows\/\*\*` 時也不是 metadata-only，仍需勾選/)
+})
+
+test('PR scope police only treats a delegation log as autonomous when it has real content', async () => {
+  const prTemplateBody = await readFile(prTemplatePath, 'utf8')
+
+  const emptyTemplateRun = await runScopePoliceWorkflow({ body: prTemplateBody })
+  assert.equal(emptyTemplateRun.failures.length, 0)
+  assert.equal(emptyTemplateRun.comments.length, 1)
+  assert.match(emptyTemplateRun.comments[0].body, /- Autonomous PR: no/)
+  assert.doesNotMatch(
+    emptyTemplateRun.comments[0].body,
+    /Autonomous PR must include a `Delegation Execution Log` section\./,
+  )
+
+  const filledDelegationLogBody = `
+## Delegation Execution Log
+- Source issue delegation plan：#623 的 issue delegation plan
+- Actual worker profile(s)：controller / test_worker
+- Model strength：controller = high；test_worker = medium
+- Verification evidence：git diff --check；node --test .github/workflows/ci.test.mjs
+- Self-review / exception reason：已完成 self-review
+- Worker session closeout：已讀回 worker 結果並 close
+`
+  const filledLogRun = await runScopePoliceWorkflow({ body: filledDelegationLogBody })
+  assert.equal(filledLogRun.failures.length, 0)
+  assert.equal(filledLogRun.comments.length, 1)
+  assert.match(filledLogRun.comments[0].body, /- Autonomous PR: yes/)
+
+  const multilineActualWorkerProfileBody = `
+## Delegation Execution Log
+- Actual worker profile(s)：
+  - controller
+  - test_worker
+`
+  const multilineActualWorkerProfileRun = await runScopePoliceWorkflow({
+    body: multilineActualWorkerProfileBody,
+  })
+  assert.equal(multilineActualWorkerProfileRun.failures.length, 1)
+  assert.match(
+    multilineActualWorkerProfileRun.comments[0].body,
+    /Autonomous PR must include a meaningful `Worker session closeout` value/,
+  )
+
+  const multilineActualWorkerProfileWithCloseoutBody = `
+## Delegation Execution Log
+- Actual worker profile(s)：
+  - controller
+  - test_worker
+- Worker session closeout：
+  - 已讀回 worker 結果並 close
+`
+  const multilineActualWorkerProfileWithCloseoutRun = await runScopePoliceWorkflow({
+    body: multilineActualWorkerProfileWithCloseoutBody,
+  })
+  assert.equal(multilineActualWorkerProfileWithCloseoutRun.failures.length, 0)
+  assert.match(multilineActualWorkerProfileWithCloseoutRun.comments[0].body, /- Autonomous PR: yes/)
+
+  const multilineVerificationEvidenceBody = `
+## Delegation Execution Log
+- Verification evidence：
+  - git diff --check
+  - node --test .github/workflows/ci.test.mjs
+`
+  const multilineVerificationEvidenceRun = await runScopePoliceWorkflow({
+    body: multilineVerificationEvidenceBody,
+  })
+  assert.equal(multilineVerificationEvidenceRun.failures.length, 1)
+  assert.match(multilineVerificationEvidenceRun.comments[0].body, /- Autonomous PR: yes/)
+  assert.match(
+    multilineVerificationEvidenceRun.comments[0].body,
+    /Autonomous PR must name at least one explicit worker profile or provide a trivial\/self-only exception reason\./,
+  )
+  assert.match(
+    multilineVerificationEvidenceRun.comments[0].body,
+    /Autonomous PR must include a meaningful `Worker session closeout` value/,
+  )
+
+  const selfReviewOnlyBody = `
+## Delegation Execution Log
+- Self-review / exception reason：已完成 self-review
+`
+  const selfReviewOnlyRun = await runScopePoliceWorkflow({ body: selfReviewOnlyBody })
+  assert.equal(selfReviewOnlyRun.failures.length, 1)
+  assert.match(selfReviewOnlyRun.comments[0].body, /- Autonomous PR: yes/)
+  assert.match(
+    selfReviewOnlyRun.comments[0].body,
+    /Autonomous PR must name at least one explicit worker profile or provide a trivial\/self-only exception reason\./,
+  )
+  assert.match(
+    selfReviewOnlyRun.comments[0].body,
+    /Autonomous PR must include a meaningful `Worker session closeout` value/,
+  )
+
+  const selfReviewTrivialExceptionBody = `
+## Delegation Execution Log
+- Self-review / exception reason：trivial/self-only exception for a single-line metadata correction
+  `
+  const selfReviewTrivialExceptionRun = await runScopePoliceWorkflow({ body: selfReviewTrivialExceptionBody })
+  assert.equal(selfReviewTrivialExceptionRun.failures.length, 1)
+  assert.match(selfReviewTrivialExceptionRun.comments[0].body, /- Autonomous PR: yes/)
+  assert.match(
+    selfReviewTrivialExceptionRun.comments[0].body,
+    /Autonomous PR must include a meaningful `Worker session closeout` value/,
+  )
+
+  const trivialExceptionNaBody = `
+## Delegation Execution Log
+- Trivial/self-only exception reason: n/a
+`
+  const trivialExceptionNaRun = await runScopePoliceWorkflow({ body: trivialExceptionNaBody })
+  assert.equal(trivialExceptionNaRun.failures.length, 0)
+  assert.match(trivialExceptionNaRun.comments[0].body, /- Autonomous PR: no/)
+  assert.doesNotMatch(
+    trivialExceptionNaRun.comments[0].body,
+    /Autonomous PR must include a `Delegation Execution Log` section\./,
+  )
+
+  const nonDelegationTrivialExceptionBody = `
+## Delegation Execution Log
+- Source issue delegation plan：
+  - docs_worker: #456
+- Worker session closeout：
+  - 已讀回 worker 結果並 close
+
+## 備註
+- Trivial/self-only exception reason：trivial/self-only metadata-only docs tweak
+`
+  const nonDelegationTrivialExceptionRun = await runScopePoliceWorkflow({
+    body: nonDelegationTrivialExceptionBody,
+  })
+  assert.equal(nonDelegationTrivialExceptionRun.failures.length, 1)
+  assert.match(nonDelegationTrivialExceptionRun.comments[0].body, /- Autonomous PR: yes/)
+  assert.match(
+    nonDelegationTrivialExceptionRun.comments[0].body,
+    /Autonomous PR must name at least one explicit worker profile or provide a trivial\/self-only exception reason\./,
+  )
+  assert.doesNotMatch(
+    nonDelegationTrivialExceptionRun.comments[0].body,
+    /Autonomous PR must include a meaningful `Worker session closeout` value/,
+  )
+
+  const sourceIssueControllerNoWorkerProfileBody = `
+## Delegation Execution Log
+- Source issue delegation plan：
+  - controller: #456
+- Actual worker profile(s)：
+- Worker session closeout：
+  - 已讀回 worker 結果並 close
+`
+  const sourceIssueControllerNoWorkerProfileRun = await runScopePoliceWorkflow({
+    body: sourceIssueControllerNoWorkerProfileBody,
+  })
+  assert.equal(sourceIssueControllerNoWorkerProfileRun.failures.length, 1)
+  assert.match(sourceIssueControllerNoWorkerProfileRun.comments[0].body, /- Autonomous PR: yes/)
+  assert.match(
+    sourceIssueControllerNoWorkerProfileRun.comments[0].body,
+    /Autonomous PR must name at least one explicit worker profile or provide a trivial\/self-only exception reason\./,
+  )
+  assert.doesNotMatch(
+    sourceIssueControllerNoWorkerProfileRun.comments[0].body,
+    /Autonomous PR must include a meaningful `Worker session closeout` value/,
+  )
+
+  const trivialExceptionWithNestedMeaningBody = `
+## Delegation Execution Log
+- Source issue delegation plan：
+  - docs_worker: #456
+- Actual worker profile(s)：
+  - n/a
+- Trivial/self-only exception reason：
+  - This is a closeout-only docs typo update.
+- Worker session closeout：
+  - 已讀回 worker 結果並 close
+`
+  const trivialExceptionWithNestedMeaningRun = await runScopePoliceWorkflow({
+    body: trivialExceptionWithNestedMeaningBody,
+  })
+  assert.equal(trivialExceptionWithNestedMeaningRun.failures.length, 0)
+  assert.match(trivialExceptionWithNestedMeaningRun.comments[0].body, /- Autonomous PR: yes/)
+
+  const selfReviewNestedTrivialExceptionBody = `
+## Delegation Execution Log
+- Source issue delegation plan：
+  - docs_worker: #456
+- Actual worker profile(s)：
+  - n/a
+- Self-review / exception reason：
+  - trivial/self-only exception for a single-line metadata correction
+- Worker session closeout：
+  - 已讀回 worker 結果並 close
+`
+  const selfReviewNestedTrivialExceptionRun = await runScopePoliceWorkflow({
+    body: selfReviewNestedTrivialExceptionBody,
+  })
+  assert.equal(selfReviewNestedTrivialExceptionRun.failures.length, 0)
+  assert.match(selfReviewNestedTrivialExceptionRun.comments[0].body, /- Autonomous PR: yes/)
+
+  const trivialExceptionNameOnlyBody = `
+## Delegation Execution Log
+- Source issue delegation plan：
+  - docs_worker: #456
+- Actual worker profile(s)：
+  - n/a
+- Trivial/self-only exception reason：
+- Worker session closeout：
+  - 已讀回 worker 結果並 close
+`
+  const trivialExceptionNaOnlyBody = `
+## Delegation Execution Log
+- Source issue delegation plan：
+  - docs_worker: #456
+- Actual worker profile(s)：
+  - n/a
+- Trivial/self-only exception reason：
+  - n/a
+- Worker session closeout：
+  - 已讀回 worker 結果並 close
+`
+  const trivialExceptionNameOnlyRun = await runScopePoliceWorkflow({ body: trivialExceptionNameOnlyBody })
+  const trivialExceptionNaOnlyRun = await runScopePoliceWorkflow({ body: trivialExceptionNaOnlyBody })
+
+  assert.equal(trivialExceptionNameOnlyRun.failures.length, 1)
+  assert.match(trivialExceptionNameOnlyRun.comments[0].body, /- Autonomous PR: yes/)
+  assert.match(
+    trivialExceptionNameOnlyRun.comments[0].body,
+    /Autonomous PR must name at least one explicit worker profile or provide a trivial\/self-only exception reason\./,
+  )
+  assert.equal(trivialExceptionNaOnlyRun.failures.length, 1)
+  assert.match(trivialExceptionNaOnlyRun.comments[0].body, /- Autonomous PR: yes/)
+  assert.match(
+    trivialExceptionNaOnlyRun.comments[0].body,
+    /Autonomous PR must name at least one explicit worker profile or provide a trivial\/self-only exception reason\./,
+  )
+
+  const freeNotesBody = `
+## Delegation Execution Log
+- pending follow-up
+`
+  const freeNotesRun = await runScopePoliceWorkflow({ body: freeNotesBody })
+  assert.equal(freeNotesRun.failures.length, 0)
+  assert.match(freeNotesRun.comments[0].body, /- Autonomous PR: no/)
+  assert.doesNotMatch(
+    freeNotesRun.comments[0].body,
+    /Autonomous PR must include a `Delegation Execution Log` section\./,
+  )
+
+  const verificationEvidenceNaBody = `
+## Delegation Execution Log
+- Verification evidence：n/a
+`
+  const verificationEvidenceNaRun = await runScopePoliceWorkflow({ body: verificationEvidenceNaBody })
+  assert.equal(verificationEvidenceNaRun.failures.length, 0)
+  assert.match(verificationEvidenceNaRun.comments[0].body, /- Autonomous PR: no/)
+  assert.doesNotMatch(
+    verificationEvidenceNaRun.comments[0].body,
+    /Autonomous PR must include a `Delegation Execution Log` section\./,
+  )
+
+  const missingCloseoutBody = `
+## Delegation Execution Log
+- Source issue delegation plan：#620 的 issue delegation plan
+- Actual worker profile(s)：
+  - controller
+  - test_worker
+`
+  const missingCloseoutRun = await runScopePoliceWorkflow({
+    body: missingCloseoutBody,
+  })
+  assert.equal(missingCloseoutRun.failures.length, 1)
+  assert.match(missingCloseoutRun.comments[0].body, /- Autonomous PR: yes/)
+  assert.match(
+    missingCloseoutRun.comments[0].body,
+    /Autonomous PR must include a meaningful `Worker session closeout` value/,
+  )
+
+  const closeoutNaBody = `
+## Delegation Execution Log
+- Source issue delegation plan：#620 的 issue delegation plan
+- Actual worker profile(s)：controller / test_worker
+- Worker session closeout：n/a
+`
+  const closeoutNaRun = await runScopePoliceWorkflow({
+    body: closeoutNaBody,
+  })
+  assert.equal(closeoutNaRun.failures.length, 1)
+  assert.match(closeoutNaRun.comments[0].body, /- Autonomous PR: yes/)
+  assert.match(
+    closeoutNaRun.comments[0].body,
+    /Autonomous PR must include a meaningful `Worker session closeout` value/,
+  )
+
+  const labelWithoutCloseoutRun = await runScopePoliceWorkflow({
+    body: missingCloseoutBody,
+    labels: [{ name: 'codex' }],
+  })
+  assert.equal(labelWithoutCloseoutRun.failures.length, 1)
+  assert.match(labelWithoutCloseoutRun.comments[0].body, /- Autonomous PR: yes/)
+  assert.match(
+    labelWithoutCloseoutRun.comments[0].body,
+    /Autonomous PR must include a meaningful `Worker session closeout` value/,
+  )
+
+  const labelsToTrigger = ['codex', 'codex-automation', 'auto-ready']
+  for (const label of labelsToTrigger) {
+    const labelTriggeredRun = await runScopePoliceWorkflow({
+      body: prTemplateBody,
+      labels: [{ name: label }],
+    })
+    assert.equal(labelTriggeredRun.failures.length, 1)
+    assert.match(labelTriggeredRun.comments[0].body, /- Autonomous PR: yes/)
+    assert.match(
+      labelTriggeredRun.comments[0].body,
+      /Autonomous PR must include a `Delegation Execution Log` section\./,
+    )
+  }
 })
 
 test('docs/template-only PRs skip heavy product CI in scope gate', async () => {
@@ -791,10 +1517,12 @@ Backend contract already in develop:
 
 test('CI product jobs are gated by path-aware scope outputs', async () => {
   const workflow = await readFile(workflowPath, 'utf8')
+  const parsedWorkflow = parseYaml(workflowPath)
   const backendBuild = workflowJobBlock(workflow, 'backend-build')
   const backend = workflowJobBlock(workflow, 'backend')
   const atlas = workflowJobBlock(workflow, 'atlas-migration-tooling')
   const backendIntegration = workflowJobBlock(workflow, 'backend-integration')
+  const backendIntegrationJob = parsedWorkflow.jobs['backend-integration']
   const backendSecurityScanners = workflowJobBlock(workflow, 'backend-security-scanners')
   const dependencyReview = workflowJobBlock(workflow, 'dependency-review')
   const frontend = workflowJobBlock(workflow, 'frontend')
@@ -814,6 +1542,7 @@ test('CI product jobs are gated by path-aware scope outputs', async () => {
   assert.match(contracts, /needs\.scope-gate\.outputs\.run_contracts == 'true'/)
   assert.match(contractsSlither, /needs\.scope-gate\.outputs\.run_contracts_slither == 'true'/)
   assert.match(contractsGasSnapshot, /needs\.scope-gate\.outputs\.run_contracts_gas_report == 'true'/)
+  assert.deepEqual(backendIntegrationJob.needs, ['scope-gate', 'check-cache-wiring'])
 })
 
 test('PR commit message check skips formal release promotion PRs', () => {
@@ -838,7 +1567,7 @@ test('backend security scanner job installs pinned staticcheck and govulncheck',
   assert.equal(job.name, 'Backend security scanners')
   assert.equal(job.env.STATICCHECK_VERSION, 'v0.7.0')
   assert.equal(job.env.GOVULNCHECK_VERSION, 'v1.3.0')
-  assert.match(jobBlock, /go-version: 1\.25\.10/)
+  assert.match(jobBlock, /go-version: 1\.26\.3/)
   assert.match(jobBlock, /go install honnef\.co\/go\/tools\/cmd\/staticcheck@\$STATICCHECK_VERSION/)
   assert.match(jobBlock, /go install golang\.org\/x\/vuln\/cmd\/govulncheck@\$GOVULNCHECK_VERSION/)
   assert.match(jobBlock, /working-directory: services\/api\n\s+run: staticcheck \.\/\.\.\./)
@@ -846,9 +1575,12 @@ test('backend security scanner job installs pinned staticcheck and govulncheck',
   assert.deepEqual(backendCi.needs, [
     'backend-build',
     'backend',
+    'atlas-migration-tooling',
     'backend-integration',
     'backend-security-scanners',
   ])
+  assert.match(backendCiBlock, /ATLAS_MIGRATION_TOOLING_RESULT: \$\{\{ needs\.atlas-migration-tooling\.result \}\}/)
+  assert.match(backendCiBlock, /"atlas-migration-tooling:\$ATLAS_MIGRATION_TOOLING_RESULT"/)
   assert.match(backendCiBlock, /BACKEND_SECURITY_SCANNERS_RESULT/)
   assert.match(backendCiBlock, /backend-security-scanners:\$BACKEND_SECURITY_SCANNERS_RESULT/)
 })
@@ -863,8 +1595,8 @@ test('dependency review CI job gates only frontend dependency files', async () =
   assert.equal(job['timeout-minutes'], 10)
   assert.equal(job.needs, 'scope-gate')
   assert.equal(job.if, "github.event_name == 'pull_request' && needs.scope-gate.outputs.run_dependency_review == 'true'")
-  assert.match(jobBlock, /uses: actions\/checkout@v4/)
-  assert.match(jobBlock, /uses: actions\/dependency-review-action@v4/)
+  assert.match(jobBlock, pinnedActionRef('actions/checkout', 'v4'))
+  assert.match(jobBlock, pinnedActionRef('actions/dependency-review-action', 'v4'))
   assert.match(jobBlock, /fail-on-severity: high/)
   assert.match(jobBlock, /fail-on-scopes: runtime/)
   assert.match(jobBlock, /vulnerability-check: true/)
@@ -880,6 +1612,8 @@ test('dependency review policy documents Dependabot split and waiver handling', 
   assert.match(policy, /high\/critical production dependency vulnerabilities/)
   assert.match(policy, /development dependency findings are report-only/)
   assert.match(policy, /Dependabot opens routine version update PRs for the configured update levels/)
+  assert.match(policy, /dependabot-pnpm-lockfile\.yml/)
+  assert.match(policy, /shared-workspace-lockfile=false/)
   assert.match(policy, /security update PRs for alert-triggered fixes/)
   assert.match(policy, /Production security update\s+PRs remain manual-review changes/)
   assert.match(policy, /False Positives And Waivers/)
@@ -911,6 +1645,34 @@ test('Dependabot pnpm version updates skip routine production patch releases', (
       },
     ])
   }
+})
+
+test('Dependabot pnpm lockfile repair is scoped to same-repo Dependabot PRs', async () => {
+  const workflow = await readFile(dependabotPnpmLockfileWorkflowPath, 'utf8')
+  const parsedWorkflow = parseYaml(dependabotPnpmLockfileWorkflowPath)
+  const job = parsedWorkflow.jobs['repair-lockfiles']
+  const jobBlock = workflowJobBlock(workflow, 'repair-lockfiles')
+
+  assert.equal(job.name, 'Repair pnpm lockfiles')
+  assert.equal(job.permissions.contents, 'write')
+  assert.equal(job.permissions.actions, 'write')
+  assert.equal(job.permissions['pull-requests'], 'read')
+  assert.match(job.if, /github\.event\.pull_request\.user\.login == 'dependabot\[bot\]'/)
+  assert.match(job.if, /github\.event\.pull_request\.head\.repo\.full_name == github\.repository/)
+  assert.match(jobBlock, /ref: \$\{\{ github\.event\.pull_request\.head\.ref \}\}/)
+  assert.match(jobBlock, /repository: \$\{\{ github\.event\.pull_request\.head\.repo\.full_name \}\}/)
+  assert.match(jobBlock, /corepack prepare pnpm@10\.33\.0 --activate/)
+  assert.match(
+    jobBlock,
+    /working-directory: apps\/dashboard\n\s+run: pnpm install --lockfile-only --ignore-scripts --config\.shared-workspace-lockfile=false/,
+  )
+  assert.match(
+    jobBlock,
+    /working-directory: apps\/extension\n\s+run: pnpm install --lockfile-only --ignore-scripts --config\.shared-workspace-lockfile=false/,
+  )
+  assert.match(jobBlock, /git add pnpm-lock\.yaml apps\/dashboard\/pnpm-lock\.yaml apps\/extension\/pnpm-lock\.yaml/)
+  assert.match(jobBlock, /git commit -m "chore\(deps\): repair pnpm lockfiles"/)
+  assert.match(jobBlock, /git push/)
 })
 
 test('Dependabot auto-merge keeps production dependency updates on manual review', async () => {
@@ -954,18 +1716,18 @@ test('contracts Slither report job uploads SARIF and keeps findings report-only'
   assert.equal(job.if, "needs.scope-gate.outputs.run_contracts_slither == 'true'")
   assert.equal(job.permissions.contents, 'read')
   assert.equal(job.permissions['security-events'], 'write')
-  assert.match(jobBlock, /uses: actions\/checkout@v4/)
-  assert.match(jobBlock, /uses: foundry-rs\/foundry-toolchain@v1/)
+  assert.match(jobBlock, pinnedActionRef('actions/checkout', 'v4'))
+  assert.match(jobBlock, pinnedActionRef('foundry-rs/foundry-toolchain', 'v1'))
   assert.match(jobBlock, /working-directory: contracts\n\s+run: forge install OpenZeppelin\/openzeppelin-contracts@v5\.6\.1 --no-git/)
-  assert.match(jobBlock, /uses: crytic\/slither-action@v0\.4\.2/)
+  assert.match(jobBlock, pinnedActionRef('crytic/slither-action', 'v0.4.2'))
   assert.match(jobBlock, /id: slither/)
   assert.match(jobBlock, /target: contracts/)
   assert.match(jobBlock, /slither-version: 0\.11\.5/)
   assert.match(jobBlock, /sarif: slither\.sarif/)
   assert.match(jobBlock, /fail-on: none/)
-  assert.match(jobBlock, /uses: github\/codeql-action\/upload-sarif@v3/)
+  assert.match(jobBlock, pinnedActionRef('github/codeql-action/upload-sarif', 'v3'))
   assert.match(jobBlock, /sarif_file: \$\{\{ steps\.slither\.outputs\.sarif \}\}/)
-  assert.match(jobBlock, /uses: actions\/upload-artifact@v4/)
+  assert.match(jobBlock, pinnedActionRef('actions/upload-artifact', 'v4'))
   assert.match(jobBlock, /name: slither-report/)
   assert.match(jobBlock, /path: \$\{\{ steps\.slither\.outputs\.sarif \}\}/)
   assert.doesNotMatch(jobBlock, /continue-on-error: true/)
@@ -993,12 +1755,12 @@ test('contracts gas snapshot job publishes a report-only artifact', async () => 
   assert.equal(job['timeout-minutes'], 20)
   assert.deepEqual(job.needs, ['scope-gate'])
   assert.equal(job.if, "needs.scope-gate.outputs.run_contracts_gas_report == 'true'")
-  assert.match(jobBlock, /uses: actions\/checkout@v4/)
-  assert.match(jobBlock, /uses: foundry-rs\/foundry-toolchain@v1/)
+  assert.match(jobBlock, pinnedActionRef('actions/checkout', 'v4'))
+  assert.match(jobBlock, pinnedActionRef('foundry-rs/foundry-toolchain', 'v1'))
   assert.match(jobBlock, /working-directory: contracts\n\s+run: forge install OpenZeppelin\/openzeppelin-contracts@v5\.6\.1 --no-git/)
   assert.match(jobBlock, /working-directory: contracts\n\s+run: forge snapshot --snap gas-snapshot\.report/)
   assert.match(jobBlock, /cat gas-snapshot\.report/)
-  assert.match(jobBlock, /uses: actions\/upload-artifact@v4/)
+  assert.match(jobBlock, pinnedActionRef('actions/upload-artifact', 'v4'))
   assert.match(jobBlock, /name: contracts-gas-snapshot-report/)
   assert.match(jobBlock, /path: contracts\/gas-snapshot\.report/)
   assert.doesNotMatch(jobBlock, /--check/)
@@ -1113,7 +1875,81 @@ test('dependency inventory policy documents OSV triage ownership and non-blockin
   assert.match(policy, /Expires on:/)
 })
 
-test('global auto-merge workflow excludes Dependabot PRs', async () => {
+test('release PR workflow gates automated creation by age and merged PR volume', async () => {
+  const workflow = await readFile(releasePrWorkflowPath, 'utf8')
+  const parsedWorkflow = parseYaml(releasePrWorkflowPath)
+  const job = parsedWorkflow.jobs['create-release-pr']
+  const jobBlock = workflowJobBlock(workflow, 'create-release-pr')
+
+  assert.equal(parsedWorkflow.name, 'Release PR')
+  assert.deepEqual(parsedWorkflow.on.schedule, [{ cron: '0 2 * * *' }])
+  assert.ok(Object.hasOwn(parsedWorkflow.on, 'workflow_dispatch'))
+  assert.equal(parsedWorkflow.permissions.contents, 'read')
+  assert.equal(parsedWorkflow.permissions['pull-requests'], 'write')
+  assert.equal(parsedWorkflow.permissions.actions, 'write')
+
+  assert.equal(job['timeout-minutes'], 10)
+  assert.match(jobBlock, pinnedActionRef('actions/checkout', 'v4'))
+  assert.match(jobBlock, /const minElapsedHours = 72/)
+  assert.match(jobBlock, /const minMergedPrs = 10/)
+  assert.match(jobBlock, /const maxElapsedHours = 168/)
+  assert.match(jobBlock, /process\.env\.GITHUB_EVENT_NAME === 'workflow_dispatch'/)
+  assert.match(jobBlock, /const shouldOpen = isManual \|\| \(enoughAge && \(enoughPrs \|\| staleEnough\)\)/)
+  assert.match(jobBlock, /gh pr list --base main --head develop --state open/)
+  assert.match(jobBlock, /gh pr list --base main --head develop --state merged/)
+  assert.match(jobBlock, /gh pr list --base develop --state merged/)
+  assert.match(jobBlock, /gh pr create/)
+  assert.doesNotMatch(jobBlock, /--draft/)
+  assert.doesNotMatch(jobBlock, /--label auto-ready/)
+})
+
+test('release PR workflow includes grouped PR summaries in generated body', async () => {
+  const workflow = await readFile(releasePrWorkflowPath, 'utf8')
+  const jobBlock = workflowJobBlock(workflow, 'create-release-pr')
+
+  assert.match(jobBlock, /gh pr list --base develop --state merged --limit 300 --json number,title,mergedAt,url,author,mergeCommit/)
+  assert.match(jobBlock, /gh pr list --base develop --state open --limit 300 --json number,title,url,labels/)
+  assert.match(jobBlock, /const titleGroups = \[/)
+  assert.match(jobBlock, /\/tmp\/release-pr-summary\.md/)
+  assert.match(jobBlock, /## Included PRs/)
+  assert.match(jobBlock, /title: 'Backend'/)
+  assert.match(jobBlock, /title: 'Frontend'/)
+  assert.match(jobBlock, /title: 'Contracts'/)
+  assert.match(jobBlock, /title: 'Infrastructure'/)
+  assert.match(jobBlock, /title: 'Maintenance'/)
+  assert.match(jobBlock, /title: 'Discussion'/)
+  assert.match(jobBlock, /\[backend\]/i)
+  assert.match(jobBlock, /\[frontend\]/i)
+  assert.match(jobBlock, /\[contract\]/i)
+  assert.match(jobBlock, /\[infra\]/i)
+  assert.match(jobBlock, /\[chore\]/i)
+  assert.match(jobBlock, /\[discussion\]/i)
+  assert.match(jobBlock, /Unprefixed \/ Other/)
+  assert.match(jobBlock, /## Release Warnings/)
+  assert.match(jobBlock, /changes-requested/)
+  assert.match(jobBlock, /scope-violation/)
+  assert.match(jobBlock, /const escapeMarkdown = /)
+  assert.match(jobBlock, /const safeTitle = escapeMarkdown\(cleanTitle\(pr\.title\)\)/)
+  assert.match(jobBlock, /by \$\{author\}/)
+  assert.match(jobBlock, /merge commit: \\\`\$\{mergeCommit\}\\\`/)
+  assert.match(jobBlock, /\$\(cat \/tmp\/release-pr-summary\.md\)/)
+})
+
+test('release cadence documentation matches the automated gate', async () => {
+  const claude = await readFile(claudePath, 'utf8')
+  const policy = await readFile(prScopePolicyPath, 'utf8')
+
+  for (const doc of [claude, policy]) {
+    assert.match(doc, /72 小時/)
+    assert.match(doc, /10 個 PR/)
+    assert.match(doc, /7 天/)
+  }
+
+  assert.doesNotMatch(claude, /每兩週由 `develop` 開一張正式 release PR 到 `main`/)
+  assert.doesNotMatch(policy, /預設 cadence 為每兩週一次 `develop -> main` release PR/)
+})
+
+test('global auto-merge workflow excludes Dependabot and workflow-file PRs', async () => {
   const workflow = await readFile(autoMergeWorkflowPath, 'utf8')
   const parsedWorkflow = parseYaml(autoMergeWorkflowPath)
 
@@ -1124,8 +1960,14 @@ test('global auto-merge workflow excludes Dependabot PRs', async () => {
   ])
   assert.equal(
     parsedWorkflow.jobs['enable-auto-merge'].if,
-    "github.event.pull_request.draft == false && github.event.pull_request.user.login != 'dependabot[bot]'",
+    "github.event.pull_request.draft == false && github.event.pull_request.user.login != 'dependabot[bot]' && github.event.pull_request.base.ref == 'develop'",
   )
+  assert.match(workflow, /Skipping auto-merge for workflow-file PR/)
+  assert.ok(
+    workflow.includes("--jq '.[] | .filename, (.previous_filename // empty)'"),
+    'workflow-file PR detection must include renamed-away workflow files',
+  )
+  assert.ok(workflow.includes("grep -Eq '^\\.github/workflows/'"))
   assert.doesNotMatch(workflow, /if: github\.event\.pull_request\.draft == false\s*$/m)
 })
 
@@ -1138,6 +1980,39 @@ test('develop merge issue closer only runs after merged PRs close into develop',
   assert.equal(parsedWorkflow.permissions.issues, 'write')
   assert.equal(parsedWorkflow.permissions['pull-requests'], 'read')
   assert.equal(job.if, 'github.event.pull_request.merged == true')
+})
+
+test('notify rebase workflow uses read-only pull request permission', async () => {
+  const parsedWorkflow = parseYaml(notifyRebaseNeededWorkflowPath)
+
+  assert.equal(parsedWorkflow.permissions.issues, 'write')
+  assert.equal(parsedWorkflow.permissions['pull-requests'], 'read')
+})
+
+test('notify rebase workflow skips duplicate notification for the same PR head', async () => {
+  const result = await runNotifyRebaseNeededWorkflow({
+    openPRs: [
+      { number: 601 },
+    ],
+    freshPRsByNumber: {
+      601: {
+        number: 601,
+        mergeable_state: 'dirty',
+        head: { sha: 'dirty-head-sha' },
+      },
+    },
+    commentsByIssueNumber: {
+      601: [
+        {
+          body: '<!-- notify-rebase-needed:head=dirty-head-sha -->\n> existing notification',
+        },
+      ],
+    },
+  })
+
+  assert.equal(result.commentsListed.length, 1)
+  assert.deepEqual(result.commentsCreated, [])
+  assert.match(result.infos.join('\n'), /already has a rebase notification/)
 })
 
 test('develop merge issue closer ignores template comments and code examples', async () => {
@@ -1600,6 +2475,24 @@ test('Codex review re-request workflow requests reviewer and notifies Discord', 
   assert.match(workflow, /Previous reviewers/)
   assert.match(workflow, /DISCORD_CODEX_REVIEW_WEBHOOK_URL/)
   assert.match(workflow, /codex-review-rerequest/)
+  assert.doesNotMatch(workflow, /nurockplayer/)
+  assert.doesNotMatch(workflow, /Slack|SLACK|slack/)
+})
+
+test('AI sprint Discord workflow posts only through the dedicated webhook secret', async () => {
+  const workflow = await readFile(aiSprintDiscordWorkflowPath, 'utf8')
+  const parsedWorkflow = parseYaml(aiSprintDiscordWorkflowPath)
+
+  assert.equal(parsedWorkflow.name, 'AI sprint Discord summary')
+  assert.equal(parsedWorkflow.on.workflow_dispatch.inputs.summary.required, true)
+  assert.equal(parsedWorkflow.permissions.contents, 'read')
+  assert.match(workflow, /DISCORD_AI_SPRINT_WEBHOOK_URL/)
+  assert.match(workflow, /DISCORD_SUMMARY: \$\{\{ inputs\.summary \}\}/)
+  assert.match(workflow, /tachigo AI sprint summary/)
+  assert.match(workflow, /maxDescriptionLength = 4000/)
+  assert.match(workflow, /node --input-type=module <<'NODE'/)
+  assert.doesNotMatch(workflow, /DISCORD_CI_WEBHOOK_URL/)
+  assert.doesNotMatch(workflow, /discord\.com\/api\/webhooks/)
   assert.doesNotMatch(workflow, /nurockplayer/)
   assert.doesNotMatch(workflow, /Slack|SLACK|slack/)
 })

@@ -24,6 +24,7 @@ import (
 	"github.com/tachigo/tachigo/internal/middleware"
 	"github.com/tachigo/tachigo/internal/models"
 	"github.com/tachigo/tachigo/internal/services"
+	"github.com/tachigo/tachigo/internal/testutil"
 )
 
 // raffleTestEnv wires only the raffle-related handlers.
@@ -743,6 +744,81 @@ func TestRaffle_CSVDuplicateSkipped(t *testing.T) {
 	}
 }
 
+func TestRaffle_ImportCSV_ValidUploadStillWorks(t *testing.T) {
+	env := newRaffleTestEnv(t)
+	token := env.registerStreamer(t, "csvvalid", "csvvalid@test.com", "pass1234")
+	raffleID := env.createRaffle(t, token, "valid csv")
+	env.createTwitchLinkedUser(t, "csv_valid_user")
+
+	w := env.uploadCSV(t, token, raffleID, "csv_valid_user,CSV Valid User\n")
+
+	if w.Code != http.StatusOK {
+		t.Fatalf("want 200, got %d: %s", w.Code, w.Body.String())
+	}
+	resp := parseBody(t, w.Body.Bytes())
+	data := resp["data"].(map[string]interface{})
+	if int(data["imported"].(float64)) != 1 {
+		t.Fatalf("want imported=1, got %v", data["imported"])
+	}
+}
+
+func TestRaffle_ImportCSV_OversizedUploadReturns413(t *testing.T) {
+	env := newRaffleTestEnv(t)
+	token := env.registerStreamer(t, "csvlarge", "csvlarge@test.com", "pass1234")
+	raffleID := env.createRaffle(t, token, "large csv")
+
+	oversizedCSV := strings.Repeat("large_user,Large User\n", 70000)
+	w := env.uploadCSV(t, token, raffleID, oversizedCSV)
+
+	if w.Code != http.StatusRequestEntityTooLarge {
+		t.Fatalf("want 413, got %d: %s", w.Code, w.Body.String())
+	}
+	resp := parseBody(t, w.Body.Bytes())
+	if resp["error"] != "csv upload is too large" {
+		t.Fatalf("want deterministic too-large error, got %#v", resp["error"])
+	}
+}
+
+func (e *raffleTestEnv) createRaffle(t *testing.T, token, title string) string {
+	t.Helper()
+
+	body, _ := json.Marshal(map[string]string{"title": title})
+	w := httptest.NewRecorder()
+	req, _ := http.NewRequest(http.MethodPost, "/api/v1/dashboard/raffles", bytes.NewReader(body))
+	req.Header.Set("Content-Type", "application/json")
+	req.Header.Set("Authorization", bearer(token))
+	e.router.ServeHTTP(w, req)
+	if w.Code != http.StatusCreated {
+		t.Fatalf("create raffle: want 201, got %d: %s", w.Code, w.Body.String())
+	}
+	resp := parseBody(t, w.Body.Bytes())
+	return resp["data"].(map[string]interface{})["raffle"].(map[string]interface{})["id"].(string)
+}
+
+func (e *raffleTestEnv) uploadCSV(t *testing.T, token, raffleID, csvBody string) *httptest.ResponseRecorder {
+	t.Helper()
+
+	var buf bytes.Buffer
+	mw := multipart.NewWriter(&buf)
+	fw, err := mw.CreateFormFile("file", "entries.csv")
+	if err != nil {
+		t.Fatalf("create form file: %v", err)
+	}
+	if _, err := fw.Write([]byte(csvBody)); err != nil {
+		t.Fatalf("write csv: %v", err)
+	}
+	if err := mw.Close(); err != nil {
+		t.Fatalf("close multipart writer: %v", err)
+	}
+
+	w := httptest.NewRecorder()
+	req, _ := http.NewRequest(http.MethodPost, "/api/v1/dashboard/raffles/"+raffleID+"/entries/import-csv", &buf)
+	req.Header.Set("Content-Type", mw.FormDataContentType())
+	req.Header.Set("Authorization", bearer(token))
+	e.router.ServeHTTP(w, req)
+	return w
+}
+
 // testConfig returns minimal config for tests.
 func testConfig() *config.Config {
 	return &config.Config{
@@ -811,13 +887,14 @@ func TestRaffle_Snapshot_NoTwitchToken(t *testing.T) {
 }
 
 func TestRaffle_Snapshot_TwitchScopeError(t *testing.T) {
-	mockTwitch := httptest.NewServer(http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
-		w.WriteHeader(http.StatusForbidden)
-	}))
-	defer mockTwitch.Close()
-
 	env := newRaffleTestEnv(t)
-	env.raffleSvc.SetTwitchBaseURL(mockTwitch.URL)
+	env.raffleSvc.SetTwitchBaseURL("https://twitch.test")
+	env.raffleSvc.SetHTTPClient(testutil.NewHTTPClient(func(r *http.Request) (*http.Response, error) {
+		if r.Method == http.MethodGet && r.URL.Path == "/helix/subscriptions" {
+			return testutil.NewStringResponse(http.StatusForbidden, "{}"), nil
+		}
+		return testutil.NewStringResponse(http.StatusNotFound, ""), nil
+	}))
 	token := env.registerStreamer(t, "s1", "s1@test.com", "pass1234")
 
 	// Look up the streamer's user ID and insert a twitch_api raffle directly.
@@ -908,12 +985,13 @@ func TestRaffle_Snapshot_Success(t *testing.T) {
 	_ = env.db.Exec(`UPDATE auth_providers SET provider_id = 'viewer_twitch_id_1' WHERE provider_id = 'twitch_id_viewer1'`)
 
 	sub := map[string]string{"user_id": "viewer_twitch_id_1", "user_login": "viewer1", "user_name": "Viewer1"}
-	mockTwitch := httptest.NewServer(http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
-		w.Header().Set("Content-Type", "application/json")
-		fmt.Fprint(w, twitchSubsJSON([]map[string]string{sub}, ""))
+	env.raffleSvc.SetTwitchBaseURL("https://twitch.test")
+	env.raffleSvc.SetHTTPClient(testutil.NewHTTPClient(func(r *http.Request) (*http.Response, error) {
+		if r.Method == http.MethodGet && r.URL.Path == "/helix/subscriptions" {
+			return testutil.NewStringResponse(http.StatusOK, twitchSubsJSON([]map[string]string{sub}, "")), nil
+		}
+		return testutil.NewStringResponse(http.StatusNotFound, ""), nil
 	}))
-	defer mockTwitch.Close()
-	env.raffleSvc.SetTwitchBaseURL(mockTwitch.URL)
 
 	raffleID := env.setupTwitchRaffle(t, "s1@test.com", "fake-token")
 
@@ -949,17 +1027,17 @@ func TestRaffle_Snapshot_Pagination(t *testing.T) {
 	page1 := []map[string]string{{"user_id": "vid1", "user_login": "viewer1", "user_name": "Viewer1"}}
 	page2 := []map[string]string{{"user_id": "vid2", "user_login": "viewer2", "user_name": "Viewer2"}}
 	calls := 0
-	mockTwitch := httptest.NewServer(http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
-		w.Header().Set("Content-Type", "application/json")
-		calls++
-		if r.URL.Query().Get("after") == "" {
-			fmt.Fprint(w, twitchSubsJSON(page1, "cursor-page2"))
-		} else {
-			fmt.Fprint(w, twitchSubsJSON(page2, ""))
+	env.raffleSvc.SetTwitchBaseURL("https://twitch.test")
+	env.raffleSvc.SetHTTPClient(testutil.NewHTTPClient(func(r *http.Request) (*http.Response, error) {
+		if r.Method == http.MethodGet && r.URL.Path == "/helix/subscriptions" {
+			calls++
+			if r.URL.Query().Get("after") == "" {
+				return testutil.NewStringResponse(http.StatusOK, twitchSubsJSON(page1, "cursor-page2")), nil
+			}
+			return testutil.NewStringResponse(http.StatusOK, twitchSubsJSON(page2, "")), nil
 		}
+		return testutil.NewStringResponse(http.StatusNotFound, ""), nil
 	}))
-	defer mockTwitch.Close()
-	env.raffleSvc.SetTwitchBaseURL(mockTwitch.URL)
 
 	raffleID := env.setupTwitchRaffle(t, "s1@test.com", "fake-token")
 
@@ -990,12 +1068,13 @@ func TestRaffle_Snapshot_DuplicateSkip(t *testing.T) {
 	_ = env.db.Exec(`UPDATE auth_providers SET provider_id = 'vid1' WHERE provider_id = 'twitch_id_viewer1'`)
 
 	sub := map[string]string{"user_id": "vid1", "user_login": "viewer1", "user_name": "Viewer1"}
-	mockTwitch := httptest.NewServer(http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
-		w.Header().Set("Content-Type", "application/json")
-		fmt.Fprint(w, twitchSubsJSON([]map[string]string{sub}, ""))
+	env.raffleSvc.SetTwitchBaseURL("https://twitch.test")
+	env.raffleSvc.SetHTTPClient(testutil.NewHTTPClient(func(r *http.Request) (*http.Response, error) {
+		if r.Method == http.MethodGet && r.URL.Path == "/helix/subscriptions" {
+			return testutil.NewStringResponse(http.StatusOK, twitchSubsJSON([]map[string]string{sub}, "")), nil
+		}
+		return testutil.NewStringResponse(http.StatusNotFound, ""), nil
 	}))
-	defer mockTwitch.Close()
-	env.raffleSvc.SetTwitchBaseURL(mockTwitch.URL)
 
 	raffleID := env.setupTwitchRaffle(t, "s1@test.com", "fake-token")
 
@@ -1028,12 +1107,13 @@ func TestRaffle_Snapshot_UnlinkedSkip(t *testing.T) {
 
 	// Subscriber has no tachigo account.
 	sub := map[string]string{"user_id": "unknown_id", "user_login": "stranger", "user_name": "Stranger"}
-	mockTwitch := httptest.NewServer(http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
-		w.Header().Set("Content-Type", "application/json")
-		fmt.Fprint(w, twitchSubsJSON([]map[string]string{sub}, ""))
+	env.raffleSvc.SetTwitchBaseURL("https://twitch.test")
+	env.raffleSvc.SetHTTPClient(testutil.NewHTTPClient(func(r *http.Request) (*http.Response, error) {
+		if r.Method == http.MethodGet && r.URL.Path == "/helix/subscriptions" {
+			return testutil.NewStringResponse(http.StatusOK, twitchSubsJSON([]map[string]string{sub}, "")), nil
+		}
+		return testutil.NewStringResponse(http.StatusNotFound, ""), nil
 	}))
-	defer mockTwitch.Close()
-	env.raffleSvc.SetTwitchBaseURL(mockTwitch.URL)
 
 	raffleID := env.setupTwitchRaffle(t, "s1@test.com", "fake-token")
 

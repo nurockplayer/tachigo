@@ -17,6 +17,11 @@ type RaffleHandler struct {
 	raffleSvc *services.RaffleService
 }
 
+const (
+	maxRaffleCSVFileBytes          = 1 << 20
+	maxRaffleCSVImportRequestBytes = maxRaffleCSVFileBytes + 64*1024
+)
+
 func NewRaffleHandler(svc *services.RaffleService) *RaffleHandler {
 	return &RaffleHandler{raffleSvc: svc}
 }
@@ -147,12 +152,22 @@ func (h *RaffleHandler) ImportCSV(c *gin.Context) {
 		return
 	}
 
-	file, _, err := c.Request.FormFile("file")
+	c.Request.Body = http.MaxBytesReader(c.Writer, c.Request.Body, maxRaffleCSVImportRequestBytes)
+	file, header, err := c.Request.FormFile("file")
 	if err != nil {
+		if isRequestBodyTooLarge(err) {
+			raffleCSVTooLarge(c)
+			return
+		}
 		badRequest(c, "file is required")
 		return
 	}
 	defer file.Close()
+
+	if header != nil && header.Size > maxRaffleCSVFileBytes {
+		raffleCSVTooLarge(c)
+		return
+	}
 
 	result, err := h.raffleSvc.ImportCSV(raffleID, userID, file)
 	if err != nil {
@@ -169,6 +184,15 @@ func (h *RaffleHandler) ImportCSV(c *gin.Context) {
 		return
 	}
 	ok(c, result)
+}
+
+func isRequestBodyTooLarge(err error) bool {
+	var maxBytesErr *http.MaxBytesError
+	return errors.As(err, &maxBytesErr)
+}
+
+func raffleCSVTooLarge(c *gin.Context) {
+	c.JSON(http.StatusRequestEntityTooLarge, Response{Success: false, Error: "csv upload is too large"})
 }
 
 // DrawNext godoc

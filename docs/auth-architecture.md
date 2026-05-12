@@ -27,11 +27,10 @@ The repo currently contains multiple client surfaces that touch auth:
 - `tachimint`
   - Twitch Extension panel
   - runs inside a Twitch-controlled iframe
-- `extensions/tachigo-demo-sidepanel`
-  - Chrome sidepanel demo client
-  - separate from `tachimint`
 
 These surfaces should not be treated as one single runtime. Their current auth behavior and constraints are different.
+
+The retired `extensions/tachigo-demo-sidepanel` source directory is no longer a current auth surface.
 
 ## Current Shared Identity Baseline
 
@@ -51,10 +50,10 @@ Provider support is part of the shared identity layer, but client auth contracts
 Observed behavior in the current repo:
 
 - access token is kept in memory only
-- refresh token is persisted in `localStorage` under key `refresh_token`
-- `login()` calls `POST /api/v1/auth/login`; login stores the returned refresh token in `localStorage`
-- logout sends `refresh_token` in the request body when present
-- session restore on page reload is not implemented
+- refresh token is owned by the backend-managed httpOnly cookie; dashboard does not persist it in `localStorage`
+- `login()` calls `POST /api/v1/auth/login`; login stores only the returned access token in memory
+- logout calls `POST /api/v1/auth/logout` without a `refresh_token` request body
+- session restore on page reload is implemented by calling `restoreSession()` before rendering the app
 - axios client sends `withCredentials: true`; 401 responses trigger a single silent refresh (deduped across concurrent requests) and retry
 - dashboard does not currently persist a separate `current_user` payload
 
@@ -64,9 +63,9 @@ Observed behavior in the current repo:
 |---|---|---|
 | Phase 1 — Backend | httpOnly cookie set on login/refresh/logout; refresh and logout prefer cookie with body fallback | ✅ Done (PR #220) |
 | Phase 2a — Dashboard axios layer | `withCredentials: true`; `hasAuthToken()`; 401 dedupe interceptor | ✅ Done (PR #338) |
-| Phase 2b — Dashboard auth contract | Remove `localStorage`; cookie-based session restore; update `auth.ts` and `main.tsx` | ⏳ Pending |
+| Phase 2b — Dashboard auth contract | Remove `localStorage`; cookie-based session restore; update `auth.ts` and `main.tsx` | ✅ Done (PR #340) |
 
-Body fallback (sending `refresh_token` in request body) remains active in the backend during the transition period. It will be removed in a dedicated follow-up once all clients are confirmed to be on the cookie-based contract.
+Body fallback (sending `refresh_token` in request body) remains active in the backend during the transition period, but dashboard no longer uses it. The backend fallback should be removed in a dedicated follow-up once all clients are confirmed to be on the cookie-based contract.
 
 ## Current Extension State
 
@@ -84,23 +83,12 @@ Current documented and observed flow:
 - backend returns a tachigo token for follow-up requests
 - existing watch flows already assume tachigo JWT usage after successful extension login
 
-### `tachigo-demo-sidepanel`
-
-`extensions/tachigo-demo-sidepanel` should be treated as a demo or exploratory client, not as a production auth reference.
-
-Observed behavior:
-
-- it has a login UI
-- the login completion is currently simulated locally
-- it is not yet wired to a real backend-integrated production auth flow
-
 ## Current Cross-Client Observations
 
 Based on the current repo state, these cross-client distinctions are observable today:
 
 - dashboard and extension do not currently present the same auth contract
 - dashboard auth behavior does not currently describe extension auth behavior
-- `tachimint` and `tachigo-demo-sidepanel` do not currently behave as the same runtime
 - backend auth endpoints and JWT-based flows already exist and may already be depended on by current clients
 
 This section records current-state observations only. It does not adopt new cross-client rules by itself.

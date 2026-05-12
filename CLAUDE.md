@@ -84,7 +84,10 @@
 4. 正式 release 流程走 Git Flow：
 
    - `main` 不接受日常 feature PR
-   - 每兩週由 `develop` 開一張正式 release PR 到 `main`
+   - `.github/workflows/release-pr.yml` 每天檢查一次是否要由 `develop` 開正式 release PR 到 `main`
+   - 自動 release PR 的門檻：距離上次 release 至少 72 小時，且上次 release 後已 merge 至少 10 個 PR
+   - 若距離上次 release 已滿 7 天，即使 PR 數低於 10 個也可自動開 release PR，避免 `main` 長期落後
+   - `workflow_dispatch` 可手動開 release PR；automation 只開 PR，不自動 merge
    - release PR 使用 `[release]` title prefix
    - `develop -> main` release PR 屬於正式 promotion 流程，不視為 scope exception
    - 目前暫不使用 `release/*` branch
@@ -104,7 +107,7 @@
 | **軟提示門檻** | 400+ | 建議拆分（不阻擋） |
 | **警告門檻** | 600+ | 需在 PR body 說明為何不拆（不阻擋） |
 | **硬限制** | 1000+ | 自動擋下（`scope-violation` label） |
-| **例外上限** | 1500 | migration / generated code / dependency bump 可用 `scope-exception` label |
+| **例外 bypass** | 無固定上限 | `scope-exception` 目前會完整 bypass scope police；只能由 maintainer 明確決定使用 |
 | **發佈無限** | — | release promotion PR (develop → main) 不受限制 |
 
 ---
@@ -112,6 +115,12 @@
 ## AI 分工
 
 本專案使用 Claude Code + Gemini CLI + Codex CLI 協作開發。
+
+若使用者授權 autonomous product work，Codex / Claude 應採用 [docs/ai/codex-autonomous-workflow.md](docs/ai/codex-autonomous-workflow.md) 的 Worker Profiles、issue-first、review gate、CodeRabbit fallback 與 PR Scope Police 合約。
+
+Autonomous Worker Profiles 的 follow-up 改善以「約 40% infra 本質複雜、約 60% 工作流自己製造摩擦」為基準：infra 複雜度用固定 readback 與 gate 管住；流程摩擦要靠 `ops_spark` routing、review closeout evidence、subagent lifecycle cleanup、issue-first planning 與 follow-up split 降低。
+
+autonomous work 一開始就必須先分派 worker，再進入計劃、開 issue、讀資料或實作；只有 `trivial/self-only exception` 可以不分派，但必須明寫原因。
 
 **預設工作流程：**
 

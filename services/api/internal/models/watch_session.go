@@ -17,12 +17,12 @@ import (
 //	active  : is_active = true,  ended_at = NULL
 //	finished: is_active = false, ended_at = <timestamp>
 type WatchSession struct {
-	ID                 uuid.UUID  `gorm:"type:uuid;primaryKey;default:gen_random_uuid()" json:"id"`
-	UserID             uuid.UUID  `gorm:"type:uuid;not null;index"                       json:"user_id"`
-	ChannelID          string     `gorm:"type:varchar(255);not null;index"               json:"channel_id"`
-	AccumulatedSeconds int64      `gorm:"not null;default:0"                             json:"accumulated_seconds"`
-	RewardedSeconds    int64      `gorm:"not null;default:0"                             json:"rewarded_seconds"`
-	LastHeartbeatAt    time.Time  `gorm:"not null;default:now()"                         json:"last_heartbeat_at"`
+	ID                 uuid.UUID `gorm:"type:uuid;primaryKey;default:gen_random_uuid()" json:"id"`
+	UserID             uuid.UUID `gorm:"type:uuid;not null;index"                       json:"user_id"`
+	ChannelID          string    `gorm:"type:varchar(255);not null;index"               json:"channel_id"`
+	AccumulatedSeconds int64     `gorm:"not null;default:0"                             json:"accumulated_seconds"`
+	RewardedSeconds    int64     `gorm:"not null;default:0"                             json:"rewarded_seconds"`
+	LastHeartbeatAt    time.Time `gorm:"not null;default:now()"                         json:"last_heartbeat_at"`
 	// ClickCooldownUntil tracks when the viewer may next click.
 	// Defaults to the epoch so the first click is always allowed.
 	ClickCooldownUntil time.Time  `gorm:"not null;default:'1970-01-01 00:00:00+00'"      json:"-"`

@@ -21,15 +21,15 @@ const (
 
 // Raffle represents a single raffle event owned by a streamer.
 type Raffle struct {
-	ID          uuid.UUID    `gorm:"type:uuid;primaryKey;default:gen_random_uuid()" json:"id"`
-	UserID      uuid.UUID    `gorm:"type:uuid;not null;index"                       json:"user_id"`
-	Title       string       `gorm:"type:varchar(255);not null"                     json:"title"`
-	Status      RaffleStatus `gorm:"type:varchar(50);not null;default:'draft'"      json:"status"`
-	Source      RaffleSource `gorm:"type:varchar(50);not null;default:'csv'"        json:"source"`
-	ScheduledAt       *time.Time `                          json:"scheduled_at"`
-	DiscordWebhookURL *string    `gorm:"type:varchar(512)"  json:"-"`
-	CreatedAt         time.Time  `                          json:"created_at"`
-	UpdatedAt         time.Time  `                          json:"updated_at"`
+	ID                uuid.UUID    `gorm:"type:uuid;primaryKey;default:gen_random_uuid()" json:"id"`
+	UserID            uuid.UUID    `gorm:"type:uuid;not null;index"                       json:"user_id"`
+	Title             string       `gorm:"type:varchar(255);not null"                     json:"title"`
+	Status            RaffleStatus `gorm:"type:varchar(50);not null;default:'draft'"      json:"status"`
+	Source            RaffleSource `gorm:"type:varchar(50);not null;default:'csv'"        json:"source"`
+	ScheduledAt       *time.Time   `                          json:"scheduled_at"`
+	DiscordWebhookURL *string      `gorm:"type:varchar(512)"  json:"-"`
+	CreatedAt         time.Time    `                          json:"created_at"`
+	UpdatedAt         time.Time    `                          json:"updated_at"`
 }
 
 // DiscordWebhookConfigured reports whether a webhook URL is set without

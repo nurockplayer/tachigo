@@ -10,7 +10,7 @@ permissions:
 
 jobs:
   enable-auto-merge:
-    if: github.event.pull_request.draft == false && github.event.pull_request.user.login != 'dependabot[bot]'
+    if: github.event.pull_request.draft == false && github.event.pull_request.user.login != 'dependabot[bot]' && github.event.pull_request.base.ref == 'develop'
     timeout-minutes: 5
     runs-on: ubuntu-latest
     steps:
@@ -18,5 +18,12 @@ jobs:
         env:
           GH_TOKEN: ${{ secrets.GITHUB_TOKEN }}
         run: |
+          changed_files=$(gh api --paginate \
+            "repos/${{ github.repository }}/pulls/${{ github.event.pull_request.number }}/files" \
+            --jq '.[] | .filename, (.previous_filename // empty)')
+          if printf '%s\n' "$changed_files" | grep -Eq '^\.github/workflows/'; then
+            echo "Skipping auto-merge for workflow-file PR."
+            exit 0
+          fi
           gh pr merge --auto --merge "${{ github.event.pull_request.number }}" \
             --repo "${{ github.repository }}"

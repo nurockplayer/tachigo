@@ -1,9 +1,12 @@
 package services
 
 import (
+	"bytes"
 	"context"
 	"database/sql"
 	"errors"
+	"log"
+	"strings"
 	"testing"
 
 	"github.com/google/uuid"
@@ -270,6 +273,51 @@ func TestRedeem_BurnBroadcastedButReceiptUnknown(t *testing.T) {
 	}
 	if txHash != "0xbroadcasted" {
 		t.Fatalf("expected tx_hash=0xbroadcasted, got %q", txHash)
+	}
+}
+
+func TestRedeem_BroadcastUnknownPendingRecordFailureLogsReconciliationMetadata(t *testing.T) {
+	db := newTestDB(t)
+	createErr := errors.New("forced coupon redemption create failure")
+	if err := db.Callback().Create().Before("gorm:create").Register("fail_coupon_redemption_create", func(tx *gorm.DB) {
+		if tx.Statement.Schema != nil && tx.Statement.Schema.Table == "coupon_redemptions" {
+			tx.AddError(createErr)
+		}
+	}); err != nil {
+		t.Fatalf("register create callback: %v", err)
+	}
+
+	var logBuf bytes.Buffer
+	previousLogOutput := log.Writer()
+	log.SetOutput(&logBuf)
+	defer log.SetOutput(previousLogOutput)
+
+	burnCaller := &mockBurnCaller{txHash: "0xbroadcasted", err: errors.New("context deadline exceeded")}
+	svc := &SpendService{db: db, burnCaller: burnCaller}
+
+	userID := userIDForClaim(t, db)
+	seedWeb3Provider(t, db, userID, "0xd8dA6BF26964aF9D7eEd9e03E53415D37aA96045")
+	seedTachiBalance(t, db, userID, 300)
+
+	_, _, err := svc.Redeem(context.Background(), userID, "coupon-unknown", 100)
+	if !errors.Is(err, createErr) {
+		t.Fatalf("expected create error, got %v", err)
+	}
+
+	logOutput := logBuf.String()
+	wantFragments := []string{
+		"broadcast-unknown burn redemption record failed",
+		"user_id=" + userID.String(),
+		"coupon_id=coupon-unknown",
+		"amount=100",
+		"tx_hash=0xbroadcasted",
+		"receipt_err=context deadline exceeded",
+		"db_err=forced coupon redemption create failure",
+	}
+	for _, fragment := range wantFragments {
+		if !strings.Contains(logOutput, fragment) {
+			t.Fatalf("log output missing %q:\n%s", fragment, logOutput)
+		}
 	}
 }
 
