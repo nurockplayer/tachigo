@@ -98,4 +98,3 @@ CI drift check 應在 generated artifacts 已 commit 後才加入：
 
 每個 slice 都應可獨立 review。除非 reviewer 明確同意該 scope，否則不要把
 package scaffolding、frontend migration 與 CI policy changes 合併在同一個 PR。
-
