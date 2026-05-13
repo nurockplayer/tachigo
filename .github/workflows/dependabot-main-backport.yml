@@ -1,0 +1,209 @@
+name: Backport Dependabot main updates
+
+on:
+  pull_request:
+    types: [closed]
+    branches: [main]
+
+permissions:
+  contents: write
+  issues: write
+  pull-requests: write
+
+jobs:
+  backport-to-develop:
+    name: Open develop backport PR
+    if: github.event.pull_request.merged == true && github.event.pull_request.user.login == 'dependabot[bot]' && github.event.pull_request.base.ref == 'main' && github.event.pull_request.head.repo.full_name == github.repository
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@34e114876b0b11c390a56381ad16ebd13914f8d5 # v4
+        with:
+          fetch-depth: 0
+          token: ${{ secrets.GITHUB_TOKEN }}
+
+      - name: Cherry-pick Dependabot changes onto develop
+        id: backport
+        env:
+          GH_TOKEN: ${{ secrets.GITHUB_TOKEN }}
+          PR_NUMBER: ${{ github.event.pull_request.number }}
+          PR_TITLE: ${{ github.event.pull_request.title }}
+        run: |
+          set -euo pipefail
+
+          branch="chore/backport-dependabot-${PR_NUMBER}-to-develop"
+
+          git config user.name "github-actions[bot]"
+          git config user.email "41898282+github-actions[bot]@users.noreply.github.com"
+          git fetch origin main develop
+          git checkout -B "$branch" origin/develop
+
+          mapfile -t commits < <(gh api "repos/${GITHUB_REPOSITORY}/pulls/${PR_NUMBER}/commits" --jq '.[].sha')
+          if [ "${#commits[@]}" -eq 0 ]; then
+            echo "No Dependabot commits found for PR #${PR_NUMBER}."
+            echo "created=false" >> "$GITHUB_OUTPUT"
+            exit 0
+          fi
+
+          for sha in "${commits[@]}"; do
+            parent_count="$(git rev-list --parents -n 1 "$sha" | awk '{ print NF - 1 }')"
+            if [ "$parent_count" -gt 1 ]; then
+              git cherry-pick --no-commit -m 1 "$sha"
+            else
+              git cherry-pick --no-commit "$sha"
+            fi
+          done
+
+          if git diff --cached --quiet && git diff --quiet; then
+            echo "Develop already contains the Dependabot changes from PR #${PR_NUMBER}."
+            echo "created=false" >> "$GITHUB_OUTPUT"
+            exit 0
+          fi
+
+          git add services/api/go.mod services/api/go.sum package.json pnpm-lock.yaml pnpm-workspace.yaml apps/dashboard/package.json apps/dashboard/pnpm-lock.yaml apps/extension/package.json apps/extension/pnpm-lock.yaml 2>/dev/null || true
+          git commit \
+            -m "chore: backport Dependabot PR #${PR_NUMBER}" \
+            -m "refs #${PR_NUMBER}" \
+            -m "Co-Authored-By: github-actions[bot] <41898282+github-actions[bot]@users.noreply.github.com>"
+
+          git push --force-with-lease origin "$branch"
+
+          echo "branch=$branch" >> "$GITHUB_OUTPUT"
+          echo "created=true" >> "$GITHUB_OUTPUT"
+
+      - name: Open develop backport PR
+        if: steps.backport.outputs.created == 'true'
+        env:
+          GH_TOKEN: ${{ secrets.GITHUB_TOKEN }}
+          BRANCH: ${{ steps.backport.outputs.branch }}
+          PR_NUMBER: ${{ github.event.pull_request.number }}
+          PR_TITLE: ${{ github.event.pull_request.title }}
+          PR_URL: ${{ github.event.pull_request.html_url }}
+        run: |
+          set -euo pipefail
+
+          existing="$(gh pr list --base develop --head "$BRANCH" --state open --json number --jq '.[0].number // ""')"
+          if [ -n "$existing" ]; then
+            echo "Backport PR #${existing} already exists."
+            exit 0
+          fi
+
+          files="$(gh api "repos/${GITHUB_REPOSITORY}/pulls/${PR_NUMBER}/files" --jq '.[].filename')"
+          title_prefix="[chore]"
+          if printf '%s\n' "$files" | grep -Eq '^services/api/'; then
+            title_prefix="[backend]"
+          elif printf '%s\n' "$files" | grep -Eq '^apps/'; then
+            title_prefix="[frontend]"
+          elif printf '%s\n' "$files" | grep -Eq '^\.github/|^infra/'; then
+            title_prefix="[infra]"
+          fi
+
+          body_file="$(mktemp)"
+          cat > "$body_file" <<EOF
+          ## 什麼改動
+          Backport Dependabot PR #${PR_NUMBER} from \`main\` to \`develop\`.
+
+          Source PR: ${PR_URL}
+
+          ## 為什麼
+          Dependabot security/default-branch updates can target \`main\`. The project development line is \`develop\`, so dependency updates merged into \`main\` must be made visible on \`develop\` before the next release promotion.
+
+          ## Release Context
+          - Release type：n/a
+
+          ## Workflow Type
+          - [x] Small / Medium
+          - [ ] Test-Driven / Debug Loop
+          - [ ] Architecture / High Risk
+
+          ## Scope 對齊
+          - Source of truth：#${PR_NUMBER}
+          - Depends on PR：none
+          - Backend contract already in develop:
+            - [x] yes
+            - [ ] no
+          - If no, this PR is:
+            - [ ] stacked on dependency branch
+            - [ ] intentionally blocked until dependency merges
+          - 本 PR 是否完全在 source of truth 範圍內？
+            - [x] 是
+            - [ ] 否，已另開 issue / PR 處理超出部分
+          - 本 PR 明確不做：
+            - 不修改 runtime code outside the dependency files changed by #${PR_NUMBER}.
+            - 不做 \`main -> develop\` 整體回灌。
+
+          ## Delegation Execution Log（非 Codex autonomous PR 可略過）
+          - Source issue delegation plan：
+            - #${PR_NUMBER}
+          - Actual worker profile(s)：
+            - controller
+          - Model strength：
+            - GitHub Actions workflow
+          - Verification evidence：
+            - CI required checks on this PR
+          - Self-review / exception reason：
+            - Automated narrow backport generated from Dependabot PR #${PR_NUMBER}.
+          - Worker session closeout：
+            - No subagent sessions are opened by this workflow; generated branch and PR are the closeout artifact.
+          - Workflow friction / follow-up split：
+            - If this PR conflicts or CI fails, review and fix manually before merging.
+
+          ## PR 拆分檢查
+          - 這個 PR 的單一句子目的：
+            - Backport Dependabot PR #${PR_NUMBER} to \`develop\`.
+          - Approx changed lines：see Files changed
+          - 本 PR 是否可獨立 review，不需要理解未合併的其他 PR？
+            - [x] 是
+            - [ ] 否，原因：
+          - 本 PR 是否同時包含以下多個層級？
+            - [ ] migration / schema
+            - [ ] backend domain service
+            - [ ] API handler / router
+              - [ ] 已執行 \`swag init\` 並將 \`services/api/docs/\` 變更一起 commit
+            - [ ] frontend integration
+            - [ ] tests
+            - [ ] docs
+            - [ ] refactor / cleanup
+          - 若勾選兩項以上，為什麼這些變更需要放在同一個 PR？
+            - n/a
+          - 若已拆分，相關 PR：
+            - ${PR_URL}
+
+          ## Acceptance Criteria
+          - [x] Backport contains the dependency changes from #${PR_NUMBER}.
+          - [ ] Required CI checks pass.
+
+          ## 超出範圍內容
+          無
+
+          ## 測試方式
+          - [ ] 本地測試過
+          - [ ] 有寫 / 更新測試
+
+          **驗證結果**
+          \`\`\`
+          CI will validate this generated backport PR.
+          \`\`\`
+
+          ## 備註
+          Created automatically because Dependabot PR #${PR_NUMBER} merged into \`main\`.
+
+          ## Notes for Claude Code Review
+          - Confirm this PR only backports dependency files from #${PR_NUMBER}.
+          - If CI fails, treat it like a normal Dependabot update and fix before merge.
+          EOF
+
+          gh pr create \
+            --base develop \
+            --head "$BRANCH" \
+            --title "${title_prefix} Backport Dependabot PR #${PR_NUMBER} to develop" \
+            --body-file "$body_file" \
+            --draft \
+            --label auto-ready
+
+      - name: Comment when backport fails
+        if: failure()
+        env:
+          GH_TOKEN: ${{ secrets.GITHUB_TOKEN }}
+          PR_NUMBER: ${{ github.event.pull_request.number }}
+        run: |
+          gh pr comment "$PR_NUMBER" --body "Dependabot PR #${PR_NUMBER} merged into \`main\`, but the automatic \`develop\` backport failed. Please open a manual backport PR before the next release promotion."

@@ -19,6 +19,7 @@ const issueTemplatePath = path.join(repoRoot, '.github', 'ISSUE_TEMPLATE', 'code
 const prTemplatePath = path.join(repoRoot, '.github', 'PULL_REQUEST_TEMPLATE.md')
 const dependabotConfigPath = path.join(repoRoot, '.github', 'dependabot.yml')
 const dependabotAutomergeWorkflowPath = path.join(currentDir, 'dependabot-automerge.yml')
+const dependabotMainBackportWorkflowPath = path.join(currentDir, 'dependabot-main-backport.yml')
 const dependabotPnpmLockfileWorkflowPath = path.join(currentDir, 'dependabot-pnpm-lockfile.yml')
 const autoMergeWorkflowPath = path.join(currentDir, 'auto-merge.yml')
 const autoReadyWorkflowPath = path.join(currentDir, 'auto-ready-pr.yml')
@@ -1702,6 +1703,28 @@ test('Dependabot auto-merge uses repository-supported merge commits', async () =
 
   assert.match(workflow, /gh pr merge --auto --merge "\$PR_URL"/)
   assert.doesNotMatch(workflow, /gh pr merge --auto --squash/)
+})
+
+test('Dependabot main backport workflow opens develop sync PRs', async () => {
+  const workflow = await readFile(dependabotMainBackportWorkflowPath, 'utf8')
+  const parsedWorkflow = parseYaml(dependabotMainBackportWorkflowPath)
+  const job = parsedWorkflow.jobs['backport-to-develop']
+  const jobBlock = workflowJobBlock(workflow, 'backport-to-develop')
+
+  assert.deepEqual(parsedWorkflow.on.pull_request.branches, ['main'])
+  assert.deepEqual(parsedWorkflow.on.pull_request.types, ['closed'])
+  assert.equal(
+    job.if,
+    "github.event.pull_request.merged == true && github.event.pull_request.user.login == 'dependabot[bot]' && github.event.pull_request.base.ref == 'main' && github.event.pull_request.head.repo.full_name == github.repository",
+  )
+  assert.match(jobBlock, pinnedActionRef('actions/checkout', 'v4'))
+  assert.match(jobBlock, /git checkout -B "\$branch" origin\/develop/)
+  assert.match(jobBlock, /git cherry-pick --no-commit/)
+  assert.match(jobBlock, /refs #\$\{PR_NUMBER\}/)
+  assert.match(jobBlock, /--base develop/)
+  assert.match(jobBlock, /--draft/)
+  assert.match(jobBlock, /--label auto-ready/)
+  assert.match(jobBlock, /automatic \\\`develop\\\` backport failed/)
 })
 
 test('contracts Slither report job uploads SARIF and keeps findings report-only', async () => {
