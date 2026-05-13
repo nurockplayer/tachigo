@@ -49,7 +49,7 @@
   - Refine `authProvider` 尚未整合，目前 route guard 仍由 `ProtectedRoute` 處理
 - [`apps/dashboard/src/components/ProtectedRoute.tsx`](../../apps/dashboard/src/components/ProtectedRoute.tsx)
   - 現在的 route guard 只適合非常早期原型
-- [`apps/dashboard/README.md`](../../apps/dashboard/README.md)
+- [`apps/dashboard/README.md`](https://github.com/nurockplayer/tachigo/blob/develop/apps/dashboard/README.md)
   - 仍是 Vite 預設內容，尚未反映專案實際開發方式
 
 ---
@@ -170,4 +170,4 @@
 
 實作規劃見：
 
-- [`plans/refine-dashboard-mvp.md`](../../plans/refine-dashboard-mvp.md)
+- [`plans/refine-dashboard-mvp.md`](https://github.com/nurockplayer/tachigo/blob/develop/plans/refine-dashboard-mvp.md)

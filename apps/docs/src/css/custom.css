@@ -1,0 +1,326 @@
+:root {
+  --ifm-color-primary: #2a6f6a;
+  --ifm-color-primary-dark: #245e5a;
+  --ifm-color-primary-darker: #205550;
+  --ifm-color-primary-darkest: #183f3c;
+  --ifm-color-primary-light: #34857f;
+  --ifm-color-primary-lighter: #419891;
+  --ifm-color-primary-lightest: #66b8b1;
+  --ifm-background-color: #f6f3ec;
+  --ifm-navbar-background-color: rgba(246, 243, 236, 0.94);
+  --ifm-font-family-base: ui-sans-serif, -apple-system, BlinkMacSystemFont, "Segoe UI", sans-serif;
+  --ifm-heading-font-family: ui-serif, "Iowan Old Style", "Palatino Linotype", Georgia, serif;
+  --ifm-code-font-size: 92%;
+  --tachigo-ink: #17201f;
+  --tachigo-muted: #52605d;
+  --tachigo-line: rgba(23, 32, 31, 0.14);
+  --tachigo-panel: rgba(255, 252, 244, 0.84);
+  --tachigo-signal: #c9483d;
+  --tachigo-amber: #bf8d2c;
+  --tachigo-cyan: #2a8b9f;
+}
+
+[data-theme='dark'] {
+  --ifm-color-primary: #7bd2c8;
+  --ifm-color-primary-dark: #5fc8bd;
+  --ifm-color-primary-darker: #4dbeb3;
+  --ifm-color-primary-darkest: #358a82;
+  --ifm-color-primary-light: #9fe0d8;
+  --ifm-color-primary-lighter: #b7ece6;
+  --ifm-color-primary-lightest: #d6f7f3;
+  --ifm-background-color: #111816;
+  --ifm-navbar-background-color: rgba(17, 24, 22, 0.94);
+  --tachigo-ink: #edf6f3;
+  --tachigo-muted: #afc4bd;
+  --tachigo-line: rgba(237, 246, 243, 0.16);
+  --tachigo-panel: rgba(21, 31, 28, 0.88);
+  --tachigo-signal: #ff806f;
+  --tachigo-amber: #e7b85c;
+  --tachigo-cyan: #67c4d8;
+}
+
+.navbar {
+  border-bottom: 1px solid var(--tachigo-line);
+  box-shadow: none;
+  backdrop-filter: blur(18px);
+}
+
+.theme-doc-sidebar-container {
+  border-right: 1px solid var(--tachigo-line) !important;
+}
+
+.theme-doc-markdown h1,
+.theme-doc-markdown h2,
+.theme-doc-markdown h3 {
+  letter-spacing: 0;
+}
+
+.theme-doc-markdown table {
+  display: table;
+  width: 100%;
+}
+
+.tachigo-home {
+  color: var(--tachigo-ink);
+}
+
+.tachigo-hero {
+  display: grid;
+  grid-template-columns: minmax(0, 0.95fr) minmax(320px, 1.05fr);
+  gap: 2rem;
+  align-items: stretch;
+  min-height: 520px;
+  margin: -1.2rem -0.2rem 2rem;
+  padding: 2.4rem;
+  border: 1px solid var(--tachigo-line);
+  border-radius: 8px;
+  background:
+    linear-gradient(135deg, rgba(42, 111, 106, 0.16), transparent 42%),
+    linear-gradient(225deg, rgba(191, 141, 44, 0.18), transparent 44%),
+    var(--tachigo-panel);
+}
+
+.tachigo-hero__copy {
+  display: flex;
+  flex-direction: column;
+  justify-content: space-between;
+  gap: 2rem;
+}
+
+.tachigo-kicker {
+  margin: 0 0 0.9rem;
+  color: var(--tachigo-signal);
+  font-size: 0.78rem;
+  font-weight: 800;
+  letter-spacing: 0;
+  text-transform: uppercase;
+}
+
+.tachigo-hero h1 {
+  margin: 0;
+  font-size: clamp(2.6rem, 5vw, 5.8rem);
+  line-height: 0.94;
+  letter-spacing: 0;
+}
+
+.tachigo-lede {
+  max-width: 42rem;
+  margin: 1.35rem 0 0;
+  color: var(--tachigo-muted);
+  font-size: 1.05rem;
+  line-height: 1.78;
+}
+
+.tachigo-actions {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 0.85rem;
+}
+
+.tachigo-action {
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  min-height: 44px;
+  padding: 0.76rem 1rem;
+  border: 1px solid var(--tachigo-line);
+  border-radius: 6px;
+  color: var(--tachigo-ink);
+  font-weight: 780;
+  text-decoration: none;
+  transition: transform 160ms ease, border-color 160ms ease, background 160ms ease;
+}
+
+.tachigo-action:hover {
+  color: var(--tachigo-ink);
+  text-decoration: none;
+  transform: translateY(-1px);
+  border-color: color-mix(in srgb, var(--tachigo-cyan), var(--tachigo-line) 35%);
+}
+
+.tachigo-action--primary {
+  background: var(--tachigo-ink);
+  color: var(--ifm-background-color);
+}
+
+.tachigo-action--primary:hover {
+  color: var(--ifm-background-color);
+}
+
+.tachigo-map {
+  display: grid;
+  grid-template-columns: repeat(3, minmax(0, 1fr));
+  grid-template-rows: repeat(3, minmax(100px, 1fr));
+  gap: 0.8rem;
+}
+
+.tachigo-node {
+  display: flex;
+  min-height: 96px;
+  flex-direction: column;
+  justify-content: space-between;
+  padding: 0.85rem;
+  border: 1px solid var(--tachigo-line);
+  border-radius: 8px;
+  background: color-mix(in srgb, var(--tachigo-panel), transparent 12%);
+  box-shadow: inset 0 0 0 1px rgba(255, 255, 255, 0.04);
+}
+
+.tachigo-node strong {
+  font-size: 0.98rem;
+}
+
+.tachigo-node span {
+  color: var(--tachigo-muted);
+  font-size: 0.78rem;
+  line-height: 1.42;
+}
+
+.tachigo-node--api {
+  grid-column: 2;
+  grid-row: 2;
+  border-color: color-mix(in srgb, var(--tachigo-cyan), var(--tachigo-line) 30%);
+  background: color-mix(in srgb, var(--tachigo-cyan), var(--tachigo-panel) 86%);
+}
+
+.tachigo-node--data {
+  grid-column: 2;
+  grid-row: 3;
+}
+
+.tachigo-node--tachiya {
+  grid-column: 3;
+  grid-row: 2;
+  border-color: color-mix(in srgb, var(--tachigo-amber), var(--tachigo-line) 28%);
+}
+
+.tachigo-node--chain {
+  grid-column: 3;
+  grid-row: 3;
+}
+
+.tachigo-grid {
+  display: grid;
+  grid-template-columns: repeat(4, minmax(0, 1fr));
+  gap: 1rem;
+  margin: 1.5rem 0 2.2rem;
+}
+
+.tachigo-card {
+  min-height: 180px;
+  padding: 1rem;
+  border: 1px solid var(--tachigo-line);
+  border-radius: 8px;
+  background: var(--tachigo-panel);
+  color: var(--tachigo-ink);
+  text-decoration: none;
+  transition: transform 160ms ease, border-color 160ms ease;
+}
+
+.tachigo-card:hover {
+  color: var(--tachigo-ink);
+  text-decoration: none;
+  transform: translateY(-2px);
+  border-color: color-mix(in srgb, var(--tachigo-cyan), var(--tachigo-line) 30%);
+}
+
+.tachigo-card__eyebrow {
+  margin-bottom: 1.2rem;
+  color: var(--tachigo-signal);
+  font-size: 0.72rem;
+  font-weight: 800;
+  text-transform: uppercase;
+}
+
+.tachigo-card h2 {
+  margin: 0 0 0.55rem;
+  font-size: 1.2rem;
+}
+
+.tachigo-card__body {
+  margin: 0;
+  color: var(--tachigo-muted);
+  font-size: 0.92rem;
+  line-height: 1.58;
+}
+
+.tachigo-band {
+  margin: 1.8rem 0;
+  padding: 1.15rem;
+  border-left: 4px solid var(--tachigo-signal);
+  background: color-mix(in srgb, var(--tachigo-panel), transparent 15%);
+}
+
+.tachigo-checklist {
+  display: grid;
+  grid-template-columns: repeat(3, minmax(0, 1fr));
+  gap: 1rem;
+  margin: 1rem 0 2rem;
+}
+
+.tachigo-checklist section {
+  padding: 1rem;
+  border: 1px solid var(--tachigo-line);
+  border-radius: 8px;
+  background: var(--tachigo-panel);
+}
+
+.tachigo-checklist h2 {
+  margin-top: 0;
+  font-size: 1.05rem;
+}
+
+.tachigo-checklist__body {
+  color: var(--tachigo-muted);
+  line-height: 1.6;
+}
+
+.tachigo-status {
+  display: inline-flex;
+  align-items: center;
+  min-height: 28px;
+  padding: 0.2rem 0.55rem;
+  border: 1px solid var(--tachigo-line);
+  border-radius: 999px;
+  color: var(--tachigo-muted);
+  font-size: 0.78rem;
+  font-weight: 760;
+}
+
+@media (max-width: 996px) {
+  .tachigo-hero {
+    grid-template-columns: 1fr;
+    padding: 1.4rem;
+  }
+
+  .tachigo-grid,
+  .tachigo-checklist {
+    grid-template-columns: repeat(2, minmax(0, 1fr));
+  }
+}
+
+@media (max-width: 640px) {
+  .tachigo-hero {
+    min-height: auto;
+    margin-top: 0;
+  }
+
+  .tachigo-map {
+    grid-template-columns: 1fr;
+    grid-template-rows: none;
+  }
+
+  .tachigo-node,
+  .tachigo-node--api,
+  .tachigo-node--data,
+  .tachigo-node--tachiya,
+  .tachigo-node--chain {
+    grid-column: auto;
+    grid-row: auto;
+  }
+
+  .tachigo-grid,
+  .tachigo-checklist {
+    grid-template-columns: 1fr;
+  }
+}

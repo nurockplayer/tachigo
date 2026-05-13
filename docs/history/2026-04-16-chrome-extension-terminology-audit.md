@@ -36,7 +36,7 @@
 - [docs/feature-discussion.md](../feature-discussion.md)
 - [docs/tokenomics.md](../tokenomics.md)
 - [docs/watch-to-points-design.md](../watch-to-points-design.md)
-- [apps/extension/README.md](../../apps/extension/README.md)
+- [apps/extension/README.md](https://github.com/nurockplayer/tachigo/blob/develop/apps/extension/README.md)
 
 以下文件已另拆處理，不混在本 PR：
 
@@ -51,7 +51,7 @@
 
 這些項目不是單純改字詞就能處理：
 
-- [apps/extension/index.html](../../apps/extension/index.html)
+- [apps/extension/index.html](https://github.com/nurockplayer/tachigo/blob/develop/apps/extension/index.html)
   - 仍載入 Twitch Extension Helper
 - [apps/extension/src/mock/twitch-ext.ts](../../apps/extension/src/mock/twitch-ext.ts)
   - 本地開發使用 `window.Twitch.ext` mock

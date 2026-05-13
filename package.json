@@ -5,6 +5,8 @@
   "description": "Chrome sidepanel extension + Web3 rewards platform. Viewers spend Bits to earn on-chain tokens; streamers manage rewards from the dashboard.",
   "packageManager": "pnpm@10.33.0",
   "scripts": {
+    "docs:start": "pnpm --filter ./apps/docs start",
+    "build:docs": "pnpm --filter ./apps/docs build",
     "build:extension": "pnpm --filter ./apps/extension build",
     "build:dashboard": "pnpm --filter ./apps/dashboard build",
     "api:types:generate": "pnpm --filter @tachigo/shared-types generate",
