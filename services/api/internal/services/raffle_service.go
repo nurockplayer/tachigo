@@ -28,6 +28,7 @@ var (
 	ErrRaffleForbidden          = errors.New("raffle does not belong to this user")
 	ErrRaffleExhausted          = errors.New("all entries have been drawn")
 	ErrRaffleCompleted          = errors.New("raffle is already completed")
+	ErrRaffleNotDraft           = errors.New("raffle is not in draft status")
 	ErrClaimTokenExpired        = errors.New("claim token has expired")
 	ErrClaimNotFound            = errors.New("claim token not found")
 	ErrClaimAlreadyDone         = errors.New("claim already submitted")
@@ -132,8 +133,12 @@ type ImportCSVResult struct {
 // First column must be twitch_login; an optional second column is display_name.
 // Rows whose twitch_login is already in the raffle are skipped (idempotent).
 func (s *RaffleService) ImportCSV(raffleID, userID uuid.UUID, r io.Reader) (*ImportCSVResult, error) {
-	if _, err := s.GetByID(raffleID, userID); err != nil {
+	raffle, err := s.GetByID(raffleID, userID)
+	if err != nil {
 		return nil, err
+	}
+	if raffle.Status != models.RaffleStatusDraft {
+		return nil, ErrRaffleNotDraft
 	}
 
 	reader := csv.NewReader(r)
@@ -378,6 +383,22 @@ func (s *RaffleService) ListDraws(raffleID, userID uuid.UUID) ([]models.RaffleDr
 		return []models.RaffleDraw{}, nil
 	}
 	return draws, nil
+}
+
+// Activate locks the participant list by moving the raffle from draft to active.
+// After activation, ImportCSV will reject further uploads.
+func (s *RaffleService) Activate(raffleID, userID uuid.UUID) (*models.Raffle, error) {
+	raffle, err := s.GetByID(raffleID, userID)
+	if err != nil {
+		return nil, err
+	}
+	if raffle.Status != models.RaffleStatusDraft {
+		return nil, ErrRaffleNotDraft
+	}
+	if err := s.db.Model(raffle).Update("status", models.RaffleStatusActive).Error; err != nil {
+		return nil, err
+	}
+	return raffle, nil
 }
 
 // Complete marks a raffle as completed.

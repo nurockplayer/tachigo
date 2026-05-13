@@ -90,6 +90,7 @@ func newRaffleTestEnv(t *testing.T) *raffleTestEnv {
 	dash.POST("/raffles/:id/entries/import-csv", raffleH.ImportCSV)
 	dash.POST("/raffles/:id/draws", raffleH.DrawNext)
 	dash.GET("/raffles/:id/draws", raffleH.ListDraws)
+	dash.POST("/raffles/:id/activate", raffleH.Activate)
 	dash.POST("/raffles/:id/complete", raffleH.Complete)
 	dash.PATCH("/raffles/:id/discord-webhook", raffleH.SetDiscordWebhook)
 	dash.POST("/raffles/:id/snapshot", raffleH.Snapshot)
@@ -1130,5 +1131,66 @@ func TestRaffle_Snapshot_UnlinkedSkip(t *testing.T) {
 	result := parseBody(t, w.Body.Bytes())["data"].(map[string]interface{})["result"].(map[string]interface{})
 	if result["skipped"].(float64) != 1 || result["imported"].(float64) != 0 {
 		t.Errorf("want skipped=1 imported=0, got %v", result)
+	}
+}
+
+func TestRaffle_Activate_Success(t *testing.T) {
+	env := newRaffleTestEnv(t)
+	token := env.registerStreamer(t, "act1", "act1@test.com", "pass1234")
+
+	// Create a draft raffle via the API.
+	body, _ := json.Marshal(map[string]string{"title": "Lock Test"})
+	w := httptest.NewRecorder()
+	req, _ := http.NewRequest(http.MethodPost, "/api/v1/dashboard/raffles", bytes.NewReader(body))
+	req.Header.Set("Content-Type", "application/json")
+	req.Header.Set("Authorization", bearer(token))
+	env.router.ServeHTTP(w, req)
+	if w.Code != http.StatusCreated {
+		t.Fatalf("create raffle: want 201, got %d: %s", w.Code, w.Body.String())
+	}
+	raffleID := parseBody(t, w.Body.Bytes())["data"].(map[string]interface{})["raffle"].(map[string]interface{})["id"].(string)
+
+	w = httptest.NewRecorder()
+	req, _ = http.NewRequest(http.MethodPost, "/api/v1/dashboard/raffles/"+raffleID+"/activate", nil)
+	req.Header.Set("Authorization", bearer(token))
+	env.router.ServeHTTP(w, req)
+
+	if w.Code != http.StatusOK {
+		t.Fatalf("activate: want 200, got %d: %s", w.Code, w.Body.String())
+	}
+	raffle := parseBody(t, w.Body.Bytes())["data"].(map[string]interface{})["raffle"].(map[string]interface{})
+	if raffle["status"] != "active" {
+		t.Errorf("expected status active, got %v", raffle["status"])
+	}
+}
+
+func TestRaffle_Activate_Conflict_WhenAlreadyActive(t *testing.T) {
+	env := newRaffleTestEnv(t)
+	token := env.registerStreamer(t, "act2", "act2@test.com", "pass1234")
+
+	body, _ := json.Marshal(map[string]string{"title": "Lock Test 2"})
+	w := httptest.NewRecorder()
+	req, _ := http.NewRequest(http.MethodPost, "/api/v1/dashboard/raffles", bytes.NewReader(body))
+	req.Header.Set("Content-Type", "application/json")
+	req.Header.Set("Authorization", bearer(token))
+	env.router.ServeHTTP(w, req)
+	raffleID := parseBody(t, w.Body.Bytes())["data"].(map[string]interface{})["raffle"].(map[string]interface{})["id"].(string)
+
+	// First activate.
+	req, _ = http.NewRequest(http.MethodPost, "/api/v1/dashboard/raffles/"+raffleID+"/activate", nil)
+	req.Header.Set("Authorization", bearer(token))
+	w = httptest.NewRecorder()
+	env.router.ServeHTTP(w, req)
+	if w.Code != http.StatusOK {
+		t.Fatalf("first activate: want 200, got %d", w.Code)
+	}
+
+	// Second activate must be 409.
+	req, _ = http.NewRequest(http.MethodPost, "/api/v1/dashboard/raffles/"+raffleID+"/activate", nil)
+	req.Header.Set("Authorization", bearer(token))
+	w = httptest.NewRecorder()
+	env.router.ServeHTTP(w, req)
+	if w.Code != http.StatusConflict {
+		t.Errorf("second activate: want 409, got %d: %s", w.Code, w.Body.String())
 	}
 }
