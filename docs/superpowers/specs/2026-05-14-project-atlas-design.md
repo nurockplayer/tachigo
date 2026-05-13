@@ -1,7 +1,7 @@
 ---
 status: proposed
 owner: engineering
-last_reviewed: 2026-05-14
+last_reviewed: 2026-05-13
 ---
 
 # tachigo Dev Portal 導覽網站設計文件
@@ -237,7 +237,7 @@ Dev Portal 頁面應使用固定 metadata，方便人類與 agent 查找。
 ---
 status: active
 owner: engineering
-last_reviewed: 2026-05-14
+last_reviewed: 2026-05-13
 source_of_truth: true
 code_areas:
   - services/api
