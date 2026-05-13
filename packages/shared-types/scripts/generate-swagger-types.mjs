@@ -107,8 +107,10 @@ function renderParameterObject(parameters, indent) {
 
 function selectSuccessResponseSchema(responses) {
   const status = Object.keys(responses)
-    .filter((key) => key.startsWith("2"))
-    .sort()[0];
+    .filter((key) => /^\d{3}$/.test(key))
+    .map(Number)
+    .filter((code) => code >= 200 && code < 300)
+    .sort((left, right) => left - right)[0];
 
   return responses[status]?.schema ?? {};
 }

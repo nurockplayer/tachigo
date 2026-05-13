@@ -4,7 +4,7 @@ import { tmpdir } from "node:os";
 import path from "node:path";
 import test from "node:test";
 
-import { generateTypesFromSwaggerFile } from "./generate-swagger-types.mjs";
+import { generateTypes, generateTypesFromSwaggerFile } from "./generate-swagger-types.mjs";
 
 test("generates deterministic TypeScript contracts from committed Swagger schema", async () => {
   const repoRoot = path.resolve(import.meta.dirname, "../../..");
@@ -32,4 +32,30 @@ test("generates deterministic TypeScript contracts from committed Swagger schema
   } finally {
     await rm(outputDir, { recursive: true, force: true });
   }
+});
+
+test("ignores non-status response keys when selecting the success response schema", () => {
+  const generated = generateTypes({
+    paths: {
+      "/health": {
+        get: {
+          responses: {
+            "200ish": { schema: { type: "string" } },
+            "201": {
+              schema: {
+                type: "object",
+                properties: {
+                  created: { type: "boolean" },
+                },
+              },
+            },
+          },
+        },
+      },
+    },
+  });
+
+  assert.match(generated, /"GET \/health": \{/);
+  assert.match(generated, /response: \{\s+created\?: boolean;/);
+  assert.doesNotMatch(generated, /response: string;/);
 });
