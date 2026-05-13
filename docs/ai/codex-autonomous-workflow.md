@@ -2,6 +2,8 @@
 
 本文件定義 tachigo 的 autonomous product work 規範。目標是讓 Codex 在 issue-first、PR-first、review-gated 的流程下，作為總控 agent 推進產品級工作，同時把可切分的低風險工作交給 worker/subagent。
 
+若需要單一 AI 啟動入口，先讀 [Autonomous Bootstrap](autonomous-bootstrap.md)，再依本文件與 [Autonomous PR Gates](autonomous-pr-gates.md) 展開完整流程。
+
 ## 核心原則
 
 - 每個實作或政策變更都要先有 GitHub issue，再開 PR 回 `develop`。
@@ -65,6 +67,8 @@
 ## 新對話啟動 Checklist
 
 新對話框不要只靠使用者貼一段提示詞來維持一致性。提示詞只負責啟動流程；真正的 source of truth 是 repo 內文件與 GitHub issue / PR metadata。
+
+偏好啟動方式是要求 agent 先讀 [docs/ai/autonomous-bootstrap.md](autonomous-bootstrap.md)。該入口文件會要求 agent 讀回本文件、`AGENTS.md`、`.github/PULL_REQUEST_TEMPLATE.md`、[Autonomous PR Gates](autonomous-pr-gates.md) 與 [PR Scope Policy](../pr-scope-policy.md)。
 
 建議使用者在新對話框貼以下啟動語：
 
