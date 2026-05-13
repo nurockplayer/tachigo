@@ -25,6 +25,7 @@ const dependabotPnpmLockfileWorkflowPath = path.join(currentDir, 'dependabot-pnp
 const autoMergeWorkflowPath = path.join(currentDir, 'auto-merge.yml')
 const autoReadyWorkflowPath = path.join(currentDir, 'auto-ready-pr.yml')
 const aiSprintDiscordWorkflowPath = path.join(currentDir, 'ai-sprint-discord.yml')
+const codexReviewFlagWorkflowPath = path.join(currentDir, 'codex-review-flag.yml')
 const codexReviewRerequestWorkflowPath = path.join(currentDir, 'codex-review-rerequest.yml')
 const closeIssueOnDevelopMergeWorkflowPath = path.join(currentDir, 'close-issue-on-develop-merge.yml')
 const dependencyInventoryWorkflowPath = path.join(currentDir, 'dependency-inventory.yml')
@@ -161,6 +162,7 @@ async function runAutoReadyWorkflow({
   eventName = 'pull_request',
   checkRuns = [],
   statuses = [],
+  files = [],
   checkRunsError = null,
   statusesError = null,
   graphqlError = null,
@@ -174,6 +176,7 @@ async function runAutoReadyWorkflow({
     eventName,
     checkRuns,
     statuses,
+    files,
     checkRunsError,
     statusesError,
     graphqlError,
@@ -352,6 +355,7 @@ async function runAutoReadyScript({
   eventName = 'pull_request',
   checkRuns = [],
   statuses = [],
+  files = [],
   checkRunsError = null,
   statusesError = null,
   graphqlError = null,
@@ -403,6 +407,7 @@ async function runAutoReadyScript({
       pulls: {
         list: async () => ({ data: [pr] }),
         get: async () => ({ data: livePr }),
+        listFiles: async () => ({ data: files }),
       },
       issues: {
         getLabel: async ({ name }) => ({ data: { name } }),
@@ -483,6 +488,90 @@ async function runAutoReadyScript({
     }
   }
   return { autoMergeMutations, graphqlCalls, labelsAdded, labelsCreated, labelsRemoved, mutations, notices, warnings }
+}
+
+async function runCodexReviewFlagWorkflow({
+  eventName = 'pull_request_review',
+  action = 'submitted',
+  prOverrides = {},
+  reviewOverrides = {},
+  reviews = [],
+} = {}) {
+  const parsedWorkflow = parseYaml(codexReviewFlagWorkflowPath)
+  const script = parsedWorkflow.jobs['label-state'].steps[0].with.script
+  const basePr = {
+    number: 472,
+    base: { ref: 'develop' },
+    draft: false,
+    head: { sha: 'head_sha' },
+    updated_at: '2026-05-13T11:39:34Z',
+    labels: [{ name: 'needs-codex-review' }],
+  }
+  const baseReview = {
+    user: { login: 'Erick52106' },
+    state: 'approved',
+    author_association: 'COLLABORATOR',
+    commit_id: 'head_sha',
+    submitted_at: '2026-05-13T11:39:34Z',
+  }
+  const pr = {
+    ...basePr,
+    ...prOverrides,
+    base: { ...basePr.base, ...(prOverrides.base || {}) },
+    head: { ...basePr.head, ...(prOverrides.head || {}) },
+    labels: prOverrides.labels || basePr.labels,
+  }
+  const review = {
+    ...baseReview,
+    ...reviewOverrides,
+    user: { ...baseReview.user, ...(reviewOverrides.user || {}) },
+  }
+  const labelsAdded = []
+  const labelsRemoved = []
+  const labelsCreated = []
+  const notices = []
+  const github = {
+    rest: {
+      pulls: {
+        list: async () => ({ data: [pr] }),
+        listReviews: async () => ({ data: reviews }),
+      },
+      issues: {
+        getLabel: async ({ name }) => ({ data: { name } }),
+        createLabel: async (args) => {
+          labelsCreated.push(args)
+          return { data: { name: args.name } }
+        },
+        addLabels: async ({ issue_number, labels }) => {
+          labelsAdded.push({ issue_number, labels })
+          return { data: labels.map((name) => ({ name })) }
+        },
+        removeLabel: async ({ issue_number, name }) => {
+          labelsRemoved.push({ issue_number, name })
+          return { data: { name } }
+        },
+      },
+    },
+    paginate: async (fn, args) => {
+      const result = await fn(args)
+      return result.data || result
+    },
+  }
+  const core = {
+    notice: (message) => notices.push(message),
+  }
+  const context = {
+    repo: { owner: 'nurockplayer', repo: 'tachigo' },
+    eventName,
+    payload: {
+      action,
+      pull_request: pr,
+      review,
+    },
+  }
+
+  await AsyncFunction('context', 'github', 'core', script)(context, github, core)
+  return { labelsAdded, labelsCreated, labelsRemoved, notices }
 }
 
 async function runCloseIssueOnDevelopMergeWorkflow({
@@ -2527,6 +2616,35 @@ test('auto-ready workflow retries auto-merge for already-ready auto-ready PRs', 
   ])
 })
 
+test('auto-ready workflows skip native auto-merge for workflow-file PRs', async () => {
+  const workflowFiles = [
+    {
+      filename: 'docs/renamed-workflow.md',
+      previous_filename: '.github/workflows/old-workflow.yml',
+      status: 'renamed',
+    },
+  ]
+  const standalone = await runAutoReadyWorkflow({
+    checkRuns: successfulDevelopRequiredCheckRuns(),
+    files: workflowFiles,
+  })
+  const ci = await runCiAutoReadyAfterCiWorkflow({
+    checkRuns: successfulDevelopRequiredCheckRuns(),
+    files: workflowFiles,
+  })
+
+  assert.deepEqual(standalone.graphqlCalls, ['ready'])
+  assert.deepEqual(ci.graphqlCalls, ['ready'])
+  assert.deepEqual(standalone.autoMergeMutations, [])
+  assert.deepEqual(ci.autoMergeMutations, [])
+  assert.deepEqual(standalone.labelsAdded, [
+    { issue_number: 472, labels: ['needs-codex-review'] },
+  ])
+  assert.deepEqual(ci.labelsAdded, [
+    { issue_number: 472, labels: ['needs-codex-review'] },
+  ])
+})
+
 test('auto-ready required-check snapshots stay aligned across workflows', () => {
   const standaloneScript =
     parseYaml(autoReadyWorkflowPath).jobs['auto-ready'].steps[0].with.script
@@ -2686,6 +2804,17 @@ test('auto-ready workflow skips when check/status lookup fails', async () => {
   assert.equal(result.mutations.length, 0)
   assert.equal(result.warnings.length, 1)
   assert.match(result.warnings[0], /failed to fetch checks\/statuses/)
+})
+
+test('Codex review label workflow clears review labels for collaborator approvals', async () => {
+  const result = await runCodexReviewFlagWorkflow()
+
+  assert.deepEqual(result.labelsAdded, [])
+  assert.deepEqual(result.labelsRemoved, [
+    { issue_number: 472, name: 'changes-requested' },
+    { issue_number: 472, name: 'needs-codex-review' },
+  ])
+  assert.deepEqual(result.notices, ['PR #472 cleared review-state labels after approval.'])
 })
 
 test('Codex review re-request workflow requests reviewer and notifies Discord', async () => {

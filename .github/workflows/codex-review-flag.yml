@@ -26,10 +26,17 @@ jobs:
             const repo = context.repo.repo
             const reviewLabel = 'needs-codex-review'
             const changesLabel = 'changes-requested'
-            const reviewer = 'nurockplayer'
+            const trustedAuthorAssociations = new Set(['OWNER', 'MEMBER', 'COLLABORATOR'])
             const targetBaseBranches = new Set(['main', 'develop'])
 
             const isTargetBase = (pr) => targetBaseBranches.has(pr.base?.ref)
+
+            const isTrustedReview = (review) => {
+              const login = review.user?.login || ''
+              if (!trustedAuthorAssociations.has(review.author_association)) return false
+              if (review.user?.type === 'Bot' || login.endsWith('[bot]')) return false
+              return true
+            }
 
             const ensureLabel = async (name, color, description) => {
               try {
@@ -58,13 +65,13 @@ jobs:
               }
             }
 
-            // For schedule cron: find the last review by self (any state)
+            // For schedule cron: find the last trusted review (any state)
             // to detect whether new commits have been pushed since the last review.
-            const getLastReviewBySelf = async (pr) => {
+            const getLastTrustedReview = async (pr) => {
               const reviews = await github.paginate(github.rest.pulls.listReviews, {
                 owner, repo, pull_number: pr.number, per_page: 100,
               })
-              return [...reviews].reverse().find(r => r.user?.login === reviewer)
+              return [...reviews].reverse().find(isTrustedReview)
             }
 
             // shouldFlag is only used by the schedule cron as a fallback sweep.
@@ -80,7 +87,7 @@ jobs:
               const labels = (pr.labels || []).map(l => l.name)
               if (labels.includes(reviewLabel)) return false
 
-              const lastReview = await getLastReviewBySelf(pr)
+              const lastReview = await getLastTrustedReview(pr)
 
               // No prior Codex review means the PR likely missed the original
               // flagging event and should be put into the review queue.
@@ -119,7 +126,7 @@ jobs:
                 return
               }
 
-              if (review.user?.login !== reviewer) {
+              if (!isTrustedReview(review)) {
                 core.notice(`Ignoring review from ${review.user?.login || 'unknown reviewer'}.`)
                 return
               }
