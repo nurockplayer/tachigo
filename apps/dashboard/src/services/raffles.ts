@@ -80,3 +80,14 @@ export async function completeRaffle(raffleId: string): Promise<void> {
     undefined,
   )
 }
+
+export async function setDiscordWebhook(
+  raffleId: string,
+  webhookUrl: string,
+): Promise<boolean> {
+  const { data } = await client.patch<ApiResponse<{ discord_webhook_configured: boolean }>>(
+    `/api/v1/dashboard/raffles/${raffleId}/discord-webhook`,
+    { discord_webhook_url: webhookUrl },
+  )
+  return data.data.discord_webhook_configured
+}

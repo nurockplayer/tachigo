@@ -15,6 +15,7 @@ vi.mock('@/services/raffles', async (importOriginal) => {
     drawNext: vi.fn().mockResolvedValue({}),
     importCSV: vi.fn().mockResolvedValue({ imported: 0, skipped: 0 }),
     completeRaffle: vi.fn().mockResolvedValue(undefined),
+    setDiscordWebhook: vi.fn().mockResolvedValue(true),
   }
 })
 
@@ -70,6 +71,7 @@ beforeEach(() => {
   vi.mocked(rafflesService.drawNext).mockResolvedValue(mockDraw)
   vi.mocked(rafflesService.importCSV).mockResolvedValue({ imported: 0, skipped: 0 })
   vi.mocked(rafflesService.completeRaffle).mockResolvedValue(undefined)
+  vi.mocked(rafflesService.setDiscordWebhook).mockResolvedValue(true)
 })
 afterEach(() => {
   vi.restoreAllMocks()
@@ -307,6 +309,96 @@ describe('RaffleDetailPage — end activity', () => {
     await waitFor(() => expect(completeMock).toHaveBeenCalledWith('r1'))
     await waitFor(() => expect(container.querySelector('[data-testid="end-btn"]')).toBeFalsy())
     expect((container.querySelector('[data-testid="draw-btn"]') as HTMLButtonElement).disabled).toBe(true)
+    cleanup(root, container)
+  })
+})
+
+describe('RaffleDetailPage — Discord webhook', () => {
+  it('shows Discord webhook settings section', async () => {
+    const dp = createMockDataProvider({
+      getOne: { raffles: vi.fn().mockResolvedValue(mockRaffle as BaseRecord) },
+    })
+    const { container, root } = await renderAt('r1', dp)
+    await waitFor(() => expect(container.querySelector('[data-testid="discord-webhook-input"]')).toBeTruthy())
+    cleanup(root, container)
+  })
+
+  it('calls setDiscordWebhook with URL when save button clicked', async () => {
+    const webhookMock = vi.mocked(rafflesService.setDiscordWebhook).mockResolvedValue(true)
+    const dp = createMockDataProvider({
+      getOne: { raffles: vi.fn().mockResolvedValue(mockRaffle as BaseRecord) },
+    })
+    const { container, root } = await renderAt('r1', dp)
+    await waitFor(() => expect(container.querySelector('[data-testid="discord-webhook-input"]')).toBeTruthy())
+
+    const input = container.querySelector('[data-testid="discord-webhook-input"]') as HTMLInputElement
+    await act(async () => {
+      input.value = 'https://discord.com/api/webhooks/123/abc'
+      input.dispatchEvent(new Event('input', { bubbles: true }))
+    })
+    await act(async () => {
+      container.querySelector('[data-testid="discord-webhook-save"]')!
+        .dispatchEvent(new MouseEvent('click', { bubbles: true }))
+    })
+    await waitFor(() => expect(webhookMock).toHaveBeenCalledWith('r1', 'https://discord.com/api/webhooks/123/abc'))
+    cleanup(root, container)
+  })
+
+  it('shows configured status after successful save', async () => {
+    vi.mocked(rafflesService.setDiscordWebhook).mockResolvedValue(true)
+    const dp = createMockDataProvider({
+      getOne: { raffles: vi.fn().mockResolvedValue(mockRaffle as BaseRecord) },
+    })
+    const { container, root } = await renderAt('r1', dp)
+    await waitFor(() => expect(container.querySelector('[data-testid="discord-webhook-input"]')).toBeTruthy())
+
+    const input = container.querySelector('[data-testid="discord-webhook-input"]') as HTMLInputElement
+    await act(async () => {
+      input.value = 'https://discord.com/api/webhooks/123/abc'
+      input.dispatchEvent(new Event('input', { bubbles: true }))
+    })
+    await act(async () => {
+      container.querySelector('[data-testid="discord-webhook-save"]')!
+        .dispatchEvent(new MouseEvent('click', { bubbles: true }))
+    })
+    await waitFor(() => expect(container.querySelector('[data-testid="discord-webhook-status"]')?.textContent).toContain('已設定'))
+    cleanup(root, container)
+  })
+
+  it('calls setDiscordWebhook with empty string when clear button clicked', async () => {
+    const webhookMock = vi.mocked(rafflesService.setDiscordWebhook).mockResolvedValue(false)
+    const dp = createMockDataProvider({
+      getOne: { raffles: vi.fn().mockResolvedValue(mockRaffle as BaseRecord) },
+    })
+    const { container, root } = await renderAt('r1', dp)
+    await waitFor(() => expect(container.querySelector('[data-testid="discord-webhook-clear"]')).toBeTruthy())
+
+    await act(async () => {
+      container.querySelector('[data-testid="discord-webhook-clear"]')!
+        .dispatchEvent(new MouseEvent('click', { bubbles: true }))
+    })
+    await waitFor(() => expect(webhookMock).toHaveBeenCalledWith('r1', ''))
+    cleanup(root, container)
+  })
+
+  it('shows error message when save fails', async () => {
+    vi.mocked(rafflesService.setDiscordWebhook).mockRejectedValue({ response: { data: { error: 'invalid discord webhook url' } } })
+    const dp = createMockDataProvider({
+      getOne: { raffles: vi.fn().mockResolvedValue(mockRaffle as BaseRecord) },
+    })
+    const { container, root } = await renderAt('r1', dp)
+    await waitFor(() => expect(container.querySelector('[data-testid="discord-webhook-input"]')).toBeTruthy())
+
+    const input = container.querySelector('[data-testid="discord-webhook-input"]') as HTMLInputElement
+    await act(async () => {
+      input.value = 'not-a-valid-url'
+      input.dispatchEvent(new Event('input', { bubbles: true }))
+    })
+    await act(async () => {
+      container.querySelector('[data-testid="discord-webhook-save"]')!
+        .dispatchEvent(new MouseEvent('click', { bubbles: true }))
+    })
+    await waitFor(() => expect(container.querySelector('[data-testid="discord-webhook-error"]')?.textContent).toContain('invalid discord webhook url'))
     cleanup(root, container)
   })
 })
