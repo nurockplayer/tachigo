@@ -2,6 +2,8 @@
 
 本文件是 tachigo 的 Autonomous Worker Profiles v2 evidence discipline。它補足 `AGENTS.md`、`docs/ai/codex-autonomous-workflow.md`、`.github/PULL_REQUEST_TEMPLATE.md` 與 `PR Scope Police` 之間的共同語彙。
 
+若是從新對話或新任務啟動 Hybrid AWP with Explicit Fallback Gate，先讀 [docs/ai/autonomous-bootstrap.md](autonomous-bootstrap.md)。本文件是 evidence gate 與 spec-injector local-only 細節，不是單一啟動入口。
+
 ## 成本感知分派
 
 - `ops_spark` / Spark：GitHub issue / PR metadata、CI / check readback、duplicate PR / branch 檢查、review-thread / CodeRabbit / connector 狀態讀回。
