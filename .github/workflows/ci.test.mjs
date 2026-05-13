@@ -1074,6 +1074,9 @@ test('PR template includes a delegation execution log for autonomous work', asyn
   assert.match(prTemplate, /## Final merge gate/)
   assert.match(prTemplate, /Ready-to-merge decision：/)
   assert.match(prTemplate, /spec workflow-check evidence：/)
+  assert.match(prTemplate, /status \+ ref only/)
+  assert.match(prTemplate, /#664 ledger comment URL/)
+  assert.doesNotMatch(prTemplate, /spawn_count|ci_rerun_count|threshold_decision/)
   assert.match(prTemplate, /約 40% infra 複雜 \/ 約 60% 工作流摩擦/)
   assert.match(prTemplate, /改到 `\.github\/workflows\/\*\*` 時也不是 metadata-only，仍需勾選/)
 })
@@ -1101,6 +1104,20 @@ test('AWP v2 docs wire AGENTS and PR scope policy to autonomous evidence gates a
   assert.match(autonomousPrGates, /25-30%/)
   assert.match(autonomousPrGates, /review_triage_ref/)
   assert.match(autonomousPrGates, /Erick52106\/spec-injector#232/)
+  assert.match(autonomousPrGates, /thin wiring/)
+  assert.match(autonomousPrGates, /Erick52106\/spec-injector#224/)
+  assert.match(autonomousPrGates, /#664/)
+  assert.match(prScopePolicy, /status \/ ref/)
+  assert.match(prScopePolicy, /threshold calibration ledger/i)
+})
+
+test('Scope Police stays out of spec workflow-check internals and threshold metrics', async () => {
+  const workflow = await readFile(scopePolicePath, 'utf8')
+  const prScopePolicy = await readFile(prScopePolicyPath, 'utf8')
+
+  assert.doesNotMatch(workflow, /spawn_count|ci_rerun_count|threshold_decision/)
+  assert.doesNotMatch(workflow, /workflow-check --phase start|workflow-check --phase commit|workflow-check --phase merge/)
+  assert.match(prScopePolicy, /does not parse/)
 })
 
 test('PR scope police only treats a delegation log as autonomous when it has real content', async () => {

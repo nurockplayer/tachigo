@@ -48,7 +48,7 @@
 - Worker session closeout：
   - <!-- 例：已讀回 worker 結果，不需追加任務的 worker session 已 close；stale handle / not found 已說明 -->
 - Workflow friction / follow-up split：
-  - <!-- autonomous PR 請說明本次約 40% infra 複雜 / 約 60% 工作流摩擦中，哪些已由 worker routing / closeout / follow-up issue 收斂；非 autonomous PR 可填 n/a -->
+  - <!-- autonomous PR 請說明本次約 40% infra 複雜 / 約 60% 工作流摩擦中，哪些已由 worker routing / closeout / follow-up issue 收斂；threshold calibration 只留 #664 ledger comment URL 或 n/a，非 autonomous PR 可填 n/a -->
 
 ## Review conversation closeout
 <!-- autonomous PR 必填；非 autonomous PR 可填 n/a。所有 review finding 必須修正並回覆/resolve，或留下技術理由後 resolve。 -->
@@ -76,7 +76,7 @@
 - Required checks：
   - <!-- 例：PR Scope Police pass；CI pass；開 PR 前可填 pending with reason -->
 - spec workflow-check evidence：
-  - <!-- 使用 spec-injector 者填 local-only start/commit/merge gate evidence；未使用者填 n/a 或人工 checklist -->
+  - <!-- status + ref only：使用 spec-injector 者填 local-only gate status 與 evidence ref；未使用者填 n/a 或人工 checklist；完整三段細節留在 Evidence URL 或 review/issue comment，不塞 PR body -->
 - Evidence URL：
   - <!-- 例：final closeout comment / CI run / n/a -->
 
