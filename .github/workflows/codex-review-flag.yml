@@ -183,6 +183,19 @@ jobs:
               const currentReview = dismissedReview ? null : review
               const trustedReviewSummary = await fetchTrustedReviewSummary(pr, currentReview, dismissedReview)
 
+              if (context.payload.action === 'dismissed') {
+                if (trustedReviewSummary.hasChangesRequested) {
+                  await addLabels(pr.number, [reviewLabel, changesLabel])
+                  core.notice(`PR #${pr.number} flagged for Codex review after dismissal; a trusted reviewer still requests changes.`)
+                  return
+                }
+
+                await addLabels(pr.number, [reviewLabel])
+                await removeLabel(pr.number, changesLabel)
+                core.notice(`PR #${pr.number} flagged for Codex review after dismissal.`)
+                return
+              }
+
               if (trustedReviewSummary.hasChangesRequested) {
                 await addLabels(pr.number, [changesLabel])
                 await removeLabel(pr.number, reviewLabel)
@@ -194,14 +207,6 @@ jobs:
                 await removeLabel(pr.number, changesLabel)
                 await removeLabel(pr.number, reviewLabel)
                 core.notice(`PR #${pr.number} cleared review-state labels after approval.`)
-                return
-              }
-
-              if (context.payload.action === 'dismissed') {
-                // Dismissed means the review is no longer active — always re-flag.
-                await addLabels(pr.number, [reviewLabel])
-                await removeLabel(pr.number, changesLabel)
-                core.notice(`PR #${pr.number} flagged for Codex review after dismissal.`)
                 return
               }
 
