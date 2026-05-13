@@ -1174,6 +1174,9 @@ func TestRaffle_Activate_Conflict_WhenAlreadyActive(t *testing.T) {
 	req.Header.Set("Content-Type", "application/json")
 	req.Header.Set("Authorization", bearer(token))
 	env.router.ServeHTTP(w, req)
+	if w.Code != http.StatusCreated {
+		t.Fatalf("create raffle: want 201, got %d: %s", w.Code, w.Body.String())
+	}
 	raffleID := parseBody(t, w.Body.Bytes())["data"].(map[string]interface{})["raffle"].(map[string]interface{})["id"].(string)
 
 	// First activate.
