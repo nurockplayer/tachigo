@@ -38,6 +38,43 @@ jobs:
               return true
             }
 
+            const reviewState = (review) => (review.state || '').toLowerCase()
+            const reviewSubmittedAt = (review) => (
+              Date.parse(review.submitted_at || review.submittedAt || review.updated_at || review.updatedAt || '') || 0
+            )
+            const isReviewNewer = (review, currentReview) => (
+              reviewSubmittedAt(review) >= reviewSubmittedAt(currentReview)
+            )
+
+            const fetchTrustedReviewSummary = async (pr, currentReview = null) => {
+              const reviews = await github.paginate(github.rest.pulls.listReviews, {
+                owner, repo, pull_number: pr.number, per_page: 100,
+              })
+              const latestByReviewer = new Map()
+              let lastTrustedReview = null
+
+              for (const review of [...reviews, currentReview].filter(Boolean)) {
+                if (!isTrustedReview(review)) continue
+                const login = review.user?.login
+                if (!login) continue
+
+                if (!lastTrustedReview || isReviewNewer(review, lastTrustedReview)) {
+                  lastTrustedReview = review
+                }
+
+                const latestReview = latestByReviewer.get(login)
+                if (!latestReview || isReviewNewer(review, latestReview)) {
+                  latestByReviewer.set(login, review)
+                }
+              }
+
+              const latestReviews = [...latestByReviewer.values()]
+              return {
+                hasChangesRequested: latestReviews.some((review) => reviewState(review) === 'changes_requested'),
+                lastTrustedReview,
+              }
+            }
+
             const ensureLabel = async (name, color, description) => {
               try {
                 await github.rest.issues.getLabel({ owner, repo, name })
@@ -68,10 +105,8 @@ jobs:
             // For schedule cron: find the last trusted review (any state)
             // to detect whether new commits have been pushed since the last review.
             const getLastTrustedReview = async (pr) => {
-              const reviews = await github.paginate(github.rest.pulls.listReviews, {
-                owner, repo, pull_number: pr.number, per_page: 100,
-              })
-              return [...reviews].reverse().find(isTrustedReview)
+              const { lastTrustedReview } = await fetchTrustedReviewSummary(pr)
+              return lastTrustedReview
             }
 
             // shouldFlag is only used by the schedule cron as a fallback sweep.
@@ -131,14 +166,16 @@ jobs:
                 return
               }
 
-              if (review.state === 'changes_requested') {
+              const trustedReviewSummary = await fetchTrustedReviewSummary(pr, review)
+
+              if (trustedReviewSummary.hasChangesRequested) {
                 await addLabels(pr.number, [changesLabel])
                 await removeLabel(pr.number, reviewLabel)
-                core.notice(`PR #${pr.number} marked as ${changesLabel}.`)
+                core.notice(`PR #${pr.number} kept ${changesLabel} because a trusted reviewer still requests changes.`)
                 return
               }
 
-              if (review.state === 'approved') {
+              if (reviewState(review) === 'approved') {
                 await removeLabel(pr.number, changesLabel)
                 await removeLabel(pr.number, reviewLabel)
                 core.notice(`PR #${pr.number} cleared review-state labels after approval.`)

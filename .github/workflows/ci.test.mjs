@@ -2817,6 +2817,43 @@ test('Codex review label workflow clears review labels for collaborator approval
   assert.deepEqual(result.notices, ['PR #472 cleared review-state labels after approval.'])
 })
 
+test('Codex review label workflow keeps changes requested when another trusted reviewer still blocks', async () => {
+  const result = await runCodexReviewFlagWorkflow({
+    reviewOverrides: {
+      user: { login: 'reviewer-b' },
+      state: 'approved',
+      author_association: 'MEMBER',
+      submitted_at: '2026-05-13T11:40:00Z',
+    },
+    reviews: [
+      {
+        user: { login: 'reviewer-a' },
+        state: 'CHANGES_REQUESTED',
+        author_association: 'COLLABORATOR',
+        commit_id: 'head_sha',
+        submitted_at: '2026-05-13T11:39:00Z',
+      },
+      {
+        user: { login: 'reviewer-b' },
+        state: 'APPROVED',
+        author_association: 'MEMBER',
+        commit_id: 'head_sha',
+        submitted_at: '2026-05-13T11:40:00Z',
+      },
+    ],
+  })
+
+  assert.deepEqual(result.labelsAdded, [
+    { issue_number: 472, labels: ['changes-requested'] },
+  ])
+  assert.deepEqual(result.labelsRemoved, [
+    { issue_number: 472, name: 'needs-codex-review' },
+  ])
+  assert.deepEqual(result.notices, [
+    'PR #472 kept changes-requested because a trusted reviewer still requests changes.',
+  ])
+})
+
 test('Codex review label workflow clears review labels when PRs close', async () => {
   const parsedWorkflow = parseYaml(codexReviewFlagWorkflowPath)
   const result = await runCodexReviewFlagWorkflow({
