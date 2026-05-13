@@ -1720,6 +1720,7 @@ test('Dependabot main backport workflow opens develop sync PRs', async () => {
   assert.match(jobBlock, pinnedActionRef('actions/checkout', 'v4'))
   assert.match(jobBlock, /git checkout -B "\$branch" origin\/develop/)
   assert.match(jobBlock, /git cherry-pick --no-commit/)
+  assert.match(jobBlock, /git restore --staged \./)
   assert.match(jobBlock, /refs #\$\{PR_NUMBER\}/)
   assert.match(jobBlock, /--base develop/)
   assert.match(jobBlock, /--draft/)

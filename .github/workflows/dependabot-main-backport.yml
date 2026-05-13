@@ -53,13 +53,15 @@ jobs:
             fi
           done
 
-          if git diff --cached --quiet && git diff --quiet; then
-            echo "Develop already contains the Dependabot changes from PR #${PR_NUMBER}."
+          git restore --staged .
+          git add services/api/go.mod services/api/go.sum package.json pnpm-lock.yaml pnpm-workspace.yaml apps/dashboard/package.json apps/dashboard/pnpm-lock.yaml apps/extension/package.json apps/extension/pnpm-lock.yaml 2>/dev/null || true
+
+          if git diff --cached --quiet; then
+            echo "Develop already contains no whitelisted dependency changes from PR #${PR_NUMBER}."
             echo "created=false" >> "$GITHUB_OUTPUT"
             exit 0
           fi
 
-          git add services/api/go.mod services/api/go.sum package.json pnpm-lock.yaml pnpm-workspace.yaml apps/dashboard/package.json apps/dashboard/pnpm-lock.yaml apps/extension/package.json apps/extension/pnpm-lock.yaml 2>/dev/null || true
           git commit \
             -m "chore: backport Dependabot PR #${PR_NUMBER}" \
             -m "refs #${PR_NUMBER}" \
