@@ -85,6 +85,11 @@ function CsvUploadZone({
   locked: boolean
   onSuccess: (result: { imported: number; skipped: number }) => void
 }) {
+  const inputRef = useRef<HTMLInputElement>(null)
+  const [uploading, setUploading] = useState(false)
+  const [result, setResult] = useState<{ imported: number; skipped: number } | null>(null)
+  const [error, setError] = useState<string | null>(null)
+
   if (locked) {
     return (
       <div
@@ -95,10 +100,6 @@ function CsvUploadZone({
       </div>
     )
   }
-  const inputRef = useRef<HTMLInputElement>(null)
-  const [uploading, setUploading] = useState(false)
-  const [result, setResult] = useState<{ imported: number; skipped: number } | null>(null)
-  const [error, setError] = useState<string | null>(null)
 
   async function handleFile(file: File) {
     setUploading(true)
