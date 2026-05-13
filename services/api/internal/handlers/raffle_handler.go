@@ -137,6 +137,7 @@ func (h *RaffleHandler) Get(c *gin.Context) {
 // @Param        file formData file   true "CSV file (column 1: twitch_login, column 2: display_name)"
 // @Success      200  {object}  Response
 // @Failure      400  {object}  Response
+// @Failure      409  {object}  Response
 // @Router       /dashboard/raffles/{id}/entries/import-csv [post]
 func (h *RaffleHandler) ImportCSV(c *gin.Context) {
 	claims := middleware.MustClaims(c)
@@ -177,6 +178,10 @@ func (h *RaffleHandler) ImportCSV(c *gin.Context) {
 		}
 		if errors.Is(err, services.ErrRaffleForbidden) {
 			c.JSON(http.StatusForbidden, Response{Success: false, Error: "forbidden"})
+			return
+		}
+		if errors.Is(err, services.ErrRaffleNotDraft) {
+			conflict(c, err.Error())
 			return
 		}
 		log.Printf("raffle import-csv raffle_id=%s: %v", raffleID, err)
@@ -314,6 +319,49 @@ func (h *RaffleHandler) Complete(c *gin.Context) {
 			return
 		}
 		internal(c)
+		return
+	}
+	ok(c, gin.H{"raffle": raffle})
+}
+
+// Activate godoc
+// @Summary      Lock the participant list and move raffle from draft to active
+// @Tags         raffles
+// @Security     BearerAuth
+// @Produce      json
+// @Param        id   path string true "Raffle ID"
+// @Success      200  {object}  Response
+// @Failure      403  {object}  Response
+// @Failure      404  {object}  Response
+// @Failure      409  {object}  Response
+// @Router       /dashboard/raffles/{id}/activate [post]
+func (h *RaffleHandler) Activate(c *gin.Context) {
+	claims := middleware.MustClaims(c)
+	userID, err := uuid.Parse(claims.UserID)
+	if err != nil {
+		badRequest(c, "invalid user id")
+		return
+	}
+
+	raffleID, err := uuid.Parse(c.Param("id"))
+	if err != nil {
+		badRequest(c, "invalid raffle id")
+		return
+	}
+
+	raffle, err := h.raffleSvc.Activate(raffleID, userID)
+	if err != nil {
+		switch {
+		case errors.Is(err, services.ErrRaffleNotFound):
+			notFound(c, "raffle not found")
+		case errors.Is(err, services.ErrRaffleForbidden):
+			c.JSON(http.StatusForbidden, Response{Success: false, Error: "forbidden"})
+		case errors.Is(err, services.ErrRaffleNotDraft):
+			conflict(c, err.Error())
+		default:
+			log.Printf("raffle activate raffle_id=%s: %v", raffleID, err)
+			internal(c)
+		}
 		return
 	}
 	ok(c, gin.H{"raffle": raffle})

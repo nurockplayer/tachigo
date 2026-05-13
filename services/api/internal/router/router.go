@@ -239,6 +239,9 @@ func New(
 		dashboard.GET("/raffles/:id/draws",
 			middleware.RequireRole(models.RoleStreamer),
 			raffleH.ListDraws)
+		dashboard.POST("/raffles/:id/activate",
+			middleware.RequireRole(models.RoleStreamer),
+			raffleH.Activate)
 		dashboard.POST("/raffles/:id/complete",
 			middleware.RequireRole(models.RoleStreamer),
 			raffleH.Complete)
