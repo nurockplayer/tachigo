@@ -10,6 +10,7 @@ AI-facing collaboration guidance lives here unless a tool requires a specific pa
 - `code-review-refactor.md` — local Claude Code review workflow notes.
 - `github-ssh-443-push.md` — playbook for GitHub SSH over 443 when `git push` is unstable.
 - `github-actions-debugging.md` — playbook for PR, CI, scope gate, and auto-ready debugging.
+- `supply-chain-security.md` — dependency install, AI-agent package use, and developer-machine persistence guardrails.
 - `token-budget.md` — token budget guidance for AI-assisted work.
 
 ## Root-Level Exceptions

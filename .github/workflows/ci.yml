@@ -331,6 +331,26 @@ jobs:
       - name: Verify CI workflow assertions
         run: node --test .github/workflows/ci.test.mjs
 
+      - name: Verify supply-chain guardrail assertions
+        run: bash infra/scripts/check-supply-chain-guardrails.test.sh
+
+      - name: Verify developer persistence guardrail assertions
+        run: bash infra/scripts/check-developer-persistence.test.sh
+
+  supply-chain-guardrails:
+    timeout-minutes: 5
+    name: Supply-chain guardrails
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@34e114876b0b11c390a56381ad16ebd13914f8d5 # v4
+
+      - uses: actions/setup-node@49933ea5288caeca8642d1e84afbd3f7d6820020 # v4
+        with:
+          node-version: 22.12.0
+
+      - name: Verify dependency install guardrails
+        run: node infra/scripts/check-supply-chain-guardrails.mjs
+
   commit-message-regression:
     timeout-minutes: 5
     name: Commit message regression tests
@@ -763,7 +783,7 @@ jobs:
   auto-ready-after-ci:
     timeout-minutes: 5
     name: Auto-ready draft PR after CI
-    needs: [scope-gate, backend-ci, dependency-review, frontend, dashboard, contracts, contracts-slither, contracts-gas-snapshot]
+    needs: [scope-gate, supply-chain-guardrails, backend-ci, dependency-review, frontend, dashboard, contracts, contracts-slither, contracts-gas-snapshot]
     if: always() && github.event_name == 'pull_request'
     runs-on: ubuntu-latest
     permissions:
@@ -777,6 +797,7 @@ jobs:
         uses: actions/github-script@f28e40c7f34bde8b3046d885e986cb6290c5673b # v7
         env:
           SCOPE_GATE_RESULT: ${{ needs.scope-gate.result }}
+          SUPPLY_CHAIN_GUARDRAILS_RESULT: ${{ needs.supply-chain-guardrails.result }}
           BACKEND_CI_RESULT: ${{ needs.backend-ci.result }}
           DEPENDENCY_REVIEW_RESULT: ${{ needs.dependency-review.result }}
           FRONTEND_RESULT: ${{ needs.frontend.result }}
@@ -799,6 +820,7 @@ jobs:
             const requiredCheckSnapshots = {
               develop: [
                 { context: 'Scope gate', appId: 15368 },
+                { context: 'Supply-chain guardrails', appId: 15368 },
                 { context: 'Frontend build', appId: 15368 },
                 { context: 'Dashboard build', appId: 15368 },
                 { context: 'Contracts build', appId: 15368 },
@@ -810,6 +832,7 @@ jobs:
             }
             const requiredJobResults = [
               ['scope-gate', process.env.SCOPE_GATE_RESULT],
+              ['supply-chain-guardrails', process.env.SUPPLY_CHAIN_GUARDRAILS_RESULT],
               ['backend-ci', process.env.BACKEND_CI_RESULT],
               ['dependency-review', process.env.DEPENDENCY_REVIEW_RESULT],
               ['frontend', process.env.FRONTEND_RESULT],
@@ -1070,7 +1093,7 @@ jobs:
   notify-discord:
     timeout-minutes: 5
     name: Notify Discord on failure
-    needs: [workflow-regression, commit-message-regression, pr-metadata-regression, check-cache-wiring, atlas-migration-tooling, backend-ci, dependency-review, frontend, dashboard, contracts, contracts-slither, contracts-gas-snapshot]
+    needs: [workflow-regression, supply-chain-guardrails, commit-message-regression, pr-metadata-regression, check-cache-wiring, atlas-migration-tooling, backend-ci, dependency-review, frontend, dashboard, contracts, contracts-slither, contracts-gas-snapshot]
     if: failure()
     runs-on: ubuntu-latest
     steps:

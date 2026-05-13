@@ -146,6 +146,7 @@ review label 流程接手。
 - 不得讓 AI 自行擴張 issue scope；AI 提出的額外功能、future work、重構建議，必須拆成獨立 issue / PR
 - 不得把 docs / research draft / brainstorming 內容直接當成 implementation source of truth，除非 repo 已明確指定
 - 不得未經驗證就宣稱「已完成」；至少要回報實際執行過的測試、未驗證部分、以及已知風險
+- 不得自行新增依賴或執行 `npx` / `pnpm dlx` / `npm exec` / `curl | bash` / `wget | sh`；依賴與 lockfile 變更必須符合 [docs/ai/supply-chain-security.md](../../docs/ai/supply-chain-security.md) 的供應鏈安全規則
 - reviewer 應優先檢查 AI 是否偏離 issue、腦補需求、混入未要求的 schema / API / UI 改動，而不是只看程式碼表面是否完整
 
 ## 操作權限邊界

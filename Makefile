@@ -1,4 +1,4 @@
-.PHONY: setup dev up down logs pr-meta-check pr-open session-index session-find session-index-test
+.PHONY: setup dev up down logs pr-meta-check pr-open session-index session-find session-index-test supply-chain-check developer-persistence-check
 
 # ── Setup (run once after cloning) ────────────────────────────────────────────
 setup:
@@ -43,3 +43,10 @@ session-find:
 
 session-index-test:
 	@./infra/scripts/session-index.test.sh
+
+# ── Supply-chain guardrails ──────────────────────────────────────────────────
+supply-chain-check:
+	@node infra/scripts/check-supply-chain-guardrails.mjs
+
+developer-persistence-check:
+	@bash infra/scripts/check-developer-persistence.sh

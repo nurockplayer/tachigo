@@ -45,6 +45,7 @@ jobs:
             const requiredCheckSnapshots = {
               develop: [
                 { context: 'Scope gate', appId: 15368 },
+                { context: 'Supply-chain guardrails', appId: 15368 },
                 { context: 'Frontend build', appId: 15368 },
                 { context: 'Dashboard build', appId: 15368 },
                 { context: 'Contracts build', appId: 15368 },
