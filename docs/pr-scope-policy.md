@@ -153,9 +153,15 @@ Dependabot maintenance PR 目前不會套用 frontend/backend 依賴關係用的
 
 - `codex` / `codex-automation` / `auto-ready` label 或 `Delegation Execution Log` 在正式欄位（`Source issue delegation plan`、`Actual worker profile(s)`、`Model strength`、`Verification evidence`、`Self-review / exception reason`）有實質內容時，視為 autonomous PR。
 - 自動化 PR 還須在同區塊填寫 `Worker session closeout`，且內容不可空白、`n/a`、`none`、`無`、`不適用`。
+- 自動化 PR 必須至少有一條 spawn directive，且同時包含 `profile=`、`model=`、`reasoning=`、`controller_fallback=`；若 `controller_fallback=allowed`，同一行必須有非空 `fallback_reason=`。
+- `ops_spark` 類任務不得使用高階 controller model，除非同一條 spawn directive 留下 fallback reason。
+- 自動化 PR 必須有 `Review conversation closeout` 或 `Final merge gate` evidence；ready-to-merge closeout 不可留下裸 `pending`。
+- sticky comment 會顯示 `Autonomous evidence snapshot`，列出 delegation log、worker closeout、spawn directives、controller fallback detail、review closeout、final merge gate 與 pending 是否已清除。
 - section 內只要是空白、`n/a`、`none`、`無`、`不適用`，或非正式欄位的自由備註，不會啟動 delegation gate。
 - 只有 section 標題但欄位空白，不算 autonomous PR，也不會觸發 delegation gate。
 - 一般非 autonomous PR 不需要填寫 worker profile；不因 `Delegation Execution Log` 缺漏而被視為流程違規。
+
+Autonomous Worker Profiles v2 的完整 evidence discipline 與 `spec workflow-check` local-only 接入點見 [docs/ai/autonomous-pr-gates.md](ai/autonomous-pr-gates.md)。`spec-injector` 不得把 `.spec-injector/`、spec output 或 private local context commit 進 repo；未使用此工具的 PR 可填人工 checklist / `n/a`。
 
 使用原則：
 

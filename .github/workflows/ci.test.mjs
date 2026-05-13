@@ -1062,12 +1062,35 @@ test('PR template includes a delegation execution log for autonomous work', asyn
   assert.match(prTemplate, /Source issue delegation plan：/)
   assert.match(prTemplate, /Actual worker profile\(s\)：/)
   assert.match(prTemplate, /Model strength：/)
+  assert.match(prTemplate, /Spawn directive\(s\)：/)
   assert.match(prTemplate, /Verification evidence：/)
   assert.match(prTemplate, /Self-review \/ exception reason：/)
   assert.match(prTemplate, /Worker session closeout：/)
   assert.match(prTemplate, /Workflow friction \/ follow-up split：/)
+  assert.match(prTemplate, /## Review conversation closeout/)
+  assert.match(prTemplate, /## Final merge gate/)
+  assert.match(prTemplate, /Ready-to-merge decision：/)
+  assert.match(prTemplate, /spec workflow-check evidence：/)
   assert.match(prTemplate, /約 40% infra 複雜 \/ 約 60% 工作流摩擦/)
   assert.match(prTemplate, /改到 `\.github\/workflows\/\*\*` 時也不是 metadata-only，仍需勾選/)
+})
+
+test('AWP v2 docs wire AGENTS and PR scope policy to autonomous evidence gates and spec workflow-check', async () => {
+  const agents = await readFile(path.join(repoRoot, 'AGENTS.md'), 'utf8')
+  const prScopePolicy = await readFile(prScopePolicyPath, 'utf8')
+  const autonomousPrGates = await readFile(
+    path.join(repoRoot, 'docs', 'ai', 'autonomous-pr-gates.md'),
+    'utf8',
+  )
+
+  assert.match(agents, /docs\/ai\/autonomous-pr-gates\.md/)
+  assert.match(agents, /spec workflow-check/)
+  assert.match(prScopePolicy, /Autonomous evidence snapshot/)
+  assert.match(prScopePolicy, /docs\/ai\/autonomous-pr-gates\.md/)
+  assert.match(autonomousPrGates, /controller_fallback_reason|fallback_reason/)
+  assert.match(autonomousPrGates, /Review conversation closeout/)
+  assert.match(autonomousPrGates, /Final merge gate/)
+  assert.match(autonomousPrGates, /spec workflow-check/)
 })
 
 test('PR scope police only treats a delegation log as autonomous when it has real content', async () => {
@@ -1087,9 +1110,13 @@ test('PR scope police only treats a delegation log as autonomous when it has rea
 - Source issue delegation plan：#623 的 issue delegation plan
 - Actual worker profile(s)：controller / test_worker
 - Model strength：controller = high；test_worker = medium
+- Spawn directive(s)：profile=test_worker model=gpt-5.4 reasoning=medium controller_fallback=denied
 - Verification evidence：git diff --check；node --test .github/workflows/ci.test.mjs
 - Self-review / exception reason：已完成 self-review
 - Worker session closeout：已讀回 worker 結果並 close
+
+## Final merge gate
+- Ready-to-merge decision：ready
 `
   const filledLogRun = await runScopePoliceWorkflow({ body: filledDelegationLogBody })
   assert.equal(filledLogRun.failures.length, 0)
@@ -1116,8 +1143,13 @@ test('PR scope police only treats a delegation log as autonomous when it has rea
 - Actual worker profile(s)：
   - controller
   - test_worker
+- Spawn directive(s)：
+  - profile=test_worker model=gpt-5.4 reasoning=medium controller_fallback=denied
 - Worker session closeout：
   - 已讀回 worker 結果並 close
+
+## Final merge gate
+- Ready-to-merge decision：ready
 `
   const multilineActualWorkerProfileWithCloseoutRun = await runScopePoliceWorkflow({
     body: multilineActualWorkerProfileWithCloseoutBody,
@@ -1216,6 +1248,9 @@ test('PR scope police only treats a delegation log as autonomous when it has rea
 - Actual worker profile(s)：
 - Worker session closeout：
   - 已讀回 worker 結果並 close
+
+## Final merge gate
+- Ready-to-merge decision：ready
 `
   const sourceIssueControllerNoWorkerProfileRun = await runScopePoliceWorkflow({
     body: sourceIssueControllerNoWorkerProfileBody,
@@ -1241,6 +1276,9 @@ test('PR scope police only treats a delegation log as autonomous when it has rea
   - This is a closeout-only docs typo update.
 - Worker session closeout：
   - 已讀回 worker 結果並 close
+
+## Final merge gate
+- Ready-to-merge decision：ready
 `
   const trivialExceptionWithNestedMeaningRun = await runScopePoliceWorkflow({
     body: trivialExceptionWithNestedMeaningBody,
@@ -1258,6 +1296,9 @@ test('PR scope police only treats a delegation log as autonomous when it has rea
   - trivial/self-only exception for a single-line metadata correction
 - Worker session closeout：
   - 已讀回 worker 結果並 close
+
+## Final merge gate
+- Ready-to-merge decision：ready
 `
   const selfReviewNestedTrivialExceptionRun = await runScopePoliceWorkflow({
     body: selfReviewNestedTrivialExceptionBody,
@@ -1383,6 +1424,160 @@ test('PR scope police only treats a delegation log as autonomous when it has rea
       /Autonomous PR must include a `Delegation Execution Log` section\./,
     )
   }
+
+  const autonomousLabelRun = await runScopePoliceWorkflow({
+    body: prTemplateBody,
+    labels: [{ name: 'autonomous' }],
+  })
+  assert.equal(autonomousLabelRun.failures.length, 1)
+  assert.match(autonomousLabelRun.comments[0].body, /- Autonomous PR: yes/)
+
+  const autonomousBranchRun = await runScopePoliceWorkflow({
+    body: prTemplateBody,
+    prOverrides: { head: { ref: 'codex/autonomous-evidence-gates' } },
+  })
+  assert.equal(autonomousBranchRun.failures.length, 1)
+  assert.match(autonomousBranchRun.comments[0].body, /- Autonomous PR: yes/)
+
+  const autonomousBodySignalRun = await runScopePoliceWorkflow({
+    body: `${prTemplateBody}\n\nAutonomous PR: yes\n`,
+  })
+  assert.equal(autonomousBodySignalRun.failures.length, 1)
+  assert.match(autonomousBodySignalRun.comments[0].body, /- Autonomous PR: yes/)
+})
+
+test('autonomous PR evidence gate requires spawn directives, closeout evidence, and pending-free merge gates', async () => {
+  const validAutonomousBody = `
+refs #653
+
+Source of truth: #653
+
+Depends on PR: none
+
+本 PR 明確不做
+- product code changes
+
+## Delegation Execution Log
+- Source issue delegation plan：#653 issue delegation plan
+- Actual worker profile(s)：ops_spark / docs_worker
+- Model strength：ops_spark = medium；docs_worker = medium
+- Spawn directive(s)：
+  - profile=ops_spark model=gpt-5.3-codex-spark reasoning=medium controller_fallback=not-needed
+  - profile=docs_worker model=gpt-5.3-codex-spark reasoning=medium controller_fallback=allowed fallback_reason=sticky comment snapshot wording
+- Verification evidence：node --test .github/workflows/ci.test.mjs；git diff --check
+- Self-review / exception reason：controller reviewed the workflow diff before handoff
+- Worker session closeout：all worker sessions read back and closed
+
+## Review conversation closeout
+- Unresolved threads：0
+- CodeRabbit：reaction-only on latest head
+- chatgpt-codex-connector：commented on latest head
+- Final reviewer action：resolved or documented
+
+## Final merge gate
+- Ready-to-merge decision：ready
+- Latest head SHA：abc1234
+- Required checks：pass
+- Evidence URL：https://example.com/pr/653#issuecomment-1
+`
+  const validRun = await runScopePoliceWorkflow({ body: validAutonomousBody })
+  assert.equal(validRun.failures.length, 0)
+  assert.match(validRun.comments[0].body, /- Autonomous PR: yes/)
+  assert.match(validRun.comments[0].body, /Autonomous evidence snapshot/i)
+  assert.match(validRun.comments[0].body, /Spawn directives: pass/i)
+  assert.match(validRun.comments[0].body, /Review closeout: pass/i)
+  assert.match(validRun.comments[0].body, /Final merge gate: pass/i)
+
+  const missingSpawnDirectiveRun = await runScopePoliceWorkflow({
+    body: validAutonomousBody.replace(
+      /- Spawn directive\(s\)：[\s\S]*?- Verification evidence：/,
+      '- Verification evidence：',
+    ),
+  })
+  assert.equal(missingSpawnDirectiveRun.failures.length, 1)
+  assert.match(
+    missingSpawnDirectiveRun.comments[0].body,
+    /Autonomous PR must include at least one spawn directive with `profile=`, `model=`, `reasoning=`, and `controller_fallback=`\./,
+  )
+
+  const missingFallbackReasonRun = await runScopePoliceWorkflow({
+    body: validAutonomousBody.replace(
+      'controller_fallback=allowed fallback_reason=sticky comment snapshot wording',
+      'controller_fallback=allowed',
+    ),
+  })
+  assert.equal(missingFallbackReasonRun.failures.length, 1)
+  assert.match(
+    missingFallbackReasonRun.comments[0].body,
+    /`controller_fallback=allowed` requires a non-empty `fallback_reason=` in the same spawn directive\./,
+  )
+
+  const controllerFallbackReasonAliasRun = await runScopePoliceWorkflow({
+    body: validAutonomousBody.replace(
+      'fallback_reason=sticky comment snapshot wording',
+      'controller_fallback_reason=sticky comment snapshot wording',
+    ),
+  })
+  assert.equal(controllerFallbackReasonAliasRun.failures.length, 0)
+
+  const pendingMergeGateRun = await runScopePoliceWorkflow({
+    body: validAutonomousBody.replace(
+      '- Ready-to-merge decision：ready',
+      '- Ready-to-merge decision：pending',
+    ),
+  })
+  assert.equal(pendingMergeGateRun.failures.length, 1)
+  assert.match(
+    pendingMergeGateRun.comments[0].body,
+    /Autonomous PR final merge gate must not leave a bare `pending` ready-to-merge decision\./,
+  )
+
+  const nestedPendingMergeGateRun = await runScopePoliceWorkflow({
+    body: validAutonomousBody.replace(
+      '- Ready-to-merge decision：ready',
+      '- Ready-to-merge decision：\n  - pending',
+    ),
+  })
+  assert.equal(nestedPendingMergeGateRun.failures.length, 1)
+  assert.match(
+    nestedPendingMergeGateRun.comments[0].body,
+    /Autonomous PR final merge gate must not leave a bare `pending` ready-to-merge decision\./,
+  )
+
+  const emptyCloseoutFieldsRun = await runScopePoliceWorkflow({
+    body: validAutonomousBody.replace(
+      /## Review conversation closeout[\s\S]*?## Final merge gate[\s\S]*$/,
+      `## Review conversation closeout
+- Unresolved threads：
+- CodeRabbit：
+- chatgpt-codex-connector：
+- Final reviewer action：
+
+## Final merge gate
+- Ready-to-merge decision：
+- Latest head SHA：
+- Required checks：
+- spec workflow-check evidence：
+- Evidence URL：
+`,
+    ),
+  })
+  assert.equal(emptyCloseoutFieldsRun.failures.length, 1)
+  assert.match(
+    emptyCloseoutFieldsRun.comments[0].body,
+    /Autonomous PR must include either `Review conversation closeout` or `Final merge gate` evidence\./,
+  )
+
+  const missingCloseoutSectionsRun = await runScopePoliceWorkflow({
+    body: validAutonomousBody
+      .replace(/\n## Review conversation closeout[\s\S]*?\n## Final merge gate/, '\n## Final merge gate')
+      .replace(/\n## Final merge gate[\s\S]*$/, ''),
+  })
+  assert.equal(missingCloseoutSectionsRun.failures.length, 1)
+  assert.match(
+    missingCloseoutSectionsRun.comments[0].body,
+    /Autonomous PR must include either `Review conversation closeout` or `Final merge gate` evidence\./,
+  )
 })
 
 test('docs/template-only PRs skip heavy product CI in scope gate', async () => {
