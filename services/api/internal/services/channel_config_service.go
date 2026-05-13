@@ -1,6 +1,8 @@
 package services
 
 import (
+	"context"
+
 	"github.com/tachigo/tachigo/internal/models"
 	"gorm.io/gorm"
 )
@@ -15,9 +17,20 @@ func NewChannelConfigService(db *gorm.DB) *ChannelConfigService {
 	return &ChannelConfigService{db: db}
 }
 
+func (s *ChannelConfigService) dbWithContext(ctx context.Context) *gorm.DB {
+	if ctx == nil {
+		ctx = context.Background()
+	}
+	return s.db.WithContext(ctx)
+}
+
 func (s *ChannelConfigService) Get(channelID string) (*models.ChannelConfig, error) {
+	return s.GetContext(context.Background(), channelID)
+}
+
+func (s *ChannelConfigService) GetContext(ctx context.Context, channelID string) (*models.ChannelConfig, error) {
 	var cfg models.ChannelConfig
-	if err := s.db.Where("channel_id = ?", channelID).First(&cfg).Error; err != nil {
+	if err := s.dbWithContext(ctx).Where("channel_id = ?", channelID).First(&cfg).Error; err != nil {
 		if err == gorm.ErrRecordNotFound {
 			return nil, nil
 		}
@@ -27,7 +40,11 @@ func (s *ChannelConfigService) Get(channelID string) (*models.ChannelConfig, err
 }
 
 func (s *ChannelConfigService) EffectiveMultiplier(channelID string) (int64, error) {
-	cfg, err := s.Get(channelID)
+	return s.EffectiveMultiplierContext(context.Background(), channelID)
+}
+
+func (s *ChannelConfigService) EffectiveMultiplierContext(ctx context.Context, channelID string) (int64, error) {
+	cfg, err := s.GetContext(ctx, channelID)
 	if err != nil {
 		return 0, err
 	}
@@ -38,7 +55,11 @@ func (s *ChannelConfigService) EffectiveMultiplier(channelID string) (int64, err
 }
 
 func (s *ChannelConfigService) UpdateChannelConfig(channelID string, secondsPerPoint, multiplier int64) (*models.ChannelConfig, error) {
-	cfg, err := s.Get(channelID)
+	return s.UpdateChannelConfigContext(context.Background(), channelID, secondsPerPoint, multiplier)
+}
+
+func (s *ChannelConfigService) UpdateChannelConfigContext(ctx context.Context, channelID string, secondsPerPoint, multiplier int64) (*models.ChannelConfig, error) {
+	cfg, err := s.GetContext(ctx, channelID)
 	if err != nil {
 		return nil, err
 	}
@@ -56,7 +77,7 @@ func (s *ChannelConfigService) UpdateChannelConfig(channelID string, secondsPerP
 		cfg.Multiplier = multiplier
 	}
 
-	if err := s.db.
+	if err := s.dbWithContext(ctx).
 		Where("channel_id = ?", channelID).
 		Assign(models.ChannelConfig{
 			SecondsPerPoint: cfg.SecondsPerPoint,
