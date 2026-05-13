@@ -11,6 +11,8 @@ const repoRoot = path.join(currentDir, '..', '..')
 const workflowPath = path.join(currentDir, 'ci.yml')
 const dockerComposePath = path.join(repoRoot, 'docker-compose.yml')
 const dockerComposeOverridePath = path.join(repoRoot, 'docker-compose.override.yml')
+const extensionDockerfilePath = path.join(repoRoot, 'apps', 'extension', 'Dockerfile')
+const dashboardDockerfilePath = path.join(repoRoot, 'apps', 'dashboard', 'Dockerfile')
 const backendDockerfilePath = path.join(repoRoot, 'services', 'api', 'Dockerfile')
 const backendMakefilePath = path.join(repoRoot, 'services', 'api', 'Makefile')
 const backendDockerEntrypointPath = path.join(repoRoot, 'services', 'api', 'docker-entrypoint.sh')
@@ -37,6 +39,7 @@ const dependencyInventoryPolicyPath = path.join(repoRoot, 'docs', 'dependency-in
 const AsyncFunction = Object.getPrototypeOf(async function () {}).constructor
 const developRequiredCheckRuns = [
   'Scope gate',
+  'Supply-chain guardrails',
   'Frontend build',
   'Dashboard build',
   'Contracts build',
@@ -189,6 +192,7 @@ async function runCiAutoReadyAfterCiWorkflow({
     script,
     env: {
       SCOPE_GATE_RESULT: 'success',
+      SUPPLY_CHAIN_GUARDRAILS_RESULT: 'success',
       BACKEND_CI_RESULT: 'success',
       DEPENDENCY_REVIEW_RESULT: 'success',
       FRONTEND_RESULT: 'success',
@@ -626,10 +630,34 @@ test('CI workflow uses infra script entrypoints', async () => {
   const workflow = await readFile(workflowPath, 'utf8')
 
   assert.match(workflow, /run: bash infra\/scripts\/check-backend-ci-cache\.sh/)
+  assert.match(workflow, /run: bash infra\/scripts\/check-supply-chain-guardrails\.test\.sh/)
+  assert.match(workflow, /run: bash infra\/scripts\/check-developer-persistence\.test\.sh/)
   assert.match(workflow, /run: bash infra\/scripts\/commit-message-check\.test\.sh/)
   assert.match(workflow, /run: bash infra\/scripts\/pr-open\.test\.sh/)
   assert.match(workflow, /run: bash infra\/scripts\/check-pr-commit-messages\.sh/)
   assert.doesNotMatch(workflow, /run: bash scripts\//)
+})
+
+test('frontend Dockerfiles install dependencies with lifecycle scripts disabled', async () => {
+  const extensionDockerfile = await readFile(extensionDockerfilePath, 'utf8')
+  const dashboardDockerfile = await readFile(dashboardDockerfilePath, 'utf8')
+
+  assert.match(extensionDockerfile, /pnpm install --frozen-lockfile --ignore-scripts/)
+  assert.match(dashboardDockerfile, /pnpm install --frozen-lockfile --ignore-scripts/)
+})
+
+test('supply-chain guardrail CI job runs the repository guardrail script', async () => {
+  const workflow = await readFile(workflowPath, 'utf8')
+  const parsedWorkflow = parseYaml(workflowPath)
+  const job = parsedWorkflow.jobs['supply-chain-guardrails']
+  const jobBlock = workflowJobBlock(workflow, 'supply-chain-guardrails')
+
+  assert.equal(job.name, 'Supply-chain guardrails')
+  assert.equal(job['timeout-minutes'], 5)
+  assert.match(jobBlock, pinnedActionRef('actions/checkout', 'v4'))
+  assert.match(jobBlock, pinnedActionRef('actions/setup-node', 'v4'))
+  assert.match(jobBlock, /node-version: 22\.12\.0/)
+  assert.match(jobBlock, /run: node infra\/scripts\/check-supply-chain-guardrails\.mjs/)
 })
 
 test('CI workflow pins action references to full commit SHAs', async () => {
@@ -2153,7 +2181,7 @@ test('CI workflow wakes auto-ready draft PRs after required CI jobs finish', asy
 
   assert.equal(job.name, 'Auto-ready draft PR after CI')
   assert.equal(job.if, "always() && github.event_name == 'pull_request'")
-  assert.deepEqual(job.needs, ['scope-gate', 'backend-ci', 'dependency-review', 'frontend', 'dashboard', 'contracts', 'contracts-slither', 'contracts-gas-snapshot'])
+  assert.deepEqual(job.needs, ['scope-gate', 'supply-chain-guardrails', 'backend-ci', 'dependency-review', 'frontend', 'dashboard', 'contracts', 'contracts-slither', 'contracts-gas-snapshot'])
   assert.equal(job.permissions['pull-requests'], 'write')
   assert.equal(job.permissions.contents, 'write')
   assert.equal(job.permissions.issues, 'write')
@@ -2165,6 +2193,7 @@ test('CI workflow wakes auto-ready draft PRs after required CI jobs finish', asy
   assert.match(jobBlock, /const allowedJobResults = new Set\(\['success', 'skipped'\]\)/)
   assert.match(jobBlock, /const successConclusions = new Set\(\['success', 'neutral', 'skipped'\]\)/)
   assert.match(jobBlock, /SCOPE_GATE_RESULT/)
+  assert.match(jobBlock, /SUPPLY_CHAIN_GUARDRAILS_RESULT/)
   assert.match(jobBlock, /BACKEND_CI_RESULT/)
   assert.match(jobBlock, /DEPENDENCY_REVIEW_RESULT/)
   assert.match(jobBlock, /FRONTEND_RESULT/)
@@ -2186,6 +2215,7 @@ test('CI workflow wakes auto-ready draft PRs after required CI jobs finish', asy
   assert.match(jobBlock, /github\.rest\.pulls\.get/)
   assert.match(jobBlock, /const requiredCheckSnapshots = \{/)
   assert.match(jobBlock, /\{ context: 'Scope gate', appId: 15368 \}/)
+  assert.match(jobBlock, /\{ context: 'Supply-chain guardrails', appId: 15368 \}/)
   assert.match(jobBlock, /\{ context: 'Frontend build', appId: 15368 \}/)
   assert.match(jobBlock, /\{ context: 'Dashboard build', appId: 15368 \}/)
   assert.match(jobBlock, /\{ context: 'Contracts build', appId: 15368 \}/)
@@ -2236,6 +2266,16 @@ test('CI auto-ready job retries auto-merge for already-ready auto-ready PRs', as
 test('CI auto-ready job waits when dependency review fails', async () => {
   const result = await runCiAutoReadyAfterCiWorkflow({
     env: { DEPENDENCY_REVIEW_RESULT: 'failure' },
+    checkRuns: successfulDevelopRequiredCheckRuns(),
+  })
+
+  assert.deepEqual(result.graphqlCalls, [])
+  assert.deepEqual(result.labelsAdded, [])
+})
+
+test('CI auto-ready job waits when supply-chain guardrails fail', async () => {
+  const result = await runCiAutoReadyAfterCiWorkflow({
+    env: { SUPPLY_CHAIN_GUARDRAILS_RESULT: 'failure' },
     checkRuns: successfulDevelopRequiredCheckRuns(),
   })
 
