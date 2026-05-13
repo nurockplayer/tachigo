@@ -142,6 +142,7 @@ git diff --check
 
 開 PR 時：
 
+- 未取得使用者對「開 PR / 公開遠端變更」的明確授權前，只能保留 local evidence / readback，不得建立 PR 或修改遠端 PR metadata。
 - PR title 使用 repo prefix，例如 `[infra] ...`、`[discussion] ...`。
 - PR body 必須從 `.github/PULL_REQUEST_TEMPLATE.md` 填，不使用自由格式。
 - Initial PR body 要完整；尚未穩定欄位可填 `pending with reason` 或 `n/a`。
@@ -170,6 +171,8 @@ Final closeout 必須把 finding 分成：
 ## 10. Merge Gate
 
 merge 前執行：
+
+- 未取得使用者對「merge / 合併遠端狀態變更」的明確授權前，只能做 local evidence / readback，不得執行 merge 或替代性遠端合併操作。
 
 ```bash
 spec workflow-check --repo . --phase merge --pr-body <path-to-pr-body> --head-sha <latest-head-sha>
