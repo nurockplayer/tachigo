@@ -4,7 +4,7 @@ on:
   schedule:
     - cron: '*/10 * * * *'
   pull_request:
-    types: [opened, synchronize, reopened, ready_for_review]
+    types: [opened, synchronize, reopened, ready_for_review, closed]
     branches: [main, develop]
   pull_request_review:
     types: [submitted, dismissed]
@@ -173,6 +173,13 @@ jobs:
               }
 
               const action = context.payload.action
+
+              if (action === 'closed') {
+                await removeLabel(pr.number, changesLabel)
+                await removeLabel(pr.number, reviewLabel)
+                core.notice(`PR #${pr.number} cleared review-state labels after close.`)
+                continue
+              }
 
               if (pr.draft) {
                 const reason = context.eventName === 'pull_request' ? `${action}` : 'schedule'
