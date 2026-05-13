@@ -8,7 +8,6 @@
     "node": ">=22.12.0"
   },
   "scripts": {
-    "preinstall": "npx only-allow pnpm",
     "dev": "vite",
     "build": "tsc -b && vite build",
     "check:i18n": "node --experimental-strip-types scripts/check-i18n.ts",
