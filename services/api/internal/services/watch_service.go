@@ -1,6 +1,7 @@
 package services
 
 import (
+	"context"
 	"errors"
 	"math"
 	"time"
@@ -47,6 +48,13 @@ func NewWatchService(db *gorm.DB) *WatchService {
 	return &WatchService{db: db}
 }
 
+func (s *WatchService) dbWithContext(ctx context.Context) *gorm.DB {
+	if ctx == nil {
+		ctx = context.Background()
+	}
+	return s.db.WithContext(ctx)
+}
+
 // StartSession returns or creates an active watch session.
 //   - active and not stale → return existing session
 //   - active but stale     → close old session, create new
@@ -56,9 +64,13 @@ func NewWatchService(db *gorm.DB) *WatchService {
 // with a row-level lock so concurrent requests cannot race into the partial-unique
 // index constraint on (user_id, channel_id) WHERE is_active = true.
 func (s *WatchService) StartSession(userID uuid.UUID, channelID string) (*models.WatchSession, error) {
+	return s.StartSessionContext(context.Background(), userID, channelID)
+}
+
+func (s *WatchService) StartSessionContext(ctx context.Context, userID uuid.UUID, channelID string) (*models.WatchSession, error) {
 	var result models.WatchSession
 
-	err := s.db.Transaction(func(tx *gorm.DB) error {
+	err := s.dbWithContext(ctx).Transaction(func(tx *gorm.DB) error {
 		var session models.WatchSession
 		err := tx.Clauses(clause.Locking{Strength: "UPDATE"}).
 			Where("user_id = ? AND channel_id = ? AND is_active = true", userID, channelID).
@@ -130,9 +142,13 @@ type HeartbeatResult struct {
 //   - PointsLedger is updated via an atomic INSERT … ON CONFLICT DO UPDATE, which
 //     prevents balance overwrites under concurrent writes.
 func (s *WatchService) Heartbeat(userID uuid.UUID, channelID string) (*HeartbeatResult, error) {
+	return s.HeartbeatContext(context.Background(), userID, channelID)
+}
+
+func (s *WatchService) HeartbeatContext(ctx context.Context, userID uuid.UUID, channelID string) (*HeartbeatResult, error) {
 	var result HeartbeatResult
 
-	err := s.db.Transaction(func(tx *gorm.DB) error {
+	err := s.dbWithContext(ctx).Transaction(func(tx *gorm.DB) error {
 		// Lock the row so concurrent heartbeats queue up rather than racing.
 		var session models.WatchSession
 		if err := tx.Clauses(clause.Locking{Strength: "UPDATE"}).
@@ -238,8 +254,12 @@ func (s *WatchService) Heartbeat(userID uuid.UUID, channelID string) (*Heartbeat
 // EndSession marks the viewer's active session in the given channel as ended.
 // If no active session exists the call is a no-op (idempotent).
 func (s *WatchService) EndSession(userID uuid.UUID, channelID string) error {
+	return s.EndSessionContext(context.Background(), userID, channelID)
+}
+
+func (s *WatchService) EndSessionContext(ctx context.Context, userID uuid.UUID, channelID string) error {
 	now := time.Now()
-	return s.db.Model(&models.WatchSession{}).
+	return s.dbWithContext(ctx).Model(&models.WatchSession{}).
 		Where("user_id = ? AND channel_id = ? AND is_active = true", userID, channelID).
 		Updates(map[string]interface{}{
 			"is_active": false,
@@ -262,9 +282,13 @@ type ClickResult struct {
 //
 // Concurrency: SELECT FOR UPDATE on the session row serialises concurrent clicks.
 func (s *WatchService) RecordClick(userID uuid.UUID, channelID string) (*ClickResult, error) {
+	return s.RecordClickContext(context.Background(), userID, channelID)
+}
+
+func (s *WatchService) RecordClickContext(ctx context.Context, userID uuid.UUID, channelID string) (*ClickResult, error) {
 	var result ClickResult
 
-	err := s.db.Transaction(func(tx *gorm.DB) error {
+	err := s.dbWithContext(ctx).Transaction(func(tx *gorm.DB) error {
 		var session models.WatchSession
 		if err := tx.Clauses(clause.Locking{Strength: "UPDATE"}).
 			Where("user_id = ? AND channel_id = ? AND is_active = true", userID, channelID).
@@ -326,8 +350,12 @@ func (s *WatchService) RecordClick(userID uuid.UUID, channelID string) (*ClickRe
 // GetBalance returns the viewer's current spendable balance and cumulative total
 // for the given channel. Returns (0, 0, nil) if no ledger exists yet.
 func (s *WatchService) GetBalance(userID uuid.UUID, channelID string) (spendable, cumulative int64, err error) {
+	return s.GetBalanceContext(context.Background(), userID, channelID)
+}
+
+func (s *WatchService) GetBalanceContext(ctx context.Context, userID uuid.UUID, channelID string) (spendable, cumulative int64, err error) {
 	var ledger models.PointsLedger
-	if err := s.db.Where("user_id = ? AND channel_id = ?", userID, channelID).First(&ledger).Error; err != nil {
+	if err := s.dbWithContext(ctx).Where("user_id = ? AND channel_id = ?", userID, channelID).First(&ledger).Error; err != nil {
 		if errors.Is(err, gorm.ErrRecordNotFound) {
 			return 0, 0, nil
 		}

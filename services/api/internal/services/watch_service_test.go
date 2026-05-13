@@ -1,6 +1,7 @@
 package services
 
 import (
+	"context"
 	"errors"
 	"math"
 	"testing"
@@ -10,6 +11,8 @@ import (
 
 	"github.com/tachigo/tachigo/internal/models"
 )
+
+type watchContextKey string
 
 // seedWatchUser inserts a minimal users row so FK constraints pass in watch tests.
 func seedWatchUser(t *testing.T, svc *WatchService) uuid.UUID {
@@ -44,6 +47,86 @@ func reloadSession(t *testing.T, svc *WatchService, id uuid.UUID) *models.WatchS
 		t.Fatalf("reload session: %v", err)
 	}
 	return &s
+}
+
+func TestStartSessionContext_UsesRequestContext(t *testing.T) {
+	svc := NewWatchService(newTestDB(t))
+	userID := seedWatchUser(t, svc)
+	key := watchContextKey("start-session-context")
+	seen := installDBContextProbe(t, svc.db, key, "watch-start")
+
+	_, err := svc.StartSessionContext(context.WithValue(context.Background(), key, "watch-start"), userID, "ch_context")
+	if err != nil {
+		t.Fatalf("start session with context: %v", err)
+	}
+	if seen() == 0 {
+		t.Fatal("expected StartSessionContext DB operations to carry request context")
+	}
+}
+
+func TestHeartbeatContext_UsesRequestContext(t *testing.T) {
+	svc := NewWatchService(newTestDB(t))
+	userID := seedWatchUser(t, svc)
+	channelID := "ch_context"
+	s, _ := svc.StartSession(userID, channelID)
+	backdateHeartbeat(t, svc, s.ID, 25*time.Second)
+	key := watchContextKey("heartbeat-context")
+	seen := installDBContextProbe(t, svc.db, key, "watch-heartbeat")
+
+	_, err := svc.HeartbeatContext(context.WithValue(context.Background(), key, "watch-heartbeat"), userID, channelID)
+	if err != nil {
+		t.Fatalf("heartbeat with context: %v", err)
+	}
+	if seen() == 0 {
+		t.Fatal("expected HeartbeatContext DB operations to carry request context")
+	}
+}
+
+func TestEndSessionContext_UsesRequestContext(t *testing.T) {
+	svc := NewWatchService(newTestDB(t))
+	userID := seedWatchUser(t, svc)
+	channelID := "ch_context"
+	svc.StartSession(userID, channelID)
+	key := watchContextKey("end-session-context")
+	seen := installDBContextProbe(t, svc.db, key, "watch-end")
+
+	if err := svc.EndSessionContext(context.WithValue(context.Background(), key, "watch-end"), userID, channelID); err != nil {
+		t.Fatalf("end session with context: %v", err)
+	}
+	if seen() == 0 {
+		t.Fatal("expected EndSessionContext DB operations to carry request context")
+	}
+}
+
+func TestRecordClickContext_UsesRequestContext(t *testing.T) {
+	svc := NewWatchService(newTestDB(t))
+	userID := seedWatchUser(t, svc)
+	channelID := "ch_context"
+	svc.StartSession(userID, channelID)
+	key := watchContextKey("record-click-context")
+	seen := installDBContextProbe(t, svc.db, key, "watch-click")
+
+	if _, err := svc.RecordClickContext(context.WithValue(context.Background(), key, "watch-click"), userID, channelID); err != nil {
+		t.Fatalf("record click with context: %v", err)
+	}
+	if seen() == 0 {
+		t.Fatal("expected RecordClickContext DB operations to carry request context")
+	}
+}
+
+func TestGetBalanceContext_UsesRequestContext(t *testing.T) {
+	svc := NewWatchService(newTestDB(t))
+	userID := seedWatchUser(t, svc)
+	key := watchContextKey("get-balance-context")
+	seen := installDBContextProbe(t, svc.db, key, "watch-balance")
+
+	_, _, err := svc.GetBalanceContext(context.WithValue(context.Background(), key, "watch-balance"), userID, "ch_context")
+	if err != nil {
+		t.Fatalf("get balance with context: %v", err)
+	}
+	if seen() == 0 {
+		t.Fatal("expected GetBalanceContext DB operations to carry request context")
+	}
 }
 
 // ─── StartSession ─────────────────────────────────────────────────────────────

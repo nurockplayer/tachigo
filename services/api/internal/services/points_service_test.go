@@ -1,6 +1,7 @@
 package services
 
 import (
+	"context"
 	"errors"
 	"strings"
 	"testing"
@@ -11,6 +12,8 @@ import (
 
 	"github.com/tachigo/tachigo/internal/models"
 )
+
+type pointsContextKey string
 
 // newPointsSvc creates a PointsService backed by an in-memory SQLite test DB.
 func newPointsSvc(t *testing.T) (*PointsService, *WatchService) {
@@ -578,6 +581,23 @@ func TestPointsService_AddBroadcastTime_WritesLogAndStat(t *testing.T) {
 	svc.db.Raw("SELECT COUNT(*) FROM broadcast_time_logs WHERE streamer_id = ?", streamerID).Scan(&count)
 	if count != 2 {
 		t.Errorf("broadcast_time_logs: want 2 entries, got %d", count)
+	}
+}
+
+func TestPointsService_AddHeartbeatTimeContext_UsesRequestContext(t *testing.T) {
+	svc, _ := newPointsSvc(t)
+	userID := seedViewer(t, svc)
+	channelID := "ch_context"
+	seedStreamer(t, svc, channelID)
+	key := pointsContextKey("add-heartbeat-time-context")
+	seen := installDBContextProbe(t, svc.db, key, "points-heartbeat")
+
+	err := svc.AddHeartbeatTimeContext(context.WithValue(context.Background(), key, "points-heartbeat"), userID, channelID, 30)
+	if err != nil {
+		t.Fatalf("add heartbeat time with context: %v", err)
+	}
+	if seen() == 0 {
+		t.Fatal("expected AddHeartbeatTimeContext DB operations to carry request context")
 	}
 }
 
