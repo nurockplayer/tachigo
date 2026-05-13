@@ -453,4 +453,26 @@ describe('RaffleDetailPage — activate button', () => {
     await waitFor(() => expect(container.querySelector('[data-testid="csv-locked"]')).toBeTruthy())
     cleanup(root, container)
   })
+
+  it('shows error message when activateRaffle fails', async () => {
+    vi.mocked(rafflesService.activateRaffle).mockRejectedValue({
+      response: { data: { error: 'raffle is not in draft status' } },
+    })
+    const draftRaffle = { ...mockRaffle, status: 'draft' as const }
+    const dp = createMockDataProvider({
+      getOne: { raffles: vi.fn().mockResolvedValue(draftRaffle as BaseRecord) },
+    })
+    const { container, root } = await renderAt('r1', dp)
+    await waitFor(() => expect(container.querySelector('[data-testid="activate-btn"]')).toBeTruthy())
+
+    await act(async () => {
+      container.querySelector('[data-testid="activate-btn"]')!
+        .dispatchEvent(new MouseEvent('click', { bubbles: true }))
+    })
+    await waitFor(() =>
+      expect(container.querySelector('[data-testid="activate-error"]')?.textContent)
+        .toContain('raffle is not in draft status'),
+    )
+    cleanup(root, container)
+  })
 })

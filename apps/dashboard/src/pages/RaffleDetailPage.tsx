@@ -543,6 +543,7 @@ export default function RaffleDetailPage() {
   const [localCompleted, setLocalCompleted] = useState(false)
   const [localActivated, setLocalActivated] = useState(false)
   const [activating, setActivating] = useState(false)
+  const [activateError, setActivateError] = useState<string | null>(null)
 
   const effectiveStatus = localCompleted ? 'completed' : localActivated ? 'active' : (raffle?.status ?? '')
 
@@ -597,9 +598,13 @@ export default function RaffleDetailPage() {
   async function handleActivate() {
     if (!raffleId || activating) return
     setActivating(true)
+    setActivateError(null)
     try {
       await activateRaffle(raffleId)
       setLocalActivated(true)
+    } catch (err: unknown) {
+      const e = err as { response?: { data?: { error?: string } } }
+      setActivateError(e?.response?.data?.error ?? '啟動失敗，請稍後再試')
     } finally {
       setActivating(false)
     }
@@ -677,14 +682,19 @@ export default function RaffleDetailPage() {
           />
 
           {effectiveStatus === 'draft' && (
-            <button
-              data-testid="activate-btn"
-              disabled={activating}
-              onClick={() => { void handleActivate() }}
-              className="w-full rounded-full border border-amber-500/40 bg-amber-500/10 px-4 py-3 text-sm font-bold tracking-widest text-amber-400 transition hover:bg-amber-500/20 disabled:opacity-40"
-            >
-              {activating ? '鎖定中...' : '開始抽獎（鎖定名單）'}
-            </button>
+            <>
+              <button
+                data-testid="activate-btn"
+                disabled={activating}
+                onClick={() => { void handleActivate() }}
+                className="w-full rounded-full border border-amber-500/40 bg-amber-500/10 px-4 py-3 text-sm font-bold tracking-widest text-amber-400 transition hover:bg-amber-500/20 disabled:opacity-40"
+              >
+                {activating ? '鎖定中...' : '開始抽獎（鎖定名單）'}
+              </button>
+              {activateError && (
+                <p data-testid="activate-error" className="mt-1 text-center text-xs text-red-400">{activateError}</p>
+              )}
+            </>
           )}
 
           <DrawControls
