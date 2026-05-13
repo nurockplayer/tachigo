@@ -92,4 +92,49 @@ describe("createApiClient", () => {
       },
     );
   });
+
+  it("supports relative base URLs, repeated query params, and text responses", async () => {
+    const recorder = createFetchRecorder(
+      new Response("ok", {
+        status: 200,
+        headers: { "content-type": "text/plain" },
+      }),
+    );
+    const client = createApiClient({
+      baseUrl: "/api/v1/",
+      fetch: recorder.fetchImpl,
+    });
+
+    const result = await client.request("GET /dashboard/raffles/{id}/draws", {
+      pathParams: { id: "raffle 1" },
+      queryParams: { tag: ["alpha", "beta"], empty: null },
+    });
+
+    assert.equal(
+      recorder.calls[0].url,
+      "/api/v1/dashboard/raffles/raffle%201/draws?tag=alpha&tag=beta",
+    );
+    assert.equal(result, "ok");
+  });
+
+  it("throws a TypeError when a path param is missing", async () => {
+    const client = createApiClient({
+      baseUrl: "https://api.example.test/api/v1",
+      fetch: async () => jsonResponse({ success: true }),
+    });
+
+    await assert.rejects(
+      () => client.request("GET /dashboard/raffles/{id}/draws", { pathParams: {} }),
+      /Missing path param: id/,
+    );
+  });
+
+  it("returns undefined for empty success responses", async () => {
+    const client = createApiClient({
+      baseUrl: "https://api.example.test/api/v1",
+      fetch: async () => new Response(null, { status: 204 }),
+    });
+
+    assert.equal(await client.request("POST /auth/verify-email/send"), undefined);
+  });
 });

@@ -72,17 +72,22 @@ function buildUrl(baseUrl, pathTemplate, pathParams = {}, queryParams = {}) {
   const base = String(baseUrl).replace(/\/+$/, "");
   const pathWithSlash = path.startsWith("/") ? path : `/${path}`;
   const placeholderOrigin = "http://tachigo.local";
-  const url = new URL(`${base}${pathWithSlash}`, base ? undefined : placeholderOrigin);
+  const baseIsAbsolute = isAbsoluteUrl(base);
+  const url = new URL(`${base}${pathWithSlash}`, baseIsAbsolute ? undefined : placeholderOrigin);
 
   for (const [key, value] of Object.entries(queryParams)) {
     appendQueryParam(url, key, value);
   }
 
-  if (base) {
+  if (baseIsAbsolute) {
     return url.toString();
   }
 
   return `${url.pathname}${url.search}`;
+}
+
+function isAbsoluteUrl(value) {
+  return /^[A-Za-z][A-Za-z\d+\-.]*:/.test(value);
 }
 
 function appendQueryParam(url, key, value) {
