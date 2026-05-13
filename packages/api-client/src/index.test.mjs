@@ -125,7 +125,11 @@ describe("createApiClient", () => {
 
     await assert.rejects(
       () => client.request("GET /dashboard/raffles/{id}/draws", { pathParams: {} }),
-      /Missing path param: id/,
+      (error) => {
+        assert.ok(error instanceof TypeError);
+        assert.match(error.message, /Missing path param: id/);
+        return true;
+      },
     );
   });
 
