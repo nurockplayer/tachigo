@@ -2,7 +2,8 @@ package schema
 
 import "github.com/tachigo/tachigo/internal/models"
 
-func AutoMigrateModels() []any {
+// AtlasSchemaModels returns the GORM model list used by the Atlas external schema loader.
+func AtlasSchemaModels() []any {
 	return []any{
 		&models.User{},
 		&models.AuthProvider{},
