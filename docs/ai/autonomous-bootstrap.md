@@ -56,11 +56,43 @@
 先檢查工具是否可用：
 
 ```bash
-spec --version
-spec validate --repo .
+command -v spec
+spec workflow-check --help
 ```
 
-若 `spec` 不存在、版本太舊、或 `spec workflow-check` 不可用，AI 必須回報工具版本落差。可以用人工 checklist、`spec plan`、`spec validate` 作為暫時 evidence，但不得宣稱已跑完整 workflow-check。
+`spec workflow-check --help` 必須顯示 #242 之後的 flags：
+
+- `--finding-disposition`
+- `--threshold-evidence`
+- `--pr`
+
+若既有全域 `spec` 沒有這些能力，先用 canonical source 建立 local runner，不要直接改組員的全域環境：
+
+```bash
+export SPEC_INJECTOR_DIR="${SPEC_INJECTOR_DIR:-$HOME/dev/spec-injector}"
+
+if [ ! -d "$SPEC_INJECTOR_DIR/.git" ]; then
+  git clone https://github.com/Erick52106/spec-injector.git "$SPEC_INJECTOR_DIR"
+fi
+
+git -C "$SPEC_INJECTOR_DIR" pull --ff-only
+pnpm --dir "$SPEC_INJECTOR_DIR" install --frozen-lockfile
+pnpm --dir "$SPEC_INJECTOR_DIR" build
+```
+
+接著用 local runner 做能力檢查：
+
+```bash
+node "$SPEC_INJECTOR_DIR/dist/cli/index.js" workflow-check --help
+```
+
+若 local runner 可用但全域 `spec` 仍是舊版，本次工作優先使用 local runner，例如：
+
+```bash
+node "$SPEC_INJECTOR_DIR/dist/cli/index.js" workflow-check --repo . --phase start --issue <issue-number-or-url>
+```
+
+若 clone、pull、install、build 或 capability check 失敗，先停止並回報 `tool_gap=spec-injector #242 workflow-check unavailable`。可以用人工 checklist、`spec plan`、`spec validate` 作為暫時 evidence，但不得宣稱已跑完整 #242 workflow-check。
 
 若 repo 缺 spec-injector config，AI 可以提議本機初始化：
 
@@ -70,6 +102,8 @@ spec init --repo .
 
 初始化只允許 local-only。除非 source issue 明確要求並經 human review，否則不得把 `.spec-injector/` 或其輸出納入 commit / PR。
 
+不得使用 `curl | bash`、`wget | sh`、`npx`、`pnpm dlx` 或未經 review 的任意安裝腳本取得 `spec-injector`。若環境政策禁止安裝依賴，保留 `blocked` evidence 並改走 manual checklist，不要偷渡產物。
+
 ## 4. Start Gate
 
 如果任務已提供 issue number / URL：
@@ -77,6 +111,12 @@ spec init --repo .
 ```bash
 spec plan <issue-number-or-url> --repo . --dry-run --format prompt --verbose
 spec workflow-check --repo . --phase start --issue <issue-number-or-url>
+```
+
+若使用 local runner，將第二行改為：
+
+```bash
+node "$SPEC_INJECTOR_DIR/dist/cli/index.js" workflow-check --repo . --phase start --issue <issue-number-or-url>
 ```
 
 如果尚未確定 issue：
@@ -126,9 +166,14 @@ spec workflow-check --repo . --phase start --issue <issue-number-or-url>
 commit 前執行：
 
 ```bash
-spec workflow-check --repo . --phase commit --pr-body <path-to-pr-body>
+spec workflow-check --repo . --phase commit --pr-body <path-to-pr-body> \
+  --routing-evidence <path-to-routing-evidence.json> \
+  --finding-disposition <path-to-finding-disposition.json> \
+  --threshold-evidence <path-to-threshold-evidence.json>
 git diff --check
 ```
+
+這些 evidence JSON 是 local-only。PR body 只放 `status + ref`，不得把 full spec output、routing JSON、finding matrix、private context 或 task package commit 進 repo。
 
 若 `spec workflow-check` 不可用，至少檢查：
 
@@ -175,7 +220,12 @@ merge 前執行：
 - 未取得使用者對「merge / 合併遠端狀態變更」的明確授權前，只能做 local evidence / readback，不得執行 merge 或替代性遠端合併操作。
 
 ```bash
-spec workflow-check --repo . --phase merge --pr-body <path-to-pr-body> --head-sha <latest-head-sha>
+spec workflow-check --repo . --phase merge --pr-body <path-to-pr-body> \
+  --head-sha <latest-head-sha> \
+  --pr <number-or-url> \
+  --routing-evidence <path-to-routing-evidence.json> \
+  --finding-disposition <path-to-finding-disposition.json> \
+  --threshold-evidence <path-to-threshold-evidence.json>
 ```
 
 若 `spec workflow-check` 不可用，至少 fresh readback：

@@ -1195,7 +1195,7 @@ test('AWP v2 docs wire AGENTS and PR scope policy to autonomous evidence gates a
   assert.match(autonomousPrGates, /review_triage_ref/)
   assert.match(autonomousPrGates, /Erick52106\/spec-injector#232/)
   assert.match(autonomousPrGates, /thin wiring/)
-  assert.match(autonomousPrGates, /Erick52106\/spec-injector#224/)
+  assert.match(autonomousPrGates, /Erick52106\/spec-injector#242/)
   assert.match(autonomousPrGates, /#664/)
   assert.match(prScopePolicy, /status \/ ref/)
   assert.match(prScopePolicy, /threshold calibration ledger/i)

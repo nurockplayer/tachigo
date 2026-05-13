@@ -49,11 +49,57 @@ final closeout 只在 merge 前狀態穩定後更新一次，避免每個 CI tic
 
 ## spec workflow-check Gates
 
-`spec-injector` 對 tachigo 是 local-only 輔助，不是不用此工具者的硬性門檻。tachigo 這側只做 thin wiring：PR template 與 policy docs 保留 `status + ref` evidence slot，真正的 `spec workflow-check` phase parser、local artifact 檢查與穩定輸出格式由 `Erick52106/spec-injector#224` 實作。
+`spec-injector` 對 tachigo 是 local-only 輔助，不是不用此工具者的硬性門檻。tachigo 這側只做 thin wiring：PR template 與 policy docs 保留 `status + ref` evidence slot，真正的 `spec workflow-check` phase parser、local artifact 檢查與穩定輸出格式由 `Erick52106/spec-injector#242` 之後的 CLI 提供。
 
-- Start gate：使用者要求或任務適用時，可本機執行 `spec plan <issue> --repo . --dry-run --format prompt --verbose` 或未來 `spec workflow-check --repo . --phase start`，用於產生 bounded context。
-- Commit gate：commit 前可本機執行 workflow-check，確認 PR body / non-goals / validation / `.spec-injector/` 未 staged。
-- Merge gate：merge 前可本機執行 workflow-check，確認 final closeout、unresolved thread count、latest head SHA 與 spec gate evidence。
+### Capability check
+
+Autonomous work 開始前先確認 CLI 支援 #242 gates：
+
+```bash
+spec workflow-check --help
+```
+
+help output 必須包含 `--finding-disposition`、`--threshold-evidence`、`--pr`。若全域 `spec` 太舊，依 [docs/ai/autonomous-bootstrap.md](autonomous-bootstrap.md) 使用 `SPEC_INJECTOR_DIR` local runner；若仍不可用，將 `tool_gap=spec-injector #242 workflow-check unavailable` 記入 evidence，改走 manual checklist fallback。
+
+### Start gate
+
+使用者要求或任務適用時，本機執行：
+
+```bash
+spec plan <issue> --repo . --dry-run --format prompt --verbose
+spec workflow-check --repo . --phase start --issue <issue>
+```
+
+Start gate 用來產生 bounded context、檢查 spec config、分類 Hybrid AWP routing，並要求先留下 routing/fallback evidence。不得把 classifier、guardrail 或 auto-discovered reference 解讀成擴 scope 授權。
+
+### Commit gate
+
+commit 前本機執行：
+
+```bash
+spec workflow-check --repo . --phase commit --pr-body <path-to-pr-body> \
+  --routing-evidence <path-to-routing-evidence.json> \
+  --finding-disposition <path-to-finding-disposition.json> \
+  --threshold-evidence <path-to-threshold-evidence.json>
+git diff --check
+```
+
+Commit gate 檢查 PR body status/ref evidence、routing/fallback 對齊、review finding disposition evidence、threshold evidence，以及 staged `.spec-injector/` / generated output / private context。若本 PR 尚未收到 review finding，`finding-disposition` 可記錄 `status=not_applicable` 與原因；不得留裸 `pending`。
+
+### Merge gate
+
+merge 前 fresh readback latest PR head SHA 後本機執行：
+
+```bash
+spec workflow-check --repo . --phase merge --pr-body <path-to-pr-body> \
+  --head-sha <latest-head-sha> \
+  --pr <number-or-url> \
+  --routing-evidence <path-to-routing-evidence.json> \
+  --finding-disposition <path-to-finding-disposition.json> \
+  --threshold-evidence <path-to-threshold-evidence.json>
+```
+
+`--pr` 只做 read-only closeout readback，用來比對 draft 狀態、human review decision、checks、review thread summary 與 PR body closeout。它不得 comment、resolve、merge、加 label 或修改遠端狀態。
 
 不得 commit `.spec-injector/`、spec output、private context、或工具產生的 task package。未使用 spec-injector 的 PR 可在 template 填人工 checklist / `n/a`。
 
