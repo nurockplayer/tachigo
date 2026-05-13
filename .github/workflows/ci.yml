@@ -966,6 +966,25 @@ jobs:
               return response.data.statuses || []
             }
 
+            const listChangedFilePaths = async (pr) => {
+              const files = await github.paginate(github.rest.pulls.listFiles, {
+                owner,
+                repo,
+                pull_number: pr.number,
+                per_page: 100,
+              })
+              return files.flatMap((file) =>
+                file.status === 'renamed' && file.previous_filename
+                  ? [file.filename, file.previous_filename]
+                  : [file.filename],
+              )
+            }
+
+            const changesWorkflowFiles = async (pr) => {
+              const paths = await listChangedFilePaths(pr)
+              return paths.some((filePath) => filePath.startsWith('.github/workflows/'))
+            }
+
             const checkRunPassed = (run) =>
               run.status === 'completed' && successConclusions.has(run.conclusion)
 
@@ -1048,6 +1067,14 @@ jobs:
             }
 
             const markedReady = pr.draft === true
+            let workflowFileChanged = false
+            try {
+              workflowFileChanged = await changesWorkflowFiles(pr)
+            } catch (error) {
+              core.warning(`Skipping PR #${pr.number}: failed to fetch changed files (${error?.message || error}).`)
+              return
+            }
+
             if (markedReady) {
               try {
                 await github.graphql(
@@ -1069,13 +1096,17 @@ jobs:
               }
             }
 
-            try {
-              await enableAutoMerge(pr)
-            } catch (error) {
-              core.warning(
-                `Failed to arm auto-merge for PR #${pr.number}; ${autoReadyLabel} will retry while the label remains (${error?.message || error}).`,
-              )
-              return
+            if (!workflowFileChanged) {
+              try {
+                await enableAutoMerge(pr)
+              } catch (error) {
+                core.warning(
+                  `Failed to arm auto-merge for PR #${pr.number}; ${autoReadyLabel} will retry while the label remains (${error?.message || error}).`,
+                )
+                return
+              }
+            } else {
+              core.info(`Skipping auto-merge for workflow-file PR #${pr.number}.`)
             }
 
             try {
@@ -1088,7 +1119,11 @@ jobs:
             }
 
             const readyMessage = markedReady ? 'marked ready for review, ' : ''
-            core.notice(`PR #${pr.number} ${readyMessage}armed auto-merge, and flagged for Codex review.`)
+            if (workflowFileChanged) {
+              core.notice(`PR #${pr.number} ${readyMessage}skipped auto-merge for workflow-file PR, and flagged for Codex review.`)
+            } else {
+              core.notice(`PR #${pr.number} ${readyMessage}armed auto-merge, and flagged for Codex review.`)
+            }
 
   notify-discord:
     timeout-minutes: 5
