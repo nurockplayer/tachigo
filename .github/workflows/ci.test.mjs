@@ -2854,6 +2854,43 @@ test('Codex review label workflow keeps changes requested when another trusted r
   ])
 })
 
+test('Codex review label workflow clears changes requested when the last trusted blocker is dismissed', async () => {
+  const result = await runCodexReviewFlagWorkflow({
+    action: 'dismissed',
+    prOverrides: {
+      labels: [{ name: 'needs-codex-review' }, { name: 'changes-requested' }],
+    },
+    reviewOverrides: {
+      id: 9001,
+      user: { login: 'reviewer-a' },
+      state: 'CHANGES_REQUESTED',
+      author_association: 'COLLABORATOR',
+      commit_id: 'head_sha',
+      submitted_at: '2026-05-13T11:39:00Z',
+    },
+    reviews: [
+      {
+        id: 9001,
+        user: { login: 'reviewer-a' },
+        state: 'CHANGES_REQUESTED',
+        author_association: 'COLLABORATOR',
+        commit_id: 'head_sha',
+        submitted_at: '2026-05-13T11:39:00Z',
+      },
+    ],
+  })
+
+  assert.deepEqual(result.labelsAdded, [
+    { issue_number: 472, labels: ['needs-codex-review'] },
+  ])
+  assert.deepEqual(result.labelsRemoved, [
+    { issue_number: 472, name: 'changes-requested' },
+  ])
+  assert.deepEqual(result.notices, [
+    'PR #472 flagged for Codex review after dismissal.',
+  ])
+})
+
 test('Codex review label workflow clears review labels when PRs close', async () => {
   const parsedWorkflow = parseYaml(codexReviewFlagWorkflowPath)
   const result = await runCodexReviewFlagWorkflow({
