@@ -24,6 +24,7 @@
 讀完本文件後，AI 必須讀下列 canonical 文件，不得只靠提示詞記憶：
 
 - `AGENTS.md`
+- `CLAUDE.md`
 - `.github/PULL_REQUEST_TEMPLATE.md`
 - `docs/ai/codex-autonomous-workflow.md`
 - `docs/ai/autonomous-pr-gates.md`

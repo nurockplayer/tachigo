@@ -80,8 +80,8 @@
 
 1. 讀取 `docs/ai/autonomous-bootstrap.md`，再由 bootstrap 文件展開 mandatory read set，而不是只依賴提示詞記憶。
 2. 回報目前工作目錄、branch、dirty state、target base branch。
-3. 檢查 spec-injector 可用性並執行 start gate；若 `spec workflow-check` 不可用，回報工具版本落差並用 manual checklist 作暫時 evidence。
-4. 搜尋既有 issue / branch / PR，避免重複開票或重複實作。
+3. 搜尋並驗證 source issue，以及既有 issue / branch / PR，避免在沒有 issue number / URL 時先跑需要 issue 的 start gate。
+4. 檢查 spec-injector 可用性並執行 start gate；若 `spec workflow-check` 不可用，回報工具版本落差並用 manual checklist 作暫時 evidence。
 5. 先輸出 routing plan；若不派 worker/subagent，必須先寫 `controller_fallback_reason`。
 6. 若主 worktree 已 dirty，改用乾淨 worktree 或停止回報，不覆蓋使用者變更。
 
