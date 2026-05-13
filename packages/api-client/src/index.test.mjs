@@ -137,4 +137,43 @@ describe("createApiClient", () => {
 
     assert.equal(await client.request("POST /auth/verify-email/send"), undefined);
   });
+
+  it("returns undefined for 205 reset-content responses", async () => {
+    const client = createApiClient({
+      baseUrl: "https://api.example.test/api/v1",
+      fetch: async () => new Response(null, { status: 205 }),
+    });
+
+    assert.equal(await client.request("POST /auth/verify-email/send"), undefined);
+  });
+
+  it("wraps invalid JSON responses in ApiClientError with raw response details", async () => {
+    const client = createApiClient({
+      baseUrl: "https://api.example.test/api/v1",
+      fetch: async () =>
+        new Response("{", {
+          status: 200,
+          statusText: "OK",
+          headers: {
+            "content-type": "application/json",
+            "x-trace-id": "trace-1",
+          },
+        }),
+    });
+
+    await assert.rejects(
+      () => client.request("GET /users/me"),
+      (error) => {
+        assert.ok(error instanceof ApiClientError);
+        assert.equal(error.status, 200);
+        assert.equal(error.statusText, "OK");
+        assert.equal(error.response.rawBody, "{");
+        assert.match(error.response.parseError, /JSON|Unexpected|Expected/);
+        assert.equal(error.headers["content-type"], "application/json");
+        assert.equal(error.headers["x-trace-id"], "trace-1");
+        assert.ok(error.cause instanceof SyntaxError);
+        return true;
+      },
+    );
+  });
 });

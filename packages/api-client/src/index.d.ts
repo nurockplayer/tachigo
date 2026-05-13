@@ -57,6 +57,8 @@ export class ApiClientError<ResponseBody = unknown> extends Error {
   readonly status: number;
   readonly statusText: string;
   readonly response: ResponseBody;
+  readonly headers: Record<string, string>;
+  readonly cause?: unknown;
 }
 
 export function createApiClient(options?: ApiClientOptions): ApiClient;

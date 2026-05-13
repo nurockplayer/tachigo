@@ -5,6 +5,10 @@ export class ApiClientError extends Error {
     this.status = details.status;
     this.statusText = details.statusText;
     this.response = details.response;
+    this.headers = details.headers ?? {};
+    if (Object.hasOwn(details, "cause")) {
+      this.cause = details.cause;
+    }
   }
 }
 
@@ -39,6 +43,7 @@ export function createApiClient(options = {}) {
           status: response.status,
           statusText: response.statusText,
           response: responseBody,
+          headers: headersToObject(response.headers),
         });
       }
 
@@ -146,8 +151,29 @@ async function parseResponseBody(response) {
 
   const contentType = response.headers.get("content-type") ?? "";
   if (contentType.includes("application/json")) {
-    return JSON.parse(text);
+    try {
+      return JSON.parse(text);
+    } catch (error) {
+      throw new ApiClientError("API response JSON parse failed", {
+        status: response.status,
+        statusText: response.statusText,
+        response: {
+          rawBody: text,
+          parseError: formatError(error),
+        },
+        headers: headersToObject(response.headers),
+        cause: error,
+      });
+    }
   }
 
   return text;
+}
+
+function headersToObject(headers) {
+  return Object.fromEntries(headers.entries());
+}
+
+function formatError(error) {
+  return error instanceof Error ? error.message : String(error);
 }
