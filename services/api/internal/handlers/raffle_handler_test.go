@@ -1194,3 +1194,46 @@ func TestRaffle_Activate_Conflict_WhenAlreadyActive(t *testing.T) {
 		t.Errorf("second activate: want 409, got %d: %s", w.Code, w.Body.String())
 	}
 }
+
+func TestEntries_ImportCSV_Conflict_WhenRaffleActive(t *testing.T) {
+	env := newRaffleTestEnv(t)
+	token := env.registerStreamer(t, "act3", "act3@test.com", "pass1234")
+
+	// Create draft raffle.
+	body, _ := json.Marshal(map[string]string{"title": "Lock CSV Test"})
+	w := httptest.NewRecorder()
+	req, _ := http.NewRequest(http.MethodPost, "/api/v1/dashboard/raffles", bytes.NewReader(body))
+	req.Header.Set("Content-Type", "application/json")
+	req.Header.Set("Authorization", bearer(token))
+	env.router.ServeHTTP(w, req)
+	if w.Code != http.StatusCreated {
+		t.Fatalf("create raffle: want 201, got %d", w.Code)
+	}
+	raffleID := parseBody(t, w.Body.Bytes())["data"].(map[string]interface{})["raffle"].(map[string]interface{})["id"].(string)
+
+	// Activate to lock the participant list.
+	w = httptest.NewRecorder()
+	req, _ = http.NewRequest(http.MethodPost, "/api/v1/dashboard/raffles/"+raffleID+"/activate", nil)
+	req.Header.Set("Authorization", bearer(token))
+	env.router.ServeHTTP(w, req)
+	if w.Code != http.StatusOK {
+		t.Fatalf("activate: want 200, got %d", w.Code)
+	}
+
+	// Attempt CSV import after lock — must return 409.
+	var buf bytes.Buffer
+	mw := multipart.NewWriter(&buf)
+	fw, _ := mw.CreateFormFile("file", "entries.csv")
+	_, _ = fw.Write([]byte("viewer1\n"))
+	mw.Close()
+
+	w = httptest.NewRecorder()
+	req, _ = http.NewRequest(http.MethodPost, "/api/v1/dashboard/raffles/"+raffleID+"/entries/import-csv", &buf)
+	req.Header.Set("Content-Type", mw.FormDataContentType())
+	req.Header.Set("Authorization", bearer(token))
+	env.router.ServeHTTP(w, req)
+
+	if w.Code != http.StatusConflict {
+		t.Errorf("import after activate: want 409, got %d: %s", w.Code, w.Body.String())
+	}
+}

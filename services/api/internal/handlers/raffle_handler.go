@@ -137,6 +137,7 @@ func (h *RaffleHandler) Get(c *gin.Context) {
 // @Param        file formData file   true "CSV file (column 1: twitch_login, column 2: display_name)"
 // @Success      200  {object}  Response
 // @Failure      400  {object}  Response
+// @Failure      409  {object}  Response
 // @Router       /dashboard/raffles/{id}/entries/import-csv [post]
 func (h *RaffleHandler) ImportCSV(c *gin.Context) {
 	claims := middleware.MustClaims(c)
@@ -177,6 +178,10 @@ func (h *RaffleHandler) ImportCSV(c *gin.Context) {
 		}
 		if errors.Is(err, services.ErrRaffleForbidden) {
 			c.JSON(http.StatusForbidden, Response{Success: false, Error: "forbidden"})
+			return
+		}
+		if errors.Is(err, services.ErrRaffleNotDraft) {
+			conflict(c, err.Error())
 			return
 		}
 		log.Printf("raffle import-csv raffle_id=%s: %v", raffleID, err)

@@ -387,17 +387,22 @@ func (s *RaffleService) ListDraws(raffleID, userID uuid.UUID) ([]models.RaffleDr
 
 // Activate locks the participant list by moving the raffle from draft to active.
 // After activation, ImportCSV will reject further uploads.
+// The update is conditional on status = draft to avoid a read-then-write race.
 func (s *RaffleService) Activate(raffleID, userID uuid.UUID) (*models.Raffle, error) {
 	raffle, err := s.GetByID(raffleID, userID)
 	if err != nil {
 		return nil, err
 	}
-	if raffle.Status != models.RaffleStatusDraft {
+	res := s.db.Model(&models.Raffle{}).
+		Where("id = ? AND status = ?", raffle.ID, models.RaffleStatusDraft).
+		Update("status", models.RaffleStatusActive)
+	if res.Error != nil {
+		return nil, res.Error
+	}
+	if res.RowsAffected == 0 {
 		return nil, ErrRaffleNotDraft
 	}
-	if err := s.db.Model(raffle).Update("status", models.RaffleStatusActive).Error; err != nil {
-		return nil, err
-	}
+	raffle.Status = models.RaffleStatusActive
 	return raffle, nil
 }
 

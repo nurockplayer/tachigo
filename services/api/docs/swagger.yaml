@@ -1120,6 +1120,10 @@ paths:
           description: Bad Request
           schema:
             $ref: '#/definitions/handlers.Response'
+        "409":
+          description: Conflict
+          schema:
+            $ref: '#/definitions/handlers.Response'
       security:
       - BearerAuth: []
       summary: Import participants from CSV
