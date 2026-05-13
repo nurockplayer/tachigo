@@ -1,0 +1,24 @@
+{
+  "name": "@tachigo/api-client",
+  "version": "0.0.0",
+  "private": true,
+  "type": "module",
+  "files": [
+    "src/index.d.ts",
+    "src/index.mjs"
+  ],
+  "types": "./src/index.d.ts",
+  "exports": {
+    ".": {
+      "types": "./src/index.d.ts",
+      "import": "./src/index.mjs",
+      "default": "./src/index.mjs"
+    }
+  },
+  "dependencies": {
+    "@tachigo/shared-types": "workspace:*"
+  },
+  "scripts": {
+    "test": "node --test src/*.test.mjs"
+  }
+}
