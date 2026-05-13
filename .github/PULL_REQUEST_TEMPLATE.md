@@ -39,6 +39,8 @@
   - <!-- 例：controller / docs_worker / ops_spark -->
 - Model strength：
   - <!-- 例：controller = high；docs_worker = medium -->
+- Spawn directive(s)：
+  - <!-- 例：profile=ops_spark model=gpt-5.3-codex-spark reasoning=medium controller_fallback=denied fallback_reason=n/a -->
 - Verification evidence：
   - <!-- 例：git diff --check；node --test .github/workflows/ci.test.mjs -->
 - Self-review / exception reason：
@@ -47,6 +49,30 @@
   - <!-- 例：已讀回 worker 結果，不需追加任務的 worker session 已 close；stale handle / not found 已說明 -->
 - Workflow friction / follow-up split：
   - <!-- autonomous PR 請說明本次約 40% infra 複雜 / 約 60% 工作流摩擦中，哪些已由 worker routing / closeout / follow-up issue 收斂；非 autonomous PR 可填 n/a -->
+
+## Review conversation closeout
+<!-- autonomous PR 必填；非 autonomous PR 可填 n/a。所有 review finding 必須修正並回覆/resolve，或留下技術理由後 resolve。 -->
+- Unresolved threads：
+  - <!-- 例：0；若非 0，列 blocker 與下一步 -->
+- CodeRabbit：
+  - <!-- 例：reviewed latest head；rate limit fallback；n/a -->
+- chatgpt-codex-connector：
+  - <!-- 例：commented latest head；reaction-only fallback；n/a -->
+- Final reviewer action：
+  - <!-- 例：all findings fixed/resolved；not adopted with rationale；n/a -->
+
+## Final merge gate
+<!-- autonomous PR merge 前更新一次即可；PR initial body 請先填 pending/n/a，final closeout 只在狀態穩定後更新一次。 -->
+- Ready-to-merge decision：
+  - <!-- 例：ready / blocked by CI / n/a；autonomous ready-to-merge closeout 不可留下裸 pending -->
+- Latest head SHA：
+  - <!-- 例：abc1234；開 PR 前可填 n/a -->
+- Required checks：
+  - <!-- 例：PR Scope Police pass；CI pass；開 PR 前可填 pending with reason -->
+- spec workflow-check evidence：
+  - <!-- 使用 spec-injector 者填 local-only start/commit/merge gate evidence；未使用者填 n/a 或人工 checklist -->
+- Evidence URL：
+  - <!-- 例：final closeout comment / CI run / n/a -->
 
 ## PR 拆分檢查
 <!-- 一個 PR = 一個可獨立理解、可獨立驗證的行為變更。若超過 400 行、同時改 backend/frontend、或同時包含 schema/service/handler/UI 任兩種以上，請優先拆 PR。 -->
