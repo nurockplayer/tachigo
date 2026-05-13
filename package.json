@@ -7,6 +7,8 @@
   "scripts": {
     "build:extension": "pnpm --filter ./apps/extension build",
     "build:dashboard": "pnpm --filter ./apps/dashboard build",
+    "api:types:generate": "pnpm --filter @tachigo/shared-types generate",
+    "api:types:check": "pnpm --filter @tachigo/shared-types check",
     "test": "echo \"No root test suite configured\""
   },
   "repository": {
