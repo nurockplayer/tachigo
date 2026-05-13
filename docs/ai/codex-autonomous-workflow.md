@@ -66,39 +66,24 @@
 
 新對話框不要只靠使用者貼一段提示詞來維持一致性。提示詞只負責啟動流程；真正的 source of truth 是 repo 內文件與 GitHub issue / PR metadata。
 
-建議使用者在新對話框貼以下啟動語：
+最新單一入口是 [docs/ai/autonomous-bootstrap.md](autonomous-bootstrap.md)。建議使用者在新對話框貼以下啟動語：
 
 ```text
 請以 <你的本機 tachigo 專案路徑> 為工作目錄（例如：~/workspace/tachigo）。
 
-開始前請先讀：
-- AGENTS.md
-- CLAUDE.md
-- docs/ai/codex-autonomous-workflow.md
-- docs/pr-scope-policy.md
-
-之後所有工作都照 tachigo 的 Autonomous Worker Profiles 執行：
-- 先找或開 GitHub issue
-- 從 develop 開 branch
-- PR 目標一律 develop
-- PR body 必須符合 template 與 PR Scope Police
-- 可委派 worker/subagent，但總控保留 scope、架構、review、merge decision
-- merge 前必須等待 CodeRabbit 與 chatgpt-codex-connector review/readback
-- CodeRabbit rate limit 時改由總控 self-review 並留下證據
-- chatgpt-codex-connector 沒 comment 但有 reaction 可視為已看過
-- 不要直接 push develop/main
-- 不要 merge，除非我明確授權
+請讀 docs/ai/autonomous-bootstrap.md，使用 Hybrid AWP with Explicit Fallback Gate + spec-injector 處理這張 issue。
 ```
 
 貼上前請先把 `<你的本機 tachigo 專案路徑>` 換成目前 clone 的 repo 根目錄，避免 agent 在錯誤目錄讀取文件或執行 GitHub / git 操作。
 
 接到這段啟動語後，總控 agent 的第一輪動作必須是：
 
-1. 讀取上列文件，而不是只依賴提示詞記憶。
+1. 讀取 `docs/ai/autonomous-bootstrap.md`，再由 bootstrap 文件展開 mandatory read set，而不是只依賴提示詞記憶。
 2. 回報目前工作目錄、branch、dirty state、target base branch。
-3. 搜尋既有 issue，避免重複開票。
-4. 若需要新 issue，先建立 source issue，再開始實作。
-5. 若主 worktree 已 dirty，改用乾淨 worktree 或停止回報，不覆蓋使用者變更。
+3. 搜尋並驗證 source issue，以及既有 issue / branch / PR，避免在沒有 issue number / URL 時先跑需要 issue 的 start gate。
+4. 檢查 spec-injector 可用性並執行 start gate；若 `spec workflow-check` 不可用，回報工具版本落差並用 manual checklist 作暫時 evidence。
+5. 先輸出 routing plan；若不派 worker/subagent，必須先寫 `controller_fallback_reason`。
+6. 若主 worktree 已 dirty，改用乾淨 worktree 或停止回報，不覆蓋使用者變更。
 
 ## Worker Profiles
 
