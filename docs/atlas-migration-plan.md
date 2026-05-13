@@ -256,8 +256,8 @@ Co-Authored-By: Codex <codex[bot]@openai.com>
 
 ## Atlas References
 
-- External schema loading：<https://atlasgo.io/atlas-schema/external>
-- Versioned migration diff：<https://atlasgo.io/versioned/diff>
+- External schema loading：[https://atlasgo.io/atlas-schema/external](https://atlasgo.io/atlas-schema/external)
+- Versioned migration diff：[https://atlasgo.io/versioned/diff](https://atlasgo.io/versioned/diff)
 
 ## Review Checklist
 

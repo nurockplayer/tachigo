@@ -57,7 +57,7 @@ SHA256:+DiY3wvvV6TuJJhbpZisF/zLDA0zPMSvHdkr4UvCOqU
 
 以 GitHub 官方文件為準，不要盲目信任 `ssh-keyscan` 結果：
 
-<https://docs.github.com/en/authentication/keeping-your-account-and-data-secure/githubs-ssh-key-fingerprints>
+[GitHub SSH key fingerprints](https://docs.github.com/en/authentication/keeping-your-account-and-data-secure/githubs-ssh-key-fingerprints)
 
 確認 fingerprint 相符後，再把同一份 key 新增到 `known_hosts`：
 

@@ -8,7 +8,7 @@
 
 正式環境 model 的 Primary Key 應優先使用 **UUID v7**，避免新資料以 UUID v4 隨機散落在 B-tree index。
 
-目前實作狀態仍是部分完成；剩餘遷移清單維護在 [`plans/uuid-v7-migration.md`](../plans/uuid-v7-migration.md)。本文件只描述技術策略，不追蹤逐檔進度。
+目前實作狀態仍是部分完成；剩餘遷移清單維護在 [`plans/uuid-v7-migration.md`](https://github.com/nurockplayer/tachigo/blob/develop/plans/uuid-v7-migration.md)。本文件只描述技術策略，不追蹤逐檔進度。
 
 ---
 

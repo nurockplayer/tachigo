@@ -52,7 +52,7 @@
 
 ## 快捷指令
 
-完整指令清單與說明見 [CLAUDE.md](../../CLAUDE.md)（AI 分工 → 建議優先使用的快捷指令）。
+完整指令清單與說明見 [CLAUDE.md](https://github.com/nurockplayer/tachigo/blob/develop/CLAUDE.md)（AI 分工 → 建議優先使用的快捷指令）。
 
 各指令的輸出格式限制定義在 `.claude/commands/*.md`。
 
