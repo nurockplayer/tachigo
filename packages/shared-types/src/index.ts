@@ -312,6 +312,12 @@ export interface ApiOperations {
     };
     response: HandlersResponse;
   };
+  "POST /dashboard/raffles/{id}/activate": {
+    pathParams: {
+      id: string;
+    };
+    response: HandlersResponse;
+  };
   "POST /dashboard/raffles/{id}/complete": {
     pathParams: {
       id: string;
