@@ -1,6 +1,7 @@
 package services
 
 import (
+	"context"
 	"errors"
 	"testing"
 
@@ -161,6 +162,18 @@ func TestCreate_DefaultClearFailureReturnsErrorAndDoesNotCreate(t *testing.T) {
 	}
 }
 
+func TestCreateContext_CanceledContextReturnsCanceled(t *testing.T) {
+	svc := NewAddressService(newTestDB(t))
+	userID := seedUser(t, svc)
+	ctx, cancel := context.WithCancel(context.Background())
+	cancel()
+
+	_, err := svc.CreateContext(ctx, userID, minimalInput())
+	if !errors.Is(err, context.Canceled) {
+		t.Fatalf("expected context.Canceled, got %v", err)
+	}
+}
+
 // ─── List ────────────────────────────────────────────────────────────────────
 
 func TestList_ReturnsUserAddresses(t *testing.T) {
@@ -211,6 +224,18 @@ func TestList_IsolatedByUser(t *testing.T) {
 	addrs, _ := svc.List(user2)
 	if len(addrs) != 0 {
 		t.Errorf("user2 should see 0 addresses, got %d", len(addrs))
+	}
+}
+
+func TestListContext_CanceledContextReturnsCanceled(t *testing.T) {
+	svc := NewAddressService(newTestDB(t))
+	userID := seedUser(t, svc)
+	ctx, cancel := context.WithCancel(context.Background())
+	cancel()
+
+	_, err := svc.ListContext(ctx, userID)
+	if !errors.Is(err, context.Canceled) {
+		t.Fatalf("expected context.Canceled, got %v", err)
 	}
 }
 
@@ -306,6 +331,22 @@ func TestUpdate_DefaultClearFailureReturnsErrorAndRollsBack(t *testing.T) {
 	}
 }
 
+func TestUpdateContext_CanceledContextReturnsCanceled(t *testing.T) {
+	svc := NewAddressService(newTestDB(t))
+	userID := seedUser(t, svc)
+	addr, err := svc.Create(userID, minimalInput())
+	if err != nil {
+		t.Fatalf("create address: %v", err)
+	}
+	ctx, cancel := context.WithCancel(context.Background())
+	cancel()
+
+	_, err = svc.UpdateContext(ctx, userID, addr.ID, minimalInput())
+	if !errors.Is(err, context.Canceled) {
+		t.Fatalf("expected context.Canceled, got %v", err)
+	}
+}
+
 // ─── Delete ──────────────────────────────────────────────────────────────────
 
 func TestDelete_Success(t *testing.T) {
@@ -370,6 +411,22 @@ func TestDelete_ReturnsDBErrorBeforeNotFound(t *testing.T) {
 	}
 	if errors.Is(err, ErrAddressNotFound) {
 		t.Fatalf("expected DB error before ErrAddressNotFound, got %v", err)
+	}
+}
+
+func TestDeleteContext_CanceledContextReturnsCanceled(t *testing.T) {
+	svc := NewAddressService(newTestDB(t))
+	userID := seedUser(t, svc)
+	addr, err := svc.Create(userID, minimalInput())
+	if err != nil {
+		t.Fatalf("create address: %v", err)
+	}
+	ctx, cancel := context.WithCancel(context.Background())
+	cancel()
+
+	err = svc.DeleteContext(ctx, userID, addr.ID)
+	if !errors.Is(err, context.Canceled) {
+		t.Fatalf("expected context.Canceled, got %v", err)
 	}
 }
 
@@ -465,5 +522,21 @@ func TestSetDefault_SaveFailureReturnsError(t *testing.T) {
 	_, err = svc.SetDefault(userID, addr.ID)
 	if !errors.Is(err, saveErr) {
 		t.Fatalf("expected save error, got %v", err)
+	}
+}
+
+func TestSetDefaultContext_CanceledContextReturnsCanceled(t *testing.T) {
+	svc := NewAddressService(newTestDB(t))
+	userID := seedUser(t, svc)
+	addr, err := svc.Create(userID, minimalInput())
+	if err != nil {
+		t.Fatalf("create address: %v", err)
+	}
+	ctx, cancel := context.WithCancel(context.Background())
+	cancel()
+
+	_, err = svc.SetDefaultContext(ctx, userID, addr.ID)
+	if !errors.Is(err, context.Canceled) {
+		t.Fatalf("expected context.Canceled, got %v", err)
 	}
 }

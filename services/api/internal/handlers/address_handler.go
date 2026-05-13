@@ -27,7 +27,7 @@ func (h *AddressHandler) List(c *gin.Context) {
 	claims := middleware.MustClaims(c)
 	userID, _ := uuid.Parse(claims.UserID)
 
-	addrs, err := h.addr.List(userID)
+	addrs, err := h.addr.ListContext(c.Request.Context(), userID)
 	if err != nil {
 		internal(c)
 		return
@@ -55,7 +55,7 @@ func (h *AddressHandler) Create(c *gin.Context) {
 		return
 	}
 
-	addr, err := h.addr.Create(userID, input)
+	addr, err := h.addr.CreateContext(c.Request.Context(), userID, input)
 	if err != nil {
 		internal(c)
 		return
@@ -90,7 +90,7 @@ func (h *AddressHandler) Update(c *gin.Context) {
 		return
 	}
 
-	addr, err := h.addr.Update(userID, addrID, input)
+	addr, err := h.addr.UpdateContext(c.Request.Context(), userID, addrID, input)
 	if err != nil {
 		switch err {
 		case services.ErrAddressNotFound:
@@ -122,7 +122,7 @@ func (h *AddressHandler) Delete(c *gin.Context) {
 		return
 	}
 
-	if err := h.addr.Delete(userID, addrID); err != nil {
+	if err := h.addr.DeleteContext(c.Request.Context(), userID, addrID); err != nil {
 		notFound(c, "address not found")
 		return
 	}
@@ -148,7 +148,7 @@ func (h *AddressHandler) SetDefault(c *gin.Context) {
 		return
 	}
 
-	addr, err := h.addr.SetDefault(userID, addrID)
+	addr, err := h.addr.SetDefaultContext(c.Request.Context(), userID, addrID)
 	if err != nil {
 		notFound(c, "address not found")
 		return
