@@ -47,13 +47,21 @@ final closeout 只在 merge 前狀態穩定後更新一次，避免每個 CI tic
 
 ## spec workflow-check Gates
 
-`spec-injector` 對 tachigo 是 local-only 輔助，不是不用此工具者的硬性門檻。
+`spec-injector` 對 tachigo 是 local-only 輔助，不是不用此工具者的硬性門檻。tachigo 這側只做 thin wiring：PR template 與 policy docs 保留 `status + ref` evidence slot，真正的 `spec workflow-check` phase parser、local artifact 檢查與穩定輸出格式由 `Erick52106/spec-injector#224` 實作。
 
 - Start gate：使用者要求或任務適用時，可本機執行 `spec plan <issue> --repo . --dry-run --format prompt --verbose` 或未來 `spec workflow-check --repo . --phase start`，用於產生 bounded context。
 - Commit gate：commit 前可本機執行 workflow-check，確認 PR body / non-goals / validation / `.spec-injector/` 未 staged。
 - Merge gate：merge 前可本機執行 workflow-check，確認 final closeout、unresolved thread count、latest head SHA 與 spec gate evidence。
 
 不得 commit `.spec-injector/`、spec output、private context、或工具產生的 task package。未使用 spec-injector 的 PR 可在 template 填人工 checklist / `n/a`。
+
+PR body 只應留下 gate 狀態與可讀回的 evidence ref，例如本機 `spec validate` 通過、人工 checklist、或含三段 gate 摘要的 PR / issue comment URL。完整三段細節不應塞進 PR body，也不應由 tachigo 的 Scope Police 重新解析。
+
+## Threshold Calibration Ledger
+
+Threshold 校正是暫時性的 autonomous workflow 分析資料，不是 tachigo product contract。校正紀錄集中留在 #664 的 long-lived issue comment，PR body 只需在 workflow friction / final closeout 裡放 #664 comment URL 或 `n/a`。
+
+不要把 `spawn_count`、CI rerun、review-thread count、threshold decision 等 metrics 加進 PR template，也不要讓 Scope Police 依賴這些 metrics。等 autonomous workflow 門檻穩定後，#664 可封存或停止新增紀錄，而不需要修改專案結構。
 
 ## Scope Police Contract
 

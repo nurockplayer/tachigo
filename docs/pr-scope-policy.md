@@ -166,6 +166,8 @@ Dependabot maintenance PR 目前不會套用 frontend/backend 依賴關係用的
 
 Autonomous Worker Profiles v2 的完整 evidence discipline 與 `spec workflow-check` local-only 接入點見 [docs/ai/autonomous-pr-gates.md](ai/autonomous-pr-gates.md)。`spec-injector` 不得把 `.spec-injector/`、spec output 或 private local context commit 進 repo；未使用此工具的 PR 可填人工 checklist / `n/a`。
 
+`spec workflow-check` 對 PR Scope Police 是 status / ref 證據，不是完整三段 gate parser。Scope Police does not parse start / commit / merge gate internals；若需要三段細節，請在 PR body 留 evidence URL 指向 PR comment、issue comment 或本機驗證摘要。Threshold calibration ledger 同樣不由 Scope Police 執行，校正資料集中留在 #664 的 long-lived issue comment，PR body 不展開 metrics。
+
 使用原則：
 
 - 只有 maintainer 可以加
