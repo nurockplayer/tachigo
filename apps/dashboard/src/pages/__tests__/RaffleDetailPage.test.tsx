@@ -16,6 +16,7 @@ vi.mock('@/services/raffles', async (importOriginal) => {
     importCSV: vi.fn().mockResolvedValue({ imported: 0, skipped: 0 }),
     completeRaffle: vi.fn().mockResolvedValue(undefined),
     setDiscordWebhook: vi.fn().mockResolvedValue(true),
+    activateRaffle: vi.fn().mockResolvedValue({ id: 'r1', status: 'active' }),
   }
 })
 
@@ -72,6 +73,7 @@ beforeEach(() => {
   vi.mocked(rafflesService.importCSV).mockResolvedValue({ imported: 0, skipped: 0 })
   vi.mocked(rafflesService.completeRaffle).mockResolvedValue(undefined)
   vi.mocked(rafflesService.setDiscordWebhook).mockResolvedValue(true)
+  vi.mocked(rafflesService.activateRaffle).mockResolvedValue({ ...mockRaffle, status: 'active' as const })
 })
 afterEach(() => {
   vi.restoreAllMocks()
@@ -140,11 +142,13 @@ describe('RaffleDetailPage — winner list', () => {
   })
 })
 
+const draftRaffle = { ...mockRaffle, status: 'draft' as const }
+
 describe('RaffleDetailPage — CSV upload', () => {
   it('shows success message after upload', async () => {
     vi.mocked(rafflesService.importCSV).mockResolvedValue({ imported: 50, skipped: 2 })
     const dp = createMockDataProvider({
-      getOne: { raffles: vi.fn().mockResolvedValue(mockRaffle as BaseRecord) },
+      getOne: { raffles: vi.fn().mockResolvedValue(draftRaffle as BaseRecord) },
     })
     const { container, root } = await renderAt('r1', dp)
     await waitFor(() => expect(container.querySelector('[data-testid="csv-input"]')).toBeTruthy())
@@ -166,7 +170,7 @@ describe('RaffleDetailPage — CSV upload', () => {
   it('shows error message when upload fails', async () => {
     vi.mocked(rafflesService.importCSV).mockRejectedValue(new Error('network'))
     const dp = createMockDataProvider({
-      getOne: { raffles: vi.fn().mockResolvedValue(mockRaffle as BaseRecord) },
+      getOne: { raffles: vi.fn().mockResolvedValue(draftRaffle as BaseRecord) },
     })
     const { container, root } = await renderAt('r1', dp)
     await waitFor(() => expect(container.querySelector('[data-testid="csv-input"]')).toBeTruthy())
@@ -230,7 +234,7 @@ describe('RaffleDetailPage — draw button', () => {
     vi.mocked(rafflesService.listDraws).mockResolvedValue([mockDraw, { ...mockDraw, id: 'd2' }, { ...mockDraw, id: 'd3' }])
     vi.mocked(rafflesService.importCSV).mockResolvedValue({ imported: 3, skipped: 0 })
     const dp = createMockDataProvider({
-      getOne: { raffles: vi.fn().mockResolvedValue(mockRaffle as BaseRecord) },
+      getOne: { raffles: vi.fn().mockResolvedValue(draftRaffle as BaseRecord) },
     })
     const { container, root } = await renderAt('r1', dp)
     await waitFor(() => expect(container.querySelector('[data-testid="csv-input"]')).toBeTruthy())
@@ -399,6 +403,76 @@ describe('RaffleDetailPage — Discord webhook', () => {
         .dispatchEvent(new MouseEvent('click', { bubbles: true }))
     })
     await waitFor(() => expect(container.querySelector('[data-testid="discord-webhook-error"]')?.textContent).toContain('invalid discord webhook url'))
+    cleanup(root, container)
+  })
+})
+
+describe('RaffleDetailPage — activate button', () => {
+  it('shows activate button when status is draft', async () => {
+    const draftRaffle = { ...mockRaffle, status: 'draft' as const }
+    const dp = createMockDataProvider({
+      getOne: { raffles: vi.fn().mockResolvedValue(draftRaffle as BaseRecord) },
+    })
+    const { container, root } = await renderAt('r1', dp)
+    await waitFor(() => expect(container.querySelector('[data-testid="activate-btn"]')).toBeTruthy())
+    cleanup(root, container)
+  })
+
+  it('calls activateRaffle when activate button is clicked', async () => {
+    const activateMock = vi.mocked(rafflesService.activateRaffle)
+    const draftRaffle = { ...mockRaffle, status: 'draft' as const }
+    const dp = createMockDataProvider({
+      getOne: { raffles: vi.fn().mockResolvedValue(draftRaffle as BaseRecord) },
+    })
+    const { container, root } = await renderAt('r1', dp)
+    await waitFor(() => expect(container.querySelector('[data-testid="activate-btn"]')).toBeTruthy())
+
+    await act(async () => {
+      container.querySelector('[data-testid="activate-btn"]')!
+        .dispatchEvent(new MouseEvent('click', { bubbles: true }))
+    })
+    await waitFor(() => expect(activateMock).toHaveBeenCalledWith('r1'))
+    cleanup(root, container)
+  })
+
+  it('hides activate button when status is active', async () => {
+    const dp = createMockDataProvider({
+      getOne: { raffles: vi.fn().mockResolvedValue(mockRaffle as BaseRecord) },
+    })
+    const { container, root } = await renderAt('r1', dp)
+    await waitFor(() => expect(container.querySelector('[data-testid="draw-btn"]')).toBeTruthy())
+    expect(container.querySelector('[data-testid="activate-btn"]')).toBeFalsy()
+    cleanup(root, container)
+  })
+
+  it('shows CSV locked message when status is active', async () => {
+    const dp = createMockDataProvider({
+      getOne: { raffles: vi.fn().mockResolvedValue(mockRaffle as BaseRecord) },
+    })
+    const { container, root } = await renderAt('r1', dp)
+    await waitFor(() => expect(container.querySelector('[data-testid="csv-locked"]')).toBeTruthy())
+    cleanup(root, container)
+  })
+
+  it('shows error message when activateRaffle fails', async () => {
+    vi.mocked(rafflesService.activateRaffle).mockRejectedValue({
+      response: { data: { error: 'raffle is not in draft status' } },
+    })
+    const draftRaffle = { ...mockRaffle, status: 'draft' as const }
+    const dp = createMockDataProvider({
+      getOne: { raffles: vi.fn().mockResolvedValue(draftRaffle as BaseRecord) },
+    })
+    const { container, root } = await renderAt('r1', dp)
+    await waitFor(() => expect(container.querySelector('[data-testid="activate-btn"]')).toBeTruthy())
+
+    await act(async () => {
+      container.querySelector('[data-testid="activate-btn"]')!
+        .dispatchEvent(new MouseEvent('click', { bubbles: true }))
+    })
+    await waitFor(() =>
+      expect(container.querySelector('[data-testid="activate-error"]')?.textContent)
+        .toContain('raffle is not in draft status'),
+    )
     cleanup(root, container)
   })
 })

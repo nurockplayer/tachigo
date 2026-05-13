@@ -1,5 +1,5 @@
 import { describe, it, expect, vi, beforeEach } from 'vitest'
-import { listRaffles, createRaffle, listDraws, drawNext, importCSV, completeRaffle, setDiscordWebhook } from '@/services/raffles'
+import { listRaffles, createRaffle, listDraws, drawNext, importCSV, completeRaffle, setDiscordWebhook, activateRaffle } from '@/services/raffles'
 
 const getMock = vi.fn()
 const postMock = vi.fn()
@@ -74,6 +74,16 @@ describe('completeRaffle', () => {
     postMock.mockResolvedValue({ data: { success: true, data: {} } })
     await completeRaffle('r1')
     expect(postMock).toHaveBeenCalledWith('/api/v1/dashboard/raffles/r1/complete', undefined)
+  })
+})
+
+describe('activateRaffle', () => {
+  it('posts to activate endpoint and returns updated raffle', async () => {
+    const activeRaffle = { ...mockRaffle, status: 'active' as const }
+    postMock.mockResolvedValue({ data: { success: true, data: { raffle: activeRaffle } } })
+    const result = await activateRaffle('r1')
+    expect(result).toEqual(activeRaffle)
+    expect(postMock).toHaveBeenCalledWith('/api/v1/dashboard/raffles/r1/activate', undefined)
   })
 })
 
