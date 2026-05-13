@@ -58,8 +58,14 @@
   - <!-- 例：reviewed latest head；rate limit fallback；n/a -->
 - chatgpt-codex-connector：
   - <!-- 例：commented latest head；reaction-only fallback；n/a -->
+- review_triage_ref：
+  - <!-- autonomous PR：latest-head review triage evidence ref（issue / PR comment / spec output ref）；非 autonomous PR 可填 n/a -->
+- root_cause_gate_ref：
+  - <!-- autonomous PR：同概念第二次 finding 時的 root-cause / state-model evidence ref；若尚未觸發可填 latest-head rationale ref；非 autonomous PR 可填 n/a -->
+- finding_disposition_ref：
+  - <!-- autonomous PR：adopted / partial / rejected / deferred disposition evidence ref；非 autonomous PR 可填 n/a -->
 - Final reviewer action：
-  - <!-- 例：all findings fixed/resolved；not adopted with rationale；n/a -->
+  - <!-- 例：all findings fixed/resolved；adopted / partial / rejected / deferred recorded at latest head；n/a -->
 
 ## Final merge gate
 <!-- autonomous PR merge 前更新一次即可；PR initial body 請先填 pending/n/a，final closeout 只在狀態穩定後更新一次。 -->

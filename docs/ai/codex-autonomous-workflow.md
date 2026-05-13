@@ -194,6 +194,15 @@ Autonomous PR merge 前，總控必須完成 fresh readback：
 7. GitHub 允許時，將已處理的 review thread/comment resolve。
 8. 若 push 新 commit，merge 前重新讀回 head SHA 與 review/check 狀態。
 
+### Review Triage Discipline
+
+- 所有 review finding 先做 necessity assessment，再決定是採納、部分採納、駁回，或拆成 follow-up；不得因 reviewer 提到 edge case 就直接擴 scope。
+- review follow-up 必須 batch by latest head SHA；同一 head 的 duplicate finding 要 collapse，舊 head finding 要先做 outdated re-check。
+- 同一概念第 2 次再出現 finding，預設升級成 root-cause / state-model 修正，不再接受無限 local patch 疊加。
+- parser / gate / workflow 修正優先補 matrix-first regression tests，再做最小 patch。
+- follow-up patch 若逼近原 PR diff 的約 25-30%，先停下來評估拆 PR 或改開 follow-up issue。
+- final closeout 要留下 adopted / partial / rejected / deferred disposition，並把 `review_triage_ref`、`root_cause_gate_ref`、`finding_disposition_ref` 對到 latest head 的證據。
+
 CodeRabbit 由 `.coderabbit.yaml` 設定 `reviews.auto_review.base_branches: [".*"]`，讓 PR target branch 不限 default branch 都能觸發 auto review。
 
 ### Review Closeout Evidence Matrix

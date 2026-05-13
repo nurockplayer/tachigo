@@ -76,6 +76,11 @@ jobs:
               /^Ready-to-merge decision\s*[：:]\s*(.*?)$/i
             const reviewCloseoutFieldPattern =
               /^(Unresolved threads|CodeRabbit|chatgpt-codex-connector|Final reviewer action)\s*[：:]\s*(.*?)$/i
+            const reviewEvidenceFieldPatterns = [
+              /^review_triage_ref\s*[：:]\s*(.*?)$/i,
+              /^root_cause_gate_ref\s*[：:]\s*(.*?)$/i,
+              /^finding_disposition_ref\s*[：:]\s*(.*?)$/i,
+            ]
             const finalMergeGateFieldPattern =
               /^(Ready-to-merge decision|Latest head SHA|Required checks|spec workflow-check evidence|Evidence URL)\s*[：:]\s*(.*?)$/i
             const hasMeaningfulExceptionReason = (value) =>
@@ -358,6 +363,24 @@ jobs:
               reviewConversationCloseoutSection,
               reviewCloseoutFieldPattern,
             )
+            const reviewConversationCloseoutLines = reviewConversationCloseoutSection.split('\n')
+            const hasAllReviewEvidenceRefs = reviewEvidenceFieldPatterns.every((fieldPattern) =>
+              reviewConversationCloseoutLines.some((line, index) =>
+                hasMeaningfulSectionFieldValue(reviewConversationCloseoutLines, index, fieldPattern),
+              ),
+            )
+            const hasPendingReviewEvidenceRef = reviewEvidenceFieldPatterns.some((fieldPattern) =>
+              collectSectionFieldValues(reviewConversationCloseoutLines, fieldPattern).some((value) =>
+                /^pending\b/i.test(value),
+              ),
+            )
+            const hasBarePendingReviewEvidenceRef = reviewEvidenceFieldPatterns.some((fieldPattern) =>
+              collectSectionFieldValues(reviewConversationCloseoutLines, fieldPattern).some((value) =>
+                /^pending$/i.test(value),
+              ),
+            )
+            const hasValidReviewEvidenceRefs =
+              hasReviewConversationCloseout && hasAllReviewEvidenceRefs && !hasBarePendingReviewEvidenceRef
             const finalMergeGateLines = finalMergeGateSection.split('\n')
             const hasFinalMergeGate = hasMeaningfulSectionContent(
               finalMergeGateSection,
@@ -379,6 +402,9 @@ jobs:
               readyToMergeFieldPattern,
             )
             const hasBarePendingMergeGate = readyToMergeValues.some((value) => /^pending$/i.test(value))
+            const hasReadyToMergeDecision = readyToMergeValues.some((value) => /^ready\b/i.test(value))
+            const reviewEvidenceRefsPass =
+              hasValidReviewEvidenceRefs && !(hasReadyToMergeDecision && hasPendingReviewEvidenceRef)
             const hasValidSpawnDirective = spawnDirectives.some(hasCompleteSpawnDirective)
             const hasInvalidAllowedFallbackDirective = spawnDirectives.some(
               (directive) =>
@@ -490,6 +516,15 @@ jobs:
                 if (!hasReviewConversationCloseout && !hasFinalMergeGate) {
                   policyFailures.push(
                     'Autonomous PR must include either `Review conversation closeout` or `Final merge gate` evidence.',
+                  )
+                }
+
+                if (
+                  hasReviewConversationCloseout &&
+                  (!hasValidReviewEvidenceRefs || (hasReadyToMergeDecision && hasPendingReviewEvidenceRef))
+                ) {
+                  policyFailures.push(
+                    'Autonomous PR review closeout must include `review_triage_ref`, `root_cause_gate_ref`, and `finding_disposition_ref`; ready-to-merge closeout cannot leave those refs pending.',
                   )
                 }
 
@@ -730,6 +765,11 @@ jobs:
               )
               summaryLines.push(
                 `- Review closeout: ${hasReviewConversationCloseout ? 'pass' : 'fail'}`,
+              )
+              summaryLines.push(
+                `- Review evidence refs: ${
+                  hasReviewConversationCloseout ? (reviewEvidenceRefsPass ? 'pass' : 'fail') : 'n/a'
+                }`,
               )
               summaryLines.push(`- Final merge gate: ${hasFinalMergeGate ? 'pass' : 'fail'}`)
               summaryLines.push(

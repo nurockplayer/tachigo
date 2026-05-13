@@ -1068,6 +1068,9 @@ test('PR template includes a delegation execution log for autonomous work', asyn
   assert.match(prTemplate, /Worker session closeout：/)
   assert.match(prTemplate, /Workflow friction \/ follow-up split：/)
   assert.match(prTemplate, /## Review conversation closeout/)
+  assert.match(prTemplate, /review_triage_ref：/)
+  assert.match(prTemplate, /root_cause_gate_ref：/)
+  assert.match(prTemplate, /finding_disposition_ref：/)
   assert.match(prTemplate, /## Final merge gate/)
   assert.match(prTemplate, /Ready-to-merge decision：/)
   assert.match(prTemplate, /spec workflow-check evidence：/)
@@ -1086,11 +1089,18 @@ test('AWP v2 docs wire AGENTS and PR scope policy to autonomous evidence gates a
   assert.match(agents, /docs\/ai\/autonomous-pr-gates\.md/)
   assert.match(agents, /spec workflow-check/)
   assert.match(prScopePolicy, /Autonomous evidence snapshot/)
+  assert.match(prScopePolicy, /review_triage_ref/)
+  assert.match(prScopePolicy, /只做薄檢查/)
+  assert.match(prScopePolicy, /Erick52106\/spec-injector#232/)
   assert.match(prScopePolicy, /docs\/ai\/autonomous-pr-gates\.md/)
   assert.match(autonomousPrGates, /controller_fallback_reason|fallback_reason/)
   assert.match(autonomousPrGates, /Review conversation closeout/)
   assert.match(autonomousPrGates, /Final merge gate/)
   assert.match(autonomousPrGates, /spec workflow-check/)
+  assert.match(autonomousPrGates, /necessity assessment/)
+  assert.match(autonomousPrGates, /25-30%/)
+  assert.match(autonomousPrGates, /review_triage_ref/)
+  assert.match(autonomousPrGates, /Erick52106\/spec-injector#232/)
 })
 
 test('PR scope police only treats a delegation log as autonomous when it has real content', async () => {
@@ -1472,6 +1482,9 @@ Depends on PR: none
 - Unresolved threads：0
 - CodeRabbit：reaction-only on latest head
 - chatgpt-codex-connector：commented on latest head
+- review_triage_ref：https://example.com/pr/653#issuecomment-triage
+- root_cause_gate_ref：https://example.com/pr/653#issuecomment-root-cause
+- finding_disposition_ref：https://example.com/pr/653#issuecomment-disposition
 - Final reviewer action：resolved or documented
 
 ## Final merge gate
@@ -1486,6 +1499,7 @@ Depends on PR: none
   assert.match(validRun.comments[0].body, /Autonomous evidence snapshot/i)
   assert.match(validRun.comments[0].body, /Spawn directives: pass/i)
   assert.match(validRun.comments[0].body, /Review closeout: pass/i)
+  assert.match(validRun.comments[0].body, /Review evidence refs: pass/i)
   assert.match(validRun.comments[0].body, /Final merge gate: pass/i)
 
   const missingSpawnDirectiveRun = await runScopePoliceWorkflow({
@@ -1551,6 +1565,9 @@ Depends on PR: none
 - Unresolved threads：
 - CodeRabbit：
 - chatgpt-codex-connector：
+- review_triage_ref：
+- root_cause_gate_ref：
+- finding_disposition_ref：
 - Final reviewer action：
 
 ## Final merge gate
@@ -1566,6 +1583,70 @@ Depends on PR: none
   assert.match(
     emptyCloseoutFieldsRun.comments[0].body,
     /Autonomous PR must include either `Review conversation closeout` or `Final merge gate` evidence\./,
+  )
+
+  const missingReviewEvidenceRefsRun = await runScopePoliceWorkflow({
+    body: validAutonomousBody
+      .replace(/\n- review_triage_ref：[^\n]+/, '')
+      .replace(/\n- root_cause_gate_ref：[^\n]+/, '')
+      .replace(/\n- finding_disposition_ref：[^\n]+/, ''),
+  })
+  assert.equal(missingReviewEvidenceRefsRun.failures.length, 1)
+  assert.match(
+    missingReviewEvidenceRefsRun.comments[0].body,
+    /Autonomous PR review closeout must include `review_triage_ref`, `root_cause_gate_ref`, and `finding_disposition_ref`; ready-to-merge closeout cannot leave those refs pending\./,
+  )
+  assert.match(missingReviewEvidenceRefsRun.comments[0].body, /Review evidence refs: fail/i)
+
+  const barePendingReviewEvidenceRefsRun = await runScopePoliceWorkflow({
+    body: validAutonomousBody
+      .replace(
+        '- review_triage_ref：https://example.com/pr/653#issuecomment-triage',
+        '- review_triage_ref：pending',
+      )
+      .replace(
+        '- root_cause_gate_ref：https://example.com/pr/653#issuecomment-root-cause',
+        '- root_cause_gate_ref：pending with reason',
+      ),
+  })
+  assert.equal(barePendingReviewEvidenceRefsRun.failures.length, 1)
+  assert.match(
+    barePendingReviewEvidenceRefsRun.comments[0].body,
+    /Autonomous PR review closeout must include `review_triage_ref`, `root_cause_gate_ref`, and `finding_disposition_ref`; ready-to-merge closeout cannot leave those refs pending\./,
+  )
+
+  const initialPendingWithReasonReviewEvidenceRefsRun = await runScopePoliceWorkflow({
+    body: validAutonomousBody
+      .replace(
+        '- Ready-to-merge decision：ready',
+        '- Ready-to-merge decision：pending with reason: PR just opened',
+      )
+      .replace(
+        '- review_triage_ref：https://example.com/pr/653#issuecomment-triage',
+        '- review_triage_ref：pending with reason: no review findings yet',
+      )
+      .replace(
+        '- root_cause_gate_ref：https://example.com/pr/653#issuecomment-root-cause',
+        '- root_cause_gate_ref：pending with reason: no same-concept second finding yet',
+      )
+      .replace(
+        '- finding_disposition_ref：https://example.com/pr/653#issuecomment-disposition',
+        '- finding_disposition_ref：pending with reason: no review findings yet',
+      ),
+  })
+  assert.equal(initialPendingWithReasonReviewEvidenceRefsRun.failures.length, 0)
+  assert.match(initialPendingWithReasonReviewEvidenceRefsRun.comments[0].body, /Review evidence refs: pass/i)
+
+  const readyWithPendingReasonReviewEvidenceRefsRun = await runScopePoliceWorkflow({
+    body: validAutonomousBody.replace(
+      '- review_triage_ref：https://example.com/pr/653#issuecomment-triage',
+      '- review_triage_ref：pending with reason: waiting for final review',
+    ),
+  })
+  assert.equal(readyWithPendingReasonReviewEvidenceRefsRun.failures.length, 1)
+  assert.match(
+    readyWithPendingReasonReviewEvidenceRefsRun.comments[0].body,
+    /ready-to-merge closeout cannot leave those refs pending\./,
   )
 
   const missingCloseoutSectionsRun = await runScopePoliceWorkflow({
