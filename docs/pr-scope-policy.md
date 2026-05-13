@@ -156,7 +156,10 @@ Dependabot maintenance PR 目前不會套用 frontend/backend 依賴關係用的
 - 自動化 PR 必須至少有一條 spawn directive，且同時包含 `profile=`、`model=`、`reasoning=`、`controller_fallback=`；若 `controller_fallback=allowed`，同一行必須有非空 `fallback_reason=`。
 - `ops_spark` 類任務不得使用高階 controller model，除非同一條 spawn directive 留下 fallback reason。
 - 自動化 PR 必須有 `Review conversation closeout` 或 `Final merge gate` evidence；ready-to-merge closeout 不可留下裸 `pending`。
+- 若已填 `Review conversation closeout`，autonomous PR 還必須提供 `review_triage_ref`、`root_cause_gate_ref`、`finding_disposition_ref` 三個 evidence ref。剛開 PR 可填 `pending with reason`，但 bare `pending` 與 ready-to-merge closeout 的任何 pending ref 都會被擋下。
 - sticky comment 會顯示 `Autonomous evidence snapshot`，列出 delegation log、worker closeout、spawn directives、controller fallback detail、review closeout、final merge gate 與 pending 是否已清除。
+- Scope Police 對 review triage 只做薄檢查：確認 ref/pending marker，不解析完整 spec-injector review triage matrix、root-cause schema 或 disposition checker。
+- review triage schema/checker 的 authoritative implementation 應留在 `Erick52106/spec-injector#232`、`#233`、`#234`、`#235`；tachigo 不複製該 checker。
 - section 內只要是空白、`n/a`、`none`、`無`、`不適用`，或非正式欄位的自由備註，不會啟動 delegation gate。
 - 只有 section 標題但欄位空白，不算 autonomous PR，也不會觸發 delegation gate。
 - 一般非 autonomous PR 不需要填寫 worker profile；不因 `Delegation Execution Log` 缺漏而被視為流程違規。

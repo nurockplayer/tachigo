@@ -32,6 +32,19 @@ final closeout 只在 merge 前狀態穩定後更新一次，避免每個 CI tic
 - chatgpt-codex-connector timeout：先讀 comment / review / reaction；reaction-only 可視為 fallback evidence，但需記錄 latest head。
 - 所有 review finding 必須修正並回覆/resolve，或留下技術理由後 resolve。
 
+## Review Triage Discipline
+
+- review finding 不能照單全收；總控必須先做 necessity assessment，確認它是否真的是 blocker、是否仍對最新 head 成立、以及是否會把 PR 擴成超出原 issue 的 patch。
+- review follow-up 必須以 latest head SHA 為批次單位處理；同一 head 上的 duplicate finding 要 collapse 成同一筆 triage，不得把同義 comment 當成多個獨立工作項目。
+- 若 finding 指向舊 diff、舊 head、或已被後續 commit 覆蓋，先做 outdated finding re-check；沒有 latest-head 佐證的舊 finding，不得直接轉成新 patch。
+- 同一區塊、同一概念、或同一 state transition 第 2 次再出現 edge-case finding 時，必須升級成 root-cause / state-model 檢查，而不是只補第 2 個局部 patch。
+- parser / gate / workflow 類 follow-up 預設先做 matrix-first 或 table-driven regression tests，再補最小修正，避免一個 finding 換來另一個 parser 分支洞。
+- 若 review follow-up patch 預估超過原 PR diff 的約 25-30%，應停下來做 split assessment；能拆成 follow-up issue/PR 就不要繼續在原 PR 無限加碼。
+- final closeout 要對每個 finding 留下 `adopted`、`partial`、`rejected`、`deferred` 其中一種 disposition，並提供對應 evidence ref 或 comment/thread URL。
+- PR body 只需要薄接線：`review_triage_ref`、`root_cause_gate_ref`、`finding_disposition_ref` 三個 evidence ref。完整 triage matrix、root-cause notes、或 spec-injector output 可以留在 issue / PR comment / local-only spec evidence，不必整份塞進 PR body。
+- Scope Police 只檢查這三個 ref 是否存在與 pending marker；剛開 PR 可用 `pending with reason`，但 bare `pending` 與 ready-to-merge closeout 的任何 pending ref 都會被擋下。tachigo 不解析完整 review triage schema/checker。
+- review triage schema/checker 的 source of truth 在 `Erick52106/spec-injector#232`、`#233`、`#234`、`#235`；tachigo 只保存 evidence refs 與 lightweight gate。
+
 ## spec workflow-check Gates
 
 `spec-injector` 對 tachigo 是 local-only 輔助，不是不用此工具者的硬性門檻。
