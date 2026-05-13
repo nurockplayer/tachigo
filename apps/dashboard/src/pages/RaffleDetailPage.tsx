@@ -2,7 +2,7 @@ import { useOne } from '@refinedev/core'
 import { useCallback, useEffect, useRef, useState } from 'react'
 import { useNavigate, useParams } from 'react-router'
 import { Skeleton } from '@/components/ui/skeleton'
-import { completeRaffle, drawNext, importCSV, listDraws, setDiscordWebhook } from '@/services/raffles'
+import { activateRaffle, completeRaffle, drawNext, importCSV, listDraws, setDiscordWebhook } from '@/services/raffles'
 import type { Raffle, RaffleDraw, RaffleStatus } from '@/services/raffles'
 
 const statusLabel: Record<RaffleStatus, string> = {
@@ -78,11 +78,23 @@ function WinnerList({ draws }: { draws: RaffleDraw[] }) {
 
 function CsvUploadZone({
   raffleId,
+  locked,
   onSuccess,
 }: {
   raffleId: string
+  locked: boolean
   onSuccess: (result: { imported: number; skipped: number }) => void
 }) {
+  if (locked) {
+    return (
+      <div
+        data-testid="csv-locked"
+        className="rounded-xl border border-dashed border-white/10 bg-white/[.02] px-4 py-3 text-center"
+      >
+        <p className="text-sm text-white/30">名單已鎖定，無法再匯入</p>
+      </div>
+    )
+  }
   const inputRef = useRef<HTMLInputElement>(null)
   const [uploading, setUploading] = useState(false)
   const [result, setResult] = useState<{ imported: number; skipped: number } | null>(null)
@@ -529,8 +541,10 @@ export default function RaffleDetailPage() {
   const [confirmEnd, setConfirmEnd] = useState(false)
   const [ending, setEnding] = useState(false)
   const [localCompleted, setLocalCompleted] = useState(false)
+  const [localActivated, setLocalActivated] = useState(false)
+  const [activating, setActivating] = useState(false)
 
-  const effectiveStatus = localCompleted ? 'completed' : (raffle?.status ?? '')
+  const effectiveStatus = localCompleted ? 'completed' : localActivated ? 'active' : (raffle?.status ?? '')
 
   const fetchDraws = useCallback(async () => {
     if (!raffleId) return
@@ -577,6 +591,17 @@ export default function RaffleDetailPage() {
       }
     } finally {
       setDrawing(false)
+    }
+  }
+
+  async function handleActivate() {
+    if (!raffleId || activating) return
+    setActivating(true)
+    try {
+      await activateRaffle(raffleId)
+      setLocalActivated(true)
+    } finally {
+      setActivating(false)
     }
   }
 
@@ -645,7 +670,22 @@ export default function RaffleDetailPage() {
             <StatCard label="剩餘" value={remaining?.toString() ?? '--'} colorClass="text-amber-400" />
           </div>
 
-          <CsvUploadZone raffleId={raffle.id} onSuccess={(result) => { setTotalEntries(prev => (prev ?? 0) + result.imported); setExhausted(false) }} />
+          <CsvUploadZone
+            raffleId={raffle.id}
+            locked={effectiveStatus !== 'draft'}
+            onSuccess={(result) => { setTotalEntries(prev => (prev ?? 0) + result.imported); setExhausted(false) }}
+          />
+
+          {effectiveStatus === 'draft' && (
+            <button
+              data-testid="activate-btn"
+              disabled={activating}
+              onClick={() => { void handleActivate() }}
+              className="w-full rounded-full border border-amber-500/40 bg-amber-500/10 px-4 py-3 text-sm font-bold tracking-widest text-amber-400 transition hover:bg-amber-500/20 disabled:opacity-40"
+            >
+              {activating ? '鎖定中...' : '開始抽獎（鎖定名單）'}
+            </button>
+          )}
 
           <DrawControls
             status={effectiveStatus}
