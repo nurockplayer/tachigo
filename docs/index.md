@@ -21,7 +21,7 @@ related_repos:
       <div>
         <div className="tachigo-kicker">Project navigation console</div>
         <h1 id="tachigo-home-title">tachigo / tachiya project map</h1>
-        <div className="tachigo-lede"><span>給新同事與日常開發者使用的專案導覽入口。先建立系統 mental model， 再追 domain、flow、source、tests 與跨 repo 邊界。</span></div>
+        <div className="tachigo-lede"><span>給新同事與日常開發者使用的專案導覽入口。先建立系統 mental model，再追 domain、flow、source、tests 與跨 repo 邊界。</span></div>
       </div>
 
       <div className="tachigo-status-rail" aria-label="portal status">
