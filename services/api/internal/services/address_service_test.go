@@ -286,6 +286,32 @@ func TestUpdate_WrongUser(t *testing.T) {
 	}
 }
 
+func TestUpdate_ReturnsDBErrorBeforeNotFound(t *testing.T) {
+	db := newTestDB(t)
+	svc := NewAddressService(db)
+	userID := seedUser(t, svc)
+	addr, err := svc.Create(userID, minimalInput())
+	if err != nil {
+		t.Fatalf("create address: %v", err)
+	}
+
+	sqlDB, err := db.DB()
+	if err != nil {
+		t.Fatalf("db.DB(): %v", err)
+	}
+	if err := sqlDB.Close(); err != nil {
+		t.Fatalf("close db: %v", err)
+	}
+
+	_, err = svc.Update(userID, addr.ID, minimalInput())
+	if err == nil {
+		t.Fatal("expected DB error, got nil")
+	}
+	if errors.Is(err, ErrAddressNotFound) {
+		t.Fatalf("expected DB error before ErrAddressNotFound, got %v", err)
+	}
+}
+
 func TestUpdate_DefaultClearFailureReturnsErrorAndRollsBack(t *testing.T) {
 	db := newTestDB(t)
 	svc := NewAddressService(db)
@@ -463,6 +489,32 @@ func TestSetDefault_NotFound(t *testing.T) {
 	_, err := svc.SetDefault(userID, uuid.New())
 	if err != ErrAddressNotFound {
 		t.Errorf("want ErrAddressNotFound, got %v", err)
+	}
+}
+
+func TestSetDefault_ReturnsDBErrorBeforeNotFound(t *testing.T) {
+	db := newTestDB(t)
+	svc := NewAddressService(db)
+	userID := seedUser(t, svc)
+	addr, err := svc.Create(userID, minimalInput())
+	if err != nil {
+		t.Fatalf("create address: %v", err)
+	}
+
+	sqlDB, err := db.DB()
+	if err != nil {
+		t.Fatalf("db.DB(): %v", err)
+	}
+	if err := sqlDB.Close(); err != nil {
+		t.Fatalf("close db: %v", err)
+	}
+
+	_, err = svc.SetDefault(userID, addr.ID)
+	if err == nil {
+		t.Fatal("expected DB error, got nil")
+	}
+	if errors.Is(err, ErrAddressNotFound) {
+		t.Fatalf("expected DB error before ErrAddressNotFound, got %v", err)
 	}
 }
 

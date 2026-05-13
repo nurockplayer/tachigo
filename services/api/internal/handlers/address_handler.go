@@ -123,7 +123,12 @@ func (h *AddressHandler) Delete(c *gin.Context) {
 	}
 
 	if err := h.addr.DeleteContext(c.Request.Context(), userID, addrID); err != nil {
-		notFound(c, "address not found")
+		switch err {
+		case services.ErrAddressNotFound:
+			notFound(c, "address not found")
+		default:
+			internal(c)
+		}
 		return
 	}
 	ok(c, gin.H{"message": "address deleted"})
@@ -150,7 +155,12 @@ func (h *AddressHandler) SetDefault(c *gin.Context) {
 
 	addr, err := h.addr.SetDefaultContext(c.Request.Context(), userID, addrID)
 	if err != nil {
-		notFound(c, "address not found")
+		switch err {
+		case services.ErrAddressNotFound:
+			notFound(c, "address not found")
+		default:
+			internal(c)
+		}
 		return
 	}
 	ok(c, gin.H{"address": addr})

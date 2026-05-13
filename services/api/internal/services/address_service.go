@@ -27,17 +27,20 @@ func (s *AddressService) dbWithContext(ctx context.Context) *gorm.DB {
 	return s.db.WithContext(ctx)
 }
 
-func addressContextError(ctx context.Context, err error) error {
+func addressLookupError(ctx context.Context, err error) error {
 	if err == nil {
 		return nil
 	}
 	if errors.Is(err, context.Canceled) || errors.Is(err, context.DeadlineExceeded) {
 		return err
 	}
-	if ctx != nil && ctx.Err() != nil {
-		return ctx.Err()
+	if errors.Is(err, gorm.ErrRecordNotFound) {
+		if ctx != nil && ctx.Err() != nil {
+			return ctx.Err()
+		}
+		return ErrAddressNotFound
 	}
-	return nil
+	return err
 }
 
 type AddressInput struct {
@@ -109,10 +112,7 @@ func (s *AddressService) UpdateContext(ctx context.Context, userID, addrID uuid.
 	db := s.dbWithContext(ctx)
 	var addr models.ShippingAddress
 	if err := db.Where("id = ? AND user_id = ?", addrID, userID).First(&addr).Error; err != nil {
-		if ctxErr := addressContextError(ctx, err); ctxErr != nil {
-			return nil, ctxErr
-		}
-		return nil, ErrAddressNotFound
+		return nil, addressLookupError(ctx, err)
 	}
 	wasDefault := addr.IsDefault
 
@@ -167,10 +167,7 @@ func (s *AddressService) SetDefaultContext(ctx context.Context, userID, addrID u
 	db := s.dbWithContext(ctx)
 	var addr models.ShippingAddress
 	if err := db.Where("id = ? AND user_id = ?", addrID, userID).First(&addr).Error; err != nil {
-		if ctxErr := addressContextError(ctx, err); ctxErr != nil {
-			return nil, ctxErr
-		}
-		return nil, ErrAddressNotFound
+		return nil, addressLookupError(ctx, err)
 	}
 
 	if err := db.Transaction(func(tx *gorm.DB) error {

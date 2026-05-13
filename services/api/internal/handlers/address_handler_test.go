@@ -26,6 +26,17 @@ func createAddress(t *testing.T, env *testEnv, accessToken, body string) string 
 	return address["id"].(string)
 }
 
+func closeHandlerDB(t *testing.T, env *testEnv) {
+	t.Helper()
+	sqlDB, err := env.db.DB()
+	if err != nil {
+		t.Fatalf("db.DB(): %v", err)
+	}
+	if err := sqlDB.Close(); err != nil {
+		t.Fatalf("close db: %v", err)
+	}
+}
+
 // ─── Create ──────────────────────────────────────────────────────────────────
 
 func TestCreateAddressHandler_Success(t *testing.T) {
@@ -221,6 +232,22 @@ func TestDeleteAddressHandler_OtherUsersAddress(t *testing.T) {
 	}
 }
 
+func TestDeleteAddressHandler_DBErrorReturnsInternal(t *testing.T) {
+	env := newTestEnv(t)
+	accessToken, _ := env.registerUser(t, "delerruser", "delerr@example.com", "password123")
+	addrID := createAddress(t, env, accessToken, minimalAddress)
+	closeHandlerDB(t, env)
+
+	req := httptest.NewRequest(http.MethodDelete, "/api/v1/users/me/addresses/"+addrID, nil)
+	req.Header.Set("Authorization", "Bearer "+accessToken)
+	w := httptest.NewRecorder()
+	env.router.ServeHTTP(w, req)
+
+	if w.Code != http.StatusInternalServerError {
+		t.Errorf("want 500 for DB error, got %d: %s", w.Code, w.Body.String())
+	}
+}
+
 // ─── SetDefault ──────────────────────────────────────────────────────────────
 
 func TestSetDefaultAddressHandler_Success(t *testing.T) {
@@ -255,5 +282,21 @@ func TestSetDefaultAddressHandler_NotFound(t *testing.T) {
 
 	if w.Code != http.StatusNotFound {
 		t.Errorf("want 404, got %d", w.Code)
+	}
+}
+
+func TestSetDefaultAddressHandler_DBErrorReturnsInternal(t *testing.T) {
+	env := newTestEnv(t)
+	accessToken, _ := env.registerUser(t, "deferruser", "deferr@example.com", "password123")
+	addrID := createAddress(t, env, accessToken, minimalAddress)
+	closeHandlerDB(t, env)
+
+	req := httptest.NewRequest(http.MethodPut, "/api/v1/users/me/addresses/"+addrID+"/default", nil)
+	req.Header.Set("Authorization", "Bearer "+accessToken)
+	w := httptest.NewRecorder()
+	env.router.ServeHTTP(w, req)
+
+	if w.Code != http.StatusInternalServerError {
+		t.Errorf("want 500 for DB error, got %d: %s", w.Code, w.Body.String())
 	}
 }
