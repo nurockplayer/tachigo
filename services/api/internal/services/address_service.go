@@ -1,6 +1,7 @@
 package services
 
 import (
+	"context"
 	"errors"
 
 	"github.com/google/uuid"
@@ -19,6 +20,29 @@ func NewAddressService(db *gorm.DB) *AddressService {
 	return &AddressService{db: db}
 }
 
+func (s *AddressService) dbWithContext(ctx context.Context) *gorm.DB {
+	if ctx == nil {
+		ctx = context.Background()
+	}
+	return s.db.WithContext(ctx)
+}
+
+func addressLookupError(ctx context.Context, err error) error {
+	if err == nil {
+		return nil
+	}
+	if errors.Is(err, context.Canceled) || errors.Is(err, context.DeadlineExceeded) {
+		return err
+	}
+	if errors.Is(err, gorm.ErrRecordNotFound) {
+		if ctx != nil && ctx.Err() != nil {
+			return ctx.Err()
+		}
+		return ErrAddressNotFound
+	}
+	return err
+}
+
 type AddressInput struct {
 	RecipientName string  `json:"recipient_name" binding:"required"`
 	Phone         *string `json:"phone"`
@@ -32,12 +56,20 @@ type AddressInput struct {
 }
 
 func (s *AddressService) List(userID uuid.UUID) ([]models.ShippingAddress, error) {
+	return s.ListContext(context.Background(), userID)
+}
+
+func (s *AddressService) ListContext(ctx context.Context, userID uuid.UUID) ([]models.ShippingAddress, error) {
 	var addrs []models.ShippingAddress
-	err := s.db.Where("user_id = ?", userID).Order("is_default DESC, created_at ASC").Find(&addrs).Error
+	err := s.dbWithContext(ctx).Where("user_id = ?", userID).Order("is_default DESC, created_at ASC").Find(&addrs).Error
 	return addrs, err
 }
 
 func (s *AddressService) Create(userID uuid.UUID, input AddressInput) (*models.ShippingAddress, error) {
+	return s.CreateContext(context.Background(), userID, input)
+}
+
+func (s *AddressService) CreateContext(ctx context.Context, userID uuid.UUID, input AddressInput) (*models.ShippingAddress, error) {
 	country := input.Country
 	if country == "" {
 		country = "TW"
@@ -56,7 +88,7 @@ func (s *AddressService) Create(userID uuid.UUID, input AddressInput) (*models.S
 		IsDefault:     input.IsDefault,
 	}
 
-	if err := s.db.Transaction(func(tx *gorm.DB) error {
+	if err := s.dbWithContext(ctx).Transaction(func(tx *gorm.DB) error {
 		if input.IsDefault {
 			if err := tx.Model(&models.ShippingAddress{}).
 				Where("user_id = ?", userID).
@@ -73,9 +105,14 @@ func (s *AddressService) Create(userID uuid.UUID, input AddressInput) (*models.S
 }
 
 func (s *AddressService) Update(userID, addrID uuid.UUID, input AddressInput) (*models.ShippingAddress, error) {
+	return s.UpdateContext(context.Background(), userID, addrID, input)
+}
+
+func (s *AddressService) UpdateContext(ctx context.Context, userID, addrID uuid.UUID, input AddressInput) (*models.ShippingAddress, error) {
+	db := s.dbWithContext(ctx)
 	var addr models.ShippingAddress
-	if err := s.db.Where("id = ? AND user_id = ?", addrID, userID).First(&addr).Error; err != nil {
-		return nil, ErrAddressNotFound
+	if err := db.Where("id = ? AND user_id = ?", addrID, userID).First(&addr).Error; err != nil {
+		return nil, addressLookupError(ctx, err)
 	}
 	wasDefault := addr.IsDefault
 
@@ -91,7 +128,7 @@ func (s *AddressService) Update(userID, addrID uuid.UUID, input AddressInput) (*
 	}
 	addr.IsDefault = input.IsDefault
 
-	if err := s.db.Transaction(func(tx *gorm.DB) error {
+	if err := db.Transaction(func(tx *gorm.DB) error {
 		if input.IsDefault && !wasDefault {
 			if err := tx.Model(&models.ShippingAddress{}).
 				Where("user_id = ? AND id != ?", userID, addrID).
@@ -108,7 +145,11 @@ func (s *AddressService) Update(userID, addrID uuid.UUID, input AddressInput) (*
 }
 
 func (s *AddressService) Delete(userID, addrID uuid.UUID) error {
-	result := s.db.Where("id = ? AND user_id = ?", addrID, userID).Delete(&models.ShippingAddress{})
+	return s.DeleteContext(context.Background(), userID, addrID)
+}
+
+func (s *AddressService) DeleteContext(ctx context.Context, userID, addrID uuid.UUID) error {
+	result := s.dbWithContext(ctx).Where("id = ? AND user_id = ?", addrID, userID).Delete(&models.ShippingAddress{})
 	if result.Error != nil {
 		return result.Error
 	}
@@ -119,12 +160,17 @@ func (s *AddressService) Delete(userID, addrID uuid.UUID) error {
 }
 
 func (s *AddressService) SetDefault(userID, addrID uuid.UUID) (*models.ShippingAddress, error) {
+	return s.SetDefaultContext(context.Background(), userID, addrID)
+}
+
+func (s *AddressService) SetDefaultContext(ctx context.Context, userID, addrID uuid.UUID) (*models.ShippingAddress, error) {
+	db := s.dbWithContext(ctx)
 	var addr models.ShippingAddress
-	if err := s.db.Where("id = ? AND user_id = ?", addrID, userID).First(&addr).Error; err != nil {
-		return nil, ErrAddressNotFound
+	if err := db.Where("id = ? AND user_id = ?", addrID, userID).First(&addr).Error; err != nil {
+		return nil, addressLookupError(ctx, err)
 	}
 
-	if err := s.db.Transaction(func(tx *gorm.DB) error {
+	if err := db.Transaction(func(tx *gorm.DB) error {
 		if err := tx.Model(&models.ShippingAddress{}).
 			Where("user_id = ? AND id != ?", userID, addrID).
 			Update("is_default", false).Error; err != nil {
