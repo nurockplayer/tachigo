@@ -27,5 +27,8 @@ services:
       - app
     restart: "no"
 
+  docs:
+    restart: "no"
+
 volumes:
   go_mod_cache:

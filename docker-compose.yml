@@ -64,5 +64,34 @@ services:
       - app
     restart: unless-stopped
 
+  docs:
+    build:
+      context: .
+      dockerfile: apps/docs/Dockerfile
+    ports:
+      - "3000:3000"
+    volumes:
+      - type: bind
+        source: ./docs
+        target: /workspace/docs
+        read_only: true
+      - type: bind
+        source: ./apps/docs/src
+        target: /workspace/apps/docs/src
+        read_only: true
+      - type: bind
+        source: ./apps/docs/static
+        target: /workspace/apps/docs/static
+        read_only: true
+      - type: bind
+        source: ./apps/docs/docusaurus.config.ts
+        target: /workspace/apps/docs/docusaurus.config.ts
+        read_only: true
+      - type: bind
+        source: ./apps/docs/sidebars.ts
+        target: /workspace/apps/docs/sidebars.ts
+        read_only: true
+    restart: unless-stopped
+
 volumes:
   postgres_data:

@@ -15,6 +15,7 @@ const ignoredDirs = new Set([
 ])
 
 const packageFiles = new Set(['package.json'])
+const dockerfileNames = new Set(['Dockerfile'])
 const lockfileNames = new Set([
   'bun.lock',
   'bun.lockb',
@@ -167,6 +168,20 @@ async function checkAdvisoryContent(root, filePath) {
   return problems
 }
 
+async function checkDockerfile(root, filePath) {
+  const problems = []
+  const content = await readFile(filePath, 'utf8')
+  const normalized = content.replace(/\\\r?\n\s*/g, ' ')
+  const installCommands = normalized.matchAll(/\bpnpm\s+install\b[^\n]*/gi)
+  for (const match of installCommands) {
+    const command = match[0]
+    if (!command.includes('--frozen-lockfile') || !command.includes('--ignore-scripts')) {
+      problems.push(`${relative(root, filePath)}: Dockerfile pnpm install must use --frozen-lockfile --ignore-scripts`)
+    }
+  }
+  return problems
+}
+
 async function main() {
   const { root } = parseArgs(process.argv.slice(2))
   const resolvedRoot = path.resolve(root)
@@ -184,6 +199,8 @@ async function main() {
     if (packageFiles.has(name)) {
       problems.push(...await checkPackageJson(resolvedRoot, filePath))
       problems.push(...await checkAdvisoryContent(resolvedRoot, filePath))
+    } else if (dockerfileNames.has(name)) {
+      problems.push(...await checkDockerfile(resolvedRoot, filePath))
     } else if (lockfileNames.has(name)) {
       const content = await readFile(filePath, 'utf8')
       tanstackReactQueryObserved ||= /@tanstack\/react-query@5\.100\.6/.test(content)
