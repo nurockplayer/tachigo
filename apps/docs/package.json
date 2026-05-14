@@ -9,7 +9,7 @@
     "serve": "docusaurus serve --host 0.0.0.0",
     "clear": "docusaurus clear",
     "build:reverse-index": "node --experimental-strip-types --no-warnings ./scripts/build-reverse-index.ts",
-    "test:reverse-index": "node --experimental-strip-types --no-warnings --test ./scripts/build-reverse-index.test.ts",
+    "test:reverse-index": "node --experimental-strip-types --no-warnings --test ./scripts/build-reverse-index.test.ts ./plugins/reverse-index/index.test.ts",
     "test:frontmatter-validator": "node --experimental-strip-types --no-warnings --test ./plugins/frontmatter-validator/index.test.ts",
     "test:llms-txt": "node --experimental-strip-types --no-warnings --test ./plugins/llms-txt/index.test.ts",
     "test:related-links": "node --experimental-strip-types --no-warnings --test ./plugins/related-links/index.test.ts"

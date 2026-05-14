@@ -533,6 +533,62 @@
   text-decoration: none;
 }
 
+.tachigo-related-links__chip--inferred {
+  gap: 0.4rem;
+  border-color: color-mix(in srgb, var(--tachigo-violet), var(--tachigo-line) 40%);
+  background: color-mix(in srgb, var(--tachigo-violet), transparent 88%);
+}
+
+.tachigo-related-links__chip--inferred span {
+  color: var(--tachigo-muted);
+  font-size: 0.72rem;
+}
+
+.tachigo-reverse-index {
+  display: grid;
+  gap: 0.9rem;
+}
+
+.tachigo-reverse-index__warning,
+.tachigo-reverse-index-empty {
+  padding: 0.8rem 1rem;
+  border: 1px solid var(--tachigo-line);
+  border-radius: 8px;
+  background: var(--tachigo-panel);
+  color: var(--tachigo-muted);
+}
+
+.tachigo-reverse-index__list {
+  display: grid;
+  gap: 0.75rem;
+}
+
+.tachigo-reverse-index__item {
+  padding: 0.95rem;
+  border: 1px solid var(--tachigo-line);
+  border-radius: 8px;
+  background: var(--tachigo-panel);
+}
+
+.tachigo-reverse-index__item h3 {
+  margin: 0.4rem 0;
+  font-size: 1rem;
+}
+
+.tachigo-reverse-index__item p {
+  margin: 0;
+  color: var(--tachigo-muted);
+}
+
+.tachigo-reverse-index__meta {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 0.45rem;
+  color: var(--tachigo-muted);
+  font-size: 0.78rem;
+  font-weight: 760;
+}
+
 @media (max-width: 1120px) {
   .tachigo-hero {
     grid-template-columns: 1fr;
