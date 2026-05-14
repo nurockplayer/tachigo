@@ -5,6 +5,7 @@ import (
 	"context"
 	"crypto/tls"
 	"fmt"
+	"io"
 	"net/http"
 	"net/http/httptest"
 	"strings"
@@ -590,6 +591,69 @@ type failingRoundTripper struct{}
 
 func (failingRoundTripper) RoundTrip(*http.Request) (*http.Response, error) {
 	return nil, fmt.Errorf("blocked test OAuth request")
+}
+
+// mockTwitchRoundTripper mocks the Twitch OAuth token exchange and user info endpoints.
+type mockTwitchRoundTripper struct{}
+
+func (mockTwitchRoundTripper) RoundTrip(req *http.Request) (*http.Response, error) {
+	var body string
+	switch {
+	case strings.Contains(req.URL.Host, "id.twitch.tv"):
+		body = `{"access_token":"mock-token","token_type":"bearer","expires_in":3600,"scope":""}`
+	case strings.Contains(req.URL.Host, "api.twitch.tv"):
+		body = `{"data":[{"id":"1","login":"mockuser","display_name":"Mock User","email":"mock@example.com","profile_image_url":""}]}`
+	default:
+		return nil, fmt.Errorf("unexpected OAuth request: %s", req.URL)
+	}
+	return &http.Response{
+		StatusCode: http.StatusOK,
+		Body:       io.NopCloser(strings.NewReader(body)),
+		Header:     make(http.Header),
+	}, nil
+}
+
+// ─── TwitchCallback redirect ─────────────────────────────────────────────────
+
+func TestTwitchCallback_WithRedirectCookie_Redirects(t *testing.T) {
+	env := newTestEnvWithConfig(t, "development", "http://localhost:5174")
+	httpClient := &http.Client{Transport: mockTwitchRoundTripper{}}
+	ctx := context.WithValue(context.Background(), oauth2.HTTPClient, httpClient)
+
+	state := "teststate123"
+	req := httptest.NewRequest(http.MethodGet, "/api/v1/auth/twitch/callback?code=mockcode&state="+state, nil).WithContext(ctx)
+	req.AddCookie(&http.Cookie{Name: "oauth_state", Value: state, Path: "/"})
+	req.AddCookie(&http.Cookie{Name: "oauth_redirect", Value: "/claim/abc123", Path: "/"})
+	w := httptest.NewRecorder()
+	env.router.ServeHTTP(w, req)
+
+	if w.Code != http.StatusFound {
+		t.Fatalf("want 302, got %d: %s", w.Code, w.Body.String())
+	}
+	location := w.Header().Get("Location")
+	if location != "http://localhost:5174/claim/abc123" {
+		t.Errorf("want Location http://localhost:5174/claim/abc123, got %q", location)
+	}
+}
+
+func TestTwitchCallback_WithoutRedirectCookie_ReturnsJSON(t *testing.T) {
+	env := newTestEnv(t)
+	httpClient := &http.Client{Transport: mockTwitchRoundTripper{}}
+	ctx := context.WithValue(context.Background(), oauth2.HTTPClient, httpClient)
+
+	state := "teststate456"
+	req := httptest.NewRequest(http.MethodGet, "/api/v1/auth/twitch/callback?code=mockcode&state="+state, nil).WithContext(ctx)
+	req.AddCookie(&http.Cookie{Name: "oauth_state", Value: state, Path: "/"})
+	w := httptest.NewRecorder()
+	env.router.ServeHTTP(w, req)
+
+	if w.Code != http.StatusOK {
+		t.Fatalf("want 200, got %d: %s", w.Code, w.Body.String())
+	}
+	resp := parseBody(t, w.Body.Bytes())
+	if resp["success"] != true {
+		t.Errorf("want success: true")
+	}
 }
 
 // ─── Web3 Nonce ───────────────────────────────────────────────────────────────
