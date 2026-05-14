@@ -31,6 +31,7 @@ jobs:
       run_backend_integration: ${{ steps.evaluate.outputs.run_backend_integration }}
       run_backend_scanners: ${{ steps.evaluate.outputs.run_backend_scanners }}
       run_dependency_review: ${{ steps.evaluate.outputs.run_dependency_review }}
+      run_api_contracts: ${{ steps.evaluate.outputs.run_api_contracts }}
       run_frontend: ${{ steps.evaluate.outputs.run_frontend }}
       run_dashboard: ${{ steps.evaluate.outputs.run_dashboard }}
       run_contracts: ${{ steps.evaluate.outputs.run_contracts }}
@@ -48,6 +49,7 @@ jobs:
               runBackendIntegration,
               runBackendScanners,
               runDependencyReview,
+              runApiContracts,
               runFrontend,
               runDashboard,
               runContracts,
@@ -59,6 +61,7 @@ jobs:
               core.setOutput('run_backend_integration', runBackendIntegration ? 'true' : 'false')
               core.setOutput('run_backend_scanners', runBackendScanners ? 'true' : 'false')
               core.setOutput('run_dependency_review', runDependencyReview ? 'true' : 'false')
+              core.setOutput('run_api_contracts', runApiContracts ? 'true' : 'false')
               core.setOutput('run_frontend', runFrontend ? 'true' : 'false')
               core.setOutput('run_dashboard', runDashboard ? 'true' : 'false')
               core.setOutput('run_contracts', runContracts ? 'true' : 'false')
@@ -71,6 +74,7 @@ jobs:
               runBackendIntegration: true,
               runBackendScanners: true,
               runDependencyReview: false,
+              runApiContracts: true,
               runFrontend: true,
               runDashboard: true,
               runContracts: true,
@@ -83,6 +87,7 @@ jobs:
               runBackendIntegration: false,
               runBackendScanners: false,
               runDependencyReview: false,
+              runApiContracts: false,
               runFrontend: false,
               runDashboard: false,
               runContracts: false,
@@ -100,6 +105,7 @@ jobs:
                   runBackendIntegration: false,
                   runBackendScanners: true,
                   runDependencyReview: false,
+                  runApiContracts: false,
                   runFrontend: false,
                   runDashboard: false,
                   runContracts: false,
@@ -255,6 +261,13 @@ jobs:
               /^pnpm-lock\.yaml$/,
               /^pnpm-workspace\.yaml$/,
             ]
+            const apiContractPaths = [
+              /^packages\/(?:shared-types|api-client)\//,
+              /^services\/api\/docs\/(?:docs\.go|swagger\.json|swagger\.ya?ml)$/,
+              /^package\.json$/,
+              /^pnpm-lock\.yaml$/,
+              /^pnpm-workspace\.yaml$/,
+            ]
             const runFullCi = runCi && (
               isReleasePromotionPr ||
               allFilePaths.some((name) => ciWorkflowPaths.some((pattern) => pattern.test(name)))
@@ -275,6 +288,9 @@ jobs:
             const runDependencyReview = runCi && allFilePaths.some((name) =>
               dependencyReviewPaths.some((pattern) => pattern.test(name)),
             )
+            const runApiContracts = runFullCi || (runCi && allFilePaths.some((name) =>
+              apiContractPaths.some((pattern) => pattern.test(name)),
+            ))
             const runBackendIntegration = allFilePaths.some((name) =>
               backendIntegrationPaths.some((pattern) => pattern.test(name)),
             )
@@ -287,6 +303,7 @@ jobs:
                 runBackendIntegration: shouldRunBackendIntegration,
                 runBackendScanners,
                 runDependencyReview,
+                runApiContracts,
                 runFrontend,
                 runDashboard,
                 runContracts,
@@ -601,6 +618,33 @@ jobs:
           comment-summary-in-pr: never
           show-openssf-scorecard: false
 
+  api-contracts:
+    timeout-minutes: 10
+    name: API contract drift
+    needs: scope-gate
+    if: needs.scope-gate.outputs.run_api_contracts == 'true'
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@34e114876b0b11c390a56381ad16ebd13914f8d5 # v4
+
+      - uses: actions/setup-node@49933ea5288caeca8642d1e84afbd3f7d6820020 # v4
+        with:
+          node-version: 22.16.0
+
+      - uses: pnpm/action-setup@f40ffcd9367d9f12939873eb1018b921a783ffaa # v4
+        with:
+          version: 10.33.0
+          run_install: false
+
+      - name: Install dependencies
+        run: pnpm install --frozen-lockfile --ignore-scripts
+
+      - name: Check generated API types
+        run: pnpm api:types:check
+
+      - name: Test typed API client
+        run: pnpm api:client:test
+
   frontend:
     timeout-minutes: 15
     name: Frontend build
@@ -783,7 +827,7 @@ jobs:
   auto-ready-after-ci:
     timeout-minutes: 5
     name: Auto-ready draft PR after CI
-    needs: [scope-gate, supply-chain-guardrails, backend-ci, dependency-review, frontend, dashboard, contracts, contracts-slither, contracts-gas-snapshot]
+    needs: [scope-gate, supply-chain-guardrails, backend-ci, dependency-review, api-contracts, frontend, dashboard, contracts, contracts-slither, contracts-gas-snapshot]
     if: always() && github.event_name == 'pull_request'
     runs-on: ubuntu-latest
     permissions:
@@ -800,6 +844,7 @@ jobs:
           SUPPLY_CHAIN_GUARDRAILS_RESULT: ${{ needs.supply-chain-guardrails.result }}
           BACKEND_CI_RESULT: ${{ needs.backend-ci.result }}
           DEPENDENCY_REVIEW_RESULT: ${{ needs.dependency-review.result }}
+          API_CONTRACTS_RESULT: ${{ needs.api-contracts.result }}
           FRONTEND_RESULT: ${{ needs.frontend.result }}
           DASHBOARD_RESULT: ${{ needs.dashboard.result }}
           CONTRACTS_RESULT: ${{ needs.contracts.result }}
@@ -835,6 +880,7 @@ jobs:
               ['supply-chain-guardrails', process.env.SUPPLY_CHAIN_GUARDRAILS_RESULT],
               ['backend-ci', process.env.BACKEND_CI_RESULT],
               ['dependency-review', process.env.DEPENDENCY_REVIEW_RESULT],
+              ['api-contracts', process.env.API_CONTRACTS_RESULT],
               ['frontend', process.env.FRONTEND_RESULT],
               ['dashboard', process.env.DASHBOARD_RESULT],
               ['contracts', process.env.CONTRACTS_RESULT],
