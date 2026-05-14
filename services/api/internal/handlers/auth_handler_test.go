@@ -8,6 +8,7 @@ import (
 	"io"
 	"net/http"
 	"net/http/httptest"
+	"net/url"
 	"strings"
 	"testing"
 	"time"
@@ -418,10 +419,25 @@ func TestOAuthCallback_ValidStateClearsStateCookieBeforeOAuthExchange(t *testing
 // ─── TwitchLogin redirect_to ─────────────────────────────────────────────────
 
 func TestTwitchLogin_WithExternalRedirectTo_ReturnsBadRequest(t *testing.T) {
-	for _, bad := range []string{"http://evil.com", "//evil.com", "https://evil.com", "://evil.com"} {
+	for _, bad := range []string{
+		"http://evil.com",
+		"//evil.com",
+		"https://evil.com",
+		"://evil.com",
+		"/\\evil.com",
+		"/%5Cevil.com",
+		"/\r\nLocation: https://evil.com",
+		"/%0d%0aLocation: https://evil.com",
+		"",
+		"relative/path",
+	} {
 		t.Run(bad, func(t *testing.T) {
 			env := newTestEnv(t)
-			req := httptest.NewRequest(http.MethodGet, "/api/v1/auth/twitch?redirect_to="+bad, nil)
+			req := httptest.NewRequest(
+				http.MethodGet,
+				"/api/v1/auth/twitch?redirect_to="+url.QueryEscape(bad),
+				nil,
+			)
 			w := httptest.NewRecorder()
 			env.router.ServeHTTP(w, req)
 			if w.Code != http.StatusBadRequest {
@@ -465,13 +481,7 @@ func TestTwitchLogin_WithoutRedirectTo_ClearsStaleRedirectCookie(t *testing.T) {
 	if w.Code != http.StatusFound {
 		t.Fatalf("want 302, got %d: %s", w.Code, w.Body.String())
 	}
-	cookie := responseCookie(t, w, "oauth_redirect")
-	if cookie == nil {
-		t.Fatal("expected oauth_redirect cookie to be present in response (cleared)")
-	}
-	if cookie.MaxAge >= 0 {
-		t.Fatalf("expected oauth_redirect cookie to be cleared (MaxAge < 0), got %d", cookie.MaxAge)
-	}
+	assertOAuthRedirectCookieCleared(t, w, http.SameSiteLaxMode, false)
 }
 
 func TestTwitchCallback_StateMismatch_ClearsRedirectCookie(t *testing.T) {
@@ -485,13 +495,7 @@ func TestTwitchCallback_StateMismatch_ClearsRedirectCookie(t *testing.T) {
 	if w.Code != http.StatusBadRequest {
 		t.Fatalf("want 400, got %d: %s", w.Code, w.Body.String())
 	}
-	cookie := responseCookie(t, w, "oauth_redirect")
-	if cookie == nil {
-		t.Fatal("expected oauth_redirect cookie to be cleared on state mismatch")
-	}
-	if cookie.MaxAge >= 0 {
-		t.Fatalf("expected oauth_redirect cleared (MaxAge < 0), got %d", cookie.MaxAge)
-	}
+	assertOAuthRedirectCookieCleared(t, w, http.SameSiteLaxMode, false)
 }
 
 func TestTwitchCallback_StaleRedirectCookie_WithoutRedirectLogin_ReturnsJSON(t *testing.T) {
@@ -650,6 +654,35 @@ func assertOAuthStateCookieCleared(
 	}
 }
 
+func assertOAuthRedirectCookieCleared(
+	t *testing.T,
+	w *httptest.ResponseRecorder,
+	expectedSameSite http.SameSite,
+	expectedSecure bool,
+) {
+	t.Helper()
+
+	cookie := responseCookie(t, w, "oauth_redirect")
+	if cookie.Value != "" {
+		t.Fatalf("expected cleared oauth redirect cookie, got %q", cookie.Value)
+	}
+	if cookie.MaxAge >= 0 {
+		t.Fatalf("expected cleared oauth redirect cookie MaxAge < 0, got %d", cookie.MaxAge)
+	}
+	if cookie.Path != "/" {
+		t.Fatalf("expected oauth redirect cookie path /, got %q", cookie.Path)
+	}
+	if !cookie.HttpOnly {
+		t.Fatal("expected cleared oauth redirect cookie to be HttpOnly")
+	}
+	if cookie.SameSite != expectedSameSite {
+		t.Fatalf("expected cleared oauth redirect cookie SameSite %v, got %v", expectedSameSite, cookie.SameSite)
+	}
+	if cookie.Secure != expectedSecure {
+		t.Fatalf("expected cleared oauth redirect cookie Secure %t, got %t", expectedSecure, cookie.Secure)
+	}
+}
+
 type failingRoundTripper struct{}
 
 func (failingRoundTripper) RoundTrip(*http.Request) (*http.Response, error) {
@@ -696,6 +729,39 @@ func TestTwitchCallback_WithRedirectCookie_Redirects(t *testing.T) {
 	location := w.Header().Get("Location")
 	if location != "http://localhost:5174/claim/abc123" {
 		t.Errorf("want Location http://localhost:5174/claim/abc123, got %q", location)
+	}
+}
+
+func TestTwitchCallback_WithInvalidRedirectCookie_ReturnsJSON(t *testing.T) {
+	for _, redirectCookie := range []string{
+		"//evil.com",
+		"/%5Cevil.com",
+		"/%0d%0aLocation:%20https://evil.com",
+	} {
+		t.Run(redirectCookie, func(t *testing.T) {
+			env := newTestEnvWithConfig(t, "development", "http://localhost:5174")
+			httpClient := &http.Client{Transport: mockTwitchRoundTripper{}}
+			ctx := context.WithValue(context.Background(), oauth2.HTTPClient, httpClient)
+
+			state := "teststate789"
+			req := httptest.NewRequest(http.MethodGet, "/api/v1/auth/twitch/callback?code=mockcode&state="+state, nil).WithContext(ctx)
+			req.AddCookie(&http.Cookie{Name: "oauth_state", Value: state, Path: "/"})
+			req.AddCookie(&http.Cookie{Name: "oauth_redirect", Value: redirectCookie, Path: "/"})
+			w := httptest.NewRecorder()
+			env.router.ServeHTTP(w, req)
+
+			if w.Code != http.StatusOK {
+				t.Fatalf("want 200 fallback for invalid redirect cookie, got %d: %s", w.Code, w.Body.String())
+			}
+			if location := w.Header().Get("Location"); location != "" {
+				t.Fatalf("expected no redirect Location, got %q", location)
+			}
+			resp := parseBody(t, w.Body.Bytes())
+			if resp["success"] != true {
+				t.Errorf("want success: true")
+			}
+			assertOAuthRedirectCookieCleared(t, w, http.SameSiteLaxMode, false)
+		})
 	}
 }
 

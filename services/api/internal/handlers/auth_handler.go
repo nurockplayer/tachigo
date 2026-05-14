@@ -186,12 +186,12 @@ func (h *AuthHandler) Logout(c *gin.Context) {
 // @Failure      400  {object}  Response
 // @Router       /auth/twitch [get]
 func (h *AuthHandler) TwitchLogin(c *gin.Context) {
-	redirectTo := c.Query("redirect_to")
-	if redirectTo != "" && !isValidRedirectTo(redirectTo) {
+	redirectTo, hasRedirectTo := c.GetQuery("redirect_to")
+	if hasRedirectTo && !isValidRedirectTo(redirectTo) {
 		badRequest(c, "invalid redirect_to parameter")
 		return
 	}
-	if redirectTo != "" {
+	if hasRedirectTo {
 		h.setOAuthRedirectCookie(c, redirectTo)
 	} else {
 		h.clearOAuthRedirectCookie(c)
@@ -231,7 +231,7 @@ func (h *AuthHandler) TwitchCallback(c *gin.Context) {
 	}
 
 	h.setRefreshCookie(c, tokens.RefreshToken)
-	if redirectTo != "" {
+	if redirectTo != "" && isValidRedirectTo(redirectTo) {
 		c.Redirect(http.StatusFound, strings.TrimRight(h.cfg.App.FrontendURL, "/")+redirectTo)
 		return
 	}
@@ -382,7 +382,35 @@ func oauthState() string {
 
 // isValidRedirectTo ensures the redirect target is a relative path, guarding against open-redirect attacks.
 func isValidRedirectTo(s string) bool {
-	return strings.HasPrefix(s, "/") && !strings.HasPrefix(s, "//")
+	if s == "" || strings.HasPrefix(s, "//") || hasUnsafeRedirectChar(s) {
+		return false
+	}
+	parsed, err := url.Parse(s)
+	if err != nil || parsed.IsAbs() || parsed.Host != "" || parsed.Opaque != "" {
+		return false
+	}
+	if hasUnsafeRedirectChar(parsed.Path) || hasUnsafeRedirectChar(parsed.Fragment) {
+		return false
+	}
+	if parsed.RawQuery != "" {
+		decodedQuery, err := url.QueryUnescape(parsed.RawQuery)
+		if err != nil || hasUnsafeRedirectChar(decodedQuery) {
+			return false
+		}
+	}
+	return strings.HasPrefix(parsed.Path, "/") && !strings.HasPrefix(parsed.Path, "//")
+}
+
+func hasUnsafeRedirectChar(s string) bool {
+	if strings.Contains(s, "\\") {
+		return true
+	}
+	for _, r := range s {
+		if r < 0x20 || r == 0x7f {
+			return true
+		}
+	}
+	return false
 }
 
 func validateOAuthState(c *gin.Context) error {
