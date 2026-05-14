@@ -28,7 +28,21 @@ const config: Config = {
     },
   },
 
-  themes: ['@docusaurus/theme-mermaid'],
+  themes: [
+    '@docusaurus/theme-mermaid',
+    [
+      '@easyops-cn/docusaurus-search-local',
+      {
+        docsDir: '../../docs',
+        docsRouteBasePath: '/',
+        indexBlog: false,
+        language: ['en', 'zh'],
+        hashed: true,
+        highlightSearchTermsOnTargetPage: true,
+        searchResultLimits: 50,
+      },
+    ],
+  ],
   plugins: [
     [
       frontmatterValidatorPlugin,
