@@ -10,6 +10,7 @@ import (
 	"github.com/google/uuid"
 
 	"github.com/tachigo/tachigo/internal/models"
+	"gorm.io/gorm"
 )
 
 // mockMailer records sent emails for assertion in tests.
@@ -236,6 +237,34 @@ func TestVerifyEmail_ExpiredToken(t *testing.T) {
 	err := svc.VerifyEmail(context.Background(), rawToken)
 	if err != ErrInvalidVerifyToken {
 		t.Errorf("want ErrInvalidVerifyToken, got %v", err)
+	}
+}
+
+func TestVerifyEmail_ExpiredTokenDeleteCanceledReturnsContextError(t *testing.T) {
+	svc, _ := newEmailAuthSvc(t)
+	userID := seedEmailUser(t, svc, "expired-delete-canceled@example.com", false)
+
+	rawToken, _ := generateNonce()
+	svc.db.Create(&models.EmailVerification{
+		UserID:    userID,
+		TokenHash: hashToken(rawToken),
+		ExpiresAt: time.Now().Add(-time.Minute),
+	})
+
+	ctx, cancel := context.WithCancel(context.Background())
+	callbackName := "test:cancel_email_verification_expired_delete"
+	if err := svc.db.Callback().Delete().Before("gorm:delete").Register(callbackName, func(tx *gorm.DB) {
+		if tx.Statement.Table == "email_verifications" {
+			cancel()
+		}
+	}); err != nil {
+		t.Fatalf("register delete callback: %v", err)
+	}
+	t.Cleanup(func() { _ = svc.db.Callback().Delete().Remove(callbackName) })
+
+	err := svc.VerifyEmail(ctx, rawToken)
+	if !errors.Is(err, context.Canceled) {
+		t.Fatalf("want context.Canceled, got %v", err)
 	}
 }
 
@@ -522,6 +551,35 @@ func TestResetPassword_ExpiredToken(t *testing.T) {
 	err := svc.ResetPassword(context.Background(), rawToken, "newpassword123")
 	if err != ErrInvalidResetToken {
 		t.Errorf("want ErrInvalidResetToken, got %v", err)
+	}
+}
+
+func TestResetPassword_ExpiredTokenDeleteCanceledReturnsContextError(t *testing.T) {
+	svc, _ := newEmailAuthSvc(t)
+	email := "expired-reset-delete-canceled@example.com"
+	seedEmailUser(t, svc, email, true)
+
+	rawToken, _ := generateNonce()
+	svc.db.Create(&models.PasswordReset{
+		Email:     email,
+		TokenHash: hashToken(rawToken),
+		ExpiresAt: time.Now().Add(-time.Minute),
+	})
+
+	ctx, cancel := context.WithCancel(context.Background())
+	callbackName := "test:cancel_password_reset_expired_delete"
+	if err := svc.db.Callback().Delete().Before("gorm:delete").Register(callbackName, func(tx *gorm.DB) {
+		if tx.Statement.Table == "password_resets" {
+			cancel()
+		}
+	}); err != nil {
+		t.Fatalf("register delete callback: %v", err)
+	}
+	t.Cleanup(func() { _ = svc.db.Callback().Delete().Remove(callbackName) })
+
+	err := svc.ResetPassword(ctx, rawToken, "newpassword123")
+	if !errors.Is(err, context.Canceled) {
+		t.Fatalf("want context.Canceled, got %v", err)
 	}
 }
 

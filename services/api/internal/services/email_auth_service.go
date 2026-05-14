@@ -92,7 +92,12 @@ func (s *EmailAuthService) VerifyEmail(ctx context.Context, rawToken string) err
 		return ErrInvalidVerifyToken
 	}
 	if record.IsExpired() {
-		db.Delete(&record)
+		if err := db.Delete(&record).Error; err != nil {
+			if ctxErr := ctx.Err(); ctxErr != nil {
+				return ctxErr
+			}
+			return err
+		}
 		return ErrInvalidVerifyToken
 	}
 
@@ -163,7 +168,12 @@ func (s *EmailAuthService) ResetPassword(ctx context.Context, rawToken, newPassw
 		return ErrInvalidResetToken
 	}
 	if record.IsExpired() {
-		db.Delete(&record)
+		if err := db.Delete(&record).Error; err != nil {
+			if ctxErr := ctx.Err(); ctxErr != nil {
+				return ctxErr
+			}
+			return err
+		}
 		return ErrInvalidResetToken
 	}
 
