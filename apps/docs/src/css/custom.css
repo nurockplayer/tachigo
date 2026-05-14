@@ -483,6 +483,56 @@
   font-weight: 760;
 }
 
+.tachigo-related-links {
+  display: grid;
+  gap: 0.85rem;
+  margin: 2rem 0 1.2rem;
+  padding: 1rem;
+  border: 1px solid var(--tachigo-line);
+  border-radius: 8px;
+  background: var(--tachigo-panel);
+}
+
+.tachigo-related-links__group {
+  display: grid;
+  gap: 0.45rem;
+}
+
+.tachigo-related-links__group h3 {
+  margin: 0;
+  color: var(--tachigo-muted);
+  font-size: 0.82rem;
+  font-weight: 800;
+}
+
+.tachigo-related-links__chips {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 0.5rem;
+}
+
+.tachigo-related-links__chip {
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  min-height: 30px;
+  padding: 0.2rem 0.62rem;
+  border: 1px solid color-mix(in srgb, var(--tachigo-cyan), var(--tachigo-line) 45%);
+  border-radius: 999px;
+  background: color-mix(in srgb, var(--tachigo-cyan), transparent 88%);
+  color: var(--tachigo-ink);
+  font-size: 0.84rem;
+  font-weight: 800;
+  line-height: 1;
+  text-decoration: none;
+}
+
+.tachigo-related-links__chip:hover {
+  border-color: color-mix(in srgb, var(--tachigo-cyan), var(--tachigo-line) 18%);
+  color: var(--tachigo-ink);
+  text-decoration: none;
+}
+
 @media (max-width: 1120px) {
   .tachigo-hero {
     grid-template-columns: 1fr;
