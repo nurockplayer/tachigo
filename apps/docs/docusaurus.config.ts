@@ -1,4 +1,5 @@
 import frontmatterValidatorPlugin from './plugins/frontmatter-validator/index.js'
+import llmsTxtPlugin from './plugins/llms-txt/index.js'
 import {themes as prismThemes} from 'prism-react-renderer'
 import type {Config} from '@docusaurus/types'
 import type * as Preset from '@docusaurus/preset-classic'
@@ -46,6 +47,12 @@ const config: Config = {
   plugins: [
     [
       frontmatterValidatorPlugin,
+      {
+        include: ['**/*.md'],
+      },
+    ],
+    [
+      llmsTxtPlugin,
       {
         include: ['**/*.md'],
       },

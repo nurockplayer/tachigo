@@ -31,6 +31,13 @@ apps/dashboard/.env
 apps/dashboard/.env.local
 apps/dashboard/*.local
 
+apps/docs/node_modules/
+apps/docs/build/
+apps/docs/.docusaurus/
+apps/docs/.env
+apps/docs/.env.local
+apps/docs/*.local
+
 extensions/tachigo-demo-sidepanel/node_modules/
 extensions/tachigo-demo-sidepanel/dist/
 extensions/tachigo-demo-sidepanel/.env
