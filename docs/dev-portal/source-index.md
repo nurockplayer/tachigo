@@ -65,6 +65,12 @@ related_repos:
 | [feature-discussion.md](/tachigo/feature-discussion) | 早期產品討論紀錄；仍保留供背景參考，不得單獨視為 implementation source of truth |
 | [tachimint-loyalty-claim-boundary.md](/tachigo/tachimint-loyalty-claim-boundary) | Tachimint / claim flow 邊界討論短文件，不是正式 architecture source of truth |
 
+## Dev Portal operations
+
+| 文件 | 定位 |
+|---|---|
+| [deployment.md](/tachigo/dev-portal/deployment) | Cloudflare Pages 手動連 repo、branch deploy / PR preview、公開 URL 驗證與 rollback/readback checklist |
+
 ## Code source map
 
 | Area | Source |

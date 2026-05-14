@@ -17,6 +17,7 @@ const sidebars: SidebarsConfig = {
         'dev-portal/daily-dev-guide',
         'dev-portal/flows',
         'dev-portal/source-index',
+        'dev-portal/deployment',
         'dev-portal/changelog',
         'dev-portal/graph-explorer',
       ],
