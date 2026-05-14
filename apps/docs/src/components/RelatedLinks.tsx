@@ -2,78 +2,15 @@ import React from 'react'
 import {useDoc} from '@docusaurus/plugin-content-docs/client'
 import {usePluginData} from '@docusaurus/useGlobalData'
 
-type DocRelated = {
-  related_issues?: number[]
-  implemented_in?: number[]
-}
-
-type RelatedLinksGlobalData = {
-  docs?: Record<string, DocRelated>
-}
-
-type DocMetadata = {
-  id?: string
-  source?: string
-  frontMatter?: DocRelated
-}
+import {
+  resolveRelatedLinksData,
+  type DocMetadata,
+  type RelatedLinksGlobalData,
+  type RelatedLinksResolvedData,
+  type ReverseIndexGlobalData,
+} from './relatedLinksData'
 
 const GITHUB_REPO_URL = 'https://github.com/nurockplayer/tachigo'
-
-function uniquePositiveNumbers(values: number[] | undefined): number[] {
-  if (!values) {
-    return []
-  }
-
-  return [...new Set(values.filter((value) => Number.isInteger(value) && value > 0))]
-}
-
-function normalizeSourceKey(source: string): string {
-  return source
-    .replace(/^@site\//, '')
-    .replace(/^(\.\.\/)+docs\//, '')
-    .replace(/^docs\//, '')
-}
-
-function candidateDocKeys(metadata: DocMetadata): string[] {
-  const candidates = new Set<string>()
-
-  if (metadata.source) {
-    candidates.add(normalizeSourceKey(metadata.source))
-  }
-
-  if (metadata.id) {
-    candidates.add(`${metadata.id}.md`)
-    candidates.add(`${metadata.id}/index.md`)
-  }
-
-  return [...candidates]
-}
-
-function findPluginRelated(
-  data: RelatedLinksGlobalData | undefined,
-  metadata: DocMetadata,
-): DocRelated | undefined {
-  const docs = data?.docs
-
-  if (!docs) {
-    return undefined
-  }
-
-  for (const key of candidateDocKeys(metadata)) {
-    if (docs[key]) {
-      return docs[key]
-    }
-  }
-
-  return undefined
-}
-
-export function resolveDocRelated(
-  data: RelatedLinksGlobalData | undefined,
-  metadata: DocMetadata,
-): DocRelated {
-  return findPluginRelated(data, metadata) ?? metadata.frontMatter ?? {}
-}
 
 function RelatedChip({href, number}: {href: string; number: number}): JSX.Element {
   return (
@@ -84,6 +21,27 @@ function RelatedChip({href, number}: {href: string; number: number}): JSX.Elemen
       rel="noreferrer"
     >
       #{number}
+    </a>
+  )
+}
+
+function InferredPrChip({
+  entry,
+}: {
+  entry: RelatedLinksResolvedData['inferredPullRequests'][number]
+}): JSX.Element {
+  const title = `${entry.title} · weight ${entry.weight.toFixed(2)} · ${entry.reasons.join(', ')}`
+
+  return (
+    <a
+      className="tachigo-related-links__chip tachigo-related-links__chip--inferred"
+      href={`${GITHUB_REPO_URL}/pull/${entry.pr}`}
+      target="_blank"
+      rel="noreferrer"
+      title={title}
+    >
+      #{entry.pr}
+      <span>{entry.weight.toFixed(2)}</span>
     </a>
   )
 }
@@ -113,16 +71,45 @@ function RelatedGroup({
   )
 }
 
+function InferredPrGroup({
+  entries,
+}: {
+  entries: RelatedLinksResolvedData['inferredPullRequests']
+}): JSX.Element | null {
+  if (entries.length === 0) {
+    return null
+  }
+
+  return (
+    <div className="tachigo-related-links__group">
+      <h3>推論關聯 PR</h3>
+      <div className="tachigo-related-links__chips">
+        {entries.map((entry) => (
+          <InferredPrChip key={entry.pr} entry={entry} />
+        ))}
+      </div>
+    </div>
+  )
+}
+
 export default function RelatedLinks(): JSX.Element | null {
   const {metadata} = useDoc()
   const pluginData = usePluginData('tachigo-related-links') as
     | RelatedLinksGlobalData
     | undefined
-  const related = resolveDocRelated(pluginData, metadata as DocMetadata)
-  const relatedIssues = uniquePositiveNumbers(related.related_issues)
-  const implementedIn = uniquePositiveNumbers(related.implemented_in)
+  const reverseIndexData = usePluginData('tachigo-reverse-index') as
+    | ReverseIndexGlobalData
+    | undefined
+  const related = resolveRelatedLinksData({
+    relatedLinks: pluginData,
+    reverseIndex: reverseIndexData,
+    metadata: metadata as DocMetadata,
+  })
+  const relatedIssues = related.authoritative.relatedIssues
+  const implementedIn = related.authoritative.implementedIn
+  const inferredPrs = related.inferredPullRequests
 
-  if (relatedIssues.length === 0 && implementedIn.length === 0) {
+  if (relatedIssues.length === 0 && implementedIn.length === 0 && inferredPrs.length === 0) {
     return null
   }
 
@@ -138,6 +125,7 @@ export default function RelatedLinks(): JSX.Element | null {
         hrefBase={`${GITHUB_REPO_URL}/pull`}
         numbers={implementedIn}
       />
+      <InferredPrGroup entries={inferredPrs} />
     </section>
   )
 }
