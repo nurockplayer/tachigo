@@ -11,10 +11,12 @@
     "build:reverse-index": "node --experimental-strip-types --no-warnings ./scripts/build-reverse-index.ts",
     "test:reverse-index": "node --experimental-strip-types --no-warnings --test ./scripts/build-reverse-index.test.ts",
     "test:frontmatter-validator": "node --experimental-strip-types --no-warnings --test ./plugins/frontmatter-validator/index.test.ts",
-    "test:llms-txt": "node --experimental-strip-types --no-warnings --test ./plugins/llms-txt/index.test.ts"
+    "test:llms-txt": "node --experimental-strip-types --no-warnings --test ./plugins/llms-txt/index.test.ts",
+    "test:related-links": "node --experimental-strip-types --no-warnings --test ./plugins/related-links/index.test.ts"
   },
   "dependencies": {
     "@docusaurus/core": "3.10.1",
+    "@docusaurus/plugin-content-docs": "3.10.1",
     "@docusaurus/preset-classic": "3.10.1",
     "@docusaurus/theme-mermaid": "3.10.1",
     "@easyops-cn/docusaurus-search-local": "0.55.1",
