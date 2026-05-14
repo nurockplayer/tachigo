@@ -199,6 +199,7 @@ async function runCiAutoReadyAfterCiWorkflow({
       SUPPLY_CHAIN_GUARDRAILS_RESULT: 'success',
       BACKEND_CI_RESULT: 'success',
       DEPENDENCY_REVIEW_RESULT: 'success',
+      API_CONTRACTS_RESULT: 'success',
       FRONTEND_RESULT: 'success',
       DASHBOARD_RESULT: 'success',
       CONTRACTS_RESULT: 'success',
@@ -1805,6 +1806,7 @@ test('scope gate emits path-aware outputs for frontend-only PRs', async () => {
     run_backend_integration: 'false',
     run_backend_scanners: 'false',
     run_dependency_review: 'false',
+    run_api_contracts: 'false',
     run_frontend: 'true',
     run_dashboard: 'false',
     run_contracts: 'false',
@@ -1829,6 +1831,23 @@ test('scope gate emits dependency review output only for dependency file PRs', a
   assert.equal(frontendSource.outputs.run_dependency_review, 'false')
 })
 
+test('scope gate emits API contract drift output for generated contract surfaces', async () => {
+  const sharedTypes = await runCiScopeGateWorkflow({
+    files: [{ filename: 'packages/shared-types/src/index.ts', additions: 9, deletions: 2, status: 'modified' }],
+  })
+  const swaggerArtifact = await runCiScopeGateWorkflow({
+    prOverrides: { title: '[backend] Refresh OpenAPI schema' },
+    files: [{ filename: 'services/api/docs/swagger.json', additions: 9, deletions: 2, status: 'modified' }],
+  })
+  const frontendSource = await runCiScopeGateWorkflow({
+    files: [{ filename: 'apps/extension/src/App.tsx', additions: 9, deletions: 2, status: 'modified' }],
+  })
+
+  assert.equal(sharedTypes.outputs.run_api_contracts, 'true')
+  assert.equal(swaggerArtifact.outputs.run_api_contracts, 'true')
+  assert.equal(frontendSource.outputs.run_api_contracts, 'false')
+})
+
 test('scope gate emits backend scanner outputs for backend PRs and scheduled scans', async () => {
   const backendPr = await runCiScopeGateWorkflow({
     files: [{ filename: 'services/api/internal/services/watch_service.go', additions: 3, deletions: 1, status: 'modified' }],
@@ -1841,6 +1860,7 @@ test('scope gate emits backend scanner outputs for backend PRs and scheduled sca
     run_backend_integration: 'true',
     run_backend_scanners: 'true',
     run_dependency_review: 'false',
+    run_api_contracts: 'false',
     run_frontend: 'false',
     run_dashboard: 'false',
     run_contracts: 'false',
@@ -1853,6 +1873,7 @@ test('scope gate emits backend scanner outputs for backend PRs and scheduled sca
     run_backend_integration: 'false',
     run_backend_scanners: 'true',
     run_dependency_review: 'false',
+    run_api_contracts: 'false',
     run_frontend: 'false',
     run_dashboard: 'false',
     run_contracts: 'false',
@@ -1873,6 +1894,7 @@ test('scope gate emits contracts report outputs for contracts PRs', async () => 
     run_backend_integration: 'true',
     run_backend_scanners: 'false',
     run_dependency_review: 'false',
+    run_api_contracts: 'false',
     run_frontend: 'false',
     run_dashboard: 'false',
     run_contracts: 'true',
@@ -1912,6 +1934,7 @@ Backend contract already in develop:
     run_backend_integration: 'true',
     run_backend_scanners: 'true',
     run_dependency_review: 'false',
+    run_api_contracts: 'true',
     run_frontend: 'true',
     run_dashboard: 'true',
     run_contracts: 'true',
@@ -1938,6 +1961,7 @@ test('CI product jobs are gated by path-aware scope outputs', async () => {
   const dependencyReview = workflowJobBlock(workflow, 'dependency-review')
   const frontend = workflowJobBlock(workflow, 'frontend')
   const dashboard = workflowJobBlock(workflow, 'dashboard')
+  const apiContracts = workflowJobBlock(workflow, 'api-contracts')
   const contracts = workflowJobBlock(workflow, 'contracts')
   const contractsSlither = workflowJobBlock(workflow, 'contracts-slither')
   const contractsGasSnapshot = workflowJobBlock(workflow, 'contracts-gas-snapshot')
@@ -1950,10 +1974,32 @@ test('CI product jobs are gated by path-aware scope outputs', async () => {
   assert.match(dependencyReview, /needs\.scope-gate\.outputs\.run_dependency_review == 'true'/)
   assert.match(frontend, /needs\.scope-gate\.outputs\.run_frontend == 'true'/)
   assert.match(dashboard, /needs\.scope-gate\.outputs\.run_dashboard == 'true'/)
+  assert.match(apiContracts, /needs\.scope-gate\.outputs\.run_api_contracts == 'true'/)
   assert.match(contracts, /needs\.scope-gate\.outputs\.run_contracts == 'true'/)
   assert.match(contractsSlither, /needs\.scope-gate\.outputs\.run_contracts_slither == 'true'/)
   assert.match(contractsGasSnapshot, /needs\.scope-gate\.outputs\.run_contracts_gas_report == 'true'/)
   assert.deepEqual(backendIntegrationJob.needs, ['scope-gate', 'check-cache-wiring'])
+})
+
+test('API contract drift CI job checks generated types and typed client', async () => {
+  const workflow = await readFile(workflowPath, 'utf8')
+  const parsedWorkflow = parseYaml(workflowPath)
+  const job = parsedWorkflow.jobs['api-contracts']
+  const jobBlock = workflowJobBlock(workflow, 'api-contracts')
+
+  assert.equal(job.name, 'API contract drift')
+  assert.equal(job['timeout-minutes'], 10)
+  assert.equal(job.needs, 'scope-gate')
+  assert.equal(job.if, "needs.scope-gate.outputs.run_api_contracts == 'true'")
+  assert.match(jobBlock, pinnedActionRef('actions/checkout', 'v4'))
+  assert.match(jobBlock, pinnedActionRef('actions/setup-node', 'v4'))
+  assert.match(jobBlock, pinnedActionRef('pnpm/action-setup', 'v4'))
+  assert.match(jobBlock, /version: 10\.33\.0/)
+  assert.match(jobBlock, /run_install: false/)
+  assert.doesNotMatch(jobBlock, /corepack prepare pnpm@10\.33\.0 --activate/)
+  assert.match(jobBlock, /pnpm install --frozen-lockfile --ignore-scripts/)
+  assert.match(jobBlock, /pnpm api:types:check/)
+  assert.match(jobBlock, /pnpm api:client:test/)
 })
 
 test('PR commit message check skips formal release promotion PRs', () => {
@@ -2587,7 +2633,7 @@ test('CI workflow wakes auto-ready draft PRs after required CI jobs finish', asy
 
   assert.equal(job.name, 'Auto-ready draft PR after CI')
   assert.equal(job.if, "always() && github.event_name == 'pull_request'")
-  assert.deepEqual(job.needs, ['scope-gate', 'supply-chain-guardrails', 'backend-ci', 'dependency-review', 'frontend', 'dashboard', 'contracts', 'contracts-slither', 'contracts-gas-snapshot'])
+  assert.deepEqual(job.needs, ['scope-gate', 'supply-chain-guardrails', 'backend-ci', 'dependency-review', 'api-contracts', 'frontend', 'dashboard', 'contracts', 'contracts-slither', 'contracts-gas-snapshot'])
   assert.equal(job.permissions['pull-requests'], 'write')
   assert.equal(job.permissions.contents, 'write')
   assert.equal(job.permissions.issues, 'write')
@@ -2602,6 +2648,7 @@ test('CI workflow wakes auto-ready draft PRs after required CI jobs finish', asy
   assert.match(jobBlock, /SUPPLY_CHAIN_GUARDRAILS_RESULT/)
   assert.match(jobBlock, /BACKEND_CI_RESULT/)
   assert.match(jobBlock, /DEPENDENCY_REVIEW_RESULT/)
+  assert.match(jobBlock, /API_CONTRACTS_RESULT/)
   assert.match(jobBlock, /FRONTEND_RESULT/)
   assert.match(jobBlock, /DASHBOARD_RESULT/)
   assert.match(jobBlock, /CONTRACTS_RESULT/)
