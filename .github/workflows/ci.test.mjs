@@ -1993,6 +1993,7 @@ test('API contract drift CI job checks generated types and typed client', async 
   assert.equal(job.if, "needs.scope-gate.outputs.run_api_contracts == 'true'")
   assert.match(jobBlock, pinnedActionRef('actions/checkout', 'v4'))
   assert.match(jobBlock, pinnedActionRef('actions/setup-node', 'v4'))
+  assert.match(jobBlock, /node-version: 22\.16\.0/)
   assert.match(jobBlock, pinnedActionRef('pnpm/action-setup', 'v4'))
   assert.match(jobBlock, /version: 10\.33\.0/)
   assert.match(jobBlock, /run_install: false/)
