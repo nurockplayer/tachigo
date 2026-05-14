@@ -193,6 +193,8 @@ func (h *AuthHandler) TwitchLogin(c *gin.Context) {
 	}
 	if redirectTo != "" {
 		h.setOAuthRedirectCookie(c, redirectTo)
+	} else {
+		h.clearOAuthRedirectCookie(c)
 	}
 	state := oauthState()
 	h.setOAuthStateCookie(c, state)
@@ -213,6 +215,7 @@ func (h *AuthHandler) TwitchLogin(c *gin.Context) {
 func (h *AuthHandler) TwitchCallback(c *gin.Context) {
 	if err := validateOAuthState(c); err != nil {
 		h.clearOAuthStateCookie(c)
+		h.clearOAuthRedirectCookie(c)
 		badRequest(c, "invalid state parameter")
 		return
 	}

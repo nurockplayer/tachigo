@@ -455,6 +455,69 @@ func TestTwitchLogin_WithoutRedirectTo_RedirectsToTwitch(t *testing.T) {
 	assertOAuthStateCookieSet(t, w, http.SameSiteLaxMode, false)
 }
 
+func TestTwitchLogin_WithoutRedirectTo_ClearsStaleRedirectCookie(t *testing.T) {
+	env := newTestEnv(t)
+	req := httptest.NewRequest(http.MethodGet, "/api/v1/auth/twitch", nil)
+	req.AddCookie(&http.Cookie{Name: "oauth_redirect", Value: "/claim/stale", Path: "/"})
+	w := httptest.NewRecorder()
+	env.router.ServeHTTP(w, req)
+
+	if w.Code != http.StatusFound {
+		t.Fatalf("want 302, got %d: %s", w.Code, w.Body.String())
+	}
+	cookie := responseCookie(t, w, "oauth_redirect")
+	if cookie == nil {
+		t.Fatal("expected oauth_redirect cookie to be present in response (cleared)")
+	}
+	if cookie.MaxAge >= 0 {
+		t.Fatalf("expected oauth_redirect cookie to be cleared (MaxAge < 0), got %d", cookie.MaxAge)
+	}
+}
+
+func TestTwitchCallback_StateMismatch_ClearsRedirectCookie(t *testing.T) {
+	env := newTestEnv(t)
+	req := httptest.NewRequest(http.MethodGet, "/api/v1/auth/twitch/callback?code=code&state=wrong", nil)
+	req.AddCookie(&http.Cookie{Name: "oauth_state", Value: "expected", Path: "/"})
+	req.AddCookie(&http.Cookie{Name: "oauth_redirect", Value: "/claim/abc", Path: "/"})
+	w := httptest.NewRecorder()
+	env.router.ServeHTTP(w, req)
+
+	if w.Code != http.StatusBadRequest {
+		t.Fatalf("want 400, got %d: %s", w.Code, w.Body.String())
+	}
+	cookie := responseCookie(t, w, "oauth_redirect")
+	if cookie == nil {
+		t.Fatal("expected oauth_redirect cookie to be cleared on state mismatch")
+	}
+	if cookie.MaxAge >= 0 {
+		t.Fatalf("expected oauth_redirect cleared (MaxAge < 0), got %d", cookie.MaxAge)
+	}
+}
+
+func TestTwitchCallback_StaleRedirectCookie_WithoutRedirectLogin_ReturnsJSON(t *testing.T) {
+	// Regression：先前有 redirect_to 的 flow 中斷後，新的無 redirect_to TwitchLogin 必須清掉
+	// stale oauth_redirect，確保後續 callback 回傳 200 JSON 而非誤 redirect。
+	env := newTestEnvWithConfig(t, "development", "http://localhost:5174")
+	httpClient := &http.Client{Transport: mockTwitchRoundTripper{}}
+	ctx := context.WithValue(context.Background(), oauth2.HTTPClient, httpClient)
+
+	// 步驟 1：模擬 TwitchLogin without redirect_to 已清除 stale cookie（不帶 oauth_redirect）
+	state := "freshstate"
+	req := httptest.NewRequest(http.MethodGet, "/api/v1/auth/twitch/callback?code=mockcode&state="+state, nil).WithContext(ctx)
+	req.AddCookie(&http.Cookie{Name: "oauth_state", Value: state, Path: "/"})
+	// 不帶 oauth_redirect cookie（模擬 TwitchLogin 已清除）
+	w := httptest.NewRecorder()
+	env.router.ServeHTTP(w, req)
+
+	if w.Code != http.StatusOK {
+		t.Fatalf("want 200 JSON (no stale redirect), got %d: %s", w.Code, w.Body.String())
+	}
+	resp := parseBody(t, w.Body.Bytes())
+	if resp["success"] != true {
+		t.Errorf("want success: true")
+	}
+}
+
 func assertRefreshCookieSet(
 	t *testing.T,
 	w *httptest.ResponseRecorder,
