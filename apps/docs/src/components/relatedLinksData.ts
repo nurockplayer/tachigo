@@ -57,6 +57,14 @@ export function formatLinkWeight(weight: unknown): string {
   return Number.isFinite(normalized) ? normalized.toFixed(2) : '0.00'
 }
 
+export function normalizeLinkReasons(reasons: unknown): string[] {
+  if (!Array.isArray(reasons)) {
+    return []
+  }
+
+  return reasons.filter((reason): reason is string => typeof reason === 'string')
+}
+
 function uniquePositiveNumbers(values: number[] | undefined): number[] {
   if (!values) {
     return []
@@ -149,7 +157,7 @@ export function resolveRelatedLinksData(options: {
       title: entry.title,
       mergedAt: entry.mergedAt,
       weight,
-      reasons: matchingDoc.reasons,
+      reasons: normalizeLinkReasons(matchingDoc.reasons),
     })
   }
 
