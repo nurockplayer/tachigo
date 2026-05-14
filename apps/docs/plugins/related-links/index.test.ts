@@ -147,6 +147,69 @@ test('resolved related links keep authoritative and inferred PRs separate', () =
   ])
 })
 
+test('resolved inferred PR reasons normalize missing or non-array values', () => {
+  const resolved = resolveRelatedLinksData({
+    metadata: {
+      id: 'watch-to-points-design',
+      source: '@site/docs/watch-to-points-design.md',
+    },
+    reverseIndex: {
+      byPr: {
+        710: {
+          pr: 710,
+          title: 'Missing reasons should not crash related links rendering',
+          mergedAt: '2026-05-15T08:00:00Z',
+          docs: [
+            {
+              path: 'docs/watch-to-points-design.md',
+              title: 'Missing reasons should not crash related links rendering',
+              mergedAt: '2026-05-15T08:00:00Z',
+              additions: 18,
+              deletions: 3,
+              weight: 0.8,
+              paths: ['services/api/internal/watchtime/session.go'],
+            },
+          ],
+        },
+        711: {
+          pr: 711,
+          title: 'String reasons should be ignored',
+          mergedAt: '2026-05-15T09:00:00Z',
+          docs: [
+            {
+              path: 'docs/watch-to-points-design.md',
+              title: 'String reasons should be ignored',
+              mergedAt: '2026-05-15T09:00:00Z',
+              additions: 12,
+              deletions: 1,
+              weight: 0.9,
+              reasons: 'changedFiles:services/api/internal/watchtime',
+              paths: ['services/api/internal/watchtime/summary.go'],
+            },
+          ],
+        },
+      },
+    } as unknown as Parameters<typeof resolveRelatedLinksData>[0]['reverseIndex'],
+  })
+
+  assert.deepEqual(resolved.inferredPullRequests, [
+    {
+      pr: 711,
+      title: 'String reasons should be ignored',
+      mergedAt: '2026-05-15T09:00:00Z',
+      weight: 0.9,
+      reasons: [],
+    },
+    {
+      pr: 710,
+      title: 'Missing reasons should not crash related links rendering',
+      mergedAt: '2026-05-15T08:00:00Z',
+      weight: 0.8,
+      reasons: [],
+    },
+  ])
+})
+
 test('formats missing or non-number link weight without throwing', () => {
   assert.equal(typeof relatedLinksData.formatLinkWeight, 'function')
   assert.equal(relatedLinksData.formatLinkWeight?.(undefined), '0.00')
