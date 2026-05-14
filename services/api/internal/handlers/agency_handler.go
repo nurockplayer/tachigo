@@ -45,7 +45,7 @@ func (h *AgencyHandler) Create(c *gin.Context) {
 		return
 	}
 
-	user, err := h.agencySvc.Create(req.Name, req.Email)
+	user, err := h.agencySvc.CreateContext(c.Request.Context(), req.Name, req.Email)
 	if err != nil {
 		if errors.Is(err, services.ErrAgencyEmailTaken) {
 			conflict(c, err.Error())
@@ -101,7 +101,7 @@ func (h *AgencyHandler) Get(c *gin.Context) {
 		return
 	}
 
-	user, complete, err := h.agencySvc.GetByID(agencyID)
+	user, complete, err := h.agencySvc.GetByIDContext(c.Request.Context(), agencyID)
 	if err != nil {
 		if errors.Is(err, services.ErrAgencyNotFound) {
 			notFound(c, "agency not found")
@@ -136,7 +136,7 @@ func (h *AgencyHandler) ResendSetup(c *gin.Context) {
 		return
 	}
 
-	user, complete, err := h.agencySvc.GetByID(agencyID)
+	user, complete, err := h.agencySvc.GetByIDContext(c.Request.Context(), agencyID)
 	if err != nil {
 		if errors.Is(err, services.ErrAgencyNotFound) {
 			notFound(c, "agency not found")
@@ -199,7 +199,7 @@ func (h *AgencyHandler) UpdateSettings(c *gin.Context) {
 		return
 	}
 
-	if err := h.agencySvc.UpdateSettings(agencyID, req.Name); err != nil {
+	if err := h.agencySvc.UpdateSettingsContext(c.Request.Context(), agencyID, req.Name); err != nil {
 		if errors.Is(err, services.ErrAgencyNotFound) {
 			notFound(c, "agency not found")
 			return
@@ -233,7 +233,7 @@ func (h *AgencyHandler) ListStreamers(c *gin.Context) {
 		return
 	}
 
-	streamers, err := h.agencySvc.ListStreamers(agencyID)
+	streamers, err := h.agencySvc.ListStreamersContext(c.Request.Context(), agencyID)
 	if err != nil {
 		if errors.Is(err, services.ErrAgencyNotFound) {
 			notFound(c, "agency not found")
@@ -249,7 +249,7 @@ func (h *AgencyHandler) ListStreamers(c *gin.Context) {
 		channelIDs = append(channelIDs, streamer.ChannelID)
 	}
 
-	userIDsByChannel, err := h.agencySvc.ListStreamerUserIDs(channelIDs)
+	userIDsByChannel, err := h.agencySvc.ListStreamerUserIDsContext(c.Request.Context(), channelIDs)
 	if err != nil {
 		log.Printf("agency list streamer users: unexpected error: %v", err)
 		internal(c)
