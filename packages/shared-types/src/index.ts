@@ -246,6 +246,9 @@ export interface ApiOperations {
     };
   };
   "GET /auth/twitch": {
+    queryParams: {
+      redirect_to?: string;
+    };
     response: unknown;
   };
   "GET /auth/twitch/callback": {
