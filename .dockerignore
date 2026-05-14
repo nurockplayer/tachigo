@@ -1,0 +1,17 @@
+.git
+.worktrees
+.DS_Store
+.claude
+.codex
+.config
+
+**/.env
+**/.env.*
+**/node_modules
+
+apps/docs/.docusaurus
+apps/docs/build
+build
+coverage
+dist
+graphify-out

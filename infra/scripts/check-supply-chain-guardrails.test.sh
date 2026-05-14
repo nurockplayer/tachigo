@@ -104,9 +104,20 @@ packages:
 EOF
 }
 
+dockerfile_install_without_ignore_scripts_fixture() {
+  local repo="$1"
+  mkdir -p "$repo/apps/docs"
+  cat > "$repo/apps/docs/Dockerfile" <<'EOF'
+FROM node:24-alpine
+RUN corepack enable
+RUN pnpm install --frozen-lockfile
+EOF
+}
+
 run_case clean 0 "Supply-chain guardrails passed" clean_fixture
 run_case preinstall 1 "disallowed lifecycle script" preinstall_fixture
 run_case dynamic_exec 1 "disallowed dynamic package execution" dynamic_exec_fixture
 run_case ioc 1 "Mini Shai-Hulud indicator" ioc_fixture
+run_case dockerfile_install_without_ignore_scripts 1 "Dockerfile pnpm install must use --frozen-lockfile --ignore-scripts" dockerfile_install_without_ignore_scripts_fixture
 
 echo "supply-chain guardrail regression tests passed"
