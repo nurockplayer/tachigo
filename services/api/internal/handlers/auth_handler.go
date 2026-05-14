@@ -3,7 +3,9 @@ package handlers
 import (
 	"context"
 	"crypto/rand"
+	"encoding/base64"
 	"encoding/hex"
+	"encoding/json"
 	"errors"
 	"log"
 	"net/http"
@@ -178,10 +180,17 @@ func (h *AuthHandler) Logout(c *gin.Context) {
 // @Summary      Redirect to Twitch OAuth
 // @Tags         auth
 // @Produce      json
+// @Param        redirect_to query string false "Relative path to redirect after successful login (e.g. /claim/abc123)"
 // @Success      302
+// @Failure      400  {object}  Response
 // @Router       /auth/twitch [get]
 func (h *AuthHandler) TwitchLogin(c *gin.Context) {
-	state := oauthState()
+	redirectTo := c.Query("redirect_to")
+	if redirectTo != "" && !isValidRedirectTo(redirectTo) {
+		badRequest(c, "invalid redirect_to parameter")
+		return
+	}
+	state := oauthStateWithRedirect(redirectTo)
 	h.setOAuthStateCookie(c, state)
 	c.Redirect(http.StatusFound, h.auth.TwitchAuthURL(state))
 }
@@ -193,6 +202,7 @@ func (h *AuthHandler) TwitchLogin(c *gin.Context) {
 // @Param        code  query string true "OAuth authorization code"
 // @Param        state query string true "OAuth state"
 // @Success      200  {object}  Response{data=AuthResponse}
+// @Success      302
 // @Failure      400  {object}  Response
 // @Failure      401  {object}  Response
 // @Router       /auth/twitch/callback [get]
@@ -202,6 +212,7 @@ func (h *AuthHandler) TwitchCallback(c *gin.Context) {
 		badRequest(c, "invalid state parameter")
 		return
 	}
+	redirectTo := parseOAuthStatePayload(c.Query("state")).RedirectTo
 	h.clearOAuthStateCookie(c)
 
 	code := c.Query("code")
@@ -212,6 +223,10 @@ func (h *AuthHandler) TwitchCallback(c *gin.Context) {
 	}
 
 	h.setRefreshCookie(c, tokens.RefreshToken)
+	if redirectTo != "" {
+		c.Redirect(http.StatusFound, strings.TrimRight(h.cfg.App.FrontendURL, "/")+redirectTo)
+		return
+	}
 	ok(c, gin.H{"user": user, "tokens": browserTokenPair(tokens)})
 }
 
@@ -351,10 +366,36 @@ func (h *AuthHandler) UnlinkProvider(c *gin.Context) {
 
 // ─── helpers ─────────────────────────────────────────────────────────────────
 
+type oauthStatePayload struct {
+	Nonce      string `json:"n"`
+	RedirectTo string `json:"r,omitempty"`
+}
+
 func oauthState() string {
+	return oauthStateWithRedirect("")
+}
+
+func oauthStateWithRedirect(redirectTo string) string {
 	b := make([]byte, 16)
 	rand.Read(b)
-	return hex.EncodeToString(b)
+	p := oauthStatePayload{Nonce: hex.EncodeToString(b), RedirectTo: redirectTo}
+	data, _ := json.Marshal(p)
+	return base64.RawURLEncoding.EncodeToString(data)
+}
+
+func parseOAuthStatePayload(state string) oauthStatePayload {
+	data, err := base64.RawURLEncoding.DecodeString(state)
+	if err != nil {
+		return oauthStatePayload{}
+	}
+	var p oauthStatePayload
+	json.Unmarshal(data, &p) //nolint:errcheck
+	return p
+}
+
+// isValidRedirectTo ensures the redirect target is a relative path, guarding against open-redirect attacks.
+func isValidRedirectTo(s string) bool {
+	return strings.HasPrefix(s, "/") && !strings.HasPrefix(s, "//")
 }
 
 func validateOAuthState(c *gin.Context) error {

@@ -414,6 +414,46 @@ func TestOAuthCallback_ValidStateClearsStateCookieBeforeOAuthExchange(t *testing
 	assertOAuthStateCookieCleared(t, w, http.SameSiteLaxMode, false)
 }
 
+// ─── TwitchLogin redirect_to ─────────────────────────────────────────────────
+
+func TestTwitchLogin_WithExternalRedirectTo_ReturnsBadRequest(t *testing.T) {
+	for _, bad := range []string{"http://evil.com", "//evil.com", "https://evil.com", "://evil.com"} {
+		t.Run(bad, func(t *testing.T) {
+			env := newTestEnv(t)
+			req := httptest.NewRequest(http.MethodGet, "/api/v1/auth/twitch?redirect_to="+bad, nil)
+			w := httptest.NewRecorder()
+			env.router.ServeHTTP(w, req)
+			if w.Code != http.StatusBadRequest {
+				t.Fatalf("want 400 for redirect_to=%q, got %d", bad, w.Code)
+			}
+		})
+	}
+}
+
+func TestTwitchLogin_WithValidRelativeRedirectTo_RedirectsToTwitch(t *testing.T) {
+	env := newTestEnv(t)
+	req := httptest.NewRequest(http.MethodGet, "/api/v1/auth/twitch?redirect_to=/claim/abc123", nil)
+	w := httptest.NewRecorder()
+	env.router.ServeHTTP(w, req)
+
+	if w.Code != http.StatusFound {
+		t.Fatalf("want 302, got %d: %s", w.Code, w.Body.String())
+	}
+	assertOAuthStateCookieSet(t, w, http.SameSiteLaxMode, false)
+}
+
+func TestTwitchLogin_WithoutRedirectTo_RedirectsToTwitch(t *testing.T) {
+	env := newTestEnv(t)
+	req := httptest.NewRequest(http.MethodGet, "/api/v1/auth/twitch", nil)
+	w := httptest.NewRecorder()
+	env.router.ServeHTTP(w, req)
+
+	if w.Code != http.StatusFound {
+		t.Fatalf("want 302, got %d: %s", w.Code, w.Body.String())
+	}
+	assertOAuthStateCookieSet(t, w, http.SameSiteLaxMode, false)
+}
+
 func assertRefreshCookieSet(
 	t *testing.T,
 	w *httptest.ResponseRecorder,
