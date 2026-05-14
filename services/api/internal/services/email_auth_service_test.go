@@ -2,6 +2,7 @@ package services
 
 import (
 	"context"
+	"errors"
 	"strings"
 	"testing"
 	"time"
@@ -129,6 +130,27 @@ func TestSendVerificationEmail_DeleteExistingTokenFailureReturnsError(t *testing
 	}
 }
 
+func TestSendVerificationEmail_CanceledContextDoesNotPersistOrSend(t *testing.T) {
+	svc, mailer := newEmailAuthSvc(t)
+	userID := seedEmailUser(t, svc, "verify-canceled@example.com", false)
+	ctx, cancel := context.WithCancel(context.Background())
+	cancel()
+
+	err := svc.SendVerificationEmail(ctx, userID)
+	if !errors.Is(err, context.Canceled) {
+		t.Fatalf("want context.Canceled, got %v", err)
+	}
+
+	var count int64
+	svc.db.Model(&models.EmailVerification{}).Where("user_id = ?", userID).Count(&count)
+	if count != 0 {
+		t.Fatalf("verification token should not be persisted after canceled context, got %d", count)
+	}
+	if len(mailer.sent) != 0 {
+		t.Fatalf("email should not be sent after canceled context, got %d sends", len(mailer.sent))
+	}
+}
+
 // ─── VerifyEmail ──────────────────────────────────────────────────────────────
 
 func TestVerifyEmail_Success(t *testing.T) {
@@ -143,7 +165,7 @@ func TestVerifyEmail_Success(t *testing.T) {
 		ExpiresAt: time.Now().Add(time.Hour),
 	})
 
-	if err := svc.VerifyEmail(rawToken); err != nil {
+	if err := svc.VerifyEmail(context.Background(), rawToken); err != nil {
 		t.Fatalf("unexpected error: %v", err)
 	}
 
@@ -182,7 +204,7 @@ func TestVerifyEmail_DeleteTokenFailureReturnsError(t *testing.T) {
 		t.Fatalf("create email verification consume delete trigger: %v", err)
 	}
 
-	err := svc.VerifyEmail(rawToken)
+	err := svc.VerifyEmail(context.Background(), rawToken)
 	if err == nil {
 		t.Fatal("want delete error, got nil")
 	}
@@ -194,7 +216,7 @@ func TestVerifyEmail_DeleteTokenFailureReturnsError(t *testing.T) {
 func TestVerifyEmail_InvalidToken(t *testing.T) {
 	svc, _ := newEmailAuthSvc(t)
 
-	err := svc.VerifyEmail("no-such-token")
+	err := svc.VerifyEmail(context.Background(), "no-such-token")
 	if err != ErrInvalidVerifyToken {
 		t.Errorf("want ErrInvalidVerifyToken, got %v", err)
 	}
@@ -211,7 +233,7 @@ func TestVerifyEmail_ExpiredToken(t *testing.T) {
 		ExpiresAt: time.Now().Add(-time.Minute), // already expired
 	})
 
-	err := svc.VerifyEmail(rawToken)
+	err := svc.VerifyEmail(context.Background(), rawToken)
 	if err != ErrInvalidVerifyToken {
 		t.Errorf("want ErrInvalidVerifyToken, got %v", err)
 	}
@@ -243,7 +265,7 @@ func TestVerifyEmail_RoundTrip(t *testing.T) {
 		ExpiresAt: time.Now().Add(time.Hour),
 	})
 
-	if err := svc.VerifyEmail(rawToken); err != nil {
+	if err := svc.VerifyEmail(context.Background(), rawToken); err != nil {
 		t.Fatalf("verify: %v", err)
 	}
 
@@ -274,7 +296,7 @@ func TestVerifyEmail_RollsBackUserUpdateWhenTokenDeleteFails(t *testing.T) {
 		t.Fatalf("create delete failure trigger: %v", err)
 	}
 
-	if err := svc.VerifyEmail(rawToken); err == nil {
+	if err := svc.VerifyEmail(context.Background(), rawToken); err == nil {
 		t.Fatal("expected VerifyEmail to return delete failure")
 	}
 
@@ -287,6 +309,35 @@ func TestVerifyEmail_RollsBackUserUpdateWhenTokenDeleteFails(t *testing.T) {
 	svc.db.Model(&models.EmailVerification{}).Where("user_id = ?", userID).Count(&count)
 	if count != 1 {
 		t.Errorf("expected verification token to remain after rollback, got %d", count)
+	}
+}
+
+func TestVerifyEmail_CanceledContextDoesNotVerifyOrConsumeToken(t *testing.T) {
+	svc, _ := newEmailAuthSvc(t)
+	userID := seedEmailUser(t, svc, "verify-token-canceled@example.com", false)
+	rawToken, _ := generateNonce()
+	svc.db.Create(&models.EmailVerification{
+		UserID:    userID,
+		TokenHash: hashToken(rawToken),
+		ExpiresAt: time.Now().Add(time.Hour),
+	})
+	ctx, cancel := context.WithCancel(context.Background())
+	cancel()
+
+	err := svc.VerifyEmail(ctx, rawToken)
+	if !errors.Is(err, context.Canceled) {
+		t.Fatalf("want context.Canceled, got %v", err)
+	}
+
+	var user models.User
+	svc.db.First(&user, "id = ?", userID)
+	if user.EmailVerified {
+		t.Fatal("email should not be verified after canceled context")
+	}
+	var count int64
+	svc.db.Model(&models.EmailVerification{}).Where("user_id = ?", userID).Count(&count)
+	if count != 1 {
+		t.Fatalf("verification token should remain after canceled context, got %d", count)
 	}
 }
 
@@ -368,6 +419,28 @@ func TestForgotPassword_DeleteExistingTokenFailureReturnsError(t *testing.T) {
 	}
 }
 
+func TestForgotPassword_CanceledContextDoesNotPersistOrSend(t *testing.T) {
+	svc, mailer := newEmailAuthSvc(t)
+	email := "reset-canceled@example.com"
+	seedEmailUser(t, svc, email, true)
+	ctx, cancel := context.WithCancel(context.Background())
+	cancel()
+
+	err := svc.ForgotPassword(ctx, email)
+	if !errors.Is(err, context.Canceled) {
+		t.Fatalf("want context.Canceled, got %v", err)
+	}
+
+	var count int64
+	svc.db.Model(&models.PasswordReset{}).Where("email = ?", email).Count(&count)
+	if count != 0 {
+		t.Fatalf("reset token should not be persisted after canceled context, got %d", count)
+	}
+	if len(mailer.sent) != 0 {
+		t.Fatalf("email should not be sent after canceled context, got %d sends", len(mailer.sent))
+	}
+}
+
 // ─── ResetPassword ────────────────────────────────────────────────────────────
 
 func TestResetPassword_Success(t *testing.T) {
@@ -382,7 +455,7 @@ func TestResetPassword_Success(t *testing.T) {
 		ExpiresAt: time.Now().Add(time.Hour),
 	})
 
-	if err := svc.ResetPassword(rawToken, "newpassword123"); err != nil {
+	if err := svc.ResetPassword(context.Background(), rawToken, "newpassword123"); err != nil {
 		t.Fatalf("unexpected error: %v", err)
 	}
 
@@ -416,7 +489,7 @@ func TestResetPassword_DeleteTokenFailureReturnsError(t *testing.T) {
 		t.Fatalf("create password reset consume delete trigger: %v", err)
 	}
 
-	err := svc.ResetPassword(rawToken, "newpassword123")
+	err := svc.ResetPassword(context.Background(), rawToken, "newpassword123")
 	if err == nil {
 		t.Fatal("want delete error, got nil")
 	}
@@ -428,7 +501,7 @@ func TestResetPassword_DeleteTokenFailureReturnsError(t *testing.T) {
 func TestResetPassword_InvalidToken(t *testing.T) {
 	svc, _ := newEmailAuthSvc(t)
 
-	err := svc.ResetPassword("bad-token", "newpassword123")
+	err := svc.ResetPassword(context.Background(), "bad-token", "newpassword123")
 	if err != ErrInvalidResetToken {
 		t.Errorf("want ErrInvalidResetToken, got %v", err)
 	}
@@ -446,7 +519,7 @@ func TestResetPassword_ExpiredToken(t *testing.T) {
 		ExpiresAt: time.Now().Add(-time.Minute),
 	})
 
-	err := svc.ResetPassword(rawToken, "newpassword123")
+	err := svc.ResetPassword(context.Background(), rawToken, "newpassword123")
 	if err != ErrInvalidResetToken {
 		t.Errorf("want ErrInvalidResetToken, got %v", err)
 	}
@@ -479,7 +552,7 @@ func TestResetPassword_AllowsLoginWithNewPassword(t *testing.T) {
 	})
 
 	// Reset password
-	if err := emailSvc.ResetPassword(rawToken, "newpassword123"); err != nil {
+	if err := emailSvc.ResetPassword(context.Background(), rawToken, "newpassword123"); err != nil {
 		t.Fatalf("reset: %v", err)
 	}
 
@@ -527,7 +600,7 @@ func TestResetPassword_RollsBackPasswordHashWhenTokenDeleteFails(t *testing.T) {
 		t.Fatalf("create delete failure trigger: %v", err)
 	}
 
-	if err := emailSvc.ResetPassword(rawToken, "newpassword123"); err == nil {
+	if err := emailSvc.ResetPassword(context.Background(), rawToken, "newpassword123"); err == nil {
 		t.Fatal("expected ResetPassword to return delete failure")
 	}
 
@@ -541,5 +614,30 @@ func TestResetPassword_RollsBackPasswordHashWhenTokenDeleteFails(t *testing.T) {
 	db.Model(&models.PasswordReset{}).Where("email = ?", *user.Email).Count(&count)
 	if count != 1 {
 		t.Errorf("expected reset token to remain after rollback, got %d", count)
+	}
+}
+
+func TestResetPassword_CanceledContextDoesNotConsumeToken(t *testing.T) {
+	svc, _ := newEmailAuthSvc(t)
+	email := "reset-token-canceled@example.com"
+	seedEmailUser(t, svc, email, true)
+	rawToken, _ := generateNonce()
+	svc.db.Create(&models.PasswordReset{
+		Email:     email,
+		TokenHash: hashToken(rawToken),
+		ExpiresAt: time.Now().Add(time.Hour),
+	})
+	ctx, cancel := context.WithCancel(context.Background())
+	cancel()
+
+	err := svc.ResetPassword(ctx, rawToken, "newpassword123")
+	if !errors.Is(err, context.Canceled) {
+		t.Fatalf("want context.Canceled, got %v", err)
+	}
+
+	var count int64
+	svc.db.Model(&models.PasswordReset{}).Where("email = ?", email).Count(&count)
+	if count != 1 {
+		t.Fatalf("reset token should remain after canceled context, got %d", count)
 	}
 }

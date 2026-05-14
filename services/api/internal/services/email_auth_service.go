@@ -40,8 +40,13 @@ func NewEmailAuthService(db *gorm.DB, cfg *config.Config, mailer Mailer) *EmailA
 
 // SendVerificationEmail generates a token and emails a verification link to the user.
 func (s *EmailAuthService) SendVerificationEmail(ctx context.Context, userID uuid.UUID) error {
+	db := s.db.WithContext(ctx)
+
 	var user models.User
-	if err := s.db.First(&user, "id = ?", userID).Error; err != nil {
+	if err := db.First(&user, "id = ?", userID).Error; err != nil {
+		if !errors.Is(err, gorm.ErrRecordNotFound) {
+			return err
+		}
 		return ErrUserNotFound
 	}
 	if user.EmailVerified {
@@ -57,11 +62,11 @@ func (s *EmailAuthService) SendVerificationEmail(ctx context.Context, userID uui
 	}
 
 	// Replace any existing verification token for this user
-	if err := s.db.Where("user_id = ?", userID).Delete(&models.EmailVerification{}).Error; err != nil {
+	if err := db.Where("user_id = ?", userID).Delete(&models.EmailVerification{}).Error; err != nil {
 		return err
 	}
 
-	if err := s.db.Create(&models.EmailVerification{
+	if err := db.Create(&models.EmailVerification{
 		UserID:    userID,
 		TokenHash: hashToken(rawToken),
 		ExpiresAt: time.Now().Add(verifyTokenTTL),
@@ -75,19 +80,23 @@ func (s *EmailAuthService) SendVerificationEmail(ctx context.Context, userID uui
 }
 
 // VerifyEmail marks the user's email as verified using a raw token.
-func (s *EmailAuthService) VerifyEmail(rawToken string) error {
+func (s *EmailAuthService) VerifyEmail(ctx context.Context, rawToken string) error {
+	db := s.db.WithContext(ctx)
 	hash := hashToken(rawToken)
 
 	var record models.EmailVerification
-	if err := s.db.Where("token_hash = ?", hash).First(&record).Error; err != nil {
+	if err := db.Where("token_hash = ?", hash).First(&record).Error; err != nil {
+		if !errors.Is(err, gorm.ErrRecordNotFound) {
+			return err
+		}
 		return ErrInvalidVerifyToken
 	}
 	if record.IsExpired() {
-		s.db.Delete(&record)
+		db.Delete(&record)
 		return ErrInvalidVerifyToken
 	}
 
-	return s.db.Transaction(func(tx *gorm.DB) error {
+	return db.Transaction(func(tx *gorm.DB) error {
 		if err := tx.Model(&models.User{}).Where("id = ?", record.UserID).
 			Update("email_verified", true).Error; err != nil {
 			return err
@@ -104,8 +113,10 @@ func (s *EmailAuthService) VerifyEmail(rawToken string) error {
 // ForgotPassword sends a password reset link to the given email.
 // Returns nil even when the email is not found to avoid user enumeration.
 func (s *EmailAuthService) ForgotPassword(ctx context.Context, email string) error {
+	db := s.db.WithContext(ctx)
+
 	var user models.User
-	if err := s.db.Where("email = ?", email).First(&user).Error; err != nil {
+	if err := db.Where("email = ?", email).First(&user).Error; err != nil {
 		if errors.Is(err, gorm.ErrRecordNotFound) {
 			// Do not reveal whether the email exists (anti-enumeration)
 			return nil
@@ -119,11 +130,11 @@ func (s *EmailAuthService) ForgotPassword(ctx context.Context, email string) err
 	}
 
 	// Replace any existing reset token for this email
-	if err := s.db.Where("email = ?", email).Delete(&models.PasswordReset{}).Error; err != nil {
+	if err := db.Where("email = ?", email).Delete(&models.PasswordReset{}).Error; err != nil {
 		return err
 	}
 
-	if err := s.db.Create(&models.PasswordReset{
+	if err := db.Create(&models.PasswordReset{
 		Email:     email,
 		TokenHash: hashToken(rawToken),
 		ExpiresAt: time.Now().Add(resetTokenTTL),
@@ -140,15 +151,19 @@ func (s *EmailAuthService) ForgotPassword(ctx context.Context, email string) err
 }
 
 // ResetPassword validates the token and updates the user's password.
-func (s *EmailAuthService) ResetPassword(rawToken, newPassword string) error {
+func (s *EmailAuthService) ResetPassword(ctx context.Context, rawToken, newPassword string) error {
+	db := s.db.WithContext(ctx)
 	hash := hashToken(rawToken)
 
 	var record models.PasswordReset
-	if err := s.db.Where("token_hash = ?", hash).First(&record).Error; err != nil {
+	if err := db.Where("token_hash = ?", hash).First(&record).Error; err != nil {
+		if !errors.Is(err, gorm.ErrRecordNotFound) {
+			return err
+		}
 		return ErrInvalidResetToken
 	}
 	if record.IsExpired() {
-		s.db.Delete(&record)
+		db.Delete(&record)
 		return ErrInvalidResetToken
 	}
 
@@ -157,7 +172,7 @@ func (s *EmailAuthService) ResetPassword(rawToken, newPassword string) error {
 		return err
 	}
 
-	return s.db.Transaction(func(tx *gorm.DB) error {
+	return db.Transaction(func(tx *gorm.DB) error {
 		if err := tx.Model(&models.User{}).Where("email = ?", record.Email).
 			Update("password_hash", string(hashed)).Error; err != nil {
 			return err

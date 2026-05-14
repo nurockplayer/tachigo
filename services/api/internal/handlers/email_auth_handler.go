@@ -64,7 +64,7 @@ func (h *EmailAuthHandler) ConfirmVerification(c *gin.Context) {
 		return
 	}
 
-	if err := h.emailAuth.VerifyEmail(body.Token); err != nil {
+	if err := h.emailAuth.VerifyEmail(c.Request.Context(), body.Token); err != nil {
 		switch err {
 		case services.ErrInvalidVerifyToken:
 			badRequest(c, "invalid or expired verification token")
@@ -124,7 +124,7 @@ func (h *EmailAuthHandler) ResetPassword(c *gin.Context) {
 		return
 	}
 
-	if err := h.emailAuth.ResetPassword(body.Token, body.NewPassword); err != nil {
+	if err := h.emailAuth.ResetPassword(c.Request.Context(), body.Token, body.NewPassword); err != nil {
 		switch err {
 		case services.ErrInvalidResetToken:
 			badRequest(c, "invalid or expired reset token")
