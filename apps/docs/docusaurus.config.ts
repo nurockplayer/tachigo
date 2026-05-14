@@ -28,17 +28,8 @@ const config: Config = {
     },
   },
 
-  themes: ['@docusaurus/theme-mermaid'],
-  plugins: [
-    [
-      frontmatterValidatorPlugin,
-      {
-        include: ['**/*.md'],
-      },
-    ],
-  ],
-
-  plugins: [
+  themes: [
+    '@docusaurus/theme-mermaid',
     [
       '@easyops-cn/docusaurus-search-local',
       {
@@ -49,6 +40,14 @@ const config: Config = {
         hashed: true,
         highlightSearchTermsOnTargetPage: true,
         searchResultLimits: 50,
+      },
+    ],
+  ],
+  plugins: [
+    [
+      frontmatterValidatorPlugin,
+      {
+        include: ['**/*.md'],
       },
     ],
   ],
