@@ -134,3 +134,19 @@ reverse_index_scope: [services/api/internal/watchtime, services/api/internal/poi
     'services/api/internal/points',
   ])
 })
+
+test('frontmatter parser strips yaml inline comments from reverse index controls', () => {
+  const frontmatter = parseFrontmatter(`---
+reverse_index_mode: explicit_only # broad-scope opt-out
+code_areas: [services/api, apps/extension] # source map scope
+reverse_index_scope:
+  - services/api/internal/watchtime # focused inference
+---
+
+# Inline comments
+`)
+
+  assert.equal(frontmatter.reverse_index_mode, 'explicit_only')
+  assert.deepEqual(frontmatter.code_areas, ['services/api', 'apps/extension'])
+  assert.deepEqual(frontmatter.reverse_index_scope, ['services/api/internal/watchtime'])
+})

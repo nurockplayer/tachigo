@@ -302,9 +302,9 @@ export function parseFrontmatter(source: string): DocFrontmatter {
     if (key === 'title') {
       frontmatter.title = rawValue.trim()
     } else if (key === 'reverse_index_mode') {
-      frontmatter.reverse_index_mode = rawValue.trim() as ReverseIndexMode
+      frontmatter.reverse_index_mode = stripYamlInlineComment(rawValue).trim() as ReverseIndexMode
     } else if (key === 'code_areas' || key === 'reverse_index_scope') {
-      const inlineValues = parseInlineArray(rawValue)
+      const inlineValues = parseInlineArray(stripYamlInlineComment(rawValue))
 
       if (inlineValues) {
         if (key === 'code_areas') {
@@ -326,7 +326,7 @@ export function parseFrontmatter(source: string): DocFrontmatter {
           break
         }
 
-        values.push(item[1].trim())
+        values.push(stripYamlInlineComment(item[1]).trim())
         cursor += 1
       }
 
@@ -341,6 +341,10 @@ export function parseFrontmatter(source: string): DocFrontmatter {
   }
 
   return frontmatter
+}
+
+function stripYamlInlineComment(value: string): string {
+  return value.replace(/\s+#.*$/, '')
 }
 
 function parseInlineArray(rawValue: string): string[] | undefined {
