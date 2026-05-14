@@ -129,6 +129,12 @@ export function resolveRelatedLinksData(options: {
       continue
     }
 
+    const weight = Number.isFinite(matchingDoc.weight) ? matchingDoc.weight : 0
+
+    if (weight < 0.5) {
+      continue
+    }
+
     if (authoritative.implementedIn.includes(entry.pr)) {
       continue
     }
@@ -137,7 +143,7 @@ export function resolveRelatedLinksData(options: {
       pr: entry.pr,
       title: entry.title,
       mergedAt: entry.mergedAt,
-      weight: matchingDoc.weight,
+      weight,
       reasons: matchingDoc.reasons,
     })
   }

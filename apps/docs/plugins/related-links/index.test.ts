@@ -110,6 +110,23 @@ test('resolved related links keep authoritative and inferred PRs separate', () =
             },
           ],
         },
+        711: {
+          pr: 711,
+          title: 'Below-threshold match should stay hidden',
+          mergedAt: '2026-05-15T09:00:00Z',
+          docs: [
+            {
+              path: 'docs/watch-to-points-design.md',
+              title: 'Below-threshold match should stay hidden',
+              mergedAt: '2026-05-15T09:00:00Z',
+              additions: 8,
+              deletions: 1,
+              weight: 0.49,
+              reasons: ['changedFiles:services/api/internal/low-signal'],
+              paths: ['services/api/internal/low-signal/example.go'],
+            },
+          ],
+        },
       },
     },
   })
