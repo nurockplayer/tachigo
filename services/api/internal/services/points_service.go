@@ -1,6 +1,7 @@
 package services
 
 import (
+	"context"
 	"errors"
 	"fmt"
 	"time"
@@ -54,6 +55,13 @@ type PointsService struct {
 
 func NewPointsService(db *gorm.DB, watchSvc *WatchService) *PointsService {
 	return &PointsService{db: db, watchSvc: watchSvc}
+}
+
+func (s *PointsService) dbWithContext(ctx context.Context) *gorm.DB {
+	if ctx == nil {
+		ctx = context.Background()
+	}
+	return s.db.WithContext(ctx)
 }
 
 // GetBalance wraps WatchService.GetBalance and returns a PointsBalance struct.
@@ -297,7 +305,11 @@ func (s *PointsService) addBroadcastTime(db *gorm.DB, channelID string, seconds 
 // AddHeartbeatTime atomically accumulates viewer watch time and broadcaster
 // broadcast time for a single heartbeat delta.
 func (s *PointsService) AddHeartbeatTime(userID uuid.UUID, channelID string, seconds int64) error {
-	return s.db.Transaction(func(tx *gorm.DB) error {
+	return s.AddHeartbeatTimeContext(context.Background(), userID, channelID, seconds)
+}
+
+func (s *PointsService) AddHeartbeatTimeContext(ctx context.Context, userID uuid.UUID, channelID string, seconds int64) error {
+	return s.dbWithContext(ctx).Transaction(func(tx *gorm.DB) error {
 		if err := s.addWatchTime(tx, userID, channelID, seconds); err != nil {
 			return err
 		}

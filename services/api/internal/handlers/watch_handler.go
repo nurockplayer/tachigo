@@ -1,6 +1,7 @@
 package handlers
 
 import (
+	"context"
 	"errors"
 	"net/http"
 
@@ -12,7 +13,7 @@ import (
 )
 
 type watchPointsService interface {
-	AddHeartbeatTime(userID uuid.UUID, channelID string, seconds int64) error
+	AddHeartbeatTimeContext(ctx context.Context, userID uuid.UUID, channelID string, seconds int64) error
 }
 
 type WatchHandler struct {
@@ -42,7 +43,7 @@ func (h *WatchHandler) StartSession(c *gin.Context) {
 		return
 	}
 
-	session, err := h.watchSvc.StartSession(userID, body.ChannelID)
+	session, err := h.watchSvc.StartSessionContext(c.Request.Context(), userID, body.ChannelID)
 	if err != nil {
 		internal(c)
 		return
@@ -64,7 +65,7 @@ func (h *WatchHandler) Heartbeat(c *gin.Context) {
 		return
 	}
 
-	result, err := h.watchSvc.Heartbeat(userID, body.ChannelID)
+	result, err := h.watchSvc.HeartbeatContext(c.Request.Context(), userID, body.ChannelID)
 	if err != nil {
 		if errors.Is(err, services.ErrNoActiveSession) {
 			badRequest(c, "no active session")
@@ -75,7 +76,7 @@ func (h *WatchHandler) Heartbeat(c *gin.Context) {
 	}
 
 	if result.DeltaSeconds > 0 {
-		if err := h.pointsSvc.AddHeartbeatTime(userID, body.ChannelID, result.DeltaSeconds); err != nil {
+		if err := h.pointsSvc.AddHeartbeatTimeContext(c.Request.Context(), userID, body.ChannelID, result.DeltaSeconds); err != nil {
 			internal(c)
 			return
 		}
@@ -101,7 +102,7 @@ func (h *WatchHandler) EndSession(c *gin.Context) {
 		return
 	}
 
-	if err := h.watchSvc.EndSession(userID, body.ChannelID); err != nil {
+	if err := h.watchSvc.EndSessionContext(c.Request.Context(), userID, body.ChannelID); err != nil {
 		internal(c)
 		return
 	}
@@ -122,7 +123,7 @@ func (h *WatchHandler) Click(c *gin.Context) {
 		return
 	}
 
-	result, err := h.watchSvc.RecordClick(userID, body.ChannelID)
+	result, err := h.watchSvc.RecordClickContext(c.Request.Context(), userID, body.ChannelID)
 	if err != nil {
 		if errors.Is(err, services.ErrNoActiveSession) {
 			badRequest(c, "no active session")
@@ -160,7 +161,7 @@ func (h *WatchHandler) GetBalance(c *gin.Context) {
 		return
 	}
 
-	spendable, cumulative, err := h.watchSvc.GetBalance(userID, channelID)
+	spendable, cumulative, err := h.watchSvc.GetBalanceContext(c.Request.Context(), userID, channelID)
 	if err != nil {
 		internal(c)
 		return
