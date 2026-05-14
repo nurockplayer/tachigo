@@ -1,6 +1,7 @@
 package services
 
 import (
+	"context"
 	"errors"
 	"strings"
 	"unicode/utf8"
@@ -26,13 +27,25 @@ func NewAgencyService(db *gorm.DB) *AgencyService {
 	return &AgencyService{db: db}
 }
 
+func (s *AgencyService) dbWithContext(ctx context.Context) *gorm.DB {
+	if ctx == nil {
+		ctx = context.Background()
+	}
+	return s.db.WithContext(ctx)
+}
+
 func (s *AgencyService) Create(name, email string) (*models.User, error) {
+	return s.CreateContext(context.Background(), name, email)
+}
+
+func (s *AgencyService) CreateContext(ctx context.Context, name, email string) (*models.User, error) {
+	db := s.dbWithContext(ctx)
 	if utf8.RuneCountInString(name) > 50 {
 		return nil, ErrAgencyNameTooLong
 	}
 
 	var count int64
-	if err := s.db.Model(&models.User{}).Where("email = ?", email).Count(&count).Error; err != nil {
+	if err := db.Model(&models.User{}).Where("email = ?", email).Count(&count).Error; err != nil {
 		return nil, err
 	}
 	if count > 0 {
@@ -40,7 +53,7 @@ func (s *AgencyService) Create(name, email string) (*models.User, error) {
 	}
 
 	count = 0
-	if err := s.db.Model(&models.User{}).Where("username = ?", name).Count(&count).Error; err != nil {
+	if err := db.Model(&models.User{}).Where("username = ?", name).Count(&count).Error; err != nil {
 		return nil, err
 	}
 	if count > 0 {
@@ -57,7 +70,7 @@ func (s *AgencyService) Create(name, email string) (*models.User, error) {
 
 	// Wrap user + email auth_provider in one transaction so we never end up
 	// with a users row but no auth_providers row (or vice-versa).
-	if err := s.db.Transaction(func(tx *gorm.DB) error {
+	if err := db.Transaction(func(tx *gorm.DB) error {
 		if err := tx.Create(user).Error; err != nil {
 			return err
 		}
@@ -88,11 +101,15 @@ func (s *AgencyService) Create(name, email string) (*models.User, error) {
 }
 
 func (s *AgencyService) UpdateSettings(agencyID uuid.UUID, name string) error {
+	return s.UpdateSettingsContext(context.Background(), agencyID, name)
+}
+
+func (s *AgencyService) UpdateSettingsContext(ctx context.Context, agencyID uuid.UUID, name string) error {
 	if utf8.RuneCountInString(name) > 50 {
 		return ErrAgencyNameTooLong
 	}
 
-	res := s.db.Model(&models.User{}).
+	res := s.dbWithContext(ctx).Model(&models.User{}).
 		Where("id = ? AND role = ?", agencyID, models.RoleAgency).
 		Update("username", name)
 	if res.Error != nil {
@@ -115,8 +132,12 @@ func (s *AgencyService) UpdateSettings(agencyID uuid.UUID, name string) error {
 // onboardingComplete is true when the agency has set a password (PasswordHash IS NOT NULL).
 // Returns ErrAgencyNotFound if no user with the given id and role=agency exists.
 func (s *AgencyService) GetByID(id uuid.UUID) (*models.User, bool, error) {
+	return s.GetByIDContext(context.Background(), id)
+}
+
+func (s *AgencyService) GetByIDContext(ctx context.Context, id uuid.UUID) (*models.User, bool, error) {
 	var user models.User
-	if err := s.db.Where("id = ? AND role = ?", id, models.RoleAgency).First(&user).Error; err != nil {
+	if err := s.dbWithContext(ctx).Where("id = ? AND role = ?", id, models.RoleAgency).First(&user).Error; err != nil {
 		if errors.Is(err, gorm.ErrRecordNotFound) {
 			return nil, false, ErrAgencyNotFound
 		}
@@ -126,16 +147,25 @@ func (s *AgencyService) GetByID(id uuid.UUID) (*models.User, bool, error) {
 }
 
 func (s *AgencyService) OwnsChannel(agencyUserID uuid.UUID, channelID string) (bool, error) {
+	return s.OwnsChannelContext(context.Background(), agencyUserID, channelID)
+}
+
+func (s *AgencyService) OwnsChannelContext(ctx context.Context, agencyUserID uuid.UUID, channelID string) (bool, error) {
 	var count int64
-	err := s.db.Model(&models.AgencyStreamer{}).
+	err := s.dbWithContext(ctx).Model(&models.AgencyStreamer{}).
 		Where("agency_id = ? AND channel_id = ?", agencyUserID, channelID).
 		Count(&count).Error
 	return count > 0, err
 }
 
 func (s *AgencyService) ListStreamers(agencyID uuid.UUID) ([]models.AgencyStreamer, error) {
+	return s.ListStreamersContext(context.Background(), agencyID)
+}
+
+func (s *AgencyService) ListStreamersContext(ctx context.Context, agencyID uuid.UUID) ([]models.AgencyStreamer, error) {
+	db := s.dbWithContext(ctx)
 	var streamers []models.AgencyStreamer
-	if err := s.db.
+	if err := db.
 		Where("agency_id = ?", agencyID).
 		Order("created_at ASC").
 		Find(&streamers).Error; err != nil {
@@ -143,7 +173,7 @@ func (s *AgencyService) ListStreamers(agencyID uuid.UUID) ([]models.AgencyStream
 	}
 	if len(streamers) == 0 {
 		var count int64
-		if err := s.db.Model(&models.User{}).
+		if err := db.Model(&models.User{}).
 			Where("id = ? AND role = ?", agencyID, models.RoleAgency).
 			Count(&count).Error; err != nil {
 			return nil, err
@@ -156,6 +186,10 @@ func (s *AgencyService) ListStreamers(agencyID uuid.UUID) ([]models.AgencyStream
 }
 
 func (s *AgencyService) ListStreamerUserIDs(channelIDs []string) (map[string]uuid.UUID, error) {
+	return s.ListStreamerUserIDsContext(context.Background(), channelIDs)
+}
+
+func (s *AgencyService) ListStreamerUserIDsContext(ctx context.Context, channelIDs []string) (map[string]uuid.UUID, error) {
 	type streamerUserRow struct {
 		ChannelID string
 		UserID    uuid.UUID
@@ -166,7 +200,7 @@ func (s *AgencyService) ListStreamerUserIDs(channelIDs []string) (map[string]uui
 	}
 
 	var rows []streamerUserRow
-	if err := s.db.Model(&models.Streamer{}).
+	if err := s.dbWithContext(ctx).Model(&models.Streamer{}).
 		Select("channel_id, user_id").
 		Where("channel_id IN ?", channelIDs).
 		Find(&rows).Error; err != nil {

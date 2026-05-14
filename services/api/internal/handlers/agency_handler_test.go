@@ -161,6 +161,32 @@ func seedAgencyStreamerListData(t *testing.T, db *gorm.DB, agencyID uuid.UUID) [
 	}
 }
 
+type agencyHandlerContextKey struct{}
+
+func installAgencyHandlerDBContextProbe(t *testing.T, db *gorm.DB, key, want any) func() int {
+	t.Helper()
+
+	var seen int
+	name := "test:agency_handler_db_context:" + uuid.NewString()
+	probe := func(tx *gorm.DB) {
+		if tx.Statement != nil && tx.Statement.Context != nil && tx.Statement.Context.Value(key) == want {
+			seen++
+		}
+	}
+
+	if err := db.Callback().Query().Before("gorm:query").Register(name+":query", probe); err != nil {
+		t.Fatalf("register query context probe: %v", err)
+	}
+
+	t.Cleanup(func() {
+		_ = db.Callback().Query().Remove(name + ":query")
+	})
+
+	return func() int {
+		return seen
+	}
+}
+
 func TestAgencyHandler_Get_ReturnsProfile(t *testing.T) {
 	env, r := newFullAgencyTestEnv(t)
 	agencyID := seedAgencyUser(t, env.db, "agency-get", "agency-get@example.com")
@@ -820,6 +846,26 @@ func TestAgencyHandler_ListStreamers_AdminCanQuery(t *testing.T) {
 		if streamer["user_id"] != expected[i]["user_id"] {
 			t.Fatalf("streamer %d user_id: expected %s, got %v", i, expected[i]["user_id"], streamer["user_id"])
 		}
+	}
+}
+
+func TestAgencyHandler_ListStreamers_UsesRequestContext(t *testing.T) {
+	env, r := newAgencyTestEnv(t)
+	agencyID := uuid.New()
+	seedAgencyStreamerListData(t, env.db, agencyID)
+	ctx := context.WithValue(context.Background(), agencyHandlerContextKey{}, "list-streamers")
+	seenContext := installAgencyHandlerDBContextProbe(t, env.db, agencyHandlerContextKey{}, "list-streamers")
+
+	w := httptest.NewRecorder()
+	req := httptest.NewRequestWithContext(ctx, "GET", "/api/v1/agencies/"+agencyID.String()+"/streamers", nil)
+	req.Header.Set("Authorization", "Bearer "+makeAccessToken(t, models.RoleAdmin))
+	r.ServeHTTP(w, req)
+
+	if w.Code != http.StatusOK {
+		t.Fatalf("expected 200, got %d: %s", w.Code, w.Body.String())
+	}
+	if seenContext() == 0 {
+		t.Fatal("expected ListStreamers handler to pass request context to GORM")
 	}
 }
 

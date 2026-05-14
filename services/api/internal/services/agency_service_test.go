@@ -1,6 +1,7 @@
 package services
 
 import (
+	"context"
 	"errors"
 	"strings"
 	"testing"
@@ -10,6 +11,8 @@ import (
 
 	"github.com/tachigo/tachigo/internal/models"
 )
+
+type agencyContextKey struct{}
 
 func seedAgencyStreamerRelation(t *testing.T, db *gorm.DB, agencyID uuid.UUID, channelID string) {
 	t.Helper()
@@ -75,6 +78,26 @@ func TestAgencyOwnsChannel_IsolatedByAgency(t *testing.T) {
 	}
 	if owns {
 		t.Fatal("expected other agency to not own channel")
+	}
+}
+
+func TestAgencyOwnsChannelContext_UsesRequestContext(t *testing.T) {
+	db := newTestDB(t)
+	svc := NewAgencyService(db)
+	agencyID := seedStreamerUserRow(t, db, models.RoleAgency)
+	seedAgencyStreamerRelation(t, db, agencyID, "ch_ctx_owned")
+	ctx := context.WithValue(context.Background(), agencyContextKey{}, "owns")
+	seenContext := installDBContextProbe(t, db, agencyContextKey{}, "owns")
+
+	owns, err := svc.OwnsChannelContext(ctx, agencyID, "ch_ctx_owned")
+	if err != nil {
+		t.Fatalf("owns channel context failed: %v", err)
+	}
+	if !owns {
+		t.Fatal("expected agency to own channel")
+	}
+	if seenContext() == 0 {
+		t.Fatal("expected OwnsChannelContext to pass request context to GORM")
 	}
 }
 
@@ -156,6 +179,20 @@ func TestAgencyService_Create_NameTooLong(t *testing.T) {
 	}
 }
 
+func TestAgencyService_CreateContext_UsesRequestContext(t *testing.T) {
+	db := newTestDB(t)
+	svc := NewAgencyService(db)
+	ctx := context.WithValue(context.Background(), agencyContextKey{}, "create")
+	seenContext := installDBContextProbe(t, db, agencyContextKey{}, "create")
+
+	if _, err := svc.CreateContext(ctx, "agency_ctx_create", "agency_ctx_create@example.com"); err != nil {
+		t.Fatalf("create context failed: %v", err)
+	}
+	if seenContext() == 0 {
+		t.Fatal("expected CreateContext to pass request context to GORM")
+	}
+}
+
 func TestAgencyService_Create_DuplicateEmail(t *testing.T) {
 	db := newTestDB(t)
 	svc := NewAgencyService(db)
@@ -170,6 +207,21 @@ func TestAgencyService_Create_DuplicateEmail(t *testing.T) {
 	}
 }
 
+func TestAgencyService_UpdateSettingsContext_UsesRequestContext(t *testing.T) {
+	db := newTestDB(t)
+	svc := NewAgencyService(db)
+	agencyID := seedStreamerUserRow(t, db, models.RoleAgency)
+	ctx := context.WithValue(context.Background(), agencyContextKey{}, "update")
+	seenContext := installDBContextProbe(t, db, agencyContextKey{}, "update")
+
+	if err := svc.UpdateSettingsContext(ctx, agencyID, "agency_ctx_update"); err != nil {
+		t.Fatalf("update settings context failed: %v", err)
+	}
+	if seenContext() == 0 {
+		t.Fatal("expected UpdateSettingsContext to pass request context to GORM")
+	}
+}
+
 func TestAgencyService_GetByID_NotFound(t *testing.T) {
 	db := newTestDB(t)
 	svc := NewAgencyService(db)
@@ -177,6 +229,21 @@ func TestAgencyService_GetByID_NotFound(t *testing.T) {
 	_, _, err := svc.GetByID(uuid.New())
 	if !errors.Is(err, ErrAgencyNotFound) {
 		t.Fatalf("expected ErrAgencyNotFound, got %v", err)
+	}
+}
+
+func TestAgencyService_GetByIDContext_UsesRequestContext(t *testing.T) {
+	db := newTestDB(t)
+	svc := NewAgencyService(db)
+	agencyID := seedStreamerUserRow(t, db, models.RoleAgency)
+	ctx := context.WithValue(context.Background(), agencyContextKey{}, "get")
+	seenContext := installDBContextProbe(t, db, agencyContextKey{}, "get")
+
+	if _, _, err := svc.GetByIDContext(ctx, agencyID); err != nil {
+		t.Fatalf("get by id context failed: %v", err)
+	}
+	if seenContext() == 0 {
+		t.Fatal("expected GetByIDContext to pass request context to GORM")
 	}
 }
 
@@ -247,6 +314,46 @@ func TestAgencyService_GetByID_WrongRole(t *testing.T) {
 	_, _, err := svc.GetByID(id)
 	if !errors.Is(err, ErrAgencyNotFound) {
 		t.Fatalf("expected ErrAgencyNotFound for non-agency role, got %v", err)
+	}
+}
+
+func TestAgencyService_ListStreamersContext_UsesRequestContext(t *testing.T) {
+	db := newTestDB(t)
+	svc := NewAgencyService(db)
+	agencyID := seedStreamerUserRow(t, db, models.RoleAgency)
+	seedAgencyStreamerRelation(t, db, agencyID, "ch_ctx_list")
+	ctx := context.WithValue(context.Background(), agencyContextKey{}, "list")
+	seenContext := installDBContextProbe(t, db, agencyContextKey{}, "list")
+
+	streamers, err := svc.ListStreamersContext(ctx, agencyID)
+	if err != nil {
+		t.Fatalf("list streamers context failed: %v", err)
+	}
+	if len(streamers) != 1 {
+		t.Fatalf("expected 1 streamer, got %d", len(streamers))
+	}
+	if seenContext() == 0 {
+		t.Fatal("expected ListStreamersContext to pass request context to GORM")
+	}
+}
+
+func TestAgencyService_ListStreamerUserIDsContext_UsesRequestContext(t *testing.T) {
+	db := newTestDB(t)
+	svc := NewAgencyService(db)
+	agencyID := seedStreamerUserRow(t, db, models.RoleAgency)
+	seedAgencyStreamerRelation(t, db, agencyID, "ch_ctx_user_ids")
+	ctx := context.WithValue(context.Background(), agencyContextKey{}, "user_ids")
+	seenContext := installDBContextProbe(t, db, agencyContextKey{}, "user_ids")
+
+	userIDs, err := svc.ListStreamerUserIDsContext(ctx, []string{"ch_ctx_user_ids"})
+	if err != nil {
+		t.Fatalf("list streamer user IDs context failed: %v", err)
+	}
+	if _, ok := userIDs["ch_ctx_user_ids"]; !ok {
+		t.Fatal("expected streamer user ID for channel")
+	}
+	if seenContext() == 0 {
+		t.Fatal("expected ListStreamerUserIDsContext to pass request context to GORM")
 	}
 }
 
