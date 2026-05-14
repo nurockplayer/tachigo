@@ -16,6 +16,7 @@ services/api/bin/
 .superpowers/
 .continue/
 .omc/
+.worktrees
 
 # Frontend
 apps/extension/node_modules/
