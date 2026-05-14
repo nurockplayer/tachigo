@@ -52,6 +52,11 @@ export type RelatedLinksResolvedData = {
   }>
 }
 
+export function formatLinkWeight(weight: unknown): string {
+  const normalized = Number(weight)
+  return Number.isFinite(normalized) ? normalized.toFixed(2) : '0.00'
+}
+
 function uniquePositiveNumbers(values: number[] | undefined): number[] {
   if (!values) {
     return []

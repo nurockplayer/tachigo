@@ -1,6 +1,8 @@
 import React from 'react'
 import {usePluginData} from '@docusaurus/useGlobalData'
 
+import {formatLinkWeight} from './relatedLinksData'
+
 type ReverseIndexEntry = {
   pr: number
   title: string
@@ -109,7 +111,7 @@ export default function ReverseIndexChangelog(): JSX.Element {
                 #{item.pr}
               </a>
               <span>{formatDate(item.mergedAt)}</span>
-              <span>weight {item.weight.toFixed(2)}</span>
+              <span>weight {formatLinkWeight(item.weight)}</span>
             </div>
             <h3>{item.title}</h3>
             <p>

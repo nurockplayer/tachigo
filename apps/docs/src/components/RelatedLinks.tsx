@@ -3,6 +3,7 @@ import {useDoc} from '@docusaurus/plugin-content-docs/client'
 import {usePluginData} from '@docusaurus/useGlobalData'
 
 import {
+  formatLinkWeight,
   resolveRelatedLinksData,
   type DocMetadata,
   type RelatedLinksGlobalData,
@@ -30,7 +31,8 @@ function InferredPrChip({
 }: {
   entry: RelatedLinksResolvedData['inferredPullRequests'][number]
 }): JSX.Element {
-  const title = `${entry.title} · weight ${entry.weight.toFixed(2)} · ${entry.reasons.join(', ')}`
+  const formattedWeight = formatLinkWeight(entry.weight)
+  const title = `${entry.title} · weight ${formattedWeight} · ${entry.reasons.join(', ')}`
 
   return (
     <a
@@ -41,7 +43,7 @@ function InferredPrChip({
       title={title}
     >
       #{entry.pr}
-      <span>{entry.weight.toFixed(2)}</span>
+      <span>{formattedWeight}</span>
     </a>
   )
 }

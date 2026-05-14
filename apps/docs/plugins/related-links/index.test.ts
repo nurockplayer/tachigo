@@ -2,6 +2,7 @@ import test from 'node:test'
 import assert from 'node:assert/strict'
 import {fileURLToPath} from 'node:url'
 
+import * as relatedLinksData from '../../src/components/relatedLinksData.ts'
 import {
   collectRelatedLinks,
   default as relatedLinksPlugin,
@@ -144,4 +145,11 @@ test('resolved related links keep authoritative and inferred PRs separate', () =
       reasons: ['changedFiles:services/api/internal/watchtime'],
     },
   ])
+})
+
+test('formats missing or non-number link weight without throwing', () => {
+  assert.equal(typeof relatedLinksData.formatLinkWeight, 'function')
+  assert.equal(relatedLinksData.formatLinkWeight?.(undefined), '0.00')
+  assert.equal(relatedLinksData.formatLinkWeight?.('not-a-number'), '0.00')
+  assert.equal(relatedLinksData.formatLinkWeight?.(0.625), '0.63')
 })
