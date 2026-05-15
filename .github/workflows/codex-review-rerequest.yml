@@ -1,4 +1,4 @@
-name: Auto re-request Codex review
+name: Auto re-request PR review
 
 on:
   workflow_run:
@@ -14,7 +14,7 @@ permissions:
 
 jobs:
   evaluate:
-    name: Evaluate Codex review re-request
+    name: Evaluate PR review re-request
     runs-on: ubuntu-latest
     outputs:
       has_review_requests: ${{ steps.evaluate.outputs.has_review_requests }}
@@ -27,7 +27,7 @@ jobs:
           script: |
             const owner = context.repo.owner
             const repo = context.repo.repo
-            const reviewLabel = 'needs-codex-review'
+            const reviewLabel = 'awaiting-review'
             const changesLabel = 'changes-requested'
             const targetBaseBranches = new Set(['main', 'develop'])
             async function getFullPr(pullNumber) {
@@ -82,7 +82,7 @@ jobs:
             function buildDiscordPayload(fullPr, sourceRun, reviewers) {
               const shortSha = (fullPr.head?.sha || sourceRun.head_sha || '').slice(0, 7)
               const lines = [
-                `Codex review re-requested for PR #${fullPr.number}`,
+                `PR review re-requested for PR #${fullPr.number}`,
                 `**${fullPr.title}**`,
                 fullPr.html_url,
                 `Author: ${fullPr.user?.login || 'unknown'}`,
@@ -192,7 +192,7 @@ jobs:
             core.setOutput('review_requests', JSON.stringify(reviewRequests))
 
   rerequest:
-    name: Re-request Codex review and notify Discord
+    name: Re-request PR review and notify Discord
     needs: evaluate
     if: needs.evaluate.outputs.has_review_requests == 'true'
     runs-on: ubuntu-latest
@@ -208,7 +208,7 @@ jobs:
           path: ${{ runner.temp }}/codex-review-rerequest/${{ matrix.review_request.dedup_key }}
           key: codex-review-rerequest-${{ github.repository }}-${{ matrix.review_request.dedup_key }}
 
-      - name: Re-request Codex review
+      - name: Re-request PR review
         id: rerequest-review
         if: steps.dedup-cache.outputs.cache-hit != 'true'
         uses: actions/github-script@v7

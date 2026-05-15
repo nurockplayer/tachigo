@@ -104,8 +104,8 @@ Type：`feat` / `fix` / `docs` / `chore` / `refactor` / `test`
 
 | Label | 用途 |
 |---|---|
-| `needs-codex-review` | PR 有新 commit，輪到 Codex 重新審查 |
-| `changes-requested` | Codex 已提出 blocker，輪到作者修正 |
+| `awaiting-review` | PR 等待 reviewer 審查或複查 |
+| `changes-requested` | Reviewer 已提出 blocker，輪到作者修正 |
 | `auto-ready` | Codex task draft PR 的 opt-in label；required checks 全綠後由 workflow 自動轉 ready |
 
 ## Scope 邊界

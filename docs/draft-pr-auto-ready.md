@@ -25,7 +25,7 @@ review, while auto-merge happens after approval.
 4. The auto-ready job verifies the PR is still eligible and all required checks
    in the maintained snapshot for the base branch are successful.
 5. The workflow marks the PR ready for review.
-6. The same workflow adds `needs-codex-review` and removes `changes-requested`
+6. The same workflow adds `awaiting-review` and removes `changes-requested`
    because events emitted by `GITHUB_TOKEN` do not trigger the separate
    `ready_for_review` label workflow.
 
@@ -144,7 +144,7 @@ only where the ready-for-review mutation can run.
 The ready-for-review mutation is executed with `GITHUB_TOKEN`, so the resulting
 `ready_for_review` event does not trigger `.github/workflows/codex-review-flag.yml`.
 The auto-ready paths therefore also use `issues: write` to add
-`needs-codex-review` and remove stale `changes-requested` in the same guarded
+`awaiting-review` and remove stale `changes-requested` in the same guarded
 mutation path.
 
 ## PR creation default

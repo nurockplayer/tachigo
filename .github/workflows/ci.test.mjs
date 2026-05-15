@@ -507,7 +507,7 @@ async function runCodexReviewFlagWorkflow({
     draft: false,
     head: { sha: 'head_sha' },
     updated_at: '2026-05-13T11:39:34Z',
-    labels: [{ name: 'needs-codex-review' }],
+    labels: [{ name: 'awaiting-review' }],
   }
   const baseReview = {
     user: { login: 'Erick52106' },
@@ -2571,7 +2571,7 @@ test('auto-ready workflow is opt-in for auto-ready PRs on protected base branche
   assert.match(workflow, /github\.rest\.pulls\.get/)
   assert.match(workflow, /pr\.head\?\.sha !== headSha/)
   assert.match(workflow, /targetBaseBranches\.has\(pr\.base\?\.ref\)/)
-  assert.match(workflow, /const reviewLabel = 'needs-codex-review'/)
+  assert.match(workflow, /const reviewLabel = 'awaiting-review'/)
   assert.match(workflow, /const changesLabel = 'changes-requested'/)
 })
 
@@ -2623,7 +2623,7 @@ test('auto-ready workflow uses routine logs for skipped PRs', async () => {
   assert.doesNotMatch(workflow, /core\.notice\(`Skipping PR #/)
   assert.doesNotMatch(workflow, /core\.notice\(`PR #\$\{pr\.number\} remains draft until checks pass\.`\)/)
   assert.match(workflow, /const readyMessage = markedReady \? 'marked ready for review, ' : ''/)
-  assert.match(workflow, /core\.notice\(`PR #\$\{pr\.number\} \$\{readyMessage\}armed auto-merge, and flagged for Codex review\.`\)/)
+  assert.match(workflow, /core\.notice\(`PR #\$\{pr\.number\} \$\{readyMessage\}armed auto-merge, and flagged for review\.`\)/)
 })
 
 test('CI workflow wakes auto-ready draft PRs after required CI jobs finish', async () => {
@@ -2662,7 +2662,7 @@ test('CI workflow wakes auto-ready draft PRs after required CI jobs finish', asy
   assert.match(jobBlock, /pr\.head\?\.sha !== currentHeadSha/)
   assert.match(jobBlock, /targetBaseBranches\.has\(pr\.base\?\.ref\)/)
   assert.match(jobBlock, /hasAutoReadyLabel\(pr\)/)
-  assert.match(jobBlock, /const reviewLabel = 'needs-codex-review'/)
+  assert.match(jobBlock, /const reviewLabel = 'awaiting-review'/)
   assert.match(jobBlock, /const changesLabel = 'changes-requested'/)
   assert.match(jobBlock, /github\.rest\.issues\.addLabels/)
   assert.match(jobBlock, /github\.rest\.issues\.removeLabel/)
@@ -2692,7 +2692,7 @@ test('CI auto-ready job marks ready before arming native auto-merge', async () =
   assert.deepEqual(result.graphqlCalls, ['ready', 'auto-merge'])
   assert.deepEqual(result.autoMergeMutations, [{ pullRequestId: 'PR_node_id' }])
   assert.deepEqual(result.labelsAdded, [
-    { issue_number: 472, labels: ['needs-codex-review'] },
+    { issue_number: 472, labels: ['awaiting-review'] },
   ])
   assert.deepEqual(result.labelsRemoved, [
     { issue_number: 472, name: 'changes-requested' },
@@ -2710,7 +2710,7 @@ test('CI auto-ready job retries auto-merge for already-ready auto-ready PRs', as
   assert.equal(result.mutations.length, 0)
   assert.deepEqual(result.autoMergeMutations, [{ pullRequestId: 'PR_node_id' }])
   assert.deepEqual(result.labelsAdded, [
-    { issue_number: 472, labels: ['needs-codex-review'] },
+    { issue_number: 472, labels: ['awaiting-review'] },
   ])
   assert.deepEqual(result.labelsRemoved, [
     { issue_number: 472, name: 'changes-requested' },
@@ -2779,7 +2779,7 @@ test('auto-ready workflow retries auto-merge for already-ready auto-ready PRs', 
   assert.equal(result.mutations.length, 0)
   assert.deepEqual(result.autoMergeMutations, [{ pullRequestId: 'PR_node_id' }])
   assert.deepEqual(result.labelsAdded, [
-    { issue_number: 472, labels: ['needs-codex-review'] },
+    { issue_number: 472, labels: ['awaiting-review'] },
   ])
   assert.deepEqual(result.labelsRemoved, [
     { issue_number: 472, name: 'changes-requested' },
@@ -2808,10 +2808,10 @@ test('auto-ready workflows skip native auto-merge for workflow-file PRs', async 
   assert.deepEqual(standalone.autoMergeMutations, [])
   assert.deepEqual(ci.autoMergeMutations, [])
   assert.deepEqual(standalone.labelsAdded, [
-    { issue_number: 472, labels: ['needs-codex-review'] },
+    { issue_number: 472, labels: ['awaiting-review'] },
   ])
   assert.deepEqual(ci.labelsAdded, [
-    { issue_number: 472, labels: ['needs-codex-review'] },
+    { issue_number: 472, labels: ['awaiting-review'] },
   ])
 })
 
@@ -2850,14 +2850,14 @@ test('auto-ready workflow treats skipped required checks as passing', async () =
   assert.equal(result.mutations.length, 1)
 })
 
-test('auto-ready workflow flags ready PRs for Codex review', async () => {
+test('auto-ready workflow flags ready PRs for review', async () => {
   const result = await runAutoReadyWorkflow({
     checkRuns: successfulDevelopRequiredCheckRuns(),
   })
 
   assert.equal(result.mutations.length, 1)
   assert.deepEqual(result.labelsAdded, [
-    { issue_number: 472, labels: ['needs-codex-review'] },
+    { issue_number: 472, labels: ['awaiting-review'] },
   ])
   assert.deepEqual(result.labelsRemoved, [
     { issue_number: 472, name: 'changes-requested' },
@@ -2976,18 +2976,18 @@ test('auto-ready workflow skips when check/status lookup fails', async () => {
   assert.match(result.warnings[0], /failed to fetch checks\/statuses/)
 })
 
-test('Codex review label workflow clears review labels for collaborator approvals', async () => {
+test('review label workflow clears review labels for collaborator approvals', async () => {
   const result = await runCodexReviewFlagWorkflow()
 
   assert.deepEqual(result.labelsAdded, [])
   assert.deepEqual(result.labelsRemoved, [
     { issue_number: 472, name: 'changes-requested' },
-    { issue_number: 472, name: 'needs-codex-review' },
+    { issue_number: 472, name: 'awaiting-review' },
   ])
   assert.deepEqual(result.notices, ['PR #472 cleared review-state labels after approval.'])
 })
 
-test('Codex review label workflow keeps changes requested when another trusted reviewer still blocks', async () => {
+test('review label workflow keeps changes requested when another trusted reviewer still blocks', async () => {
   const result = await runCodexReviewFlagWorkflow({
     reviewOverrides: {
       user: { login: 'reviewer-b' },
@@ -3017,18 +3017,18 @@ test('Codex review label workflow keeps changes requested when another trusted r
     { issue_number: 472, labels: ['changes-requested'] },
   ])
   assert.deepEqual(result.labelsRemoved, [
-    { issue_number: 472, name: 'needs-codex-review' },
+    { issue_number: 472, name: 'awaiting-review' },
   ])
   assert.deepEqual(result.notices, [
     'PR #472 kept changes-requested because a trusted reviewer still requests changes.',
   ])
 })
 
-test('Codex review label workflow clears changes requested when the last trusted blocker is dismissed', async () => {
+test('review label workflow clears changes requested when the last trusted blocker is dismissed', async () => {
   const result = await runCodexReviewFlagWorkflow({
     action: 'dismissed',
     prOverrides: {
-      labels: [{ name: 'needs-codex-review' }, { name: 'changes-requested' }],
+      labels: [{ name: 'awaiting-review' }, { name: 'changes-requested' }],
     },
     reviewOverrides: {
       id: 9001,
@@ -3051,21 +3051,21 @@ test('Codex review label workflow clears changes requested when the last trusted
   })
 
   assert.deepEqual(result.labelsAdded, [
-    { issue_number: 472, labels: ['needs-codex-review'] },
+    { issue_number: 472, labels: ['awaiting-review'] },
   ])
   assert.deepEqual(result.labelsRemoved, [
     { issue_number: 472, name: 'changes-requested' },
   ])
   assert.deepEqual(result.notices, [
-    'PR #472 flagged for Codex review after dismissal.',
+    'PR #472 flagged for review after dismissal.',
   ])
 })
 
-test('Codex review label workflow keeps dismissed PRs in the review queue when another trusted reviewer still blocks', async () => {
+test('review label workflow keeps dismissed PRs in the review queue when another trusted reviewer still blocks', async () => {
   const result = await runCodexReviewFlagWorkflow({
     action: 'dismissed',
     prOverrides: {
-      labels: [{ name: 'needs-codex-review' }, { name: 'changes-requested' }],
+      labels: [{ name: 'awaiting-review' }, { name: 'changes-requested' }],
     },
     reviewOverrides: {
       id: 9001,
@@ -3096,22 +3096,22 @@ test('Codex review label workflow keeps dismissed PRs in the review queue when a
   })
 
   assert.deepEqual(result.labelsAdded, [
-    { issue_number: 472, labels: ['needs-codex-review', 'changes-requested'] },
+    { issue_number: 472, labels: ['awaiting-review', 'changes-requested'] },
   ])
   assert.deepEqual(result.labelsRemoved, [])
   assert.deepEqual(result.notices, [
-    'PR #472 flagged for Codex review after dismissal; a trusted reviewer still requests changes.',
+    'PR #472 flagged for review after dismissal; a trusted reviewer still requests changes.',
   ])
 })
 
-test('Codex review label workflow clears review labels when PRs close', async () => {
+test('review label workflow clears review labels when PRs close', async () => {
   const parsedWorkflow = parseYaml(codexReviewFlagWorkflowPath)
   const result = await runCodexReviewFlagWorkflow({
     eventName: 'pull_request',
     action: 'closed',
     prOverrides: {
       state: 'closed',
-      labels: [{ name: 'needs-codex-review' }, { name: 'changes-requested' }],
+      labels: [{ name: 'awaiting-review' }, { name: 'changes-requested' }],
     },
   })
 
@@ -3119,16 +3119,16 @@ test('Codex review label workflow clears review labels when PRs close', async ()
   assert.deepEqual(result.labelsAdded, [])
   assert.deepEqual(result.labelsRemoved, [
     { issue_number: 472, name: 'changes-requested' },
-    { issue_number: 472, name: 'needs-codex-review' },
+    { issue_number: 472, name: 'awaiting-review' },
   ])
   assert.deepEqual(result.notices, ['PR #472 cleared review-state labels after close.'])
 })
 
-test('Codex review re-request workflow requests reviewer and notifies Discord', async () => {
+test('PR review re-request workflow requests reviewer and notifies Discord', async () => {
   const workflow = await readFile(codexReviewRerequestWorkflowPath, 'utf8')
   const parsedWorkflow = parseYaml(codexReviewRerequestWorkflowPath)
 
-  assert.equal(parsedWorkflow.name, 'Auto re-request Codex review')
+  assert.equal(parsedWorkflow.name, 'Auto re-request PR review')
   assert.equal(parsedWorkflow.permissions['pull-requests'], 'write')
   assert.match(workflow, /github\.rest\.pulls\.listReviews/)
   assert.match(workflow, /github\.rest\.pulls\.requestReviewers/)
