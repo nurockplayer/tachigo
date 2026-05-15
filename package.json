@@ -27,5 +27,11 @@
   "bugs": {
     "url": "https://github.com/nurockplayer/tachigo/issues"
   },
-  "homepage": "https://github.com/nurockplayer/tachigo#readme"
+  "homepage": "https://github.com/nurockplayer/tachigo#readme",
+  "pnpm": {
+    "overrides": {
+      "copy-webpack-plugin": "14.0.0",
+      "serialize-javascript": "7.0.5"
+    }
+  }
 }
