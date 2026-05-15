@@ -10,6 +10,7 @@
   "scripts": {
     "docs:start": "pnpm --filter ./apps/docs start",
     "build:docs": "pnpm --filter ./apps/docs build",
+    "build:cloudflare-pages": "pnpm --filter ./apps/docs build:cloudflare-pages",
     "build:extension": "pnpm --filter ./apps/extension build",
     "build:dashboard": "pnpm --filter ./apps/dashboard build",
     "api:types:generate": "pnpm --filter @tachigo/shared-types generate",
