@@ -37,6 +37,7 @@ apps/docs/.docusaurus/
 apps/docs/.env
 apps/docs/.env.local
 apps/docs/*.local
+apps/docs/.cache/
 
 extensions/tachigo-demo-sidepanel/node_modules/
 extensions/tachigo-demo-sidepanel/dist/
