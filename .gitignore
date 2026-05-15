@@ -51,6 +51,7 @@ node_modules/
 # Local caches
 .gocache/
 .go-build-cache/
+.wrangler/
 
 # IDE
 .vscode/
