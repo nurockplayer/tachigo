@@ -428,6 +428,8 @@ func TestTwitchLogin_WithExternalRedirectTo_ReturnsBadRequest(t *testing.T) {
 		"/%5Cevil.com",
 		"/\r\nLocation: https://evil.com",
 		"/%0d%0aLocation: https://evil.com",
+		"/path#javascript:alert(1)",
+		"/path#//evil.com",
 		"",
 		"relative/path",
 	} {
@@ -457,6 +459,7 @@ func TestTwitchLogin_WithValidRelativeRedirectTo_RedirectsToTwitch(t *testing.T)
 		t.Fatalf("want 302, got %d: %s", w.Code, w.Body.String())
 	}
 	assertOAuthStateCookieSet(t, w, http.SameSiteLaxMode, false)
+	assertOAuthRedirectCookieSet(t, w, "/claim/abc123", http.SameSiteLaxMode, false)
 }
 
 func TestTwitchLogin_WithoutRedirectTo_RedirectsToTwitch(t *testing.T) {
@@ -651,6 +654,40 @@ func assertOAuthStateCookieCleared(
 	}
 	if cookie.Secure != expectedSecure {
 		t.Fatalf("expected cleared oauth state cookie Secure %t, got %t", expectedSecure, cookie.Secure)
+	}
+}
+
+func assertOAuthRedirectCookieSet(
+	t *testing.T,
+	w *httptest.ResponseRecorder,
+	expectedValue string,
+	expectedSameSite http.SameSite,
+	expectedSecure bool,
+) {
+	t.Helper()
+
+	cookie := responseCookie(t, w, "oauth_redirect")
+	decodedValue, err := url.QueryUnescape(cookie.Value)
+	if err != nil {
+		decodedValue = cookie.Value
+	}
+	if decodedValue != expectedValue {
+		t.Fatalf("expected oauth redirect cookie value %q, got %q", expectedValue, cookie.Value)
+	}
+	if cookie.MaxAge <= 0 {
+		t.Fatalf("expected oauth redirect cookie MaxAge > 0, got %d", cookie.MaxAge)
+	}
+	if cookie.Path != "/" {
+		t.Fatalf("expected oauth redirect cookie path /, got %q", cookie.Path)
+	}
+	if !cookie.HttpOnly {
+		t.Fatal("expected oauth redirect cookie to be HttpOnly")
+	}
+	if cookie.SameSite != expectedSameSite {
+		t.Fatalf("expected oauth redirect cookie SameSite %v, got %v", expectedSameSite, cookie.SameSite)
+	}
+	if cookie.Secure != expectedSecure {
+		t.Fatalf("expected oauth redirect cookie Secure %t, got %t", expectedSecure, cookie.Secure)
 	}
 }
 

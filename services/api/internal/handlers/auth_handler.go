@@ -389,7 +389,7 @@ func isValidRedirectTo(s string) bool {
 	if err != nil || parsed.IsAbs() || parsed.Host != "" || parsed.Opaque != "" {
 		return false
 	}
-	if hasUnsafeRedirectChar(parsed.Path) || hasUnsafeRedirectChar(parsed.Fragment) {
+	if parsed.Fragment != "" || hasUnsafeRedirectChar(parsed.Path) {
 		return false
 	}
 	if parsed.RawQuery != "" {
