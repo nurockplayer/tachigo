@@ -131,7 +131,7 @@ type StatusBadgeProps = {
 
 `apps/docs/sidebars.ts` 改為 4 群組：
 
-```
+```text
 🚀 Getting Started (expanded)
   ├─ start-here
   ├─ domain-maps
@@ -184,8 +184,8 @@ type StatusBadgeProps = {
 ### PR 1：CSS 設計系統（~400-500 行）
 
 - 重寫 `apps/docs/src/css/custom.css`
-- 移除 `.tachigo-*` 系列 class（首頁 markdown 改用通用 class 或 MDX 元件）
-- 加入 `--dp-*` token、字型載入（Google Fonts: Inter + JetBrains Mono）
+- 保留 `.tachigo-*` 結構，將顏色與樣式映射到 `--dp-*`；PR 1 只允許 token remap，不移除首頁 DOM / class，以避免首頁樣式回歸
+- 加入 `--dp-*` token、字型載入（self-hosted `@fontsource/inter` + `@fontsource/jetbrains-mono`）
 - 套用全域 selector（table、h2、h3、code、blockquote、a）
 
 **驗證**：本機 `pnpm start` 跑起來，每頁逐一檢視 light/dark mode，截首頁 + Start Here + Domain Maps 三張圖。
@@ -227,8 +227,8 @@ type StatusBadgeProps = {
 
 ## 風險
 
-- **首頁 markdown 內嵌大量 `.tachigo-*` class JSX**：PR 1 移除這些 class 時可能漏改首頁 markdown，需在 PR 1 同步更新 `docs/index.md`
-- **字型載入影響 Cloudflare Pages 部署**：Google Fonts 改用 self-hosted 或保留 system font，避免外部依賴延遲。建議 PR 1 用 `@fontsource/inter` + `@fontsource/jetbrains-mono`
+- **首頁 markdown 內嵌大量 `.tachigo-*` class JSX**：PR 1 必須保留既有 class / DOM 結構，只做 token remap；若要移除 class 或重組 markup，需另拆 PR 2/PR 3 範圍
+- **字型載入影響 Cloudflare Pages 部署**：外部字型服務改用 self-hosted 或保留 system font，避免外部依賴延遲。建議 PR 1 用 `@fontsource/inter` + `@fontsource/jetbrains-mono`
 - **Dark mode 對比測試成本**：建議 PR 1 PR description 附 dark mode 截圖
 
 ## 相關 issue
