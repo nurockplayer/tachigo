@@ -129,8 +129,13 @@ body {
 .menu__link--active,
 .menu__link--active:hover {
   background: var(--dp-primary-soft);
-  color: var(--dp-primary);
+  color: var(--dp-primary-strong);
   font-weight: 600;
+}
+
+[data-theme='dark'] .menu__link--active,
+[data-theme='dark'] .menu__link--active:hover {
+  color: var(--ifm-color-primary-lighter);
 }
 
 .breadcrumbs__link,
@@ -167,10 +172,11 @@ body {
 
 .theme-doc-markdown > h1,
 article .markdown > h1 {
-  margin-bottom: 0.65rem;
+  margin-bottom: 0.75rem;
   color: var(--dp-text-primary);
-  font-size: 2.1rem;
+  font-size: 1.95rem;
   font-weight: 700;
+  letter-spacing: -0.02em;
 }
 
 .theme-doc-markdown > h2,
@@ -223,6 +229,7 @@ article table,
   border-spacing: 0;
   border-radius: var(--dp-radius-lg);
   background: var(--dp-bg-card);
+  box-shadow: var(--dp-shadow-card);
   font-size: 0.9rem;
 }
 
@@ -231,23 +238,33 @@ article table thead,
   background: var(--dp-bg-board);
 }
 
+[data-theme='dark'] article table thead,
+[data-theme='dark'] .theme-doc-markdown table thead {
+  background: rgba(76, 154, 255, 0.10);
+}
+
 article table th,
 .theme-doc-markdown table th {
-  padding: 0.65rem 0.9rem;
+  padding: 0.7rem 0.95rem;
   border: 0;
   border-bottom: 1px solid var(--dp-border);
   background: transparent;
   color: var(--dp-text-secondary);
-  font-size: 0.78rem;
-  font-weight: 600;
-  letter-spacing: 0.06em;
+  font-size: 0.76rem;
+  font-weight: 700;
+  letter-spacing: 0.07em;
   text-align: left;
   text-transform: uppercase;
 }
 
+[data-theme='dark'] article table th,
+[data-theme='dark'] .theme-doc-markdown table th {
+  color: var(--ifm-color-primary-lighter);
+}
+
 article table td,
 .theme-doc-markdown table td {
-  padding: 0.7rem 0.9rem;
+  padding: 0.7rem 0.95rem;
   border: 0;
   border-bottom: 1px solid var(--dp-border-subtle);
   background: transparent;
@@ -258,12 +275,22 @@ article table td,
 article table tbody tr,
 .theme-doc-markdown table tbody tr {
   background: transparent;
-  transition: background 100ms ease;
+  transition: background 120ms ease;
+}
+
+article table tbody tr:nth-child(even),
+.theme-doc-markdown table tbody tr:nth-child(even) {
+  background: var(--dp-bg-subtle);
+}
+
+[data-theme='dark'] article table tbody tr:nth-child(even),
+[data-theme='dark'] .theme-doc-markdown table tbody tr:nth-child(even) {
+  background: rgba(255, 255, 255, 0.02);
 }
 
 article table tbody tr:hover,
 .theme-doc-markdown table tbody tr:hover {
-  background: var(--dp-bg-subtle);
+  background: var(--dp-primary-soft);
 }
 
 article table tbody tr:last-child td,
@@ -273,12 +300,20 @@ article table tbody tr:last-child td,
 
 article :not(pre) > code,
 .theme-doc-markdown :not(pre) > code {
-  padding: 1px 5px;
+  padding: 1px 6px;
+  border: 1px solid var(--dp-border-subtle);
   border-radius: var(--dp-radius-sm);
   background: var(--dp-bg-board);
   color: var(--dp-danger);
   font-family: var(--ifm-font-family-monospace);
-  font-size: 0.9em;
+  font-size: 0.88em;
+}
+
+[data-theme='dark'] article :not(pre) > code,
+[data-theme='dark'] .theme-doc-markdown :not(pre) > code {
+  background: rgba(255, 255, 255, 0.06);
+  border-color: rgba(255, 255, 255, 0.08);
+  color: #ff9d85;
 }
 
 article pre,
