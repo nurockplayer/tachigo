@@ -5,7 +5,7 @@ set -euo pipefail
 usage() {
   cat <<'EOF'
 Usage:
-  infra/scripts/pr-metadata-check.sh --title "<pr title>" --body-file <path> [--base develop] [--head <branch>] [--repo owner/name]
+  infra/scripts/pr-metadata-check.sh --title "<pr title>" --body-file <path> [--base develop] [--head <branch>] [--repo owner/name] [--auto-ready]
 
 Checks local PR metadata against the current PR Scope Police rules before opening a PR.
 EOF
@@ -73,12 +73,21 @@ checked_item() {
   ' "$file"
 }
 
+checked_risk_classes() {
+  local file="$1"
+
+  grep -E '^[[:space:]]*-[[:space:]]*\[[xX]\][[:space:]]+R[0-4]([[:space:]]|$)' "$file" \
+    | sed -E 's/^[[:space:]]*-[[:space:]]*\[[xX]\][[:space:]]+(R[0-4]).*$/\1/' \
+    || true
+}
+
 main() {
   local title=""
   local body_file=""
   local base_branch="develop"
   local head_branch=""
   local repo=""
+  local auto_ready=0
 
   while [ "$#" -gt 0 ]; do
     case "$1" in
@@ -101,6 +110,10 @@ main() {
       --repo)
         repo="${2:-}"
         shift 2
+        ;;
+      --auto-ready)
+        auto_ready=1
+        shift
         ;;
       -h|--help)
         usage
@@ -135,6 +148,18 @@ main() {
   local failures=()
   local surface_failures=()
   [ -n "$title_prefix" ] || failures+=("PR title 必須以其中一個 prefix 開頭：$allowed_prefixes")
+
+  local risk_classes risk_class_count risk_class
+  risk_classes="$(checked_risk_classes "$body_file")"
+  risk_class_count=$(printf '%s\n' "$risk_classes" | sed '/^$/d' | wc -l | tr -d '[:space:]')
+  risk_class=$(printf '%s\n' "$risk_classes" | sed -n '1p')
+
+  if [ "$risk_class_count" -ne 1 ]; then
+    failures+=("PR body 必須剛好勾選一個 PR Risk Class（R0-R4）")
+  fi
+  if [ "$risk_class" = "R4" ] && [ "$auto_ready" -eq 1 ]; then
+    failures+=("R4 PR 不可使用 auto-ready；請移除 AUTO_READY/auto-ready label 並要求 human review")
+  fi
 
   local base_ref=""
   local head_ref="refs/heads/$head_branch"
@@ -322,7 +347,7 @@ main() {
     exit 1
   fi
 
-  echo "PR metadata check passed: title=$title_prefix base=$base_branch head=$head_branch docs_only=$docs_only"
+  echo "PR metadata check passed: title=$title_prefix base=$base_branch head=$head_branch docs_only=$docs_only risk_class=$risk_class"
 }
 
 main "$@"

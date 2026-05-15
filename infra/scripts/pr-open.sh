@@ -107,11 +107,17 @@ main() {
   local root_dir
   root_dir="$(cd "$(dirname "$0")/../.." && pwd)"
 
-  "$root_dir/infra/scripts/pr-metadata-check.sh" \
-    --title "$title" \
-    --body-file "$body_file" \
-    --base "$base_branch" \
+  local metadata_cmd=(
+    "$root_dir/infra/scripts/pr-metadata-check.sh"
+    --title "$title"
+    --body-file "$body_file"
+    --base "$base_branch"
     --head "$head_branch"
+  )
+  if [ "$auto_ready" -eq 1 ]; then
+    metadata_cmd+=(--auto-ready)
+  fi
+  "${metadata_cmd[@]}"
 
   local cmd=(gh pr create --base "$base_branch" --head "$head_branch" --title "$title" --body-file "$body_file")
   if [ "$draft" -eq 1 ] || [ "$auto_ready" -eq 1 ]; then

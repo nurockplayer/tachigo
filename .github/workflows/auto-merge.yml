@@ -25,5 +25,22 @@ jobs:
             echo "Skipping auto-merge for workflow-file PR."
             exit 0
           fi
+          pr_body=$(gh api \
+            "repos/${{ github.repository }}/pulls/${{ github.event.pull_request.number }}" \
+            --jq '.body // ""')
+          checked_risk_classes=$(printf '%s\n' "$pr_body" \
+            | grep -E '^[[:space:]]*-[[:space:]]*\[[xX]\][[:space:]]+R[0-4]([[:space:]]|$)' \
+            | sed -E 's/^[[:space:]]*-[[:space:]]*\[[xX]\][[:space:]]+(R[0-4]).*$/\1/' \
+            || true)
+          risk_class_count=$(printf '%s\n' "$checked_risk_classes" | sed '/^$/d' | wc -l | tr -d '[:space:]')
+          risk_class=$(printf '%s\n' "$checked_risk_classes" | sed -n '1p')
+          if [ "$risk_class_count" -ne 1 ]; then
+            echo "Skipping auto-merge until PR selects exactly one PR Risk Class."
+            exit 0
+          fi
+          if [ "$risk_class" = "R4" ]; then
+            echo "Skipping auto-merge for R4 PR."
+            exit 0
+          fi
           gh pr merge --auto --merge "${{ github.event.pull_request.number }}" \
             --repo "${{ github.repository }}"
