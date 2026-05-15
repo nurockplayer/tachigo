@@ -508,9 +508,23 @@ const docTemplate = `{
                     "auth"
                 ],
                 "summary": "Redirect to Twitch OAuth",
+                "parameters": [
+                    {
+                        "type": "string",
+                        "description": "Relative path to redirect after successful login (e.g. /claim/abc123)",
+                        "name": "redirect_to",
+                        "in": "query"
+                    }
+                ],
                 "responses": {
                     "302": {
                         "description": "Found"
+                    },
+                    "400": {
+                        "description": "Bad Request",
+                        "schema": {
+                            "$ref": "#/definitions/handlers.Response"
+                        }
                     }
                 }
             }
@@ -558,6 +572,9 @@ const docTemplate = `{
                                 }
                             ]
                         }
+                    },
+                    "302": {
+                        "description": "Found"
                     },
                     "400": {
                         "description": "Bad Request",

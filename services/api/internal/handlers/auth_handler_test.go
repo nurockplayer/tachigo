@@ -5,8 +5,10 @@ import (
 	"context"
 	"crypto/tls"
 	"fmt"
+	"io"
 	"net/http"
 	"net/http/httptest"
+	"net/url"
 	"strings"
 	"testing"
 	"time"
@@ -414,6 +416,115 @@ func TestOAuthCallback_ValidStateClearsStateCookieBeforeOAuthExchange(t *testing
 	assertOAuthStateCookieCleared(t, w, http.SameSiteLaxMode, false)
 }
 
+// ─── TwitchLogin redirect_to ─────────────────────────────────────────────────
+
+func TestTwitchLogin_WithExternalRedirectTo_ReturnsBadRequest(t *testing.T) {
+	for _, bad := range []string{
+		"http://evil.com",
+		"//evil.com",
+		"https://evil.com",
+		"://evil.com",
+		"/\\evil.com",
+		"/%5Cevil.com",
+		"/\r\nLocation: https://evil.com",
+		"/%0d%0aLocation: https://evil.com",
+		"/path#javascript:alert(1)",
+		"/path#//evil.com",
+		"",
+		"relative/path",
+	} {
+		t.Run(bad, func(t *testing.T) {
+			env := newTestEnv(t)
+			req := httptest.NewRequest(
+				http.MethodGet,
+				"/api/v1/auth/twitch?redirect_to="+url.QueryEscape(bad),
+				nil,
+			)
+			w := httptest.NewRecorder()
+			env.router.ServeHTTP(w, req)
+			if w.Code != http.StatusBadRequest {
+				t.Fatalf("want 400 for redirect_to=%q, got %d", bad, w.Code)
+			}
+		})
+	}
+}
+
+func TestTwitchLogin_WithValidRelativeRedirectTo_RedirectsToTwitch(t *testing.T) {
+	env := newTestEnv(t)
+	req := httptest.NewRequest(http.MethodGet, "/api/v1/auth/twitch?redirect_to=/claim/abc123", nil)
+	w := httptest.NewRecorder()
+	env.router.ServeHTTP(w, req)
+
+	if w.Code != http.StatusFound {
+		t.Fatalf("want 302, got %d: %s", w.Code, w.Body.String())
+	}
+	assertOAuthStateCookieSet(t, w, http.SameSiteLaxMode, false)
+	assertOAuthRedirectCookieSet(t, w, "/claim/abc123", http.SameSiteLaxMode, false)
+}
+
+func TestTwitchLogin_WithoutRedirectTo_RedirectsToTwitch(t *testing.T) {
+	env := newTestEnv(t)
+	req := httptest.NewRequest(http.MethodGet, "/api/v1/auth/twitch", nil)
+	w := httptest.NewRecorder()
+	env.router.ServeHTTP(w, req)
+
+	if w.Code != http.StatusFound {
+		t.Fatalf("want 302, got %d: %s", w.Code, w.Body.String())
+	}
+	assertOAuthStateCookieSet(t, w, http.SameSiteLaxMode, false)
+}
+
+func TestTwitchLogin_WithoutRedirectTo_ClearsStaleRedirectCookie(t *testing.T) {
+	env := newTestEnv(t)
+	req := httptest.NewRequest(http.MethodGet, "/api/v1/auth/twitch", nil)
+	req.AddCookie(&http.Cookie{Name: "oauth_redirect", Value: "/claim/stale", Path: "/"})
+	w := httptest.NewRecorder()
+	env.router.ServeHTTP(w, req)
+
+	if w.Code != http.StatusFound {
+		t.Fatalf("want 302, got %d: %s", w.Code, w.Body.String())
+	}
+	assertOAuthRedirectCookieCleared(t, w, http.SameSiteLaxMode, false)
+}
+
+func TestTwitchCallback_StateMismatch_ClearsRedirectCookie(t *testing.T) {
+	env := newTestEnv(t)
+	req := httptest.NewRequest(http.MethodGet, "/api/v1/auth/twitch/callback?code=code&state=wrong", nil)
+	req.AddCookie(&http.Cookie{Name: "oauth_state", Value: "expected", Path: "/"})
+	req.AddCookie(&http.Cookie{Name: "oauth_redirect", Value: "/claim/abc", Path: "/"})
+	w := httptest.NewRecorder()
+	env.router.ServeHTTP(w, req)
+
+	if w.Code != http.StatusBadRequest {
+		t.Fatalf("want 400, got %d: %s", w.Code, w.Body.String())
+	}
+	assertOAuthRedirectCookieCleared(t, w, http.SameSiteLaxMode, false)
+}
+
+func TestTwitchCallback_StaleRedirectCookie_WithoutRedirectLogin_ReturnsJSON(t *testing.T) {
+	// Regression：先前有 redirect_to 的 flow 中斷後，新的無 redirect_to TwitchLogin 必須清掉
+	// stale oauth_redirect，確保後續 callback 回傳 200 JSON 而非誤 redirect。
+	env := newTestEnvWithConfig(t, "development", "http://localhost:5174")
+	httpClient := &http.Client{Transport: mockTwitchRoundTripper{}}
+	ctx := context.WithValue(context.Background(), oauth2.HTTPClient, httpClient)
+
+	// 步驟 1：模擬 TwitchLogin without redirect_to 已清除 stale cookie（不帶 oauth_redirect）
+	state := "freshstate"
+	req := httptest.NewRequest(http.MethodGet, "/api/v1/auth/twitch/callback?code=mockcode&state="+state, nil).WithContext(ctx)
+	req.AddCookie(&http.Cookie{Name: "oauth_state", Value: state, Path: "/"})
+	// 不帶 oauth_redirect cookie（模擬 TwitchLogin 已清除）
+	w := httptest.NewRecorder()
+	env.router.ServeHTTP(w, req)
+
+	if w.Code != http.StatusOK {
+		t.Fatalf("want 200 JSON (no stale redirect), got %d: %s", w.Code, w.Body.String())
+	}
+	resp := parseBody(t, w.Body.Bytes())
+	if resp["success"] != true {
+		t.Errorf("want success: true")
+	}
+}
+
 func assertRefreshCookieSet(
 	t *testing.T,
 	w *httptest.ResponseRecorder,
@@ -546,10 +657,169 @@ func assertOAuthStateCookieCleared(
 	}
 }
 
+func assertOAuthRedirectCookieSet(
+	t *testing.T,
+	w *httptest.ResponseRecorder,
+	expectedValue string,
+	expectedSameSite http.SameSite,
+	expectedSecure bool,
+) {
+	t.Helper()
+
+	cookie := responseCookie(t, w, "oauth_redirect")
+	decodedValue, err := url.QueryUnescape(cookie.Value)
+	if err != nil {
+		decodedValue = cookie.Value
+	}
+	if decodedValue != expectedValue {
+		t.Fatalf("expected oauth redirect cookie value %q, got %q", expectedValue, cookie.Value)
+	}
+	if cookie.MaxAge <= 0 {
+		t.Fatalf("expected oauth redirect cookie MaxAge > 0, got %d", cookie.MaxAge)
+	}
+	if cookie.Path != "/" {
+		t.Fatalf("expected oauth redirect cookie path /, got %q", cookie.Path)
+	}
+	if !cookie.HttpOnly {
+		t.Fatal("expected oauth redirect cookie to be HttpOnly")
+	}
+	if cookie.SameSite != expectedSameSite {
+		t.Fatalf("expected oauth redirect cookie SameSite %v, got %v", expectedSameSite, cookie.SameSite)
+	}
+	if cookie.Secure != expectedSecure {
+		t.Fatalf("expected oauth redirect cookie Secure %t, got %t", expectedSecure, cookie.Secure)
+	}
+}
+
+func assertOAuthRedirectCookieCleared(
+	t *testing.T,
+	w *httptest.ResponseRecorder,
+	expectedSameSite http.SameSite,
+	expectedSecure bool,
+) {
+	t.Helper()
+
+	cookie := responseCookie(t, w, "oauth_redirect")
+	if cookie.Value != "" {
+		t.Fatalf("expected cleared oauth redirect cookie, got %q", cookie.Value)
+	}
+	if cookie.MaxAge >= 0 {
+		t.Fatalf("expected cleared oauth redirect cookie MaxAge < 0, got %d", cookie.MaxAge)
+	}
+	if cookie.Path != "/" {
+		t.Fatalf("expected oauth redirect cookie path /, got %q", cookie.Path)
+	}
+	if !cookie.HttpOnly {
+		t.Fatal("expected cleared oauth redirect cookie to be HttpOnly")
+	}
+	if cookie.SameSite != expectedSameSite {
+		t.Fatalf("expected cleared oauth redirect cookie SameSite %v, got %v", expectedSameSite, cookie.SameSite)
+	}
+	if cookie.Secure != expectedSecure {
+		t.Fatalf("expected cleared oauth redirect cookie Secure %t, got %t", expectedSecure, cookie.Secure)
+	}
+}
+
 type failingRoundTripper struct{}
 
 func (failingRoundTripper) RoundTrip(*http.Request) (*http.Response, error) {
 	return nil, fmt.Errorf("blocked test OAuth request")
+}
+
+// mockTwitchRoundTripper mocks the Twitch OAuth token exchange and user info endpoints.
+type mockTwitchRoundTripper struct{}
+
+func (mockTwitchRoundTripper) RoundTrip(req *http.Request) (*http.Response, error) {
+	var body string
+	switch {
+	case strings.Contains(req.URL.Host, "id.twitch.tv"):
+		body = `{"access_token":"mock-token","token_type":"bearer","expires_in":3600,"scope":""}`
+	case strings.Contains(req.URL.Host, "api.twitch.tv"):
+		body = `{"data":[{"id":"1","login":"mockuser","display_name":"Mock User","email":"mock@example.com","profile_image_url":""}]}`
+	default:
+		return nil, fmt.Errorf("unexpected OAuth request: %s", req.URL)
+	}
+	return &http.Response{
+		StatusCode: http.StatusOK,
+		Body:       io.NopCloser(strings.NewReader(body)),
+		Header:     make(http.Header),
+	}, nil
+}
+
+// ─── TwitchCallback redirect ─────────────────────────────────────────────────
+
+func TestTwitchCallback_WithRedirectCookie_Redirects(t *testing.T) {
+	env := newTestEnvWithConfig(t, "development", "http://localhost:5174")
+	httpClient := &http.Client{Transport: mockTwitchRoundTripper{}}
+	ctx := context.WithValue(context.Background(), oauth2.HTTPClient, httpClient)
+
+	state := "teststate123"
+	req := httptest.NewRequest(http.MethodGet, "/api/v1/auth/twitch/callback?code=mockcode&state="+state, nil).WithContext(ctx)
+	req.AddCookie(&http.Cookie{Name: "oauth_state", Value: state, Path: "/"})
+	req.AddCookie(&http.Cookie{Name: "oauth_redirect", Value: "/claim/abc123", Path: "/"})
+	w := httptest.NewRecorder()
+	env.router.ServeHTTP(w, req)
+
+	if w.Code != http.StatusFound {
+		t.Fatalf("want 302, got %d: %s", w.Code, w.Body.String())
+	}
+	location := w.Header().Get("Location")
+	if location != "http://localhost:5174/claim/abc123" {
+		t.Errorf("want Location http://localhost:5174/claim/abc123, got %q", location)
+	}
+}
+
+func TestTwitchCallback_WithInvalidRedirectCookie_ReturnsJSON(t *testing.T) {
+	for _, redirectCookie := range []string{
+		"//evil.com",
+		"/%5Cevil.com",
+		"/%0d%0aLocation:%20https://evil.com",
+	} {
+		t.Run(redirectCookie, func(t *testing.T) {
+			env := newTestEnvWithConfig(t, "development", "http://localhost:5174")
+			httpClient := &http.Client{Transport: mockTwitchRoundTripper{}}
+			ctx := context.WithValue(context.Background(), oauth2.HTTPClient, httpClient)
+
+			state := "teststate789"
+			req := httptest.NewRequest(http.MethodGet, "/api/v1/auth/twitch/callback?code=mockcode&state="+state, nil).WithContext(ctx)
+			req.AddCookie(&http.Cookie{Name: "oauth_state", Value: state, Path: "/"})
+			req.AddCookie(&http.Cookie{Name: "oauth_redirect", Value: redirectCookie, Path: "/"})
+			w := httptest.NewRecorder()
+			env.router.ServeHTTP(w, req)
+
+			if w.Code != http.StatusOK {
+				t.Fatalf("want 200 fallback for invalid redirect cookie, got %d: %s", w.Code, w.Body.String())
+			}
+			if location := w.Header().Get("Location"); location != "" {
+				t.Fatalf("expected no redirect Location, got %q", location)
+			}
+			resp := parseBody(t, w.Body.Bytes())
+			if resp["success"] != true {
+				t.Errorf("want success: true")
+			}
+			assertOAuthRedirectCookieCleared(t, w, http.SameSiteLaxMode, false)
+		})
+	}
+}
+
+func TestTwitchCallback_WithoutRedirectCookie_ReturnsJSON(t *testing.T) {
+	env := newTestEnv(t)
+	httpClient := &http.Client{Transport: mockTwitchRoundTripper{}}
+	ctx := context.WithValue(context.Background(), oauth2.HTTPClient, httpClient)
+
+	state := "teststate456"
+	req := httptest.NewRequest(http.MethodGet, "/api/v1/auth/twitch/callback?code=mockcode&state="+state, nil).WithContext(ctx)
+	req.AddCookie(&http.Cookie{Name: "oauth_state", Value: state, Path: "/"})
+	w := httptest.NewRecorder()
+	env.router.ServeHTTP(w, req)
+
+	if w.Code != http.StatusOK {
+		t.Fatalf("want 200, got %d: %s", w.Code, w.Body.String())
+	}
+	resp := parseBody(t, w.Body.Bytes())
+	if resp["success"] != true {
+		t.Errorf("want success: true")
+	}
 }
 
 // ─── Web3 Nonce ───────────────────────────────────────────────────────────────

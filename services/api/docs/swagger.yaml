@@ -633,11 +633,20 @@ paths:
       - auth
   /auth/twitch:
     get:
+      parameters:
+      - description: Relative path to redirect after successful login (e.g. /claim/abc123)
+        in: query
+        name: redirect_to
+        type: string
       produces:
       - application/json
       responses:
         "302":
           description: Found
+        "400":
+          description: Bad Request
+          schema:
+            $ref: '#/definitions/handlers.Response'
       summary: Redirect to Twitch OAuth
       tags:
       - auth
@@ -666,6 +675,8 @@ paths:
                 data:
                   $ref: '#/definitions/handlers.AuthResponse'
               type: object
+        "302":
+          description: Found
         "400":
           description: Bad Request
           schema:

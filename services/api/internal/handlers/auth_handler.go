@@ -22,11 +22,14 @@ import (
 )
 
 const (
-	refreshTokenCookieName = "refresh_token"
-	refreshTokenCookiePath = "/api/v1/auth"
-	oauthStateCookieName   = "oauth_state"
-	oauthStateCookiePath   = "/"
-	oauthStateCookieMaxAge = 300
+	refreshTokenCookieName    = "refresh_token"
+	refreshTokenCookiePath    = "/api/v1/auth"
+	oauthStateCookieName      = "oauth_state"
+	oauthStateCookiePath      = "/"
+	oauthStateCookieMaxAge    = 300
+	oauthRedirectCookieName   = "oauth_redirect"
+	oauthRedirectCookiePath   = "/"
+	oauthRedirectCookieMaxAge = 300
 )
 
 type AuthHandler struct {
@@ -178,9 +181,21 @@ func (h *AuthHandler) Logout(c *gin.Context) {
 // @Summary      Redirect to Twitch OAuth
 // @Tags         auth
 // @Produce      json
+// @Param        redirect_to query string false "Relative path to redirect after successful login (e.g. /claim/abc123)"
 // @Success      302
+// @Failure      400  {object}  Response
 // @Router       /auth/twitch [get]
 func (h *AuthHandler) TwitchLogin(c *gin.Context) {
+	redirectTo, hasRedirectTo := c.GetQuery("redirect_to")
+	if hasRedirectTo && !isValidRedirectTo(redirectTo) {
+		badRequest(c, "invalid redirect_to parameter")
+		return
+	}
+	if hasRedirectTo {
+		h.setOAuthRedirectCookie(c, redirectTo)
+	} else {
+		h.clearOAuthRedirectCookie(c)
+	}
 	state := oauthState()
 	h.setOAuthStateCookie(c, state)
 	c.Redirect(http.StatusFound, h.auth.TwitchAuthURL(state))
@@ -193,16 +208,20 @@ func (h *AuthHandler) TwitchLogin(c *gin.Context) {
 // @Param        code  query string true "OAuth authorization code"
 // @Param        state query string true "OAuth state"
 // @Success      200  {object}  Response{data=AuthResponse}
+// @Success      302
 // @Failure      400  {object}  Response
 // @Failure      401  {object}  Response
 // @Router       /auth/twitch/callback [get]
 func (h *AuthHandler) TwitchCallback(c *gin.Context) {
 	if err := validateOAuthState(c); err != nil {
 		h.clearOAuthStateCookie(c)
+		h.clearOAuthRedirectCookie(c)
 		badRequest(c, "invalid state parameter")
 		return
 	}
+	redirectTo, _ := c.Cookie(oauthRedirectCookieName)
 	h.clearOAuthStateCookie(c)
+	h.clearOAuthRedirectCookie(c)
 
 	code := c.Query("code")
 	user, tokens, err := h.auth.TwitchCallback(c.Request.Context(), code)
@@ -212,6 +231,10 @@ func (h *AuthHandler) TwitchCallback(c *gin.Context) {
 	}
 
 	h.setRefreshCookie(c, tokens.RefreshToken)
+	if redirectTo != "" && isValidRedirectTo(redirectTo) {
+		c.Redirect(http.StatusFound, strings.TrimRight(h.cfg.App.FrontendURL, "/")+redirectTo)
+		return
+	}
 	ok(c, gin.H{"user": user, "tokens": browserTokenPair(tokens)})
 }
 
@@ -357,6 +380,39 @@ func oauthState() string {
 	return hex.EncodeToString(b)
 }
 
+// isValidRedirectTo ensures the redirect target is a relative path, guarding against open-redirect attacks.
+func isValidRedirectTo(s string) bool {
+	if s == "" || strings.HasPrefix(s, "//") || hasUnsafeRedirectChar(s) {
+		return false
+	}
+	parsed, err := url.Parse(s)
+	if err != nil || parsed.IsAbs() || parsed.Host != "" || parsed.Opaque != "" {
+		return false
+	}
+	if parsed.Fragment != "" || hasUnsafeRedirectChar(parsed.Path) {
+		return false
+	}
+	if parsed.RawQuery != "" {
+		decodedQuery, err := url.QueryUnescape(parsed.RawQuery)
+		if err != nil || hasUnsafeRedirectChar(decodedQuery) {
+			return false
+		}
+	}
+	return strings.HasPrefix(parsed.Path, "/") && !strings.HasPrefix(parsed.Path, "//")
+}
+
+func hasUnsafeRedirectChar(s string) bool {
+	if strings.Contains(s, "\\") {
+		return true
+	}
+	for _, r := range s {
+		if r < 0x20 || r == 0x7f {
+			return true
+		}
+	}
+	return false
+}
+
 func validateOAuthState(c *gin.Context) error {
 	cookie, err := c.Cookie(oauthStateCookieName)
 	if err != nil {
@@ -388,6 +444,32 @@ func (h *AuthHandler) clearOAuthStateCookie(c *gin.Context) {
 		"",
 		-1,
 		oauthStateCookiePath,
+		"",
+		h.refreshCookieSecure(),
+		true,
+	)
+}
+
+func (h *AuthHandler) setOAuthRedirectCookie(c *gin.Context, redirectTo string) {
+	c.SetSameSite(http.SameSiteLaxMode)
+	c.SetCookie(
+		oauthRedirectCookieName,
+		redirectTo,
+		oauthRedirectCookieMaxAge,
+		oauthRedirectCookiePath,
+		"",
+		h.refreshCookieSecure(),
+		true,
+	)
+}
+
+func (h *AuthHandler) clearOAuthRedirectCookie(c *gin.Context) {
+	c.SetSameSite(http.SameSiteLaxMode)
+	c.SetCookie(
+		oauthRedirectCookieName,
+		"",
+		-1,
+		oauthRedirectCookiePath,
 		"",
 		h.refreshCookieSecure(),
 		true,
