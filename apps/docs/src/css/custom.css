@@ -1,72 +1,452 @@
+/* ============================================================
+ * Dev Portal Visual System
+ *
+ * Trello-primary + Notion accent design system for the
+ * tachigo Dev Portal. See:
+ * docs/superpowers/specs/2026-05-15-dev-portal-visual-redesign.md
+ *
+ * The --dp-* tokens are the authoritative source.
+ * Legacy --tachigo-* tokens are remapped to --dp-* values
+ * so existing homepage JSX (.tachigo-home, .tachigo-card, ...)
+ * continues to render with the new palette.
+ * ============================================================ */
+
+/* Self-hosted fonts via @fontsource (no Google Fonts CDN). */
+@import "@fontsource/inter/400.css";
+@import "@fontsource/inter/500.css";
+@import "@fontsource/inter/600.css";
+@import "@fontsource/inter/700.css";
+@import "@fontsource/jetbrains-mono/400.css";
+@import "@fontsource/jetbrains-mono/500.css";
+
+/* ============================================================
+ * Design tokens
+ * ============================================================ */
 :root {
-  --ifm-color-primary: #1f6f68;
-  --ifm-color-primary-dark: #1a5d57;
-  --ifm-color-primary-darker: #164f4a;
-  --ifm-color-primary-darkest: #103b37;
-  --ifm-color-primary-light: #2d867d;
-  --ifm-color-primary-lighter: #399a90;
-  --ifm-color-primary-lightest: #65bbb2;
-  --ifm-background-color: #f4f7f1;
-  --ifm-navbar-background-color: rgba(244, 247, 241, 0.94);
-  --ifm-font-family-base: "Avenir Next", "Segoe UI", "Noto Sans TC", sans-serif;
-  --ifm-heading-font-family: "Optima", "Avenir Next", "Noto Sans TC", sans-serif;
-  --ifm-code-font-size: 92%;
-  --tachigo-ink: #17201f;
-  --tachigo-muted: #53625f;
-  --tachigo-line: rgba(23, 32, 31, 0.16);
-  --tachigo-soft-line: rgba(23, 32, 31, 0.08);
-  --tachigo-panel: rgba(255, 255, 250, 0.9);
-  --tachigo-panel-strong: #ffffff;
-  --tachigo-field: #e7ede2;
-  --tachigo-signal: #c74235;
-  --tachigo-amber: #b77b23;
-  --tachigo-cyan: #237f92;
-  --tachigo-violet: #5f5aa2;
+  /* Brand & status colors */
+  --dp-primary: #0052cc;
+  --dp-primary-strong: #0747a6;
+  --dp-primary-soft: #deebff;
+  --dp-success: #00875a;
+  --dp-success-soft: #e3fcef;
+  --dp-warning: #ff8b00;
+  --dp-warning-soft: #fff0b3;
+  --dp-neutral: #6b778c;
+  --dp-neutral-soft: #ebecf0;
+  --dp-danger: #de350b;
+  --dp-danger-soft: #ffebe6;
+
+  /* Surfaces */
+  --dp-bg-board: #f4f5f7;
+  --dp-bg-card: #ffffff;
+  --dp-bg-subtle: #fafbfc;
+  --dp-bg-code: #172b4d;
+
+  /* Text */
+  --dp-text-primary: #172b4d;
+  --dp-text-secondary: #5e6c84;
+  --dp-text-muted: #97a0af;
+  --dp-text-inverse: #ffffff;
+
+  /* Borders */
+  --dp-border: #dfe1e6;
+  --dp-border-strong: #c1c7d0;
+  --dp-border-subtle: #ebecf0;
+
+  /* Radii */
+  --dp-radius-sm: 3px;
+  --dp-radius-md: 6px;
+  --dp-radius-lg: 8px;
+
+  /* Shadows */
+  --dp-shadow-card: 0 1px 0 rgba(9, 30, 66, 0.25);
+  --dp-shadow-card-hover: 0 4px 12px rgba(9, 30, 66, 0.15);
+
+  /* ----- Docusaurus / Infima overrides ----- */
+  --ifm-color-primary: var(--dp-primary);
+  --ifm-color-primary-dark: #0747a6;
+  --ifm-color-primary-darker: #053780;
+  --ifm-color-primary-darkest: #042c66;
+  --ifm-color-primary-light: #2684ff;
+  --ifm-color-primary-lighter: #4c9aff;
+  --ifm-color-primary-lightest: #b3d4ff;
+  --ifm-background-color: var(--dp-bg-card);
+  --ifm-background-surface-color: var(--dp-bg-board);
+  --ifm-navbar-background-color: rgba(255, 255, 255, 0.94);
+  --ifm-font-family-base: "Inter", "Noto Sans TC", system-ui, -apple-system, "Segoe UI", sans-serif;
+  --ifm-heading-font-family: "Inter", "Noto Sans TC", system-ui, -apple-system, sans-serif;
+  --ifm-font-family-monospace: "JetBrains Mono", SFMono-Regular, Menlo, Consolas, monospace;
+  --ifm-code-font-size: 88%;
+  --ifm-heading-color: var(--dp-text-primary);
+  --ifm-link-color: var(--dp-primary);
+  --ifm-link-hover-color: var(--dp-primary-strong);
+
+  /* ----- Legacy tachigo-* tokens, remapped to dp-* (do not delete) ----- */
+  --tachigo-ink: var(--dp-text-primary);
+  --tachigo-muted: var(--dp-text-secondary);
+  --tachigo-line: var(--dp-border);
+  --tachigo-soft-line: var(--dp-border-subtle);
+  --tachigo-panel: var(--dp-bg-card);
+  --tachigo-panel-strong: var(--dp-bg-card);
+  --tachigo-field: var(--dp-bg-board);
+  --tachigo-signal: var(--dp-primary);
+  --tachigo-amber: var(--dp-warning);
+  --tachigo-cyan: var(--dp-primary);
+  --tachigo-violet: #6554c0;
 }
 
-[data-theme='dark'] {
-  --ifm-color-primary: #79d5c8;
-  --ifm-color-primary-dark: #5fcabd;
-  --ifm-color-primary-darker: #4bbcaf;
-  --ifm-color-primary-darkest: #348a81;
-  --ifm-color-primary-light: #a4e3db;
-  --ifm-color-primary-lighter: #bceee8;
-  --ifm-color-primary-lightest: #ddf9f5;
-  --ifm-background-color: #101513;
-  --ifm-navbar-background-color: rgba(16, 21, 19, 0.94);
-  --tachigo-ink: #edf6f2;
-  --tachigo-muted: #aebfba;
-  --tachigo-line: rgba(237, 246, 242, 0.16);
-  --tachigo-soft-line: rgba(237, 246, 242, 0.08);
-  --tachigo-panel: rgba(21, 31, 29, 0.9);
-  --tachigo-panel-strong: #17211f;
-  --tachigo-field: #1d2a27;
-  --tachigo-signal: #ff7d6f;
-  --tachigo-amber: #e5b75d;
-  --tachigo-cyan: #6fc8d9;
-  --tachigo-violet: #ada8ff;
+[data-theme="dark"] {
+  --dp-bg-board: #0f1117;
+  --dp-bg-card: #1a1d24;
+  --dp-bg-subtle: #16181f;
+  --dp-bg-code: #0a0d12;
+  --dp-text-primary: #f4f5f7;
+  --dp-text-secondary: #b3bac5;
+  --dp-text-muted: #8993a4;
+  --dp-text-inverse: #172b4d;
+  --dp-border: #2c333d;
+  --dp-border-strong: #3d4451;
+  --dp-border-subtle: #232831;
+  --dp-primary-soft: rgba(76, 154, 255, 0.16);
+  --dp-success-soft: rgba(0, 135, 90, 0.18);
+  --dp-warning-soft: rgba(255, 139, 0, 0.18);
+  --dp-danger-soft: rgba(222, 53, 11, 0.18);
+
+  --ifm-color-primary: #4c9aff;
+  --ifm-color-primary-dark: #2684ff;
+  --ifm-color-primary-darker: #0065ff;
+  --ifm-color-primary-darkest: #0747a6;
+  --ifm-color-primary-light: #6ba4ff;
+  --ifm-color-primary-lighter: #85b8ff;
+  --ifm-color-primary-lightest: #b3d4ff;
+  --ifm-background-color: var(--dp-bg-card);
+  --ifm-background-surface-color: var(--dp-bg-board);
+  --ifm-navbar-background-color: rgba(26, 29, 36, 0.94);
+  --ifm-heading-color: var(--dp-text-primary);
+  --ifm-link-color: var(--ifm-color-primary);
+  --ifm-link-hover-color: var(--ifm-color-primary-lighter);
+}
+
+/* ============================================================
+ * Global chrome (navbar / sidebar)
+ * ============================================================ */
+html {
+  font-family: var(--ifm-font-family-base);
 }
 
 .navbar {
-  border-bottom: 1px solid var(--tachigo-line);
+  border-bottom: 1px solid var(--dp-border);
   box-shadow: none;
   backdrop-filter: blur(18px);
 }
 
+.navbar__title {
+  font-weight: 700;
+  letter-spacing: -0.01em;
+}
+
 .theme-doc-sidebar-container {
-  border-right: 1px solid var(--tachigo-line) !important;
+  border-right: 1px solid var(--dp-border) !important;
+  background: var(--dp-bg-subtle);
 }
 
-.theme-doc-markdown h1,
-.theme-doc-markdown h2,
-.theme-doc-markdown h3 {
-  letter-spacing: 0;
+.menu__link {
+  border-radius: var(--dp-radius-md);
+  font-size: 0.92rem;
+  font-weight: 500;
+  color: var(--dp-text-secondary);
+  transition: background 120ms ease, color 120ms ease;
 }
 
+.menu__link:hover {
+  background: var(--dp-bg-board);
+  color: var(--dp-text-primary);
+}
+
+.menu__link--active,
+.menu__link--active:hover {
+  background: var(--dp-primary-soft);
+  color: var(--dp-primary-strong);
+  font-weight: 600;
+}
+
+[data-theme="dark"] .menu__link--active,
+[data-theme="dark"] .menu__link--active:hover {
+  color: var(--ifm-color-primary-lighter);
+}
+
+.menu__caret::before,
+.menu__link--sublist-caret::after {
+  opacity: 0.7;
+}
+
+/* Breadcrumb chip */
+.breadcrumbs__item .breadcrumbs__link {
+  border-radius: var(--dp-radius-sm);
+  font-size: 0.82rem;
+  color: var(--dp-text-secondary);
+}
+
+.breadcrumbs__item--active .breadcrumbs__link {
+  background: var(--dp-primary-soft);
+  color: var(--dp-primary-strong);
+  font-weight: 600;
+}
+
+/* TOC */
+.table-of-contents__link {
+  color: var(--dp-text-secondary);
+}
+
+.table-of-contents__link--active,
+.table-of-contents__link:hover {
+  color: var(--dp-primary);
+  font-weight: 600;
+}
+
+/* Pagination cards */
+.pagination-nav__link {
+  border: 1px solid var(--dp-border);
+  border-radius: var(--dp-radius-lg);
+  background: var(--dp-bg-card);
+  box-shadow: var(--dp-shadow-card);
+  transition: border-color 160ms ease, transform 160ms ease, box-shadow 160ms ease;
+}
+
+.pagination-nav__link:hover {
+  border-color: var(--dp-primary);
+  transform: translateY(-1px);
+  box-shadow: var(--dp-shadow-card-hover);
+}
+
+.pagination-nav__sublabel {
+  color: var(--dp-text-muted);
+  font-size: 0.78rem;
+  text-transform: uppercase;
+  letter-spacing: 0.06em;
+}
+
+/* ============================================================
+ * Article content (inner pages)
+ * Scoped to `.markdown` direct children so homepage JSX
+ * containers (.tachigo-home/.tachigo-card) are untouched.
+ * ============================================================ */
+
+/* Headings */
+.markdown > h1 {
+  font-size: 2.1rem;
+  font-weight: 700;
+  letter-spacing: -0.02em;
+  color: var(--dp-text-primary);
+  margin-bottom: 0.6rem;
+}
+
+.markdown > h2 {
+  position: relative;
+  margin: 2.2rem 0 0.85rem;
+  padding-left: 0.9rem;
+  font-size: 1.45rem;
+  font-weight: 700;
+  letter-spacing: -0.01em;
+  color: var(--dp-text-primary);
+}
+
+.markdown > h2::before {
+  content: "";
+  position: absolute;
+  left: 0;
+  top: 0.4rem;
+  bottom: 0.4rem;
+  width: 4px;
+  border-radius: 2px;
+  background: linear-gradient(180deg, var(--dp-primary), var(--dp-success));
+}
+
+.markdown > h3 {
+  margin: 1.5rem 0 0.55rem;
+  font-size: 0.9rem;
+  font-weight: 700;
+  text-transform: uppercase;
+  letter-spacing: 0.08em;
+  color: var(--dp-text-secondary);
+}
+
+.markdown > h4 {
+  margin: 1.25rem 0 0.4rem;
+  font-size: 1.05rem;
+  font-weight: 600;
+  color: var(--dp-text-primary);
+}
+
+/* Tables — apply broadly so all inner-page tables look polished. */
+.markdown table,
 .theme-doc-markdown table {
   display: table;
   width: 100%;
+  margin: 1rem 0 1.5rem;
+  border-collapse: separate;
+  border-spacing: 0;
+  border: 1px solid var(--dp-border);
+  border-radius: var(--dp-radius-lg);
+  overflow: hidden;
+  background: var(--dp-bg-card);
+  font-size: 0.9rem;
 }
+
+.markdown table thead,
+.theme-doc-markdown table thead {
+  background: var(--dp-bg-board);
+}
+
+.markdown table thead tr,
+.theme-doc-markdown table thead tr {
+  border: none;
+  background: transparent;
+}
+
+.markdown table th,
+.theme-doc-markdown table th {
+  padding: 0.65rem 0.9rem;
+  border: none;
+  border-bottom: 1px solid var(--dp-border);
+  text-align: left;
+  font-size: 0.78rem;
+  font-weight: 600;
+  letter-spacing: 0.06em;
+  text-transform: uppercase;
+  color: var(--dp-text-secondary);
+  background: transparent;
+}
+
+.markdown table td,
+.theme-doc-markdown table td {
+  padding: 0.7rem 0.9rem;
+  border: none;
+  border-bottom: 1px solid var(--dp-border-subtle);
+  color: var(--dp-text-primary);
+  vertical-align: top;
+  background: transparent;
+}
+
+.markdown table tbody tr,
+.theme-doc-markdown table tbody tr {
+  background: transparent;
+  transition: background 100ms ease;
+}
+
+.markdown table tbody tr:nth-child(even),
+.theme-doc-markdown table tbody tr:nth-child(even) {
+  background: var(--dp-bg-subtle);
+}
+
+.markdown table tbody tr:hover,
+.theme-doc-markdown table tbody tr:hover {
+  background: var(--dp-primary-soft);
+}
+
+.markdown table tbody tr:last-child td,
+.theme-doc-markdown table tbody tr:last-child td {
+  border-bottom: none;
+}
+
+/* Inline code */
+.markdown :not(pre) > code,
+.theme-doc-markdown :not(pre) > code {
+  padding: 0.1rem 0.4rem;
+  border: 1px solid var(--dp-border-subtle);
+  border-radius: var(--dp-radius-sm);
+  background: var(--dp-bg-board);
+  color: var(--dp-danger);
+  font-family: var(--ifm-font-family-monospace);
+  font-size: 0.86em;
+}
+
+[data-theme="dark"] .markdown :not(pre) > code,
+[data-theme="dark"] .theme-doc-markdown :not(pre) > code {
+  background: rgba(255, 255, 255, 0.05);
+  color: #ff8b73;
+  border-color: var(--dp-border);
+}
+
+/* Code blocks (Docusaurus prism wrapper) */
+.theme-code-block,
+pre.prism-code,
+.theme-doc-markdown pre {
+  border-radius: var(--dp-radius-lg);
+  box-shadow: var(--dp-shadow-card);
+  font-family: var(--ifm-font-family-monospace);
+}
+
+/* Blockquote → callout */
+.markdown > blockquote,
+.theme-doc-markdown > blockquote {
+  margin: 1.25rem 0;
+  padding: 0.85rem 1.1rem;
+  border: none;
+  border-left: 4px solid var(--dp-primary);
+  border-radius: var(--dp-radius-md);
+  background: var(--dp-primary-soft);
+  color: var(--dp-text-primary);
+}
+
+.markdown > blockquote > :first-child,
+.theme-doc-markdown > blockquote > :first-child {
+  margin-top: 0;
+}
+
+.markdown > blockquote > :last-child,
+.theme-doc-markdown > blockquote > :last-child {
+  margin-bottom: 0;
+}
+
+/* Article links — dotted underline that solidifies on hover. */
+.markdown a:not(.tachigo-card):not(.tachigo-action):not(.button):not(.card),
+.theme-doc-markdown a:not(.tachigo-card):not(.tachigo-action):not(.button):not(.card) {
+  color: var(--dp-primary);
+  text-decoration: underline dotted;
+  text-decoration-thickness: 1px;
+  text-underline-offset: 3px;
+  transition: text-decoration-style 120ms ease, color 120ms ease;
+}
+
+.markdown a:not(.tachigo-card):not(.tachigo-action):not(.button):not(.card):hover,
+.theme-doc-markdown a:not(.tachigo-card):not(.tachigo-action):not(.button):not(.card):hover {
+  text-decoration-style: solid;
+  color: var(--dp-primary-strong);
+}
+
+[data-theme="dark"] .markdown a:not(.tachigo-card):not(.tachigo-action):not(.button):not(.card):hover,
+[data-theme="dark"] .theme-doc-markdown a:not(.tachigo-card):not(.tachigo-action):not(.button):not(.card):hover {
+  color: var(--ifm-color-primary-lighter);
+}
+
+/* List spacing — modest tightening so dense reference tables breathe. */
+.markdown ul,
+.markdown ol {
+  padding-left: 1.2rem;
+}
+
+.markdown li + li {
+  margin-top: 0.25rem;
+}
+
+/* Horizontal rule */
+.markdown hr,
+.theme-doc-markdown hr {
+  border: none;
+  border-top: 1px solid var(--dp-border);
+  margin: 2rem 0;
+}
+
+/* ============================================================
+ * Homepage components (.tachigo-*)
+ *
+ * Markup lives in docs/index.md as JSX. Color values are
+ * driven by the legacy --tachigo-* tokens above, which now
+ * point at --dp-* so the palette flips automatically.
+ * Hardcoded rgba()s in gradients are updated to the new
+ * Trello-blue scheme below.
+ * ============================================================ */
 
 .tachigo-home {
   width: min(100%, 1180px);
@@ -83,12 +463,12 @@
   margin: -1.2rem -0.2rem 1.4rem;
   padding: 1rem;
   border: 1px solid var(--tachigo-line);
-  border-radius: 8px;
+  border-radius: var(--dp-radius-lg);
   background:
     linear-gradient(var(--tachigo-soft-line) 1px, transparent 1px),
     linear-gradient(90deg, var(--tachigo-soft-line) 1px, transparent 1px),
-    linear-gradient(135deg, rgba(35, 127, 146, 0.14), transparent 42%),
-    linear-gradient(315deg, rgba(199, 66, 53, 0.12), transparent 38%),
+    linear-gradient(135deg, rgba(0, 82, 204, 0.12), transparent 42%),
+    linear-gradient(315deg, rgba(0, 135, 90, 0.10), transparent 38%),
     var(--tachigo-field);
   background-size: 32px 32px, 32px 32px, auto, auto, auto;
   overflow: hidden;
@@ -100,8 +480,8 @@
   pointer-events: none;
   content: "";
   background:
-    linear-gradient(90deg, transparent 0 68%, rgba(23, 32, 31, 0.08) 68% 68.2%, transparent 68.2%),
-    linear-gradient(180deg, transparent 0 18%, rgba(23, 32, 31, 0.07) 18% 18.2%, transparent 18.2%);
+    linear-gradient(90deg, transparent 0 68%, rgba(9, 30, 66, 0.07) 68% 68.2%, transparent 68.2%),
+    linear-gradient(180deg, transparent 0 18%, rgba(9, 30, 66, 0.06) 18% 18.2%, transparent 18.2%);
 }
 
 .tachigo-hero__copy,
@@ -109,8 +489,9 @@
   position: relative;
   z-index: 1;
   border: 1px solid var(--tachigo-line);
-  border-radius: 8px;
+  border-radius: var(--dp-radius-lg);
   background: var(--tachigo-panel);
+  box-shadow: var(--dp-shadow-card);
 }
 
 .tachigo-hero__copy {
@@ -124,88 +505,93 @@
 .tachigo-kicker {
   display: inline-flex;
   align-items: center;
-  min-height: 28px;
+  min-height: 26px;
   margin: 0 0 1rem;
-  padding: 0.2rem 0.55rem;
-  border: 1px solid color-mix(in srgb, var(--tachigo-signal), var(--tachigo-line) 35%);
-  border-radius: 999px;
-  color: var(--tachigo-signal);
-  font-size: 0.74rem;
-  font-weight: 800;
-  letter-spacing: 0;
+  padding: 0.2rem 0.6rem;
+  border-radius: var(--dp-radius-sm);
+  background: var(--dp-primary-soft);
+  color: var(--dp-primary-strong);
+  font-size: 0.72rem;
+  font-weight: 700;
+  letter-spacing: 0.04em;
   text-transform: uppercase;
 }
 
 .tachigo-hero h1 {
-  max-width: 9ch;
+  max-width: 12ch;
   margin: 0;
-  font-size: 4.35rem;
-  line-height: 0.96;
-  letter-spacing: 0;
+  font-size: 3.6rem;
+  line-height: 1.05;
+  letter-spacing: -0.02em;
+  color: var(--dp-text-primary);
 }
 
 .tachigo-lede {
   max-width: 38rem;
-  margin: 1.2rem 0 0;
+  margin: 1.1rem 0 0;
   color: var(--tachigo-muted);
-  font-size: 1.02rem;
-  line-height: 1.72;
+  font-size: 1rem;
+  line-height: 1.7;
 }
 
 .tachigo-status-rail {
   display: grid;
   grid-template-columns: repeat(2, minmax(0, 1fr));
-  gap: 0.5rem;
+  gap: 0.45rem;
 }
 
 .tachigo-status-rail span {
   display: inline-flex;
   align-items: center;
-  min-height: 34px;
-  padding: 0.35rem 0.55rem;
-  border: 1px solid var(--tachigo-line);
-  border-radius: 6px;
-  background: color-mix(in srgb, var(--tachigo-panel-strong), transparent 20%);
-  color: var(--tachigo-muted);
-  font-size: 0.78rem;
-  font-weight: 760;
+  min-height: 30px;
+  padding: 0.25rem 0.55rem;
+  border-radius: var(--dp-radius-sm);
+  background: var(--dp-bg-board);
+  color: var(--dp-text-secondary);
+  font-size: 0.76rem;
+  font-weight: 600;
 }
 
 .tachigo-actions {
   display: flex;
   flex-wrap: wrap;
-  gap: 0.65rem;
+  gap: 0.55rem;
 }
 
 .tachigo-action {
   display: inline-flex;
   align-items: center;
   justify-content: center;
-  min-height: 44px;
-  padding: 0.72rem 0.95rem;
-  border: 1px solid var(--tachigo-line);
-  border-radius: 6px;
-  color: var(--tachigo-ink);
-  font-weight: 780;
+  min-height: 40px;
+  padding: 0.6rem 0.95rem;
+  border: 1px solid var(--dp-border);
+  border-radius: var(--dp-radius-md);
+  background: var(--dp-bg-card);
+  color: var(--dp-text-primary);
+  font-weight: 600;
+  font-size: 0.9rem;
   line-height: 1.2;
   text-decoration: none;
-  transition: transform 160ms ease, border-color 160ms ease, background 160ms ease;
+  transition: transform 140ms ease, border-color 140ms ease, background 140ms ease, color 140ms ease;
 }
 
 .tachigo-action:hover {
-  color: var(--tachigo-ink);
   text-decoration: none;
   transform: translateY(-1px);
-  border-color: color-mix(in srgb, var(--tachigo-cyan), var(--tachigo-line) 35%);
+  border-color: var(--dp-primary);
+  color: var(--dp-primary-strong);
 }
 
 .tachigo-action--primary {
-  background: var(--tachigo-ink);
-  color: var(--ifm-background-color);
+  background: var(--dp-primary);
+  border-color: var(--dp-primary);
+  color: var(--dp-text-inverse);
 }
 
 .tachigo-action--primary:hover {
-  color: var(--ifm-background-color);
+  background: var(--dp-primary-strong);
+  border-color: var(--dp-primary-strong);
+  color: var(--dp-text-inverse);
 }
 
 .tachigo-topology {
@@ -225,16 +611,19 @@
 }
 
 .tachigo-topology__header span {
-  color: var(--tachigo-signal);
-  font-size: 0.72rem;
-  font-weight: 800;
+  color: var(--dp-primary);
+  font-size: 0.7rem;
+  font-weight: 700;
+  letter-spacing: 0.06em;
   text-transform: uppercase;
 }
 
 .tachigo-topology__header strong {
   max-width: 18rem;
   text-align: right;
-  font-size: 0.92rem;
+  font-size: 0.9rem;
+  font-weight: 600;
+  color: var(--dp-text-primary);
 }
 
 .tachigo-topology__grid {
@@ -250,8 +639,8 @@
   position: absolute;
   inset: 12% 10%;
   z-index: -1;
-  border: 1px dashed color-mix(in srgb, var(--tachigo-cyan), transparent 30%);
-  border-radius: 8px;
+  border: 1px dashed color-mix(in srgb, var(--dp-primary), transparent 65%);
+  border-radius: var(--dp-radius-lg);
   content: "";
 }
 
@@ -261,7 +650,7 @@
   height: 1px;
   z-index: -1;
   content: "";
-  background: linear-gradient(90deg, transparent, var(--tachigo-signal), var(--tachigo-cyan), transparent);
+  background: linear-gradient(90deg, transparent, var(--dp-primary), var(--dp-success), transparent);
 }
 
 .tachigo-node {
@@ -270,32 +659,34 @@
   flex-direction: column;
   justify-content: space-between;
   padding: 0.85rem;
-  border: 1px solid var(--tachigo-line);
-  border-radius: 8px;
-  background: color-mix(in srgb, var(--tachigo-panel-strong), transparent 8%);
-  box-shadow: inset 0 0 0 1px rgba(255, 255, 255, 0.04);
+  border: 1px solid var(--dp-border);
+  border-radius: var(--dp-radius-lg);
+  background: var(--dp-bg-card);
+  box-shadow: var(--dp-shadow-card);
 }
 
 .tachigo-node__tag {
   width: fit-content;
-  padding: 0.1rem 0.4rem;
-  border-radius: 999px;
-  background: var(--tachigo-field);
-  color: var(--tachigo-muted);
-  font-size: 0.68rem;
-  font-weight: 800;
+  padding: 0.1rem 0.45rem;
+  border-radius: var(--dp-radius-sm);
+  background: var(--dp-bg-board);
+  color: var(--dp-text-secondary);
+  font-size: 0.66rem;
+  font-weight: 700;
+  letter-spacing: 0.06em;
   text-transform: uppercase;
 }
 
 .tachigo-node strong {
   margin-top: 0.55rem;
   font-size: 1rem;
+  color: var(--dp-text-primary);
 }
 
 .tachigo-node span:last-child {
-  color: var(--tachigo-muted);
+  color: var(--dp-text-secondary);
   font-size: 0.78rem;
-  line-height: 1.42;
+  line-height: 1.45;
 }
 
 .tachigo-node--viewer {
@@ -306,31 +697,57 @@
 .tachigo-node--client {
   grid-column: 1;
   grid-row: 2;
-  border-color: color-mix(in srgb, var(--tachigo-violet), var(--tachigo-line) 45%);
+  border-color: color-mix(in srgb, var(--tachigo-violet), var(--dp-border) 50%);
+}
+
+.tachigo-node--client .tachigo-node__tag {
+  background: color-mix(in srgb, var(--tachigo-violet), transparent 88%);
+  color: var(--tachigo-violet);
 }
 
 .tachigo-node--api {
   grid-column: 2;
   grid-row: 2;
-  border-color: color-mix(in srgb, var(--tachigo-cyan), var(--tachigo-line) 24%);
-  background: color-mix(in srgb, var(--tachigo-cyan), var(--tachigo-panel-strong) 86%);
+  border-color: color-mix(in srgb, var(--dp-primary), var(--dp-border) 35%);
+  background: color-mix(in srgb, var(--dp-primary), var(--dp-bg-card) 92%);
+}
+
+.tachigo-node--api .tachigo-node__tag {
+  background: var(--dp-primary-soft);
+  color: var(--dp-primary-strong);
 }
 
 .tachigo-node--ledger {
   grid-column: 2;
   grid-row: 3;
+  border-color: color-mix(in srgb, var(--dp-success), var(--dp-border) 40%);
+}
+
+.tachigo-node--ledger .tachigo-node__tag {
+  background: var(--dp-success-soft);
+  color: var(--dp-success);
 }
 
 .tachigo-node--tachiya {
   grid-column: 3;
   grid-row: 2;
-  border-color: color-mix(in srgb, var(--tachigo-amber), var(--tachigo-line) 26%);
+  border-color: color-mix(in srgb, var(--dp-warning), var(--dp-border) 30%);
+}
+
+.tachigo-node--tachiya .tachigo-node__tag {
+  background: var(--dp-warning-soft);
+  color: #b86b00;
 }
 
 .tachigo-node--external {
   grid-column: 3;
   grid-row: 3;
-  border-color: color-mix(in srgb, var(--tachigo-signal), var(--tachigo-line) 36%);
+  border-color: color-mix(in srgb, var(--dp-danger), var(--dp-border) 40%);
+}
+
+.tachigo-node--external .tachigo-node__tag {
+  background: var(--dp-danger-soft);
+  color: var(--dp-danger);
 }
 
 .tachigo-route-board {
@@ -346,56 +763,64 @@
   flex-direction: column;
   justify-content: space-between;
   padding: 1rem;
-  border: 1px solid var(--tachigo-line);
-  border-radius: 8px;
-  background: var(--tachigo-panel);
-  color: var(--tachigo-ink);
+  border: 1px solid var(--dp-border);
+  border-radius: var(--dp-radius-lg);
+  background: var(--dp-bg-card);
+  color: var(--dp-text-primary);
   text-decoration: none;
-  transition: transform 160ms ease, border-color 160ms ease, background 160ms ease;
+  box-shadow: var(--dp-shadow-card);
+  transition: transform 160ms ease, border-color 160ms ease, box-shadow 160ms ease;
 }
 
 .tachigo-card--wide {
   grid-column: span 2;
   background:
-    linear-gradient(135deg, color-mix(in srgb, var(--tachigo-ink), transparent 4%), color-mix(in srgb, var(--tachigo-ink), transparent 12%));
-  color: var(--ifm-background-color);
+    linear-gradient(135deg, var(--dp-primary), var(--dp-primary-strong));
+  border-color: var(--dp-primary-strong);
+  color: var(--dp-text-inverse);
 }
 
 .tachigo-card:hover {
-  color: var(--tachigo-ink);
   text-decoration: none;
   transform: translateY(-2px);
-  border-color: color-mix(in srgb, var(--tachigo-cyan), var(--tachigo-line) 30%);
+  border-color: var(--dp-primary);
+  box-shadow: var(--dp-shadow-card-hover);
+  color: var(--dp-text-primary);
 }
 
 .tachigo-card--wide:hover {
-  color: var(--ifm-background-color);
+  color: var(--dp-text-inverse);
+  border-color: var(--dp-primary-strong);
 }
 
 .tachigo-card__eyebrow {
-  color: var(--tachigo-signal);
-  font-size: 0.72rem;
-  font-weight: 800;
+  color: var(--dp-primary);
+  font-size: 0.7rem;
+  font-weight: 700;
+  letter-spacing: 0.08em;
   text-transform: uppercase;
 }
 
 .tachigo-card--wide .tachigo-card__eyebrow {
-  color: color-mix(in srgb, var(--tachigo-amber), #ffffff 24%);
+  color: rgba(255, 255, 255, 0.85);
 }
 
 .tachigo-card h2 {
   margin: 1.2rem 0 0.55rem;
-  font-size: 1.22rem;
+  font-size: 1.2rem;
+  font-weight: 700;
+  letter-spacing: -0.01em;
+  color: inherit;
 }
 
 .tachigo-card__body {
-  color: var(--tachigo-muted);
-  font-size: 0.92rem;
+  color: var(--dp-text-secondary);
+  font-size: 0.9rem;
   line-height: 1.58;
 }
 
 .tachigo-card--wide .tachigo-card__body {
-  color: color-mix(in srgb, var(--ifm-background-color), transparent 18%);
+  color: rgba(255, 255, 255, 0.88);
 }
 
 .tachigo-flow-strip {
@@ -412,9 +837,10 @@
   align-items: stretch;
   min-height: 72px;
   padding: 0.65rem;
-  border: 1px solid var(--tachigo-line);
-  border-radius: 8px;
-  background: var(--tachigo-panel);
+  border: 1px solid var(--dp-border);
+  border-radius: var(--dp-radius-lg);
+  background: var(--dp-bg-card);
+  box-shadow: var(--dp-shadow-card);
 }
 
 .tachigo-flow span,
@@ -422,28 +848,33 @@
   display: inline-flex;
   align-items: center;
   min-height: 42px;
-  padding: 0.4rem 0.48rem;
-  border: 1px solid var(--tachigo-soft-line);
-  border-radius: 6px;
-  font-size: 0.76rem;
+  padding: 0.4rem 0.5rem;
+  border: 1px solid var(--dp-border-subtle);
+  border-radius: var(--dp-radius-sm);
+  font-size: 0.78rem;
   line-height: 1.25;
 }
 
 .tachigo-flow strong {
-  color: var(--tachigo-ink);
-  background: color-mix(in srgb, var(--tachigo-cyan), transparent 88%);
+  background: var(--dp-primary-soft);
+  border-color: color-mix(in srgb, var(--dp-primary), transparent 60%);
+  color: var(--dp-primary-strong);
+  font-weight: 600;
 }
 
 .tachigo-flow span {
-  color: var(--tachigo-muted);
+  background: var(--dp-bg-subtle);
+  color: var(--dp-text-secondary);
 }
 
 .tachigo-band {
   margin: 1.4rem 0 1.8rem;
-  padding: 1.05rem;
-  border-left: 4px solid var(--tachigo-signal);
-  background: color-mix(in srgb, var(--tachigo-panel), transparent 10%);
-  color: var(--tachigo-muted);
+  padding: 1rem 1.15rem;
+  border: 1px solid var(--dp-border);
+  border-left: 4px solid var(--dp-primary);
+  border-radius: var(--dp-radius-md);
+  background: var(--dp-bg-subtle);
+  color: var(--dp-text-secondary);
   line-height: 1.65;
 }
 
@@ -454,34 +885,51 @@
   margin: 1.2rem 0;
 }
 
-.tachigo-checklist section {
+.tachigo-checklist > section {
   padding: 1rem;
-  border: 1px solid var(--tachigo-line);
-  border-radius: 8px;
-  background: var(--tachigo-panel);
+  border: 1px solid var(--dp-border);
+  border-radius: var(--dp-radius-lg);
+  background: var(--dp-bg-card);
+  box-shadow: var(--dp-shadow-card);
 }
 
 .tachigo-checklist h2 {
-  margin-top: 0;
-  font-size: 1.05rem;
+  margin: 0 0 0.4rem;
+  padding: 0;
+  font-size: 1rem;
+  font-weight: 700;
+  color: var(--dp-text-primary);
+}
+
+.tachigo-checklist h2::before {
+  content: none;
 }
 
 .tachigo-checklist__body {
-  color: var(--tachigo-muted);
+  color: var(--dp-text-secondary);
   line-height: 1.6;
+  font-size: 0.92rem;
 }
 
 .tachigo-status {
   display: inline-flex;
   align-items: center;
-  min-height: 28px;
-  padding: 0.2rem 0.55rem;
-  border: 1px solid var(--tachigo-line);
-  border-radius: 999px;
-  color: var(--tachigo-muted);
-  font-size: 0.78rem;
-  font-weight: 760;
+  min-height: 24px;
+  padding: 0.15rem 0.55rem;
+  border-radius: var(--dp-radius-sm);
+  background: var(--dp-success-soft);
+  color: var(--dp-success);
+  font-size: 0.76rem;
+  font-weight: 600;
+  letter-spacing: 0.02em;
 }
+
+/* ============================================================
+ * Related-links / reverse-index chips (refs #695 #696)
+ * Markup lives in plugins/related-links and plugins/reverse-index.
+ * Tokens use --tachigo-* (remapped to --dp-*) so palette flips
+ * automatically with the redesign.
+ * ============================================================ */
 
 .tachigo-related-links {
   display: grid;
@@ -489,7 +937,7 @@
   margin: 2rem 0 1.2rem;
   padding: 1rem;
   border: 1px solid var(--tachigo-line);
-  border-radius: 8px;
+  border-radius: var(--dp-radius-lg);
   background: var(--tachigo-panel);
 }
 
@@ -502,7 +950,7 @@
   margin: 0;
   color: var(--tachigo-muted);
   font-size: 0.82rem;
-  font-weight: 800;
+  font-weight: 700;
 }
 
 .tachigo-related-links__chips {
@@ -522,7 +970,7 @@
   background: color-mix(in srgb, var(--tachigo-cyan), transparent 88%);
   color: var(--tachigo-ink);
   font-size: 0.84rem;
-  font-weight: 800;
+  font-weight: 600;
   line-height: 1;
   text-decoration: none;
 }
@@ -553,7 +1001,7 @@
 .tachigo-reverse-index-empty {
   padding: 0.8rem 1rem;
   border: 1px solid var(--tachigo-line);
-  border-radius: 8px;
+  border-radius: var(--dp-radius-lg);
   background: var(--tachigo-panel);
   color: var(--tachigo-muted);
 }
@@ -566,7 +1014,7 @@
 .tachigo-reverse-index__item {
   padding: 0.95rem;
   border: 1px solid var(--tachigo-line);
-  border-radius: 8px;
+  border-radius: var(--dp-radius-lg);
   background: var(--tachigo-panel);
 }
 
@@ -586,9 +1034,12 @@
   gap: 0.45rem;
   color: var(--tachigo-muted);
   font-size: 0.78rem;
-  font-weight: 760;
+  font-weight: 600;
 }
 
+/* ============================================================
+ * Responsive
+ * ============================================================ */
 @media (max-width: 1120px) {
   .tachigo-hero {
     grid-template-columns: 1fr;
@@ -596,7 +1047,7 @@
 
   .tachigo-hero h1 {
     max-width: 14ch;
-    font-size: 3.8rem;
+    font-size: 3.1rem;
   }
 
   .tachigo-route-board {
@@ -638,7 +1089,7 @@
 
   .tachigo-hero h1 {
     max-width: 12ch;
-    font-size: 2.65rem;
+    font-size: 2.4rem;
   }
 
   .tachigo-status-rail,

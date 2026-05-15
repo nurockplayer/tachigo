@@ -137,6 +137,12 @@ importers:
       '@easyops-cn/docusaurus-search-local':
         specifier: 0.55.1
         version: 0.55.1(@docusaurus/theme-common@3.10.1(@docusaurus/plugin-content-docs@3.10.1(@mdx-js/react@3.1.1(@types/react@19.2.14)(react@18.3.1))(postcss@8.5.12)(react-dom@18.3.1(react@18.3.1))(react@18.3.1)(typescript@6.0.3))(postcss@8.5.12)(react-dom@18.3.1(react@18.3.1))(react@18.3.1))(@mdx-js/react@3.1.1(@types/react@19.2.14)(react@18.3.1))(postcss@8.5.12)(react-dom@18.3.1(react@18.3.1))(react@18.3.1)(typescript@6.0.3)
+      '@fontsource/inter':
+        specifier: 5.2.5
+        version: 5.2.5
+      '@fontsource/jetbrains-mono':
+        specifier: 5.2.5
+        version: 5.2.5
       '@mdx-js/react':
         specifier: 3.1.1
         version: 3.1.1(@types/react@19.2.14)(react@18.3.1)
@@ -1587,6 +1593,12 @@ packages:
     peerDependenciesMeta:
       '@noble/hashes':
         optional: true
+
+  '@fontsource/inter@5.2.5':
+    resolution: {integrity: sha512-kbsPKj0S4p44JdYRFiW78Td8Ge2sBVxi/PIBwmih+RpSXUdvS9nbs1HIiuUSPtRMi14CqLEZ/fbk7dj7vni1Sg==}
+
+  '@fontsource/jetbrains-mono@5.2.5':
+    resolution: {integrity: sha512-TPZ9b/uq38RMdrlZZkl0RwN8Ju9JxuqMETrw76pUQFbGtE1QbwQaNsLlnUrACNNBNbd0NZRXiJJSkC8ajPgbew==}
 
   '@hapi/hoek@9.3.0':
     resolution: {integrity: sha512-/c6rf4UJlmHlC9b5BaNvzAcFv7HZ2QHaV0D4/HNlBdvFnvQq8RI4kYdhyPCl7Xj+oWvTWQ8ujhqS53LIgAe6KQ==}
@@ -9442,6 +9454,10 @@ snapshots:
       levn: 0.4.1
 
   '@exodus/bytes@1.15.0': {}
+
+  '@fontsource/inter@5.2.5': {}
+
+  '@fontsource/jetbrains-mono@5.2.5': {}
 
   '@hapi/hoek@9.3.0': {}
 
