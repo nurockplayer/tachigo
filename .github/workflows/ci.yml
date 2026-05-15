@@ -343,7 +343,7 @@ jobs:
 
       - uses: actions/setup-node@49933ea5288caeca8642d1e84afbd3f7d6820020 # v4
         with:
-          node-version: 24.14.1
+          node-version: 24.15.0
 
       - name: Verify CI workflow assertions
         run: node --test .github/workflows/ci.test.mjs
@@ -363,7 +363,7 @@ jobs:
 
       - uses: actions/setup-node@49933ea5288caeca8642d1e84afbd3f7d6820020 # v4
         with:
-          node-version: 24.14.1
+          node-version: 24.15.0
 
       - name: Verify dependency install guardrails
         run: node infra/scripts/check-supply-chain-guardrails.mjs
@@ -629,7 +629,7 @@ jobs:
 
       - uses: actions/setup-node@49933ea5288caeca8642d1e84afbd3f7d6820020 # v4
         with:
-          node-version: 24.14.1
+          node-version: 24.15.0
 
       - uses: pnpm/action-setup@f40ffcd9367d9f12939873eb1018b921a783ffaa # v4
         with:
