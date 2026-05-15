@@ -1,4 +1,4 @@
-/* Dev Portal Visual System: Trello-primary structure with Notion-like callouts. */
+/* Dev Portal Visual System: engineering console / atlas workbook. */
 @import "@fontsource/inter/400.css";
 @import "@fontsource/inter/500.css";
 @import "@fontsource/inter/600.css";
@@ -9,11 +9,11 @@
 :root {
   --dp-primary: #0052cc;
   --dp-primary-strong: #0747a6;
-  --dp-primary-soft: #deebff;
+  --dp-primary-soft: #e7f0ff;
   --dp-success: #00875a;
-  --dp-success-soft: #e3fcef;
+  --dp-success-soft: #e4f7ef;
   --dp-warning: #ff8b00;
-  --dp-warning-soft: #fff0b3;
+  --dp-warning-soft: #fff3d6;
   --dp-neutral: #6b778c;
   --dp-neutral-soft: #ebecf0;
   --dp-danger: #de350b;
@@ -31,19 +31,19 @@
   --dp-radius-sm: 3px;
   --dp-radius-md: 6px;
   --dp-radius-lg: 8px;
-  --dp-shadow-card: 0 1px 0 rgba(9, 30, 66, 0.25);
-  --dp-shadow-card-hover: 0 4px 12px rgba(9, 30, 66, 0.15);
+  --dp-shadow-card: 0 1px 0 rgba(9, 30, 66, 0.18);
+  --dp-shadow-card-hover: 0 6px 18px rgba(9, 30, 66, 0.12);
 
   --ifm-color-primary: var(--dp-primary);
   --ifm-color-primary-dark: #0747a6;
   --ifm-color-primary-darker: #053780;
   --ifm-color-primary-darkest: #042c66;
-  --ifm-color-primary-light: #2684ff;
+  --ifm-color-primary-light: #1d7afc;
   --ifm-color-primary-lighter: #4c9aff;
   --ifm-color-primary-lightest: #b3d4ff;
   --ifm-background-color: var(--dp-bg-card);
   --ifm-background-surface-color: var(--dp-bg-board);
-  --ifm-navbar-background-color: rgba(255, 255, 255, 0.94);
+  --ifm-navbar-background-color: rgba(255, 255, 255, 0.96);
   --ifm-font-family-base: "Inter", "Noto Sans TC", system-ui, sans-serif;
   --ifm-heading-font-family: "Inter", "Noto Sans TC", system-ui, sans-serif;
   --ifm-font-family-monospace: "JetBrains Mono", SFMono-Regular, Consolas, monospace;
@@ -72,18 +72,18 @@
   --dp-text-primary: #f9fafb;
   --dp-text-secondary: #9ca3af;
   --dp-text-muted: #6b7280;
-  --dp-text-inverse: #172b4d;
+  --dp-text-inverse: #ffffff;
   --dp-border: #1f2937;
   --dp-border-strong: #374151;
-  --dp-border-subtle: #1f2937;
-  --dp-primary-soft: rgba(0, 82, 204, 0.22);
+  --dp-border-subtle: #232a35;
+  --dp-primary-soft: rgba(76, 154, 255, 0.14);
   --dp-success-soft: rgba(0, 135, 90, 0.18);
-  --dp-warning-soft: rgba(255, 139, 0, 0.18);
+  --dp-warning-soft: rgba(255, 139, 0, 0.16);
   --dp-danger-soft: rgba(222, 53, 11, 0.18);
 
   --ifm-background-color: var(--dp-bg-card);
   --ifm-background-surface-color: var(--dp-bg-board);
-  --ifm-navbar-background-color: rgba(26, 29, 36, 0.94);
+  --ifm-navbar-background-color: rgba(26, 29, 36, 0.96);
   --ifm-heading-color: var(--dp-text-primary);
 }
 
@@ -99,13 +99,17 @@ body {
 .navbar {
   border-bottom: 1px solid var(--dp-border);
   box-shadow: none;
-  backdrop-filter: blur(18px);
+  backdrop-filter: blur(16px);
 }
 
 .navbar__title {
   color: var(--dp-text-primary);
   font-weight: 700;
   letter-spacing: 0;
+}
+
+.navbar__link {
+  color: var(--dp-text-primary);
 }
 
 .theme-doc-sidebar-container {
@@ -128,13 +132,14 @@ body {
 
 .menu__link--active,
 .menu__link--active:hover {
-  background: var(--dp-primary-soft);
-  color: var(--dp-primary-strong);
-  font-weight: 600;
+  background: var(--dp-neutral-soft);
+  color: var(--dp-primary);
+  font-weight: 700;
 }
 
 [data-theme='dark'] .menu__link--active,
 [data-theme='dark'] .menu__link--active:hover {
+  background: rgba(255, 255, 255, 0.05);
   color: var(--ifm-color-primary-lighter);
 }
 
@@ -147,7 +152,7 @@ body {
 .table-of-contents__link--active,
 .table-of-contents__link:hover {
   color: var(--dp-primary);
-  font-weight: 600;
+  font-weight: 700;
 }
 
 .pagination-nav__link {
@@ -172,11 +177,13 @@ body {
 
 .theme-doc-markdown > h1,
 article .markdown > h1 {
+  max-width: 18ch;
   margin-bottom: 0.75rem;
   color: var(--dp-text-primary);
-  font-size: 1.95rem;
+  font-size: clamp(2rem, 3vw, 2.85rem);
   font-weight: 700;
-  letter-spacing: -0.02em;
+  line-height: 1.08;
+  letter-spacing: 0;
 }
 
 .theme-doc-markdown > h2,
@@ -187,13 +194,14 @@ article .markdown > h2 {
   color: var(--dp-text-primary);
   font-size: 1.45rem;
   font-weight: 700;
+  line-height: 1.25;
 }
 
 .theme-doc-markdown > h2::before,
 article .markdown > h2::before {
   position: absolute;
-  top: 0.35rem;
-  bottom: 0.35rem;
+  top: 0.28rem;
+  bottom: 0.28rem;
   left: 0;
   width: 4px;
   border-radius: 2px;
@@ -240,7 +248,7 @@ article table thead,
 
 [data-theme='dark'] article table thead,
 [data-theme='dark'] .theme-doc-markdown table thead {
-  background: rgba(76, 154, 255, 0.10);
+  background: rgba(255, 255, 255, 0.04);
 }
 
 article table th,
@@ -257,14 +265,9 @@ article table th,
   text-transform: uppercase;
 }
 
-[data-theme='dark'] article table th,
-[data-theme='dark'] .theme-doc-markdown table th {
-  color: var(--ifm-color-primary-lighter);
-}
-
 article table td,
 .theme-doc-markdown table td {
-  padding: 0.7rem 0.95rem;
+  padding: 0.72rem 0.95rem;
   border: 0;
   border-bottom: 1px solid var(--dp-border-subtle);
   background: transparent;
@@ -290,7 +293,7 @@ article table tbody tr:nth-child(even),
 
 article table tbody tr:hover,
 .theme-doc-markdown table tbody tr:hover {
-  background: var(--dp-primary-soft);
+  background: var(--dp-bg-subtle);
 }
 
 article table tbody tr:last-child td,
@@ -419,98 +422,77 @@ article a:hover,
 .tachigo-hero {
   position: relative;
   display: grid;
-  grid-template-columns: minmax(0, 0.9fr) minmax(420px, 1.1fr);
-  gap: 1.2rem;
-  align-items: stretch;
-  min-height: 560px;
-  margin: -1.2rem -0.2rem 1.4rem;
-  padding: 1rem;
-  overflow: hidden;
-  border: 1px solid var(--dp-border);
-  border-radius: var(--dp-radius-lg);
-  background:
-    linear-gradient(var(--dp-border-subtle) 1px, transparent 1px),
-    linear-gradient(90deg, var(--dp-border-subtle) 1px, transparent 1px),
-    linear-gradient(135deg, color-mix(in srgb, var(--dp-primary), transparent 88%), transparent 42%),
-    linear-gradient(315deg, color-mix(in srgb, var(--dp-success), transparent 90%), transparent 38%),
-    var(--dp-bg-board);
-  background-size: 32px 32px, 32px 32px, auto, auto, auto;
+  grid-template-columns: minmax(0, 1fr);
+  gap: 1rem;
+  margin: -0.6rem 0 1.25rem;
+  padding: 0;
 }
 
 .tachigo-hero::before {
-  position: absolute;
-  inset: 0;
-  pointer-events: none;
-  background:
-    linear-gradient(90deg, transparent 0 68%, color-mix(in srgb, var(--dp-border-strong), transparent 70%) 68% 68.2%, transparent 68.2%),
-    linear-gradient(180deg, transparent 0 18%, color-mix(in srgb, var(--dp-border-strong), transparent 74%) 18% 18.2%, transparent 18.2%);
-  content: "";
+  content: none;
+}
+
+.tachigo-hero__copy {
+  display: grid;
+  gap: 1rem;
+  padding: 1.25rem 0 1rem;
+  border-bottom: 1px solid var(--dp-border);
 }
 
 .tachigo-hero__copy,
 .tachigo-topology {
   position: relative;
   z-index: 1;
-  border: 1px solid var(--dp-border);
-  border-radius: var(--dp-radius-lg);
-  background: color-mix(in srgb, var(--dp-bg-card), transparent 6%);
-  box-shadow: var(--dp-shadow-card);
-}
-
-.tachigo-hero__copy {
-  display: flex;
-  flex-direction: column;
-  justify-content: space-between;
-  gap: 1.5rem;
-  padding: 1.35rem;
 }
 
 .tachigo-kicker {
   display: inline-flex;
   align-items: center;
-  min-height: 28px;
-  margin: 0 0 1rem;
-  padding: 0.2rem 0.55rem;
-  border: 1px solid color-mix(in srgb, var(--dp-primary), var(--dp-border) 35%);
+  width: fit-content;
+  min-height: 26px;
+  margin: 0 0 0.75rem;
+  padding: 0.18rem 0.52rem;
+  border: 1px solid var(--dp-border-strong);
   border-radius: var(--dp-radius-sm);
-  background: var(--dp-primary-soft);
+  background: var(--dp-bg-card);
   color: var(--dp-primary);
-  font-size: 0.74rem;
+  font-size: 0.72rem;
   font-weight: 700;
-  letter-spacing: 0.06em;
+  letter-spacing: 0.08em;
   text-transform: uppercase;
 }
 
 .tachigo-hero h1 {
-  max-width: 12ch;
+  max-width: 18ch;
   margin: 0;
   color: var(--dp-text-primary);
-  font-size: 3.6rem;
-  line-height: 1.05;
+  font-size: clamp(2.35rem, 6vw, 4.25rem);
+  font-weight: 700;
+  line-height: 1.02;
   letter-spacing: 0;
 }
 
 .tachigo-lede {
-  max-width: 38rem;
-  margin: 1.2rem 0 0;
+  max-width: 42rem;
+  margin: 0;
   color: var(--dp-text-secondary);
   font-size: 1.02rem;
   line-height: 1.72;
 }
 
 .tachigo-status-rail {
-  display: grid;
-  grid-template-columns: repeat(2, minmax(0, 1fr));
-  gap: 0.5rem;
+  display: flex;
+  flex-wrap: wrap;
+  gap: 0.45rem;
 }
 
 .tachigo-status-rail span {
   display: inline-flex;
   align-items: center;
-  min-height: 34px;
-  padding: 0.35rem 0.55rem;
+  min-height: 30px;
+  padding: 0.28rem 0.55rem;
   border: 1px solid var(--dp-border);
-  border-radius: var(--dp-radius-md);
+  border-radius: var(--dp-radius-sm);
   background: var(--dp-bg-subtle);
   color: var(--dp-text-secondary);
   font-size: 0.78rem;
@@ -520,15 +502,15 @@ article a:hover,
 .tachigo-actions {
   display: flex;
   flex-wrap: wrap;
-  gap: 0.65rem;
+  gap: 0.55rem;
 }
 
 .tachigo-action {
   display: inline-flex;
   align-items: center;
   justify-content: center;
-  min-height: 44px;
-  padding: 0.72rem 0.95rem;
+  min-height: 40px;
+  padding: 0.62rem 0.85rem;
   border: 1px solid var(--dp-border);
   border-radius: var(--dp-radius-md);
   color: var(--dp-text-primary);
@@ -559,7 +541,11 @@ article a:hover,
 .tachigo-topology {
   display: flex;
   flex-direction: column;
-  padding: 0.95rem;
+  padding: 1rem;
+  border: 1px solid var(--dp-border);
+  border-radius: var(--dp-radius-lg);
+  background: var(--dp-bg-card);
+  box-shadow: var(--dp-shadow-card);
 }
 
 .tachigo-topology__header {
@@ -567,8 +553,8 @@ article a:hover,
   align-items: flex-start;
   justify-content: space-between;
   gap: 1rem;
-  min-height: 48px;
-  margin-bottom: 0.8rem;
+  min-height: 44px;
+  margin-bottom: 0.9rem;
   border-bottom: 1px solid var(--dp-border);
 }
 
@@ -576,7 +562,7 @@ article a:hover,
   color: var(--dp-primary);
   font-size: 0.72rem;
   font-weight: 700;
-  letter-spacing: 0.06em;
+  letter-spacing: 0.08em;
   text-transform: uppercase;
 }
 
@@ -591,17 +577,16 @@ article a:hover,
 .tachigo-topology__grid {
   position: relative;
   display: grid;
-  flex: 1;
   grid-template-columns: repeat(3, minmax(0, 1fr));
-  grid-template-rows: repeat(3, minmax(118px, 1fr));
-  gap: 0.8rem;
+  grid-auto-rows: minmax(108px, auto);
+  gap: 0.7rem;
 }
 
 .tachigo-topology__grid::before {
   position: absolute;
-  inset: 12% 10%;
-  z-index: -1;
-  border: 1px dashed color-mix(in srgb, var(--dp-primary), transparent 62%);
+  inset: 13% 9%;
+  z-index: 0;
+  border: 1px dashed color-mix(in srgb, var(--dp-primary), transparent 70%);
   border-radius: var(--dp-radius-lg);
   content: "";
 }
@@ -609,31 +594,32 @@ article a:hover,
 .tachigo-topology__grid::after {
   position: absolute;
   inset: 50% 8% auto;
-  z-index: -1;
+  z-index: 0;
   height: 1px;
   background: linear-gradient(90deg, transparent, var(--dp-primary), var(--dp-success), transparent);
   content: "";
 }
 
 .tachigo-node {
+  position: relative;
+  z-index: 1;
   display: flex;
-  min-height: 112px;
+  min-height: 108px;
   flex-direction: column;
   justify-content: space-between;
-  padding: 0.85rem;
+  padding: 0.78rem;
   border: 1px solid var(--dp-border);
-  border-radius: var(--dp-radius-lg);
+  border-radius: var(--dp-radius-md);
   background: var(--dp-bg-card);
-  box-shadow: var(--dp-shadow-card);
 }
 
 .tachigo-node__tag {
   width: fit-content;
-  padding: 0.1rem 0.4rem;
+  padding: 0.08rem 0.35rem;
   border-radius: var(--dp-radius-sm);
   background: var(--dp-bg-board);
   color: var(--dp-text-secondary);
-  font-size: 0.68rem;
+  font-size: 0.66rem;
   font-weight: 700;
   letter-spacing: 0.06em;
   text-transform: uppercase;
@@ -642,12 +628,12 @@ article a:hover,
 .tachigo-node strong {
   margin-top: 0.55rem;
   color: var(--dp-text-primary);
-  font-size: 1rem;
+  font-size: 0.98rem;
 }
 
 .tachigo-node span:last-child {
   color: var(--dp-text-secondary);
-  font-size: 0.78rem;
+  font-size: 0.76rem;
   line-height: 1.42;
 }
 
@@ -659,47 +645,47 @@ article a:hover,
 .tachigo-node--client {
   grid-column: 1;
   grid-row: 2;
-  border-color: color-mix(in srgb, var(--tachigo-violet), var(--dp-border) 45%);
+  border-color: color-mix(in srgb, var(--tachigo-violet), var(--dp-border) 50%);
 }
 
 .tachigo-node--api {
   grid-column: 2;
   grid-row: 2;
-  border-color: color-mix(in srgb, var(--dp-primary), var(--dp-border) 30%);
-  background: color-mix(in srgb, var(--dp-primary), var(--dp-bg-card) 92%);
+  border-color: color-mix(in srgb, var(--dp-primary), var(--dp-border) 35%);
+  background: color-mix(in srgb, var(--dp-primary), var(--dp-bg-card) 94%);
 }
 
 .tachigo-node--ledger {
   grid-column: 2;
   grid-row: 3;
-  border-color: color-mix(in srgb, var(--dp-success), var(--dp-border) 40%);
+  border-color: color-mix(in srgb, var(--dp-success), var(--dp-border) 42%);
 }
 
 .tachigo-node--tachiya {
   grid-column: 3;
   grid-row: 2;
-  border-color: color-mix(in srgb, var(--dp-warning), var(--dp-border) 35%);
+  border-color: color-mix(in srgb, var(--dp-warning), var(--dp-border) 38%);
 }
 
 .tachigo-node--external {
   grid-column: 3;
   grid-row: 3;
-  border-color: color-mix(in srgb, var(--dp-danger), var(--dp-border) 40%);
+  border-color: color-mix(in srgb, var(--dp-danger), var(--dp-border) 42%);
 }
 
 .tachigo-route-board {
   display: grid;
-  grid-template-columns: repeat(5, minmax(0, 1fr));
-  gap: 0.85rem;
-  margin: 1.4rem 0 1rem;
+  grid-template-columns: repeat(auto-fit, minmax(180px, 1fr));
+  gap: 0.75rem;
+  margin: 1.25rem 0 1rem;
 }
 
 .tachigo-card {
   display: flex;
-  min-height: 184px;
+  min-height: 156px;
   flex-direction: column;
   justify-content: space-between;
-  padding: 1rem;
+  padding: 0.95rem;
   border: 1px solid var(--dp-border);
   border-radius: var(--dp-radius-lg);
   background: var(--dp-bg-card);
@@ -711,9 +697,9 @@ article a:hover,
 
 .tachigo-card--wide {
   grid-column: span 2;
-  border-color: var(--dp-primary);
-  background: linear-gradient(135deg, var(--dp-primary), var(--dp-primary-strong));
-  color: var(--dp-text-inverse);
+  border-color: var(--dp-border-strong);
+  background: var(--dp-bg-board);
+  color: var(--dp-text-primary);
 }
 
 .tachigo-card:hover {
@@ -725,7 +711,7 @@ article a:hover,
 }
 
 .tachigo-card--wide:hover {
-  color: var(--dp-text-inverse);
+  color: var(--dp-text-primary);
 }
 
 .tachigo-card__eyebrow {
@@ -736,38 +722,33 @@ article a:hover,
   text-transform: uppercase;
 }
 
-.tachigo-card--wide .tachigo-card__eyebrow,
-.tachigo-card--wide .tachigo-card__body {
-  color: rgba(255, 255, 255, 0.86);
-}
-
 .tachigo-card h2 {
-  margin: 1.2rem 0 0.55rem;
+  margin: 1rem 0 0.45rem;
   color: inherit;
-  font-size: 1.22rem;
+  font-size: 1.15rem;
   letter-spacing: 0;
 }
 
 .tachigo-card__body {
   color: var(--dp-text-secondary);
-  font-size: 0.92rem;
+  font-size: 0.9rem;
   line-height: 1.58;
 }
 
 .tachigo-flow-strip {
   display: grid;
-  grid-template-columns: repeat(3, minmax(0, 1fr));
-  gap: 0.85rem;
+  grid-template-columns: repeat(auto-fit, minmax(210px, 1fr));
+  gap: 0.75rem;
   margin: 1rem 0 1.2rem;
 }
 
 .tachigo-flow {
   display: grid;
-  grid-template-columns: minmax(76px, 0.6fr) minmax(0, 1fr) minmax(0, 1fr) minmax(0, 1fr);
-  gap: 0.5rem;
+  grid-template-columns: minmax(66px, 0.55fr) repeat(3, minmax(0, 1fr));
+  gap: 0.4rem;
   align-items: stretch;
-  min-height: 72px;
-  padding: 0.65rem;
+  min-height: 66px;
+  padding: 0.55rem;
   border: 1px solid var(--dp-border);
   border-radius: var(--dp-radius-lg);
   background: var(--dp-bg-card);
@@ -778,11 +759,11 @@ article a:hover,
 .tachigo-flow strong {
   display: inline-flex;
   align-items: center;
-  min-height: 42px;
-  padding: 0.4rem 0.48rem;
+  min-height: 38px;
+  padding: 0.35rem 0.45rem;
   border: 1px solid var(--dp-border-subtle);
   border-radius: var(--dp-radius-sm);
-  font-size: 0.76rem;
+  font-size: 0.74rem;
   line-height: 1.25;
 }
 
@@ -798,8 +779,8 @@ article a:hover,
 }
 
 .tachigo-band {
-  margin: 1.4rem 0 1.8rem;
-  padding: 1.05rem;
+  margin: 1.25rem 0 1.8rem;
+  padding: 1rem;
   border: 1px solid var(--dp-border);
   border-left: 4px solid var(--dp-primary);
   border-radius: var(--dp-radius-md);
@@ -810,13 +791,13 @@ article a:hover,
 
 .tachigo-checklist {
   display: grid;
-  grid-template-columns: repeat(3, minmax(0, 1fr));
-  gap: 0.85rem;
+  grid-template-columns: repeat(auto-fit, minmax(190px, 1fr));
+  gap: 0.75rem;
   margin: 1.2rem 0;
 }
 
 .tachigo-checklist section {
-  padding: 1rem;
+  padding: 0.95rem;
   border: 1px solid var(--dp-border);
   border-radius: var(--dp-radius-lg);
   background: var(--dp-bg-card);
@@ -826,7 +807,7 @@ article a:hover,
 .tachigo-checklist h2 {
   margin-top: 0;
   color: var(--dp-text-primary);
-  font-size: 1.05rem;
+  font-size: 1rem;
 }
 
 .tachigo-checklist h2::before {
@@ -961,27 +942,7 @@ article a:hover,
   font-weight: 600;
 }
 
-@media (max-width: 1120px) {
-  .tachigo-hero {
-    grid-template-columns: 1fr;
-  }
-
-  .tachigo-hero h1 {
-    max-width: 14ch;
-    font-size: 3.1rem;
-  }
-
-  .tachigo-route-board {
-    grid-template-columns: repeat(3, minmax(0, 1fr));
-  }
-}
-
 @media (max-width: 996px) {
-  .tachigo-hero {
-    min-height: auto;
-    padding: 0.8rem;
-  }
-
   .tachigo-route-board,
   .tachigo-checklist,
   .tachigo-flow-strip {
@@ -1000,17 +961,10 @@ article a:hover,
 @media (max-width: 640px) {
   .tachigo-hero {
     margin-top: 0;
-    padding: 0.6rem;
-  }
-
-  .tachigo-hero__copy,
-  .tachigo-topology {
-    padding: 1rem;
   }
 
   .tachigo-hero h1 {
-    max-width: 12ch;
-    font-size: 2.4rem;
+    font-size: 2.45rem;
   }
 
   .tachigo-status-rail,
@@ -1021,8 +975,8 @@ article a:hover,
     grid-template-columns: 1fr;
   }
 
-  .tachigo-topology__grid {
-    grid-template-rows: none;
+  .tachigo-card--wide {
+    grid-column: auto;
   }
 
   .tachigo-node,
@@ -1031,10 +985,14 @@ article a:hover,
   .tachigo-node--api,
   .tachigo-node--ledger,
   .tachigo-node--tachiya,
-  .tachigo-node--external,
-  .tachigo-card--wide {
+  .tachigo-node--external {
     grid-column: auto;
     grid-row: auto;
+  }
+
+  .tachigo-topology__grid::before,
+  .tachigo-topology__grid::after {
+    content: none;
   }
 
   .tachigo-topology__header {
