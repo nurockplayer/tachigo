@@ -1,6 +1,6 @@
 ---
 title: Dev Portal 視覺重塑與資料整理
-status: draft
+status: proposed
 owner: engineering
 last_reviewed: 2026-05-15
 source_of_truth: true
@@ -11,7 +11,8 @@ code_areas:
 related_repos:
   - tachigo
 related_issues:
-  - "#699"
+  - 699
+  - 728
 ---
 
 # Dev Portal 視覺重塑與資料整理
