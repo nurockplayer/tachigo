@@ -33,6 +33,7 @@ const dependencyInventoryWorkflowPath = path.join(currentDir, 'dependency-invent
 const notifyRebaseNeededWorkflowPath = path.join(currentDir, 'notify-rebase-needed.yml')
 const releasePrWorkflowPath = path.join(currentDir, 'release-pr.yml')
 const claudePath = path.join(repoRoot, 'CLAUDE.md')
+const conventionsPath = path.join(repoRoot, '.claude', 'rules', 'conventions.md')
 const prScopePolicyPath = path.join(repoRoot, 'docs', 'pr-scope-policy.md')
 const dependabotPolicyPath = path.join(repoRoot, 'docs', 'dependabot-update-policy.md')
 const securityScannerEvaluationPath = path.join(repoRoot, 'docs', 'security-scanner-evaluation.md')
@@ -1223,6 +1224,14 @@ test('PR template includes a delegation execution log for autonomous work', asyn
   assert.match(prTemplate, /改到 `\.github\/workflows\/\*\*` 時也不是 metadata-only，仍需勾選/)
 })
 
+test('shared conventions document the R4 auto-ready exception', async () => {
+  const conventions = await readFile(conventionsPath, 'utf8')
+
+  assert.match(conventions, /R4/)
+  assert.match(conventions, /auto-ready/)
+  assert.match(conventions, /不要加\s*`auto-ready`/)
+})
+
 test('AWP v2 docs wire AGENTS and PR scope policy to autonomous evidence gates and spec workflow-check', async () => {
   const agents = await readFile(path.join(repoRoot, 'AGENTS.md'), 'utf8')
   const prScopePolicy = await readFile(prScopePolicyPath, 'utf8')
@@ -1303,6 +1312,7 @@ test('PR scope police enforces risk classification and blocks R4 auto-ready', as
     /PR body must select exactly one PR risk class \(R0-R4\)\./,
   )
   assert.match(missingRiskRun.comments[0].body, /- PR risk class: unclassified/)
+  assert.match(missingRiskRun.comments[0].body, /- Auto-ready allowed by risk class: no/)
 
   const multipleRiskRun = await runScopePoliceWorkflow({
     body: validStandardPrBody.replace('- [ ] R4', '- [x] R4'),
@@ -1314,6 +1324,7 @@ test('PR scope police enforces risk classification and blocks R4 auto-ready', as
     /PR body must select exactly one PR risk class \(R0-R4\)\./,
   )
   assert.match(multipleRiskRun.comments[0].body, /- PR risk class: invalid/)
+  assert.match(multipleRiskRun.comments[0].body, /- Auto-ready allowed by risk class: no/)
 
   const duplicateSameRiskRun = await runScopePoliceWorkflow({
     body: validStandardPrBody.replace(

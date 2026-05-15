@@ -76,7 +76,8 @@ jobs:
                   ? uniqueCheckedRiskClassIds[0]
                   : 'invalid'
             const hasAutoReadyLabel = labels.includes('auto-ready')
-            const autoReadyAllowedByRiskClass = selectedRiskClassId !== 'R4'
+            const autoReadyAllowedByRiskClass =
+              checkedRiskClassIds.length === 1 && selectedRiskClassId !== 'R4'
             const delegationExecutionLogSection = extractMarkdownSection(
               bodyForAutonomousGate,
               'Delegation Execution Log',
