@@ -91,6 +91,7 @@ const config: Config = {
         },
         blog: false,
         theme: {
+          // Fontsource CSS imports live in this file; do not use external font CDNs.
           customCss: './src/css/custom.css',
         },
       } satisfies Preset.Options,
