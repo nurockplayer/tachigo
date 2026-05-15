@@ -10,6 +10,7 @@ import TransactionsPage from '@/pages/TransactionsPage'
 import SettingsPage from '@/pages/SettingsPage'
 import RafflesPage from '@/pages/RafflesPage'
 import RaffleDetailPage from '@/pages/RaffleDetailPage'
+import ClaimPage from '@/pages/ClaimPage'
 import { authProvider } from '@/providers/authProvider'
 import { dataProvider } from '@/providers/dataProvider'
 
@@ -41,6 +42,10 @@ const router = createBrowserRouter([
             ],
           },
         ],
+      },
+      {
+        path: 'claim/:token',
+        element: <ClaimPage />,
       },
       {
         path: '*',
