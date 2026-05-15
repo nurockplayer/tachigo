@@ -324,14 +324,19 @@ func (s *PointsService) AddHeartbeatTimeContext(ctx context.Context, userID uuid
 // daily / monthly / yearly are derived from broadcast_time_logs (per-heartbeat increments).
 // current_session_seconds is approximated from active viewer watch_sessions in the channel.
 func (s *PointsService) GetBroadcastStats(streamerID uuid.UUID, channelID string) (*BroadcastStats, error) {
+	return s.GetBroadcastStatsContext(context.Background(), streamerID, channelID)
+}
+
+func (s *PointsService) GetBroadcastStatsContext(ctx context.Context, streamerID uuid.UUID, channelID string) (*BroadcastStats, error) {
 	now := time.Now()
+	db := s.dbWithContext(ctx)
 
 	// current_session_seconds: sum of accumulated_seconds across all active viewer sessions
 	// in the channel — used as a proxy for the ongoing broadcast session duration.
 	var currentSession struct {
 		AccumulatedSeconds int64
 	}
-	if err := s.db.Raw(`
+	if err := db.Raw(`
 		SELECT COALESCE(SUM(accumulated_seconds), 0) AS accumulated_seconds
 		FROM watch_sessions
 		WHERE channel_id = ? AND is_active = true
@@ -352,7 +357,7 @@ func (s *PointsService) GetBroadcastStats(streamerID uuid.UUID, channelID string
 
 	fetch := func(label string, since time.Time) (int64, error) {
 		var r struct{ Total int64 }
-		if err := s.db.Raw(logQuery, streamerID, channelID, since).Scan(&r).Error; err != nil {
+		if err := db.Raw(logQuery, streamerID, channelID, since).Scan(&r).Error; err != nil {
 			return 0, fmt.Errorf("query %s broadcast seconds: %w", label, err)
 		}
 		return r.Total, nil

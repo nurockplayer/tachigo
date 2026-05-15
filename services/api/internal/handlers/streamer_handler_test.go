@@ -2,6 +2,7 @@ package handlers_test
 
 import (
 	"bytes"
+	"context"
 	"net/http"
 	"net/http/httptest"
 	"testing"
@@ -9,12 +10,43 @@ import (
 
 	"github.com/gin-gonic/gin"
 	"github.com/google/uuid"
+	"gorm.io/gorm"
 
 	"github.com/tachigo/tachigo/internal/handlers"
 	"github.com/tachigo/tachigo/internal/middleware"
 	"github.com/tachigo/tachigo/internal/models"
 	"github.com/tachigo/tachigo/internal/services"
 )
+
+type streamerHandlerContextKey struct{}
+
+func installStreamerHandlerDBContextProbe(t *testing.T, db *gorm.DB, key, want any) func() int {
+	t.Helper()
+
+	var seen int
+	name := "test:streamer_handler_db_context:" + uuid.NewString()
+	probe := func(tx *gorm.DB) {
+		if tx.Statement != nil && tx.Statement.Context != nil && tx.Statement.Context.Value(key) == want {
+			seen++
+		}
+	}
+
+	if err := db.Callback().Query().Before("gorm:query").Register(name+":query", probe); err != nil {
+		t.Fatalf("register query context probe: %v", err)
+	}
+	if err := db.Callback().Raw().Before("gorm:raw").Register(name+":raw", probe); err != nil {
+		t.Fatalf("register raw context probe: %v", err)
+	}
+
+	t.Cleanup(func() {
+		_ = db.Callback().Query().Remove(name + ":query")
+		_ = db.Callback().Raw().Remove(name + ":raw")
+	})
+
+	return func() int {
+		return seen
+	}
+}
 
 func newStreamerDashboardEnv(t *testing.T) *dashboardEnv {
 	t.Helper()
@@ -61,6 +93,30 @@ func dashboardRequest(t *testing.T, router *gin.Engine, method, path, token, bod
 	t.Helper()
 
 	req := httptest.NewRequest(method, path, bytes.NewBufferString(body))
+	if body != "" {
+		req.Header.Set("Content-Type", "application/json")
+	}
+	if token != "" {
+		req.Header.Set("Authorization", "Bearer "+token)
+	}
+
+	w := httptest.NewRecorder()
+	router.ServeHTTP(w, req)
+	return w
+}
+
+func dashboardRequestWithContext(
+	t *testing.T,
+	router *gin.Engine,
+	ctx context.Context,
+	method,
+	path,
+	token,
+	body string,
+) *httptest.ResponseRecorder {
+	t.Helper()
+
+	req := httptest.NewRequestWithContext(ctx, method, path, bytes.NewBufferString(body))
 	if body != "" {
 		req.Header.Set("Content-Type", "application/json")
 	}
@@ -338,6 +394,31 @@ func TestCreate_RejectsUnknownAgencyUserID(t *testing.T) {
 	w := dashboardRequest(t, env.router, http.MethodPost, "/api/v1/dashboard/streamers", adminToken, body)
 	if w.Code != http.StatusBadRequest {
 		t.Fatalf("want 400, got %d: %s", w.Code, w.Body.String())
+	}
+}
+
+func TestList_PassesRequestContextToStreamerQueries(t *testing.T) {
+	env := newStreamerDashboardEnv(t)
+	_, adminToken := createDashboardUser(t, env, models.RoleAdmin, "list_context_admin")
+	streamerUser, _ := createDashboardUser(t, env, models.RoleStreamer, "list_context_streamer")
+	seedStreamerRow(t, env, streamerUser.ID, nil, "list_context_channel")
+	key := streamerHandlerContextKey{}
+	seen := installStreamerHandlerDBContextProbe(t, env.db, key, "streamer-list")
+
+	w := dashboardRequestWithContext(
+		t,
+		env.router,
+		context.WithValue(context.Background(), key, "streamer-list"),
+		http.MethodGet,
+		"/api/v1/dashboard/streamers",
+		adminToken,
+		"",
+	)
+	if w.Code != http.StatusOK {
+		t.Fatalf("want 200, got %d: %s", w.Code, w.Body.String())
+	}
+	if seen() == 0 {
+		t.Fatal("expected List handler to pass request context to streamer GORM queries")
 	}
 }
 

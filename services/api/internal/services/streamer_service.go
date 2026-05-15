@@ -1,6 +1,7 @@
 package services
 
 import (
+	"context"
 	"errors"
 	"time"
 
@@ -36,10 +37,22 @@ func NewStreamerService(db *gorm.DB, pointsSvc *PointsService) *StreamerService 
 	return &StreamerService{db: db, pointsSvc: pointsSvc}
 }
 
+func (s *StreamerService) dbWithContext(ctx context.Context) *gorm.DB {
+	if ctx == nil {
+		ctx = context.Background()
+	}
+	return s.db.WithContext(ctx)
+}
+
 func (s *StreamerService) Register(userID uuid.UUID, channelID, displayName string) (*models.Streamer, error) {
+	return s.RegisterContext(context.Background(), userID, channelID, displayName)
+}
+
+func (s *StreamerService) RegisterContext(ctx context.Context, userID uuid.UUID, channelID, displayName string) (*models.Streamer, error) {
+	db := s.dbWithContext(ctx)
 	// Verify the channelID matches the user's Twitch auth_provider entry.
 	var count int64
-	if err := s.db.Model(&models.AuthProvider{}).
+	if err := db.Model(&models.AuthProvider{}).
 		Where("user_id = ? AND provider = ? AND provider_id = ?", userID, models.ProviderTwitch, channelID).
 		Count(&count).Error; err != nil {
 		return nil, err
@@ -54,7 +67,7 @@ func (s *StreamerService) Register(userID uuid.UUID, channelID, displayName stri
 		DisplayName: displayName,
 	}
 
-	if err := s.db.
+	if err := db.
 		Where("user_id = ? AND channel_id = ?", userID, channelID).
 		Assign(models.Streamer{DisplayName: displayName}).
 		FirstOrCreate(streamer).Error; err != nil {
@@ -65,8 +78,13 @@ func (s *StreamerService) Register(userID uuid.UUID, channelID, displayName stri
 }
 
 func (s *StreamerService) Create(userID uuid.UUID, agencyUserID *uuid.UUID, channelID string) (*models.Streamer, error) {
+	return s.CreateContext(context.Background(), userID, agencyUserID, channelID)
+}
+
+func (s *StreamerService) CreateContext(ctx context.Context, userID uuid.UUID, agencyUserID *uuid.UUID, channelID string) (*models.Streamer, error) {
+	db := s.dbWithContext(ctx)
 	var count int64
-	if err := s.db.Model(&models.AuthProvider{}).
+	if err := db.Model(&models.AuthProvider{}).
 		Where("user_id = ? AND provider = ? AND provider_id = ?", userID, models.ProviderTwitch, channelID).
 		Count(&count).Error; err != nil {
 		return nil, err
@@ -77,7 +95,7 @@ func (s *StreamerService) Create(userID uuid.UUID, agencyUserID *uuid.UUID, chan
 
 	if agencyUserID != nil {
 		var agency models.User
-		if err := s.db.Select("id", "role").Where("id = ?", *agencyUserID).First(&agency).Error; err != nil {
+		if err := db.Select("id", "role").Where("id = ?", *agencyUserID).First(&agency).Error; err != nil {
 			if errors.Is(err, gorm.ErrRecordNotFound) {
 				return nil, ErrAgencyUserInvalid
 			}
@@ -94,7 +112,7 @@ func (s *StreamerService) Create(userID uuid.UUID, agencyUserID *uuid.UUID, chan
 		ChannelID:    channelID,
 	}
 
-	if err := s.db.
+	if err := db.
 		Where("user_id = ? AND channel_id = ?", userID, channelID).
 		Assign(models.Streamer{AgencyUserID: agencyUserID}).
 		FirstOrCreate(streamer).Error; err != nil {
@@ -105,8 +123,12 @@ func (s *StreamerService) Create(userID uuid.UUID, agencyUserID *uuid.UUID, chan
 }
 
 func (s *StreamerService) OwnsChannel(userID uuid.UUID, channelID string) (bool, error) {
+	return s.OwnsChannelContext(context.Background(), userID, channelID)
+}
+
+func (s *StreamerService) OwnsChannelContext(ctx context.Context, userID uuid.UUID, channelID string) (bool, error) {
 	var count int64
-	if err := s.db.Model(&models.Streamer{}).
+	if err := s.dbWithContext(ctx).Model(&models.Streamer{}).
 		Where("user_id = ? AND channel_id = ?", userID, channelID).
 		Count(&count).Error; err != nil {
 		return false, err
@@ -115,8 +137,12 @@ func (s *StreamerService) OwnsChannel(userID uuid.UUID, channelID string) (bool,
 }
 
 func (s *StreamerService) OwnsAgencyChannel(agencyUserID uuid.UUID, channelID string) (bool, error) {
+	return s.OwnsAgencyChannelContext(context.Background(), agencyUserID, channelID)
+}
+
+func (s *StreamerService) OwnsAgencyChannelContext(ctx context.Context, agencyUserID uuid.UUID, channelID string) (bool, error) {
 	var count int64
-	if err := s.db.Model(&models.Streamer{}).
+	if err := s.dbWithContext(ctx).Model(&models.Streamer{}).
 		Where("agency_user_id = ? AND channel_id = ?", agencyUserID, channelID).
 		Count(&count).Error; err != nil {
 		return false, err
@@ -125,8 +151,12 @@ func (s *StreamerService) OwnsAgencyChannel(agencyUserID uuid.UUID, channelID st
 }
 
 func (s *StreamerService) ListChannels(userID uuid.UUID) ([]models.Streamer, error) {
+	return s.ListChannelsContext(context.Background(), userID)
+}
+
+func (s *StreamerService) ListChannelsContext(ctx context.Context, userID uuid.UUID) ([]models.Streamer, error) {
 	var streamers []models.Streamer
-	if err := s.db.
+	if err := s.dbWithContext(ctx).
 		Where("user_id = ?", userID).
 		Order("created_at ASC").
 		Find(&streamers).Error; err != nil {
@@ -139,8 +169,12 @@ func (s *StreamerService) ListChannels(userID uuid.UUID) ([]models.Streamer, err
 }
 
 func (s *StreamerService) GetByID(id uuid.UUID) (*models.Streamer, error) {
+	return s.GetByIDContext(context.Background(), id)
+}
+
+func (s *StreamerService) GetByIDContext(ctx context.Context, id uuid.UUID) (*models.Streamer, error) {
 	var streamer models.Streamer
-	if err := s.db.Where("id = ?", id).First(&streamer).Error; err != nil {
+	if err := s.dbWithContext(ctx).Where("id = ?", id).First(&streamer).Error; err != nil {
 		if errors.Is(err, gorm.ErrRecordNotFound) {
 			return nil, ErrStreamerNotFound
 		}
@@ -159,6 +193,10 @@ type StreamerSummary struct {
 // GetSummaryStats returns list-level summary metrics for the given channel IDs
 // using three batch queries to avoid N+1.
 func (s *StreamerService) GetSummaryStats(channelIDs []string) (map[string]*StreamerSummary, error) {
+	return s.GetSummaryStatsContext(context.Background(), channelIDs)
+}
+
+func (s *StreamerService) GetSummaryStatsContext(ctx context.Context, channelIDs []string) (map[string]*StreamerSummary, error) {
 	result := make(map[string]*StreamerSummary, len(channelIDs))
 	for _, id := range channelIDs {
 		result[id] = &StreamerSummary{}
@@ -169,12 +207,13 @@ func (s *StreamerService) GetSummaryStats(channelIDs []string) (map[string]*Stre
 
 	now := time.Now().UTC()
 	startOfDay := time.Date(now.Year(), now.Month(), now.Day(), 0, 0, 0, 0, time.UTC)
+	db := s.dbWithContext(ctx)
 
 	var dailyRows []struct {
 		ChannelID string `gorm:"column:channel_id"`
 		Total     int64  `gorm:"column:total"`
 	}
-	if err := s.db.Raw(`
+	if err := db.Raw(`
 		SELECT channel_id, COALESCE(SUM(seconds), 0) AS total
 		FROM broadcast_time_logs
 		WHERE channel_id IN ? AND recorded_at >= ?
@@ -192,7 +231,7 @@ func (s *StreamerService) GetSummaryStats(channelIDs []string) (map[string]*Stre
 		ChannelID    string `gorm:"column:channel_id"`
 		UniqueMiners int64  `gorm:"column:unique_miners"`
 	}
-	if err := s.db.Raw(`
+	if err := db.Raw(`
 		SELECT channel_id, COUNT(DISTINCT user_id) AS unique_miners
 		FROM watch_sessions
 		WHERE channel_id IN ?
@@ -210,7 +249,7 @@ func (s *StreamerService) GetSummaryStats(channelIDs []string) (map[string]*Stre
 		ChannelID        string `gorm:"column:channel_id"`
 		TotalTokenMinted int64  `gorm:"column:total_token_minted"`
 	}
-	if err := s.db.Raw(`
+	if err := db.Raw(`
 		SELECT channel_id, COALESCE(SUM(cumulative_total), 0) AS total_token_minted
 		FROM points_ledgers
 		WHERE channel_id IN ?
@@ -228,16 +267,24 @@ func (s *StreamerService) GetSummaryStats(channelIDs []string) (map[string]*Stre
 }
 
 func (s *StreamerService) ListAll() ([]models.Streamer, error) {
+	return s.ListAllContext(context.Background())
+}
+
+func (s *StreamerService) ListAllContext(ctx context.Context) ([]models.Streamer, error) {
 	var streamers []models.Streamer
-	if err := s.db.Order("created_at ASC").Find(&streamers).Error; err != nil {
+	if err := s.dbWithContext(ctx).Order("created_at ASC").Find(&streamers).Error; err != nil {
 		return nil, err
 	}
 	return streamers, nil
 }
 
 func (s *StreamerService) ListByAgencyUserID(agencyUserID uuid.UUID) ([]models.Streamer, error) {
+	return s.ListByAgencyUserIDContext(context.Background(), agencyUserID)
+}
+
+func (s *StreamerService) ListByAgencyUserIDContext(ctx context.Context, agencyUserID uuid.UUID) ([]models.Streamer, error) {
 	var streamers []models.Streamer
-	if err := s.db.
+	if err := s.dbWithContext(ctx).
 		Where("agency_user_id = ?", agencyUserID).
 		Order("created_at ASC").
 		Find(&streamers).Error; err != nil {
@@ -247,8 +294,12 @@ func (s *StreamerService) ListByAgencyUserID(agencyUserID uuid.UUID) ([]models.S
 }
 
 func (s *StreamerService) OwnsStreamer(agencyUserID uuid.UUID, streamerID uuid.UUID) (bool, error) {
+	return s.OwnsStreamerContext(context.Background(), agencyUserID, streamerID)
+}
+
+func (s *StreamerService) OwnsStreamerContext(ctx context.Context, agencyUserID uuid.UUID, streamerID uuid.UUID) (bool, error) {
 	var count int64
-	if err := s.db.Model(&models.Streamer{}).
+	if err := s.dbWithContext(ctx).Model(&models.Streamer{}).
 		Where("id = ? AND agency_user_id = ?", streamerID, agencyUserID).
 		Count(&count).Error; err != nil {
 		return false, err
@@ -257,8 +308,12 @@ func (s *StreamerService) OwnsStreamer(agencyUserID uuid.UUID, streamerID uuid.U
 }
 
 func (s *StreamerService) GetChannelStats(channelID string) (*BroadcastStats, error) {
+	return s.GetChannelStatsContext(context.Background(), channelID)
+}
+
+func (s *StreamerService) GetChannelStatsContext(ctx context.Context, channelID string) (*BroadcastStats, error) {
 	var provider models.AuthProvider
-	if err := s.db.
+	if err := s.dbWithContext(ctx).
 		Where("provider = ? AND provider_id = ?", models.ProviderTwitch, channelID).
 		First(&provider).Error; err != nil {
 		if errors.Is(err, gorm.ErrRecordNotFound) {
@@ -267,12 +322,17 @@ func (s *StreamerService) GetChannelStats(channelID string) (*BroadcastStats, er
 		return nil, err
 	}
 
-	return s.pointsSvc.GetBroadcastStats(provider.UserID, channelID)
+	return s.pointsSvc.GetBroadcastStatsContext(ctx, provider.UserID, channelID)
 }
 
 func (s *StreamerService) GetStats(streamerID uuid.UUID) (*StreamerStats, error) {
+	return s.GetStatsContext(context.Background(), streamerID)
+}
+
+func (s *StreamerService) GetStatsContext(ctx context.Context, streamerID uuid.UUID) (*StreamerStats, error) {
+	db := s.dbWithContext(ctx)
 	var streamer models.Streamer
-	if err := s.db.Where("id = ?", streamerID).First(&streamer).Error; err != nil {
+	if err := db.Where("id = ?", streamerID).First(&streamer).Error; err != nil {
 		if errors.Is(err, gorm.ErrRecordNotFound) {
 			return nil, ErrStreamerNotFound
 		}
@@ -280,7 +340,7 @@ func (s *StreamerService) GetStats(streamerID uuid.UUID) (*StreamerStats, error)
 	}
 	channelID := streamer.ChannelID
 
-	broadcast, err := s.pointsSvc.GetBroadcastStats(streamer.UserID, channelID)
+	broadcast, err := s.pointsSvc.GetBroadcastStatsContext(ctx, streamer.UserID, channelID)
 	if err != nil {
 		return nil, err
 	}
@@ -289,7 +349,7 @@ func (s *StreamerService) GetStats(streamerID uuid.UUID) (*StreamerStats, error)
 		UniqueMiners      int64   `gorm:"column:unique_miners"`
 		AvgSessionSeconds float64 `gorm:"column:avg_session_seconds"`
 	}
-	if err := s.db.Raw(`
+	if err := db.Raw(`
 		SELECT
 			COUNT(DISTINCT user_id) AS unique_miners,
 			COALESCE(AVG(accumulated_seconds), 0) AS avg_session_seconds
@@ -303,7 +363,7 @@ func (s *StreamerService) GetStats(streamerID uuid.UUID) (*StreamerStats, error)
 		TotalTokenMinted       int64 `gorm:"column:total_token_minted"`
 		SpendableInCirculation int64 `gorm:"column:spendable_in_circulation"`
 	}
-	if err := s.db.Raw(`
+	if err := db.Raw(`
 		SELECT
 			COALESCE(SUM(cumulative_total), 0) AS total_token_minted,
 			COALESCE(SUM(spendable_balance), 0) AS spendable_in_circulation

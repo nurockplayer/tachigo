@@ -656,6 +656,21 @@ func TestPointsService_GetBroadcastStats_TimeWindows(t *testing.T) {
 	}
 }
 
+func TestPointsService_GetBroadcastStatsContext_UsesRequestContext(t *testing.T) {
+	svc, _ := newPointsSvc(t)
+	channelID := "ch_broadcast_context"
+	streamerID := seedStreamer(t, svc, channelID)
+	key := pointsContextKey("broadcast-stats-context")
+	seen := installDBContextProbe(t, svc.db, key, "points-broadcast")
+
+	if _, err := svc.GetBroadcastStatsContext(context.WithValue(context.Background(), key, "points-broadcast"), streamerID, channelID); err != nil {
+		t.Fatalf("get broadcast stats with context: %v", err)
+	}
+	if seen() == 0 {
+		t.Fatal("expected GetBroadcastStatsContext DB operations to carry request context")
+	}
+}
+
 func TestGetBroadcastStats_ReturnsCurrentSessionQueryError(t *testing.T) {
 	svc, _ := newPointsSvc(t)
 
