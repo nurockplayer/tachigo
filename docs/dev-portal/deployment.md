@@ -35,7 +35,7 @@ related_issues:
 | Install command | `pnpm install --frozen-lockfile --ignore-scripts` |
 | Build command | `pnpm build:docs` |
 | Build output directory | `apps/docs/build` |
-| Node / package manager | `.node-version` / `pnpm@10.33.0` / lockfile |
+| Node / package manager | Node 24 via `.node-version` / `pnpm@10.33.0` / lockfile |
 | Base path | `/tachigo/` via static `_redirects` rewrites |
 | Environment variables | optional `DOCS_SITE_URL`; Cloudflare injects `CF_PAGES_URL` |
 | Initial public URL | Cloudflare `*.pages.dev` URL |
