@@ -116,6 +116,9 @@ func dashboardRequestWithContext(
 ) *httptest.ResponseRecorder {
 	t.Helper()
 
+	if ctx == nil {
+		ctx = context.Background()
+	}
 	req := httptest.NewRequestWithContext(ctx, method, path, bytes.NewBufferString(body))
 	if body != "" {
 		req.Header.Set("Content-Type", "application/json")
