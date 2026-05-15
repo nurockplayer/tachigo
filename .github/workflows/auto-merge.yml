@@ -28,7 +28,18 @@ jobs:
           pr_body=$(gh api \
             "repos/${{ github.repository }}/pulls/${{ github.event.pull_request.number }}" \
             --jq '.body // ""')
+          extract_pr_risk_class_section() {
+            awk '
+              /^[[:space:]]*##[[:space:]]+PR Risk Class([[:space:]]|$)/ {
+                in_section = 1
+                next
+              }
+              in_section && /^[[:space:]]*##[[:space:]]+/ { exit }
+              in_section { print }
+            '
+          }
           checked_risk_classes=$(printf '%s\n' "$pr_body" \
+            | extract_pr_risk_class_section \
             | grep -E '^[[:space:]]*-[[:space:]]*\[[xX]\][[:space:]]+R[0-4]([[:space:]]|$)' \
             | sed -E 's/^[[:space:]]*-[[:space:]]*\[[xX]\][[:space:]]+(R[0-4]).*$/\1/' \
             || true)

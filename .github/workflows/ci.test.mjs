@@ -1336,6 +1336,17 @@ test('PR scope police enforces risk classification and blocks R4 auto-ready', as
   assert.equal(r3AutoReadyRun.failures.length, 0)
   assert.match(r3AutoReadyRun.comments[0].body, /- PR risk class: R3/)
   assert.match(r3AutoReadyRun.comments[0].body, /- Auto-ready allowed by risk class: yes/)
+
+  const extraCheckedRiskOutsideSectionRun = await runScopePoliceWorkflow({
+    body: `${selectRiskClass(validStandardPrBody, 'R2')}
+
+## Acceptance Criteria
+- [x] R4 rollout reviewed by a human
+${validAutonomousEvidence}`,
+    includeDefaultRiskClass: false,
+  })
+  assert.equal(extraCheckedRiskOutsideSectionRun.failures.length, 0)
+  assert.match(extraCheckedRiskOutsideSectionRun.comments[0].body, /- PR risk class: R2/)
 })
 
 test('PR scope police only treats a delegation log as autonomous when it has real content', async () => {
@@ -2573,6 +2584,7 @@ test('global auto-merge workflow excludes Dependabot and workflow-file PRs', asy
   assert.match(workflow, /Skipping auto-merge for workflow-file PR/)
   assert.match(workflow, /Skipping auto-merge until PR selects exactly one PR Risk Class/)
   assert.match(workflow, /Skipping auto-merge for R4 PR/)
+  assert.match(workflow, /extract_pr_risk_class_section/)
   assert.match(workflow, /gh api[\s\S]*\.body \/\/ ""/)
   assert.match(workflow, /risk_class_count/)
   assert.match(workflow, /risk_class"\s*=\s*"R4"/)
@@ -2914,6 +2926,27 @@ test('auto-ready workflows skip R4 PRs before readying or arming auto-merge', as
   assert.deepEqual(ci.graphqlCalls, [])
   assert.deepEqual(ci.autoMergeMutations, [])
   assert.deepEqual(ci.labelsAdded, [])
+})
+
+test('auto-ready workflows read risk class only from the PR Risk Class section', async () => {
+  const r2BodyWithExtraCheckedRisk = `${selectRiskClass(validStandardPrBody, 'R2')}
+
+## Acceptance Criteria
+- [x] R4 rollout reviewed by a human
+`
+  const standalone = await runAutoReadyWorkflow({
+    checkRuns: successfulDevelopRequiredCheckRuns(),
+    prOverrides: { body: r2BodyWithExtraCheckedRisk },
+    livePrOverrides: { body: r2BodyWithExtraCheckedRisk },
+  })
+  const ci = await runCiAutoReadyAfterCiWorkflow({
+    checkRuns: successfulDevelopRequiredCheckRuns(),
+    prOverrides: { body: r2BodyWithExtraCheckedRisk },
+    livePrOverrides: { body: r2BodyWithExtraCheckedRisk },
+  })
+
+  assert.deepEqual(standalone.graphqlCalls, ['ready', 'auto-merge'])
+  assert.deepEqual(ci.graphqlCalls, ['ready', 'auto-merge'])
 })
 
 test('auto-ready workflow arms native auto-merge after marking a PR ready', async () => {

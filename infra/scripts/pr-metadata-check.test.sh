@@ -239,6 +239,30 @@ run_case_body "r4_auto_ready" "[backend] r4 auto-ready fixture" \
   - no-op
 ' 1 0 1
 
+run_case_body "extra_checked_risk_outside_section" "[frontend] extra checked risk outside section fixture" \
+'refs #123
+
+## PR Risk Class
+- [ ] R0 docs / template / metadata only
+- [ ] R1 tests / CI / tooling only
+- [x] R2 frontend behavior
+- [ ] R3 backend / API behavior
+- [ ] R4 auth / permissions / security / schema / migration / secrets / payments / wallet / workflow / release
+
+## Acceptance Criteria
+- [x] R4 rollout reviewed by a human
+
+## Scope 對齊
+
+- Source of truth：test
+- Depends on PR：none
+- Backend contract already in develop:
+  - [x] yes
+  - [ ] no
+- 本 PR 明確不做：
+  - no-op
+'
+
 # Blank line after section header must not prevent finding the checkbox.
 run_case_body "blank_after_section_header" "[backend] blank after header fixture" \
 'refs #123

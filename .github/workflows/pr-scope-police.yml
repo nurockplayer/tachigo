@@ -49,14 +49,6 @@ jobs:
                 label: 'auth / permissions / security / schema / migration / secrets / payments / wallet / workflow / release',
               },
             ]
-            const checkedRiskClasses = riskClassDefinitions.filter(({ id }) =>
-              new RegExp(`^\\s*-\\s*\\[[xX]\\]\\s*${id}\\b`, 'm').test(bodyForAutonomousGate),
-            )
-            const selectedRiskClass = checkedRiskClasses.length === 1 ? checkedRiskClasses[0] : null
-            const selectedRiskClassId =
-              selectedRiskClass?.id || (checkedRiskClasses.length > 1 ? 'invalid' : 'unclassified')
-            const hasAutoReadyLabel = labels.includes('auto-ready')
-            const autoReadyAllowedByRiskClass = selectedRiskClassId !== 'R4'
             const extractMarkdownSection = (markdown, heading) => {
               const escapedHeading = heading.replace(/[.*+?^${}()|[\]\\]/g, '\\$&')
               const match = markdown.match(
@@ -67,6 +59,15 @@ jobs:
               )
               return match?.[1] || ''
             }
+            const riskClassSection = extractMarkdownSection(bodyForAutonomousGate, 'PR Risk Class')
+            const checkedRiskClasses = riskClassDefinitions.filter(({ id }) =>
+              new RegExp(`^\\s*-\\s*\\[[xX]\\]\\s*${id}\\b`, 'm').test(riskClassSection),
+            )
+            const selectedRiskClass = checkedRiskClasses.length === 1 ? checkedRiskClasses[0] : null
+            const selectedRiskClassId =
+              selectedRiskClass?.id || (checkedRiskClasses.length > 1 ? 'invalid' : 'unclassified')
+            const hasAutoReadyLabel = labels.includes('auto-ready')
+            const autoReadyAllowedByRiskClass = selectedRiskClassId !== 'R4'
             const delegationExecutionLogSection = extractMarkdownSection(
               bodyForAutonomousGate,
               'Delegation Execution Log',

@@ -76,9 +76,19 @@ checked_item() {
 checked_risk_classes() {
   local file="$1"
 
-  grep -E '^[[:space:]]*-[[:space:]]*\[[xX]\][[:space:]]+R[0-4]([[:space:]]|$)' "$file" \
-    | sed -E 's/^[[:space:]]*-[[:space:]]*\[[xX]\][[:space:]]+(R[0-4]).*$/\1/' \
-    || true
+  awk '
+    /^[[:space:]]*##[[:space:]]+PR Risk Class([[:space:]]|$)/ {
+      in_section = 1
+      next
+    }
+    in_section && /^[[:space:]]*##[[:space:]]+/ { exit }
+    in_section && /^[[:space:]]*-[[:space:]]*\[[xX]\][[:space:]]+R[0-4]([[:space:]]|$)/ {
+      line = $0
+      sub(/^[[:space:]]*-[[:space:]]*\[[xX]\][[:space:]]+/, "", line)
+      sub(/[[:space:]].*$/, "", line)
+      print line
+    }
+  ' "$file"
 }
 
 main() {
