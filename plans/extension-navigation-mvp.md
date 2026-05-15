@@ -69,7 +69,7 @@ B1/F1 可並行開工（F1 無後端依賴）。F2–F6 需 F1 + 對應後端 me
 **檔案**
 - Create：`services/api/internal/models/tachi_balance_transaction.go`
 - Modify：`services/api/internal/services/claim_service.go`（新增 DB-only path）、
-  `cmd/server/main.go`（AutoMigrate 註冊新 model）、`router/router.go`（若新增路由）
+  `services/api/cmd/server/main.go`（AutoMigrate 註冊新 model）、`router/router.go`（若新增路由）
 - 參照：`claim_service.go` 既有 `FOR UPDATE` 鎖帳、`finalizeClaim` upsert
 - Test：`services/api/internal/services/claim_service_test.go`
 
@@ -98,7 +98,7 @@ B1/F1 可並行開工（F1 無後端依賴）。F2–F6 需 F1 + 對應後端 me
 - Create：`services/api/internal/models/coupon_redemption.go`、
   `services/api/internal/handlers/coupon_handler.go`
 - Modify：`services/api/internal/services/spend_service.go`（新增 DB-only path）、
-  `cmd/server/main.go`、`router/router.go`
+  `services/api/cmd/server/main.go`、`router/router.go`
 - Test：`spend_service_test.go`、handler 測試
 
 **待實作 checklist**

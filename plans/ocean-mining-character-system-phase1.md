@@ -117,7 +117,7 @@ F0 / F1 無後端依賴，可與後端並行開工。F2–F4 需等 B6 merge。
 - [ ] 新增 model `models/user_character.go`：`user_id`、`character`（enum: crab/dolphin/turtle/whale/capybara）、`unlocked`、`stage`(1-3)、`xp`、`unlocked_at`
 - [ ] 新增 per-user 全域狀態欄位：`active_character`、`switch_cooldown_until`（放新 model `models/user_character_state.go` 或 `user.go`，二擇一於 PR 說明）
 - [ ] 新增 model `models/streamer_familiarity.go`：`user_id`、`channel_id`、`cumulative_watch_seconds`、`last_watched_at`
-- [ ] 在 `cmd/server/main.go` AutoMigrate 清單註冊新 model + 必要的 unique index `(user_id, character)`、`(user_id, channel_id)`
+- [ ] 在 `services/api/cmd/server/main.go` AutoMigrate 清單註冊新 model + 必要的 unique index `(user_id, character)`、`(user_id, channel_id)`
 - [ ] model 單元測試（BeforeCreate UUID v7、預設值）
 
 **介面／規格**
@@ -150,7 +150,7 @@ F0 / F1 無後端依賴，可與後端並行開工。F2–F4 需等 B6 merge。
 - [ ] 單元測試：曲線插值邊界、衰減、新台 10% 驗證
 
 **介面／規格**
-```
+```text
 T-Points 產出 = 基礎活動值 × familiarity(streamer) × (1 + buffs)
 XP 產出       = 基礎活動值 × (1 + buffs)   // 不套熟悉度
 ```
@@ -234,7 +234,7 @@ XP 產出       = 基礎活動值 × (1 + buffs)   // 不套熟悉度
 
 **任務**
 - [ ] 螃蟹 S1：每 60s tick 10 次有效點擊上限，1.5×；超過上限不累積
-- [ ] 海豚 S1：1 則 +40% / 2-3 則 +60% / 3+ 則 +80%，S1 上限 +100%（品質加成 Phase 2）
+- [ ] 海豚 S1：1 則 +40% / 2 則 +60% / 3 則以上 +80%，S1 上限 +100%（品質加成 Phase 2）
 - [ ] 海龜 S1：連續觀看 30min +10% / 60min +20% / 90min +35%，中斷 >5min 歸零
 - [ ] buff 疊加採加法：`multiplier = 1.0 + Σbuff`
 - [ ] S2/S3 預留 hook（介面留空、回傳 0），不實作
