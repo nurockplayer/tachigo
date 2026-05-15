@@ -9,6 +9,7 @@
   "scripts": {
     "start": "docusaurus start --host 0.0.0.0",
     "build": "docusaurus build",
+    "build:cloudflare-pages": "node ./scripts/build-cloudflare-pages.mjs",
     "serve": "docusaurus serve --host 0.0.0.0",
     "clear": "docusaurus clear",
     "build:reverse-index": "node --experimental-strip-types --no-warnings ./scripts/build-reverse-index.ts",
