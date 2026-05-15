@@ -6,7 +6,7 @@
 
 需求：
 
-- Node.js：[`package.json`](package.json) 目前要求 `>=22.12.0`
+- Node.js：[`package.json`](package.json) 目前要求 `>=24.0.0 <25`
 - pnpm：以 `packageManager` 為準
 - 後端 API：預設連到 `http://localhost:8080`
 

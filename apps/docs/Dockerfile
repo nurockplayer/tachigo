@@ -1,5 +1,5 @@
 # dev only - not for production
-FROM node:24-alpine
+FROM node:24.14.1-alpine
 
 RUN addgroup -S app && adduser -S app -G app
 RUN corepack enable && corepack prepare pnpm@10.33.0 --activate
