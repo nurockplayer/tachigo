@@ -6,12 +6,15 @@ import {themes as prismThemes} from 'prism-react-renderer'
 import type {Config} from '@docusaurus/types'
 import type * as Preset from '@docusaurus/preset-classic'
 
+const siteUrl =
+  process.env.DOCS_SITE_URL ?? process.env.CF_PAGES_URL ?? 'https://tachigo-dev-portal.pages.dev'
+
 const config: Config = {
   title: 'tachigo Dev Portal',
   tagline: 'Project navigation for tachigo and tachiya',
   favicon: 'img/favicon.svg',
 
-  url: 'https://nurockplayer.github.io',
+  url: siteUrl,
   baseUrl: '/tachigo/',
 
   organizationName: 'nurockplayer',
