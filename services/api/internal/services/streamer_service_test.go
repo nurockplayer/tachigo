@@ -1,6 +1,7 @@
 package services
 
 import (
+	"context"
 	"errors"
 	"testing"
 	"time"
@@ -10,6 +11,8 @@ import (
 
 	"github.com/tachigo/tachigo/internal/models"
 )
+
+type streamerContextKey string
 
 func seedStreamerUserRow(t *testing.T, db *gorm.DB, role models.UserRole) uuid.UUID {
 	t.Helper()
@@ -32,6 +35,22 @@ func seedTwitchAuthProvider(t *testing.T, db *gorm.DB, userID uuid.UUID, channel
 		uuid.New(), userID, models.ProviderTwitch, channelID,
 	).Error; err != nil {
 		t.Fatalf("seed auth provider: %v", err)
+	}
+}
+
+func TestRegisterContext_UsesRequestContext(t *testing.T) {
+	db := newTestDB(t)
+	svc := NewStreamerService(db, NewPointsService(db, NewWatchService(db)))
+	userID := seedStreamerUserRow(t, db, models.RoleStreamer)
+	seedTwitchAuthProvider(t, db, userID, "ch_ctx_register")
+	key := streamerContextKey("register-context")
+	seen := installDBContextProbe(t, db, key, "streamer-register")
+
+	if _, err := svc.RegisterContext(context.WithValue(context.Background(), key, "streamer-register"), userID, "ch_ctx_register", "Ctx"); err != nil {
+		t.Fatalf("register with context: %v", err)
+	}
+	if seen() == 0 {
+		t.Fatal("expected RegisterContext DB operations to carry request context")
 	}
 }
 
@@ -78,6 +97,29 @@ func TestRegister_UpdateDisplayName(t *testing.T) {
 	}
 }
 
+func TestOwnsChannelContext_UsesRequestContext(t *testing.T) {
+	db := newTestDB(t)
+	svc := NewStreamerService(db, NewPointsService(db, NewWatchService(db)))
+	userID := seedStreamerUserRow(t, db, models.RoleStreamer)
+	seedTwitchAuthProvider(t, db, userID, "ch_ctx_owns")
+	if _, err := svc.Register(userID, "ch_ctx_owns", "Ctx Owns"); err != nil {
+		t.Fatalf("register owned channel: %v", err)
+	}
+	key := streamerContextKey("owns-channel-context")
+	seen := installDBContextProbe(t, db, key, "streamer-owns")
+
+	owns, err := svc.OwnsChannelContext(context.WithValue(context.Background(), key, "streamer-owns"), userID, "ch_ctx_owns")
+	if err != nil {
+		t.Fatalf("owns channel with context: %v", err)
+	}
+	if !owns {
+		t.Fatal("expected streamer to own channel")
+	}
+	if seen() == 0 {
+		t.Fatal("expected OwnsChannelContext DB operations to carry request context")
+	}
+}
+
 func TestListChannels_Empty(t *testing.T) {
 	db := newTestDB(t)
 	svc := NewStreamerService(db, NewPointsService(db, NewWatchService(db)))
@@ -116,6 +158,47 @@ func TestListChannels_MultipleChannels(t *testing.T) {
 	}
 }
 
+func TestListAllContext_UsesRequestContext(t *testing.T) {
+	db := newTestDB(t)
+	svc := NewStreamerService(db, NewPointsService(db, NewWatchService(db)))
+	userID := seedStreamerUserRow(t, db, models.RoleStreamer)
+	seedTwitchAuthProvider(t, db, userID, "ch_ctx_list_all")
+	if _, err := svc.Register(userID, "ch_ctx_list_all", "Ctx List"); err != nil {
+		t.Fatalf("register list row: %v", err)
+	}
+	key := streamerContextKey("list-all-context")
+	seen := installDBContextProbe(t, db, key, "streamer-list-all")
+
+	streamers, err := svc.ListAllContext(context.WithValue(context.Background(), key, "streamer-list-all"))
+	if err != nil {
+		t.Fatalf("list all with context: %v", err)
+	}
+	if len(streamers) != 1 {
+		t.Fatalf("expected 1 streamer, got %d", len(streamers))
+	}
+	if seen() == 0 {
+		t.Fatal("expected ListAllContext DB operations to carry request context")
+	}
+}
+
+func TestGetSummaryStatsContext_UsesRequestContext(t *testing.T) {
+	db := newTestDB(t)
+	svc := NewStreamerService(db, NewPointsService(db, NewWatchService(db)))
+	key := streamerContextKey("summary-context")
+	seen := installDBContextProbe(t, db, key, "streamer-summary")
+
+	stats, err := svc.GetSummaryStatsContext(context.WithValue(context.Background(), key, "streamer-summary"), []string{"ch_ctx_summary"})
+	if err != nil {
+		t.Fatalf("summary stats with context: %v", err)
+	}
+	if _, ok := stats["ch_ctx_summary"]; !ok {
+		t.Fatal("expected initialized summary entry for channel")
+	}
+	if seen() == 0 {
+		t.Fatal("expected GetSummaryStatsContext DB operations to carry request context")
+	}
+}
+
 func TestGetChannelStats_NoStreamer(t *testing.T) {
 	db := newTestDB(t)
 	svc := NewStreamerService(db, NewPointsService(db, NewWatchService(db)))
@@ -123,6 +206,28 @@ func TestGetChannelStats_NoStreamer(t *testing.T) {
 	_, err := svc.GetChannelStats("missing_channel")
 	if !errors.Is(err, ErrStreamerNotFound) {
 		t.Fatalf("want ErrStreamerNotFound, got %v", err)
+	}
+}
+
+func TestGetStatsContext_UsesRequestContext(t *testing.T) {
+	db := newTestDB(t)
+	watchSvc := NewWatchService(db)
+	pointsSvc := NewPointsService(db, watchSvc)
+	svc := NewStreamerService(db, pointsSvc)
+	userID := seedStreamerUserRow(t, db, models.RoleStreamer)
+	seedTwitchAuthProvider(t, db, userID, "ch_ctx_stats")
+	streamer, err := svc.Register(userID, "ch_ctx_stats", "Ctx Stats")
+	if err != nil {
+		t.Fatalf("register stats row: %v", err)
+	}
+	key := streamerContextKey("stats-context")
+	seen := installDBContextProbe(t, db, key, "streamer-stats")
+
+	if _, err := svc.GetStatsContext(context.WithValue(context.Background(), key, "streamer-stats"), streamer.ID); err != nil {
+		t.Fatalf("get stats with context: %v", err)
+	}
+	if seen() == 0 {
+		t.Fatal("expected GetStatsContext DB operations to carry request context")
 	}
 }
 

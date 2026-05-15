@@ -87,7 +87,7 @@ func (h *ChannelConfigHandler) authorizeChannelAccess(c *gin.Context) (string, b
 			badRequest(c, "invalid user id")
 			return "", false
 		}
-		owns, err := h.streamerSvc.OwnsAgencyChannel(agencyUserID, channelID)
+		owns, err := h.streamerSvc.OwnsAgencyChannelContext(c.Request.Context(), agencyUserID, channelID)
 		if err != nil {
 			internal(c)
 			return "", false
@@ -103,7 +103,7 @@ func (h *ChannelConfigHandler) authorizeChannelAccess(c *gin.Context) (string, b
 			badRequest(c, "invalid user id")
 			return "", false
 		}
-		owns, err := h.streamerSvc.OwnsChannel(userID, channelID)
+		owns, err := h.streamerSvc.OwnsChannelContext(c.Request.Context(), userID, channelID)
 		if err != nil {
 			internal(c)
 			return "", false
