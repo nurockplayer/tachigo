@@ -60,12 +60,21 @@ jobs:
               return match?.[1] || ''
             }
             const riskClassSection = extractMarkdownSection(bodyForAutonomousGate, 'PR Risk Class')
-            const checkedRiskClasses = riskClassDefinitions.filter(({ id }) =>
-              new RegExp(`^\\s*-\\s*\\[[xX]\\]\\s*${id}\\b`, 'm').test(riskClassSection),
+            const checkedRiskClassIds = Array.from(
+              riskClassSection.matchAll(/^\s*-\s*\[[xX]\]\s*(R[0-4])\b/gm),
+              (match) => match[1],
             )
+            const checkedRiskClasses = checkedRiskClassIds
+              .map((checkedId) => riskClassDefinitions.find(({ id }) => id === checkedId))
+              .filter(Boolean)
+            const uniqueCheckedRiskClassIds = [...new Set(checkedRiskClassIds)]
             const selectedRiskClass = checkedRiskClasses.length === 1 ? checkedRiskClasses[0] : null
             const selectedRiskClassId =
-              selectedRiskClass?.id || (checkedRiskClasses.length > 1 ? 'invalid' : 'unclassified')
+              checkedRiskClassIds.length === 0
+                ? 'unclassified'
+                : uniqueCheckedRiskClassIds.length === 1
+                  ? uniqueCheckedRiskClassIds[0]
+                  : 'invalid'
             const hasAutoReadyLabel = labels.includes('auto-ready')
             const autoReadyAllowedByRiskClass = selectedRiskClassId !== 'R4'
             const delegationExecutionLogSection = extractMarkdownSection(

@@ -1315,6 +1315,20 @@ test('PR scope police enforces risk classification and blocks R4 auto-ready', as
   )
   assert.match(multipleRiskRun.comments[0].body, /- PR risk class: invalid/)
 
+  const duplicateSameRiskRun = await runScopePoliceWorkflow({
+    body: validStandardPrBody.replace(
+      '- [x] R2 frontend behavior',
+      '- [x] R2 frontend behavior\n- [x] R2 frontend behavior duplicate',
+    ),
+    includeDefaultRiskClass: false,
+  })
+  assert.equal(duplicateSameRiskRun.failures.length, 1)
+  assert.match(
+    duplicateSameRiskRun.comments[0].body,
+    /PR body must select exactly one PR risk class \(R0-R4\)\./,
+  )
+  assert.match(duplicateSameRiskRun.comments[0].body, /- PR risk class: R2/)
+
   const r4AutoReadyRun = await runScopePoliceWorkflow({
     body: `${selectRiskClass(validStandardPrBody, 'R4')}\n${validAutonomousEvidence}`,
     labels: [{ name: 'auto-ready' }],
