@@ -32,11 +32,11 @@ export interface ClaimInput {
 
 export async function getClaim(token: string): Promise<ClaimDraw> {
   const { data } = await client.get<ApiResponse<{ draw: ClaimDraw }>>(
-    `/api/v1/claim/${token}`,
+    `/api/v1/claim/${encodeURIComponent(token)}`,
   )
   return data.data.draw
 }
 
 export async function submitClaim(token: string, input: ClaimInput): Promise<void> {
-  await client.post(`/api/v1/claim/${token}`, input)
+  await client.post(`/api/v1/claim/${encodeURIComponent(token)}`, input)
 }

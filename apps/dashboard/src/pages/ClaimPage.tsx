@@ -48,11 +48,14 @@ export default function ClaimPage() {
       setState({ phase: 'not_found' })
       return
     }
+    let cancelled = false
     Promise.all([restoreSession(), getClaim(token)]).then(
       ([, draw]) => {
+        if (cancelled) return
         setState(isAuthenticated() ? { phase: 'form', draw } : { phase: 'unauthenticated', draw })
       },
       (err) => {
+        if (cancelled) return
         if (isAxiosError(err)) {
           const status = err.response?.status
           if (status === 404) setState({ phase: 'not_found' })
@@ -64,10 +67,14 @@ export default function ClaimPage() {
         }
       },
     )
+    return () => {
+      cancelled = true
+    }
   }, [token])
 
   async function handleSubmit(e: FormEvent) {
     e.preventDefault()
+    if (submitting) return
     setSubmitting(true)
     setFormError(null)
     try {
@@ -180,7 +187,9 @@ export default function ClaimPage() {
           <Button
             className="w-full"
             onClick={() => {
-              window.location.href = `${apiBaseURL}/api/v1/auth/twitch?redirect_to=${encodeURIComponent(`/claim/${token}`)}`
+              const url = new URL('/api/v1/auth/twitch', apiBaseURL)
+              url.searchParams.set('redirect_to', `/claim/${token}`)
+              window.location.href = url.toString()
             }}
           >
             用 Twitch 帳號登入領獎
