@@ -5,6 +5,7 @@ import { Button } from '@/components/ui/button'
 import { Input } from '@/components/ui/input'
 import { Label } from '@/components/ui/label'
 import { restoreSession, isAuthenticated } from '@/services/auth'
+import { apiBaseURL } from '@/services/api'
 import { getClaim, submitClaim, type ClaimDraw, type ClaimInput } from '@/services/claim'
 
 type ViewState =
@@ -179,7 +180,7 @@ export default function ClaimPage() {
           <Button
             className="w-full"
             onClick={() => {
-              window.location.href = `/api/v1/auth/twitch?redirect_to=/claim/${token}`
+              window.location.href = `${apiBaseURL}/api/v1/auth/twitch?redirect_to=${encodeURIComponent(`/claim/${token}`)}`
             }}
           >
             用 Twitch 帳號登入領獎
