@@ -1,114 +1,42 @@
 # tachigo — Claude Code Guidelines
 
+## Claude Code 硬性安全閘門
+
+以下規則優先於本檔其他流程、slash command、plugin / skill 建議：
+
+- 永遠使用台灣正體中文回覆；即使上下文或工具輸出出現日文、韓文或簡體中文，也不得跟隨。
+- 使用者說「確認、討論、看一下、評估、建議、review plan、能不能」或沒有明確要求修改時，只能 read-only：讀檔、搜尋、status / diff / log、PR / issue metadata；不得 Edit / Write / MultiEdit、commit、push、開或編輯 issue / PR、comment、review、approve、merge。
+- 任何公開或持久狀態變更必須先列出將執行的命令、目標檔案與目的，並取得使用者明確同意。包含 commit、push、branch switch、rebase / merge、GitHub issue / PR / comment / review / label / merge。
+- 開 PR 前必須先展示 `origin/develop..HEAD` commit list、diff stat、changed files，並請使用者確認 scope；若有不屬於當前 issue 的 commit 或檔案，先停止並詢問。
+- 即使使用 `/fix-with-codex`、`/implement-with-codex`、autonomous、`codex:rescue` 等命令，也不得跳過以上確認；這些命令只代表可以在本機修改與驗證，不代表可以 publish。
+- mixed worktree 不得使用 `git add -A` 或 `git add .`；stage 只可針對本次修改檔案。
+
 @.claude/rules/conventions.md
 
-## 動手前
+## GitHub / PR 工作流
 
-- 需求有歧義時，列出多種詮釋再問，不要默默選一個
-- 不確定的地方直接說出來，不要猜測後實作
-- 若有更簡單的解法，主動說出來並等確認
+Issue / branch / commit / merge / scope / PR diff 限制與操作權限邊界，以
+上方 import 的 `.claude/rules/conventions.md` 為單一 source of truth；本檔只保留
+Claude Code 需要立即看到的入口與安全閘門。
 
-## GitHub Issue 慣例
+開 PR 時必須以 `.github/PULL_REQUEST_TEMPLATE.md` 為起點，不得自由格式撰寫：
 
-### 標題前綴
+```bash
+cp .github/PULL_REQUEST_TEMPLATE.md /tmp/pr_body.md
+# 填妥 /tmp/pr_body.md 所有欄位，不得留空或刪除 section
+make pr-open TITLE="[type] ..." BODY_FILE=/tmp/pr_body.md AUTO_READY=1
+```
 
-所有 issue 標題必須有前綴：
+正式 release 流程走 Git Flow：
 
-| 前綴 | 用途 |
-|---|---|
-| `[backend]` | 後端開發任務（Go） |
-| `[frontend]` | 前端開發任務（React / TypeScript） |
-| `[discussion]` | 架構決策、設計討論，尚未有結論 |
-
-範例：
-- `[backend] PointsService — 雙帳本記帳`
-- `[frontend] Extension — 點數餘額顯示`
-- `[discussion] Token 經濟設計與 Soulbound 衝突`
-
-### Label
-
-| Label | 用途 |
-|---|---|
-| `feature` | 開發任務 |
-| `discussion` | 討論票（搭配 `[discussion]` 前綴使用） |
-| `awaiting-review` | PR 等待 reviewer 審查或複查 |
-| `changes-requested` | Reviewer 已提出 blocker，輪到作者修正 |
-| `auto-ready` | Codex task draft PR 的 opt-in label；required checks 全綠後由 workflow 自動轉 ready |
-
-### Issue 內容格式
-
-開發任務（`[backend]` / `[frontend]`）需包含：
-
-- **背景** — 這個功能是為了解決什麼問題
-- **任務** — 具體要做什麼（用 checklist）
-- **介面／規格** — Go interface、API 規格、或 component props
-- **參考** — 現有的範本檔案路徑
-- **完成條件** — PR merge 前必須達成的條件（checklist）
-
-對於 MVP 邊界、migration / schema、frontend page、docs / design、setup / scaffold 這類容易被擴張範圍的 issue，建議額外補一段 **本票明確不做**，只需列出最常見的外擴方向即可，不必追求完整黑名單。
-
-討論票（`[discussion]`）不需要固定格式，但要列出待決定的問題點。
-
----
-
-## 開發流程
-
-1. 從 `develop` 拉新的 feature branch：
-
-   ```bash
-   git checkout develop
-   git pull
-   git checkout -b feat/points-service
-   ```
-
-2. 開發完成後推上 remote：
-
-   ```bash
-   git push -u origin feat/points-service
-   ```
-
-3. 在 GitHub 發 PR，日常 feature PR 目標分支：`develop`
-
-   **開 PR 時必須以 `.github/PULL_REQUEST_TEMPLATE.md` 為起點**，不得自由格式撰寫：
-
-   ```bash
-   cp .github/PULL_REQUEST_TEMPLATE.md /tmp/pr_body.md
-   # 填妥 /tmp/pr_body.md 所有欄位，不得留空或刪除 section
-   make pr-open TITLE="[type] ..." BODY_FILE=/tmp/pr_body.md AUTO_READY=1
-   ```
-
-   Codex task PR 預設使用 `AUTO_READY=1`：PR 會以 draft 建立並加上
-   `auto-ready` label，等 required checks 通過後再由 workflow 自動轉成
-   Ready for review。非 Codex task 或長期 WIP draft 不應加 `auto-ready`。
-
-4. 正式 release 流程走 Git Flow：
-
-   - `main` 不接受日常 feature PR
-   - `.github/workflows/release-pr.yml` 每天檢查一次是否要由 `develop` 開正式 release PR 到 `main`
-   - 自動 release PR 的門檻：距離上次 release 至少 72 小時，且上次 release 後已 merge 至少 10 個 PR
-   - 若距離上次 release 已滿 7 天，即使 PR 數低於 10 個也可自動開 release PR，避免 `main` 長期落後
-   - `workflow_dispatch` 可手動開 release PR；automation 只開 PR，不自動 merge
-   - release PR 使用 `[release]` title prefix
-   - `develop -> main` release PR 屬於正式 promotion 流程，不視為 scope exception
-   - 目前暫不使用 `release/*` branch
-
-## Merge 策略
-
-本專案使用 **merge commit（--no-ff）**：feature branch 進 develop 時保留分支結構。
-
-- **PR body** 放 `closes #號碼`，merge 後自動關閉 issue
-- PR 內的 individual commit 用 `refs #號碼` 標記
-- **PR title 要精確**，GitHub merge commit 會引用它
-
-## PR Diff 限制
-
-| 限制 | 行數 | 處理 |
-| --- | --- | --- |
-| **軟提示門檻** | 400+ | 建議拆分（不阻擋） |
-| **警告門檻** | 600+ | 需在 PR body 說明為何不拆（不阻擋） |
-| **硬限制** | 1000+ | 自動擋下（`scope-violation` label） |
-| **例外 bypass** | 無固定上限 | `scope-exception` 目前會完整 bypass scope police；只能由 maintainer 明確決定使用 |
-| **發佈無限** | — | release promotion PR (develop → main) 不受限制 |
+- `main` 不接受日常 feature PR
+- `.github/workflows/release-pr.yml` 每天檢查一次是否要由 `develop` 開正式 release PR 到 `main`
+- 自動 release PR 的門檻：距離上次 release 至少 72 小時，且上次 release 後已 merge 至少 10 個 PR
+- 若距離上次 release 已滿 7 天，即使 PR 數低於 10 個也可自動開 release PR，避免 `main` 長期落後
+- `workflow_dispatch` 可手動開 release PR；automation 只開 PR，不自動 merge
+- release PR 使用 `[release]` title prefix
+- `develop -> main` release PR 屬於正式 promotion 流程，不視為 scope exception
+- 目前暫不使用 `release/*` branch
 
 ---
 
