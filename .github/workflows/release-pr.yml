@@ -250,6 +250,13 @@ jobs:
           - [ ] Test-Driven / Debug Loop
           - [x] Architecture / High Risk
 
+          ## PR Risk Class
+          - [ ] R0 docs / template / metadata only
+          - [ ] R1 tests / CI / tooling only
+          - [ ] R2 frontend behavior
+          - [ ] R3 backend / API behavior
+          - [x] R4 auth / permissions / security / schema / migration / secrets / payments / wallet / workflow / release
+
           ## Scope 對齊
           - Source of truth：develop release promotion on $DATE
           - Depends on PR：none
