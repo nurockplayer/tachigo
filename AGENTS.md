@@ -90,8 +90,8 @@ Type：`feat` / `fix` / `docs` / `chore` / `refactor` / `test`
 - **Read-only** 可直接執行：讀檔、搜尋、PR / issue metadata、diff、CI 狀態、本機分析
 - **狀態變更**必須先詢問並取得明確同意：Edit / 寫檔、commit、push、branch switch / rebase / merge、GitHub comment / review / CR / Approve / Merge、issue / PR 建立或編輯
 - 若使用者在當輪訊息已明確要求修改檔案，視為已授權該次 Edit；但公開可見操作仍需再次確認
-- 在 Codex sandbox 中執行任何 `git` 指令時，必須第一時間使用提權執行；不得先用一般 sandbox 試跑再從失敗訊息補救
-- 若 `git` 指令未使用提權而失敗，優先視為 Codex 執行權限使用錯誤；不得歸因為 DNS、GitHub 網路或遠端服務問題
+- 在 Codex sandbox 中執行 `git` 指令時，若目前環境支援且允許提權，必須第一時間使用提權執行；若政策禁止提權，照目前權限執行並如實回報限制
+- 若 `git` 指令因未使用可用提權而失敗，優先視為 Codex 執行權限使用錯誤；不得歸因為 DNS、GitHub 網路或遠端服務問題
 
 ### Non-interactive 指令規則
 
