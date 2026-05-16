@@ -158,7 +158,7 @@ type StatusBadgeProps = {
   ├─ feature-discussion
   ├─ loyalty-claim-boundary
   ├─ Plans and Proposals
-  └─ archive/（搬入 reference-notes 中的 6 個 2026-04-xx ~ 2026-05-xx history）
+  └─ History（引用 `docs/history/` 中的 2026-04-xx ~ 2026-05-xx history）
 ```
 
 ### 「Coming soon」處理
@@ -177,7 +177,7 @@ type StatusBadgeProps = {
 
 ### History 條目搬移
 
-`docs/reference-notes/` 內 6 個 `2026-04-XX-*.md` 與 `2026-05-XX-*.md` 搬到 `docs/reference-notes/archive/`，避免 sidebar 雜訊。
+保留既有 `docs/history/` 目錄，不搬移檔案；PR 3 只在 sidebar 的 Reference & Archive 群組中引用這些 history 條目，避免指向不存在的 `docs/reference-notes/` 路徑。
 
 ## 實作分階段
 
@@ -202,7 +202,7 @@ type StatusBadgeProps = {
 ### PR 3：Sidebar 重組 + 資料整理（~200-300 行）
 
 - 重寫 `apps/docs/sidebars.ts`
-- `git mv` history 條目到 `docs/reference-notes/archive/`
+- 在 sidebar 的 Reference & Archive 群組中引用既有 `docs/history/` 條目，不執行 history 檔案搬移
 - 補完 5 個 Coming soon 的 `<RoadmapStub>` 內容
 - `flows.md` streamer/agency stub 補 source entry points
 
