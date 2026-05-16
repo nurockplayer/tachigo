@@ -46,7 +46,7 @@
   --ifm-navbar-background-color: rgba(255, 255, 255, 0.96);
   --ifm-font-family-base: "Inter", "Noto Sans TC", system-ui, sans-serif;
   --ifm-heading-font-family: "Inter", "Noto Sans TC", system-ui, sans-serif;
-  --ifm-font-family-monospace: "JetBrains Mono", SFMono-Regular, Consolas, monospace;
+  --ifm-font-family-monospace: "JetBrains Mono", "SFMono-Regular", "Consolas", monospace;
   --ifm-code-font-size: 90%;
   --ifm-heading-color: var(--dp-text-primary);
   --ifm-link-color: var(--dp-primary);
