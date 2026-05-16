@@ -39,6 +39,16 @@ jobs:
 
             const autonomousLabels = new Set(['autonomous', 'codex', 'codex-automation', 'codex-workflow', 'auto-ready'])
             const bodyForAutonomousGate = (pr.body || '').replace(/<!--[\s\S]*?-->/g, '')
+            const riskClassDefinitions = [
+              { id: 'R0', label: 'docs / template / metadata only' },
+              { id: 'R1', label: 'tests / CI / tooling only' },
+              { id: 'R2', label: 'frontend behavior' },
+              { id: 'R3', label: 'backend / API behavior' },
+              {
+                id: 'R4',
+                label: 'auth / permissions / security / schema / migration / secrets / payments / wallet / workflow / release',
+              },
+            ]
             const extractMarkdownSection = (markdown, heading) => {
               const escapedHeading = heading.replace(/[.*+?^${}()|[\]\\]/g, '\\$&')
               const match = markdown.match(
@@ -49,6 +59,24 @@ jobs:
               )
               return match?.[1] || ''
             }
+            const riskClassSection = extractMarkdownSection(bodyForAutonomousGate, 'PR Risk Class')
+            const checkedRiskClassIds = Array.from(
+              riskClassSection.matchAll(/^\s*-\s*\[[xX]\]\s*(R[0-4])\b/gm),
+              (match) => match[1],
+            )
+            const checkedRiskClasses = checkedRiskClassIds
+              .map((checkedId) => riskClassDefinitions.find(({ id }) => id === checkedId))
+            const uniqueCheckedRiskClassIds = [...new Set(checkedRiskClassIds)]
+            const selectedRiskClass = checkedRiskClasses.length === 1 ? checkedRiskClasses[0] : null
+            const selectedRiskClassId =
+              checkedRiskClassIds.length === 0
+                ? 'unclassified'
+                : uniqueCheckedRiskClassIds.length === 1
+                  ? uniqueCheckedRiskClassIds[0]
+                  : 'invalid'
+            const hasAutoReadyLabel = labels.includes('auto-ready')
+            const autoReadyAllowedByRiskClass =
+              checkedRiskClassIds.length === 1 && selectedRiskClassId !== 'R4'
             const delegationExecutionLogSection = extractMarkdownSection(
               bodyForAutonomousGate,
               'Delegation Execution Log',
@@ -496,6 +524,16 @@ jobs:
             const intentionallyBlocked = /If no, this PR is:[\s\S]*?- \[[xX]\] intentionally blocked until dependency merges/i.test(body)
 
             if (!isDependabotPr) {
+              if (checkedRiskClasses.length !== 1) {
+                policyFailures.push('PR body must select exactly one PR risk class (R0-R4).')
+              }
+
+              if (selectedRiskClassId === 'R4' && hasAutoReadyLabel) {
+                policyFailures.push(
+                  'R4 PRs cannot use `auto-ready`; remove the `auto-ready` label and require human review.',
+                )
+              }
+
               if (isAutonomousPr) {
                 if (!hasDelegationExecutionLog) {
                   policyFailures.push('Autonomous PR must include a `Delegation Execution Log` section.')
@@ -786,6 +824,8 @@ jobs:
             summaryLines.push(
               `- Product surfaces: ${productSurfaces.length > 0 ? productSurfaces.join(', ') : 'none'}`,
             )
+            summaryLines.push(`- PR risk class: ${selectedRiskClassId}`)
+            summaryLines.push(`- Auto-ready allowed by risk class: ${autoReadyAllowedByRiskClass ? 'yes' : 'no'}`)
             summaryLines.push(`- Dependency blocked: ${dependencyFailures.length > 0 ? 'yes' : 'no'}`)
             summaryLines.push(`- Autonomous PR: ${isAutonomousPr ? 'yes' : 'no'}`)
             summaryLines.push(

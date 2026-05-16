@@ -83,6 +83,7 @@ The workflow only marks a PR ready when all of these are true at execution time:
 - The PR targets `develop` or `main`.
 - The PR is still a draft.
 - The PR has the `auto-ready` label.
+- The PR body selects exactly one `PR Risk Class`, and it is not `R4`.
 - The author is not `dependabot[bot]`.
 - The PR head is in the same repository.
 - The PR has a live head SHA.
@@ -149,7 +150,8 @@ mutation path.
 
 ## PR creation default
 
-Codex task PRs should now be opened as draft and labeled `auto-ready`:
+Codex task PRs should now be opened as draft and labeled `auto-ready` only when
+their PR Risk Class is `R0` through `R3`:
 
 ```bash
 make pr-open TITLE="[type] ..." BODY_FILE=/tmp/pr_body.md AUTO_READY=1
@@ -157,8 +159,8 @@ make pr-open TITLE="[type] ..." BODY_FILE=/tmp/pr_body.md AUTO_READY=1
 
 If opening a PR directly with `gh pr create`, use `--draft --label auto-ready`.
 
-Non-Codex tasks, human WIP drafts, and PRs that should not enter the review queue
-automatically should not use the `auto-ready` label.
+Non-Codex tasks, human WIP drafts, `R4` PRs, and PRs that should not enter the
+review queue automatically should not use the `auto-ready` label.
 
 ## Maintenance notes
 

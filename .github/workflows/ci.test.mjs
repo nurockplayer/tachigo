@@ -43,9 +43,13 @@ const AsyncFunction = Object.getPrototypeOf(async function () {}).constructor
 const developRequiredCheckRuns = [
   'Scope gate',
   'Supply-chain guardrails',
+  'Dependency Review',
+  'API contract drift',
   'Frontend build',
   'Dashboard build',
   'Contracts build',
+  'Contracts Slither report',
+  'Contracts gas snapshot report',
   'Backend CI (gate)',
 ].map((name, index) => ({
   name,
@@ -70,9 +74,76 @@ Backend contract already in develop:
 - [x] yes
 - [ ] no
 
+## PR Risk Class
+- [ ] R0 docs / template / metadata only
+- [ ] R1 tests / CI / tooling only
+- [x] R2 frontend behavior
+- [ ] R3 backend / API behavior
+- [ ] R4 auth / permissions / security / schema / migration / secrets / payments / wallet / workflow / release
+
 本 PR 明確不做
 - deploy workflow
 `
+
+const defaultRiskClassSection = `
+## PR Risk Class
+- [ ] R0 docs / template / metadata only
+- [ ] R1 tests / CI / tooling only
+- [x] R2 frontend behavior
+- [ ] R3 backend / API behavior
+- [ ] R4 auth / permissions / security / schema / migration / secrets / payments / wallet / workflow / release
+`
+
+function extractMarkdownSection(markdown, heading) {
+  const escapedHeading = heading.replace(/[.*+?^${}()|[\]\\]/g, '\\$&')
+  const match = (markdown || '').match(
+    new RegExp(
+      `(?:^|\\n)\\s*##\\s*${escapedHeading}\\b[^\\n]*\\n([\\s\\S]*?)(?=\\n\\s*##\\s+|\\n*$)`,
+      'i',
+    ),
+  )
+  return match?.[1] || ''
+}
+
+function withDefaultRiskClass(body) {
+  const riskClassSection = extractMarkdownSection(body || '', 'PR Risk Class')
+  if (/^\s*-\s*\[[xX]\]\s*R[0-4]\b/m.test(riskClassSection)) {
+    return body
+  }
+
+  if (/^##\s*PR Risk Class\b/im.test(body || '')) {
+    return (body || '').replace(
+      /^(\s*-\s*)\[\s\](\s*R2\b.*)$/m,
+      '$1[x]$2',
+    )
+  }
+
+  return `${body || ''}\n${defaultRiskClassSection}`
+}
+
+function selectRiskClass(body, riskClass) {
+  return withDefaultRiskClass(body)
+    .replace(/- \[[xX ]\] R0\b.*$/m, `- [${riskClass === 'R0' ? 'x' : ' '}] R0 docs / template / metadata only`)
+    .replace(/- \[[xX ]\] R1\b.*$/m, `- [${riskClass === 'R1' ? 'x' : ' '}] R1 tests / CI / tooling only`)
+    .replace(/- \[[xX ]\] R2\b.*$/m, `- [${riskClass === 'R2' ? 'x' : ' '}] R2 frontend behavior`)
+    .replace(/- \[[xX ]\] R3\b.*$/m, `- [${riskClass === 'R3' ? 'x' : ' '}] R3 backend / API behavior`)
+    .replace(
+      /- \[[xX ]\] R4\b.*$/m,
+      `- [${riskClass === 'R4' ? 'x' : ' '}] R4 auth / permissions / security / schema / migration / secrets / payments / wallet / workflow / release`,
+    )
+}
+
+test('withDefaultRiskClass ignores checked risk-like checklist items outside the risk section', () => {
+  const body = `
+## Acceptance Criteria
+- [x] R4 rollout reviewed by a human
+`
+
+  const normalized = withDefaultRiskClass(body)
+
+  assert.match(normalized, /## PR Risk Class/)
+  assert.match(normalized, /- \[x\] R2 frontend behavior/)
+})
 
 function parseYaml(filePath) {
   const script = `
@@ -268,6 +339,7 @@ async function runScopePoliceWorkflow({
   files = [{ filename: '.github/PULL_REQUEST_TEMPLATE.md', status: 'modified', additions: 1, deletions: 1 }],
   existingComments = [],
   prOverrides = {},
+  includeDefaultRiskClass = true,
 } = {}) {
   const parsedWorkflow = parseYaml(scopePolicePath)
   const script = parsedWorkflow.jobs['scope-police'].steps[0].with.script
@@ -280,7 +352,7 @@ async function runScopePoliceWorkflow({
   const pr = {
     number: 623,
     state: 'open',
-    body,
+    body: includeDefaultRiskClass ? withDefaultRiskClass(body) : body,
     title,
     base: { ref: 'develop' },
     head: { ref: 'feature/template-refresh', repo: { full_name: 'nurockplayer/tachigo' } },
@@ -369,6 +441,7 @@ async function runAutoReadyScript({
   const basePr = {
     number: 472,
     node_id: 'PR_node_id',
+    body: validStandardPrBody,
     base: { ref: 'develop' },
     draft: true,
     head: { sha: 'head_sha', repo: { full_name: 'nurockplayer/tachigo' } },
@@ -1152,6 +1225,12 @@ test('Codex issue template requires an autonomous worker delegation plan textare
 test('PR template includes a delegation execution log for autonomous work', async () => {
   const prTemplate = await readFile(prTemplatePath, 'utf8')
 
+  assert.match(prTemplate, /## PR Risk Class/)
+  assert.match(prTemplate, /R0 docs \/ template \/ metadata only/)
+  assert.match(prTemplate, /R1 tests \/ CI \/ tooling only/)
+  assert.match(prTemplate, /R2 frontend behavior/)
+  assert.match(prTemplate, /R3 backend \/ API behavior/)
+  assert.match(prTemplate, /R4 auth \/ permissions \/ security \/ schema \/ migration \/ secrets \/ payments \/ wallet \/ workflow \/ release/)
   assert.match(prTemplate, /## Delegation Execution Log/)
   assert.match(prTemplate, /Source issue delegation plan：/)
   assert.match(prTemplate, /Actual worker profile\(s\)：/)
@@ -1173,6 +1252,22 @@ test('PR template includes a delegation execution log for autonomous work', asyn
   assert.doesNotMatch(prTemplate, /spawn_count|ci_rerun_count|threshold_decision/)
   assert.match(prTemplate, /約 40% infra 複雜 \/ 約 60% 工作流摩擦/)
   assert.match(prTemplate, /改到 `\.github\/workflows\/\*\*` 時也不是 metadata-only，仍需勾選/)
+})
+
+test('shared conventions document the R4 auto-ready exception', async () => {
+  const conventions = await readFile(claudeConventionsPath, 'utf8')
+
+  assert.match(conventions, /R4/)
+  assert.match(conventions, /auto-ready/)
+  assert.match(conventions, /不要加\s*`auto-ready`/)
+})
+
+test('PR scope policy documents that risk class is author-declared without a diff-based floor', async () => {
+  const policy = await readFile(prScopePolicyPath, 'utf8')
+
+  assert.match(policy, /author[- ]declared|作者自我宣告/)
+  assert.match(policy, /diff-based floor|diff .*floor|路徑自動升級/)
+  assert.match(policy, /workflow|migration|auth|wallet/)
 })
 
 test('AWP v2 docs wire AGENTS and PR scope policy to autonomous evidence gates and spec workflow-check', async () => {
@@ -1212,6 +1307,112 @@ test('Scope Police stays out of spec workflow-check internals and threshold metr
   assert.doesNotMatch(workflow, /spawn_count|ci_rerun_count|threshold_decision/)
   assert.doesNotMatch(workflow, /workflow-check --phase start|workflow-check --phase commit|workflow-check --phase merge/)
   assert.match(prScopePolicy, /does not parse/)
+})
+
+test('PR scope police enforces risk classification and blocks R4 auto-ready', async () => {
+  const workflow = await readFile(scopePolicePath, 'utf8')
+  const bodyWithoutRiskClass = validStandardPrBody.replace(
+    /\n## PR Risk Class[\s\S]*?\n本 PR 明確不做/,
+    '\n本 PR 明確不做',
+  )
+  const validAutonomousEvidence = `
+## Delegation Execution Log
+- Source issue delegation plan：#647 issue delegation plan
+- Actual worker profile(s)：controller / test_worker
+- Model strength：controller = high；test_worker = medium
+- Spawn directive(s)：profile=test_worker model=gpt-5.4 reasoning=medium controller_fallback=denied
+- Verification evidence：node --test .github/workflows/ci.test.mjs
+- Self-review / exception reason：controller reviewed the risk gate
+- Worker session closeout：worker results read back and closed
+
+## Review conversation closeout
+- Unresolved threads：0
+- CodeRabbit：n/a
+- chatgpt-codex-connector：n/a
+- review_triage_ref：https://example.com/pr/647#issuecomment-triage
+- root_cause_gate_ref：https://example.com/pr/647#issuecomment-root-cause
+- finding_disposition_ref：https://example.com/pr/647#issuecomment-disposition
+- Final reviewer action：resolved
+
+## Final merge gate
+- Ready-to-merge decision：ready
+- Latest head SHA：abc1234
+- Required checks：pass
+- Evidence URL：https://example.com/pr/647#issuecomment-1
+`
+
+  assert.doesNotMatch(workflow, /\.filter\(Boolean\)/)
+
+  const missingRiskRun = await runScopePoliceWorkflow({
+    body: bodyWithoutRiskClass,
+    includeDefaultRiskClass: false,
+  })
+  assert.equal(missingRiskRun.failures.length, 1)
+  assert.match(
+    missingRiskRun.comments[0].body,
+    /PR body must select exactly one PR risk class \(R0-R4\)\./,
+  )
+  assert.match(missingRiskRun.comments[0].body, /- PR risk class: unclassified/)
+  assert.match(missingRiskRun.comments[0].body, /- Auto-ready allowed by risk class: no/)
+
+  const multipleRiskRun = await runScopePoliceWorkflow({
+    body: validStandardPrBody.replace('- [ ] R4', '- [x] R4'),
+    includeDefaultRiskClass: false,
+  })
+  assert.equal(multipleRiskRun.failures.length, 1)
+  assert.match(
+    multipleRiskRun.comments[0].body,
+    /PR body must select exactly one PR risk class \(R0-R4\)\./,
+  )
+  assert.match(multipleRiskRun.comments[0].body, /- PR risk class: invalid/)
+  assert.match(multipleRiskRun.comments[0].body, /- Auto-ready allowed by risk class: no/)
+
+  const duplicateSameRiskRun = await runScopePoliceWorkflow({
+    body: validStandardPrBody.replace(
+      '- [x] R2 frontend behavior',
+      '- [x] R2 frontend behavior\n- [x] R2 frontend behavior duplicate',
+    ),
+    includeDefaultRiskClass: false,
+  })
+  assert.equal(duplicateSameRiskRun.failures.length, 1)
+  assert.match(
+    duplicateSameRiskRun.comments[0].body,
+    /PR body must select exactly one PR risk class \(R0-R4\)\./,
+  )
+  assert.match(duplicateSameRiskRun.comments[0].body, /- PR risk class: R2/)
+
+  const r4AutoReadyRun = await runScopePoliceWorkflow({
+    body: `${selectRiskClass(validStandardPrBody, 'R4')}\n${validAutonomousEvidence}`,
+    labels: [{ name: 'auto-ready' }],
+    includeDefaultRiskClass: false,
+  })
+  assert.equal(r4AutoReadyRun.failures.length, 1)
+  assert.match(
+    r4AutoReadyRun.comments[0].body,
+    /R4 PRs cannot use `auto-ready`; remove the `auto-ready` label and require human review\./,
+  )
+  assert.match(r4AutoReadyRun.comments[0].body, /- PR risk class: R4/)
+  assert.match(r4AutoReadyRun.comments[0].body, /- Auto-ready allowed by risk class: no/)
+
+  const r3AutoReadyRun = await runScopePoliceWorkflow({
+    body: `${selectRiskClass(validStandardPrBody, 'R3')}\n${validAutonomousEvidence}`,
+    labels: [{ name: 'auto-ready' }],
+    includeDefaultRiskClass: false,
+  })
+  assert.equal(r3AutoReadyRun.failures.length, 0)
+  assert.match(r3AutoReadyRun.comments[0].body, /- PR risk class: R3/)
+  assert.match(r3AutoReadyRun.comments[0].body, /- Auto-ready allowed by risk class: yes/)
+
+  const extraCheckedRiskOutsideSectionRun = await runScopePoliceWorkflow({
+    body: `${selectRiskClass(validStandardPrBody, 'R2')}
+
+## Acceptance Criteria
+- [x] R4 rollout reviewed by a human
+${validAutonomousEvidence}`,
+    includeDefaultRiskClass: false,
+  })
+  assert.equal(extraCheckedRiskOutsideSectionRun.failures.length, 0)
+  assert.match(extraCheckedRiskOutsideSectionRun.comments[0].body, /- PR risk class: R2/)
 })
 
 test('PR scope police only treats a delegation log as autonomous when it has real content', async () => {
@@ -2441,12 +2642,20 @@ test('global auto-merge workflow excludes Dependabot and workflow-file PRs', asy
     'opened',
     'reopened',
     'ready_for_review',
+    'edited',
   ])
   assert.equal(
     parsedWorkflow.jobs['enable-auto-merge'].if,
     "github.event.pull_request.draft == false && github.event.pull_request.user.login != 'dependabot[bot]' && github.event.pull_request.base.ref == 'develop'",
   )
   assert.match(workflow, /Skipping auto-merge for workflow-file PR/)
+  assert.match(workflow, /Skipping auto-merge until PR selects exactly one PR Risk Class/)
+  assert.match(workflow, /Skipping auto-merge for R4 PR/)
+  assert.match(workflow, /extract_pr_risk_class_section/)
+  assert.match(workflow, /gh api[\s\S]*\.body \/\/ ""/)
+  assert.match(workflow, /risk_class_count/)
+  assert.match(workflow, /risk_class"\s*=\s*"R4"/)
+  assert.doesNotMatch(workflow, /\[\[:space:\]\]\+R\[0-4\]/)
   assert.ok(
     workflow.includes("--jq '.[] | .filename, (.previous_filename // empty)'"),
     'workflow-file PR detection must include renamed-away workflow files',
@@ -2567,6 +2776,7 @@ test('auto-ready workflow is opt-in for auto-ready PRs on protected base branche
   assert.equal(parsedWorkflow.permissions.checks, 'read')
   assert.equal(parsedWorkflow.permissions.statuses, 'read')
   assert.match(workflow, /const autoReadyLabel = 'auto-ready'/)
+  assert.match(workflow, /autoReadyRiskClassAllowed/)
   assert.match(workflow, /const markedReady = pr\.draft === true/)
   assert.match(workflow, /if \(markedReady\) \{[\s\S]*await readyForReview\(pr\)/)
   assert.match(workflow, /pr\.user\?\.login === 'dependabot\[bot\]'/)
@@ -2584,9 +2794,13 @@ test('auto-ready workflow checks required contexts and excludes its own run', as
   assert.match(workflow, /const requiredCheckSnapshots = \{/)
   assert.match(workflow, /develop: \[/)
   assert.match(workflow, /\{ context: 'Scope gate', appId: 15368 \}/)
+  assert.match(workflow, /\{ context: 'Dependency Review', appId: 15368 \}/)
+  assert.match(workflow, /\{ context: 'API contract drift', appId: 15368 \}/)
   assert.match(workflow, /\{ context: 'Frontend build', appId: 15368 \}/)
   assert.match(workflow, /\{ context: 'Dashboard build', appId: 15368 \}/)
   assert.match(workflow, /\{ context: 'Contracts build', appId: 15368 \}/)
+  assert.match(workflow, /\{ context: 'Contracts Slither report', appId: 15368 \}/)
+  assert.match(workflow, /\{ context: 'Contracts gas snapshot report', appId: 15368 \}/)
   assert.match(workflow, /\{ context: 'Backend CI \(gate\)', appId: 15368 \}/)
   assert.match(workflow, /main: \[/)
   assert.match(workflow, /\{ context: 'Scope police', appId: 15368 \}/)
@@ -2645,6 +2859,7 @@ test('CI workflow wakes auto-ready draft PRs after required CI jobs finish', asy
   assert.equal(job.permissions.statuses, 'read')
 
   assert.match(jobBlock, /const autoReadyLabel = 'auto-ready'/)
+  assert.match(jobBlock, /autoReadyRiskClassAllowed/)
   assert.match(jobBlock, /const targetBaseBranches = new Set\(\['main', 'develop'\]\)/)
   assert.match(jobBlock, /const allowedJobResults = new Set\(\['success', 'skipped'\]\)/)
   assert.match(jobBlock, /const successConclusions = new Set\(\['success', 'neutral', 'skipped'\]\)/)
@@ -2673,9 +2888,13 @@ test('CI workflow wakes auto-ready draft PRs after required CI jobs finish', asy
   assert.match(jobBlock, /const requiredCheckSnapshots = \{/)
   assert.match(jobBlock, /\{ context: 'Scope gate', appId: 15368 \}/)
   assert.match(jobBlock, /\{ context: 'Supply-chain guardrails', appId: 15368 \}/)
+  assert.match(jobBlock, /\{ context: 'Dependency Review', appId: 15368 \}/)
+  assert.match(jobBlock, /\{ context: 'API contract drift', appId: 15368 \}/)
   assert.match(jobBlock, /\{ context: 'Frontend build', appId: 15368 \}/)
   assert.match(jobBlock, /\{ context: 'Dashboard build', appId: 15368 \}/)
   assert.match(jobBlock, /\{ context: 'Contracts build', appId: 15368 \}/)
+  assert.match(jobBlock, /\{ context: 'Contracts Slither report', appId: 15368 \}/)
+  assert.match(jobBlock, /\{ context: 'Contracts gas snapshot report', appId: 15368 \}/)
   assert.match(jobBlock, /\{ context: 'Backend CI \(gate\)', appId: 15368 \}/)
   assert.match(jobBlock, /\{ context: 'Scope police', appId: 15368 \}/)
   assert.doesNotMatch(jobBlock, /branchProtectionRule/)
@@ -2734,6 +2953,21 @@ test('CI auto-ready job waits when dependency review fails', async () => {
   assert.deepEqual(result.labelsAdded, [])
 })
 
+test('standalone auto-ready workflow waits when dependency review check fails', async () => {
+  const result = await runAutoReadyWorkflow({
+    checkRuns: successfulDevelopRequiredCheckRuns({
+      name: 'Dependency Review',
+      status: 'completed',
+      conclusion: 'failure',
+      app: { id: 15368 },
+      completed_at: '2026-05-03T00:01:00Z',
+    }),
+  })
+
+  assert.deepEqual(result.graphqlCalls, [])
+  assert.deepEqual(result.labelsAdded, [])
+})
+
 test('CI auto-ready job waits when supply-chain guardrails fail', async () => {
   const result = await runCiAutoReadyAfterCiWorkflow({
     env: { SUPPLY_CHAIN_GUARDRAILS_RESULT: 'failure' },
@@ -2762,6 +2996,48 @@ test('CI auto-ready job waits when contracts gas snapshot report fails', async (
 
   assert.deepEqual(result.graphqlCalls, [])
   assert.deepEqual(result.labelsAdded, [])
+})
+
+test('auto-ready workflows skip R4 PRs before readying or arming auto-merge', async () => {
+  const r4Body = selectRiskClass(validStandardPrBody, 'R4')
+  const standalone = await runAutoReadyWorkflow({
+    checkRuns: successfulDevelopRequiredCheckRuns(),
+    prOverrides: { body: r4Body },
+    livePrOverrides: { body: r4Body },
+  })
+  const ci = await runCiAutoReadyAfterCiWorkflow({
+    checkRuns: successfulDevelopRequiredCheckRuns(),
+    prOverrides: { body: r4Body },
+    livePrOverrides: { body: r4Body },
+  })
+
+  assert.deepEqual(standalone.graphqlCalls, [])
+  assert.deepEqual(standalone.autoMergeMutations, [])
+  assert.deepEqual(standalone.labelsAdded, [])
+  assert.deepEqual(ci.graphqlCalls, [])
+  assert.deepEqual(ci.autoMergeMutations, [])
+  assert.deepEqual(ci.labelsAdded, [])
+})
+
+test('auto-ready workflows read risk class only from the PR Risk Class section', async () => {
+  const r2BodyWithExtraCheckedRisk = `${selectRiskClass(validStandardPrBody, 'R2')}
+
+## Acceptance Criteria
+- [x] R4 rollout reviewed by a human
+`
+  const standalone = await runAutoReadyWorkflow({
+    checkRuns: successfulDevelopRequiredCheckRuns(),
+    prOverrides: { body: r2BodyWithExtraCheckedRisk },
+    livePrOverrides: { body: r2BodyWithExtraCheckedRisk },
+  })
+  const ci = await runCiAutoReadyAfterCiWorkflow({
+    checkRuns: successfulDevelopRequiredCheckRuns(),
+    prOverrides: { body: r2BodyWithExtraCheckedRisk },
+    livePrOverrides: { body: r2BodyWithExtraCheckedRisk },
+  })
+
+  assert.deepEqual(standalone.graphqlCalls, ['ready', 'auto-merge'])
+  assert.deepEqual(ci.graphqlCalls, ['ready', 'auto-merge'])
 })
 
 test('auto-ready workflow arms native auto-merge after marking a PR ready', async () => {

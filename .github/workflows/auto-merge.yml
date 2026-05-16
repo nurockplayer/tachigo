@@ -2,7 +2,7 @@ name: Enable auto-merge
 
 on:
   pull_request:
-    types: [opened, reopened, ready_for_review]
+    types: [opened, reopened, ready_for_review, edited]
 
 permissions:
   contents: write
@@ -23,6 +23,34 @@ jobs:
             --jq '.[] | .filename, (.previous_filename // empty)')
           if printf '%s\n' "$changed_files" | grep -Eq '^\.github/workflows/'; then
             echo "Skipping auto-merge for workflow-file PR."
+            exit 0
+          fi
+          pr_body=$(gh api \
+            "repos/${{ github.repository }}/pulls/${{ github.event.pull_request.number }}" \
+            --jq '.body // ""')
+          extract_pr_risk_class_section() {
+            awk '
+              /^[[:space:]]*##[[:space:]]+PR Risk Class([[:space:]]|$)/ {
+                in_section = 1
+                next
+              }
+              in_section && /^[[:space:]]*##[[:space:]]+/ { exit }
+              in_section { print }
+            '
+          }
+          checked_risk_classes=$(printf '%s\n' "$pr_body" \
+            | extract_pr_risk_class_section \
+            | grep -E '^[[:space:]]*-[[:space:]]*\[[xX]\][[:space:]]*R[0-4]([[:space:]]|$)' \
+            | sed -E 's/^[[:space:]]*-[[:space:]]*\[[xX]\][[:space:]]*(R[0-4]).*$/\1/' \
+            || true)
+          risk_class_count=$(printf '%s\n' "$checked_risk_classes" | sed '/^$/d' | wc -l | tr -d '[:space:]')
+          risk_class=$(printf '%s\n' "$checked_risk_classes" | sed -n '1p')
+          if [ "$risk_class_count" -ne 1 ]; then
+            echo "Skipping auto-merge until PR selects exactly one PR Risk Class."
+            exit 0
+          fi
+          if [ "$risk_class" = "R4" ]; then
+            echo "Skipping auto-merge for R4 PR."
             exit 0
           fi
           gh pr merge --auto --merge "${{ github.event.pull_request.number }}" \

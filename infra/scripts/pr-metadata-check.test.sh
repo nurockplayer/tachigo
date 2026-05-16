@@ -27,6 +27,15 @@ resolve_base_ref() {
 base_ref="$(resolve_base_ref)"
 git branch -f "$head_branch" "$base_ref" >/dev/null 2>&1
 
+default_risk_class='
+## PR Risk Class
+- [ ] R0 docs / template / metadata only
+- [ ] R1 tests / CI / tooling only
+- [x] R2 frontend behavior
+- [ ] R3 backend / API behavior
+- [ ] R4 auth / permissions / security / schema / migration / secrets / payments / wallet / workflow / release
+'
+
 run_case() {
   local name="$1"
   local title="$2"
@@ -57,6 +66,8 @@ EOF
 
   cat > "$body_file" <<EOF
 refs #123
+
+${default_risk_class}
 
 ## Scope 對齊
 
@@ -134,6 +145,8 @@ git worktree remove -f "$_item_wt"
 
 run_case_body() {
   local name="$1" title="$2" body="$3" expected_exit="${4:-0}"
+  local include_default_risk="${5:-1}"
+  local auto_ready="${6:-0}"
   local body_file="$tmpdir/$name.md"
   local fakebin="$tmpdir/$name-bin"
   mkdir -p "$fakebin"
@@ -145,9 +158,21 @@ exit 1
 GHEOF
   chmod +x "$fakebin/gh"
   printf '%s' "$body" > "$body_file"
+  if [ "$include_default_risk" -eq 1 ] && ! grep -q '^## PR Risk Class' "$body_file"; then
+    printf '\n%s\n' "$default_risk_class" >> "$body_file"
+  fi
+  local cmd=(
+    "$root_dir/infra/scripts/pr-metadata-check.sh"
+    --title "$title"
+    --body-file "$body_file"
+    --base develop
+    --head "$head_branch"
+  )
+  if [ "$auto_ready" -eq 1 ]; then
+    cmd+=(--auto-ready)
+  fi
   set +e
-  PATH="$fakebin:$PATH" "$root_dir/infra/scripts/pr-metadata-check.sh" \
-    --title "$title" --body-file "$body_file" --base develop --head "$head_branch" \
+  PATH="$fakebin:$PATH" "${cmd[@]}" \
     >/dev/null 2>"$tmpdir/$name.stderr"
   local exit_code=$?
   set -e
@@ -157,6 +182,86 @@ GHEOF
     exit 1
   fi
 }
+
+run_case_body "missing_risk_class" "[backend] missing risk class fixture" \
+'refs #123
+
+## Scope 對齊
+
+- Source of truth：test
+- Depends on PR：none
+- Backend contract already in develop:
+  - [x] yes
+  - [ ] no
+- 本 PR 明確不做：
+  - no-op
+' 1 0
+
+run_case_body "multiple_risk_classes" "[backend] multiple risk classes fixture" \
+'refs #123
+
+## PR Risk Class
+- [ ] R0 docs / template / metadata only
+- [ ] R1 tests / CI / tooling only
+- [x] R2 frontend behavior
+- [ ] R3 backend / API behavior
+- [x] R4 auth / permissions / security / schema / migration / secrets / payments / wallet / workflow / release
+
+## Scope 對齊
+
+- Source of truth：test
+- Depends on PR：none
+- Backend contract already in develop:
+  - [x] yes
+  - [ ] no
+- 本 PR 明確不做：
+  - no-op
+' 1 0
+
+run_case_body "r4_auto_ready" "[backend] r4 auto-ready fixture" \
+'refs #123
+
+## PR Risk Class
+- [ ] R0 docs / template / metadata only
+- [ ] R1 tests / CI / tooling only
+- [ ] R2 frontend behavior
+- [ ] R3 backend / API behavior
+- [x] R4 auth / permissions / security / schema / migration / secrets / payments / wallet / workflow / release
+
+## Scope 對齊
+
+- Source of truth：test
+- Depends on PR：none
+- Backend contract already in develop:
+  - [x] yes
+  - [ ] no
+- 本 PR 明確不做：
+  - no-op
+' 1 0 1
+
+run_case_body "extra_checked_risk_outside_section" "[frontend] extra checked risk outside section fixture" \
+'refs #123
+
+## PR Risk Class
+- [ ] R0 docs / template / metadata only
+- [ ] R1 tests / CI / tooling only
+- [x] R2 frontend behavior
+- [ ] R3 backend / API behavior
+- [ ] R4 auth / permissions / security / schema / migration / secrets / payments / wallet / workflow / release
+
+## Acceptance Criteria
+- [x] R4 rollout reviewed by a human
+
+## Scope 對齊
+
+- Source of truth：test
+- Depends on PR：none
+- Backend contract already in develop:
+  - [x] yes
+  - [ ] no
+- 本 PR 明確不做：
+  - no-op
+'
 
 # Blank line after section header must not prevent finding the checkbox.
 run_case_body "blank_after_section_header" "[backend] blank after header fixture" \

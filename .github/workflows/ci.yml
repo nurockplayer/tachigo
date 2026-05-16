@@ -867,9 +867,13 @@ jobs:
               develop: [
                 { context: 'Scope gate', appId: 15368 },
                 { context: 'Supply-chain guardrails', appId: 15368 },
+                { context: 'Dependency Review', appId: 15368 },
+                { context: 'API contract drift', appId: 15368 },
                 { context: 'Frontend build', appId: 15368 },
                 { context: 'Dashboard build', appId: 15368 },
                 { context: 'Contracts build', appId: 15368 },
+                { context: 'Contracts Slither report', appId: 15368 },
+                { context: 'Contracts gas snapshot report', appId: 15368 },
                 { context: 'Backend CI (gate)', appId: 15368 },
               ],
               main: [
@@ -900,6 +904,24 @@ jobs:
               (pr.labels || []).some((label) => label.name === name)
 
             const hasAutoReadyLabel = (pr) => hasLabel(pr, autoReadyLabel)
+            const extractMarkdownSection = (markdown, heading) => {
+              const escapedHeading = heading.replace(/[.*+?^${}()|[\]\\]/g, '\\$&')
+              const match = markdown.match(
+                new RegExp(
+                  `(?:^|\\n)\\s*##\\s*${escapedHeading}\\b[^\\n]*\\n([\\s\\S]*?)(?=\\n\\s*##\\s+|\\n*$)`,
+                  'i',
+                ),
+              )
+              return match?.[1] || ''
+            }
+            const checkedRiskClasses = (pr) =>
+              [...extractMarkdownSection((pr.body || '').replace(/<!--[\s\S]*?-->/g, ''), 'PR Risk Class')
+                .matchAll(/^\s*-\s*\[[xX]\]\s*(R[0-4])\b/gm)]
+                .map((match) => match[1])
+            const autoReadyRiskClassAllowed = (pr) => {
+              const checked = checkedRiskClasses(pr)
+              return checked.length === 1 && checked[0] !== 'R4'
+            }
 
             const ensureLabel = async (name, color, description) => {
               try {
@@ -990,6 +1012,10 @@ jobs:
             }
             if (!isEligibleAutoReadyPr(pr)) {
               core.info(`Skipping PR #${pr.number}: live PR state is no longer eligible.`)
+              return
+            }
+            if (!autoReadyRiskClassAllowed(pr)) {
+              core.info(`Skipping PR #${pr.number}: auto-ready requires exactly one non-R4 PR Risk Class.`)
               return
             }
 

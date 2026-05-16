@@ -25,7 +25,7 @@ logs:
 pr-meta-check:
 	@test -n "$(TITLE)" || (echo "TITLE is required"; exit 2)
 	@test -n "$(BODY_FILE)" || (echo "BODY_FILE is required"; exit 2)
-	@./infra/scripts/pr-metadata-check.sh --title "$(TITLE)" --body-file "$(BODY_FILE)" --base "$(or $(BASE),develop)" $(if $(HEAD),--head "$(HEAD)",)
+	@./infra/scripts/pr-metadata-check.sh --title "$(TITLE)" --body-file "$(BODY_FILE)" --base "$(or $(BASE),develop)" $(if $(HEAD),--head "$(HEAD)",) $(if $(filter 1,$(AUTO_READY)),--auto-ready,)
 
 pr-open:
 	@test -n "$(TITLE)" || (echo "TITLE is required"; exit 2)

@@ -14,6 +14,14 @@
 - [ ] Test-Driven / Debug Loop
 - [ ] Architecture / High Risk
 
+## PR Risk Class
+<!-- 必填且只能勾一項。R4 不可使用 auto-ready，必須由 human reviewer 明確 review / approve 後再 merge。 -->
+- [ ] R0 docs / template / metadata only
+- [ ] R1 tests / CI / tooling only
+- [ ] R2 frontend behavior
+- [ ] R3 backend / API behavior
+- [ ] R4 auth / permissions / security / schema / migration / secrets / payments / wallet / workflow / release
+
 ## Scope 對齊
 <!-- 一般 feature PR 若超過約 35 個檔案、diff 過大、同時改多個 product surface，或依賴尚未 merge 的 backend contract，會被 PR Scope Police 自動擋下。正式 `develop -> main` release PR 請使用 `[release]` title prefix，並在上方 Release Context 填 `develop -> main`。 -->
 - Source of truth：<!-- issue / PR / 文件，例如 #115 -->
