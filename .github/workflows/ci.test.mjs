@@ -2687,6 +2687,9 @@ test('CI workflow wakes auto-ready draft PRs after required CI jobs finish', asy
 test('CI auto-ready job marks ready before arming native auto-merge', async () => {
   const result = await runCiAutoReadyAfterCiWorkflow({
     checkRuns: successfulDevelopRequiredCheckRuns(),
+    prOverrides: {
+      labels: [{ name: 'auto-ready' }, { name: 'needs-codex-review' }],
+    },
   })
 
   assert.deepEqual(result.graphqlCalls, ['ready', 'auto-merge'])
@@ -2696,6 +2699,7 @@ test('CI auto-ready job marks ready before arming native auto-merge', async () =
   ])
   assert.deepEqual(result.labelsRemoved, [
     { issue_number: 472, name: 'changes-requested' },
+    { issue_number: 472, name: 'needs-codex-review' },
   ])
 })
 
@@ -2853,6 +2857,9 @@ test('auto-ready workflow treats skipped required checks as passing', async () =
 test('auto-ready workflow flags ready PRs for review', async () => {
   const result = await runAutoReadyWorkflow({
     checkRuns: successfulDevelopRequiredCheckRuns(),
+    livePrOverrides: {
+      labels: [{ name: 'auto-ready' }, { name: 'needs-codex-review' }],
+    },
   })
 
   assert.equal(result.mutations.length, 1)
@@ -2861,6 +2868,7 @@ test('auto-ready workflow flags ready PRs for review', async () => {
   ])
   assert.deepEqual(result.labelsRemoved, [
     { issue_number: 472, name: 'changes-requested' },
+    { issue_number: 472, name: 'needs-codex-review' },
   ])
 })
 
