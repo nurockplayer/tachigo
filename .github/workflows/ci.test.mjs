@@ -3061,7 +3061,7 @@ test('review label workflow clears changes requested when the last trusted block
   ])
 })
 
-test('review label workflow keeps dismissed PRs in the review queue when another trusted reviewer still blocks', async () => {
+test('review label workflow keeps dismissed PRs out of the review queue when another trusted reviewer still blocks', async () => {
   const result = await runCodexReviewFlagWorkflow({
     action: 'dismissed',
     prOverrides: {
@@ -3096,11 +3096,13 @@ test('review label workflow keeps dismissed PRs in the review queue when another
   })
 
   assert.deepEqual(result.labelsAdded, [
-    { issue_number: 472, labels: ['awaiting-review', 'changes-requested'] },
+    { issue_number: 472, labels: ['changes-requested'] },
   ])
-  assert.deepEqual(result.labelsRemoved, [])
+  assert.deepEqual(result.labelsRemoved, [
+    { issue_number: 472, name: 'awaiting-review' },
+  ])
   assert.deepEqual(result.notices, [
-    'PR #472 flagged for review after dismissal; a trusted reviewer still requests changes.',
+    'PR #472 kept changes-requested because a trusted reviewer still requests changes.',
   ])
 })
 

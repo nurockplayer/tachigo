@@ -194,9 +194,10 @@ jobs:
 
               if (context.payload.action === 'dismissed') {
                 if (trustedReviewSummary.hasChangesRequested) {
-                  await addLabels(pr.number, [reviewLabel, changesLabel])
+                  await addLabels(pr.number, [changesLabel])
+                  await removeLabel(pr.number, reviewLabel)
                   await removeStaleReviewLabel(pr)
-                  core.notice(`PR #${pr.number} flagged for review after dismissal; a trusted reviewer still requests changes.`)
+                  core.notice(`PR #${pr.number} kept ${changesLabel} because a trusted reviewer still requests changes.`)
                   return
                 }
 
