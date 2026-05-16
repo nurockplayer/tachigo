@@ -35,6 +35,8 @@
 
 `R4` 是 auto-ready / automation 的硬邊界。PR 若勾選 `R4` 且帶有 `auto-ready` label，`PR Scope Police` 會 fail，要求移除 `auto-ready` 並由 human reviewer 明確 review / approve。
 
+目前 `PR Risk Class` 是作者自我宣告的治理欄位，`PR Scope Police` 只驗證「剛好勾選一項」與「R4 不可搭配 auto-ready」。它尚未實作 diff-based floor 或路徑自動升級；也就是說，若 PR 修改 `.github/workflows/**`、migration、auth、wallet、security、payment 或 release 相關檔案，系統目前不會自動把 R1/R2/R3 升級為 R4。Reviewer 仍需依 diff 判斷風險，必要時要求作者改填 R4、移除 `auto-ready`，或拆 follow-up issue/PR。
+
 ## 自動規則
 
 repo 目前有一個 GitHub Actions workflow：

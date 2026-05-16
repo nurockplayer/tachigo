@@ -66,7 +66,6 @@ jobs:
             )
             const checkedRiskClasses = checkedRiskClassIds
               .map((checkedId) => riskClassDefinitions.find(({ id }) => id === checkedId))
-              .filter(Boolean)
             const uniqueCheckedRiskClassIds = [...new Set(checkedRiskClassIds)]
             const selectedRiskClass = checkedRiskClasses.length === 1 ? checkedRiskClasses[0] : null
             const selectedRiskClassId =

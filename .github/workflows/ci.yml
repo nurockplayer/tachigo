@@ -867,9 +867,13 @@ jobs:
               develop: [
                 { context: 'Scope gate', appId: 15368 },
                 { context: 'Supply-chain guardrails', appId: 15368 },
+                { context: 'Dependency Review', appId: 15368 },
+                { context: 'API contract drift', appId: 15368 },
                 { context: 'Frontend build', appId: 15368 },
                 { context: 'Dashboard build', appId: 15368 },
                 { context: 'Contracts build', appId: 15368 },
+                { context: 'Contracts Slither report', appId: 15368 },
+                { context: 'Contracts gas snapshot report', appId: 15368 },
                 { context: 'Backend CI (gate)', appId: 15368 },
               ],
               main: [

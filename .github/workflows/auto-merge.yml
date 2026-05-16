@@ -2,7 +2,7 @@ name: Enable auto-merge
 
 on:
   pull_request:
-    types: [opened, reopened, ready_for_review]
+    types: [opened, reopened, ready_for_review, edited]
 
 permissions:
   contents: write
@@ -40,8 +40,8 @@ jobs:
           }
           checked_risk_classes=$(printf '%s\n' "$pr_body" \
             | extract_pr_risk_class_section \
-            | grep -E '^[[:space:]]*-[[:space:]]*\[[xX]\][[:space:]]+R[0-4]([[:space:]]|$)' \
-            | sed -E 's/^[[:space:]]*-[[:space:]]*\[[xX]\][[:space:]]+(R[0-4]).*$/\1/' \
+            | grep -E '^[[:space:]]*-[[:space:]]*\[[xX]\][[:space:]]*R[0-4]([[:space:]]|$)' \
+            | sed -E 's/^[[:space:]]*-[[:space:]]*\[[xX]\][[:space:]]*(R[0-4]).*$/\1/' \
             || true)
           risk_class_count=$(printf '%s\n' "$checked_risk_classes" | sed '/^$/d' | wc -l | tr -d '[:space:]')
           risk_class=$(printf '%s\n' "$checked_risk_classes" | sed -n '1p')
