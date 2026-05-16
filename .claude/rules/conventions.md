@@ -4,6 +4,47 @@
 
 永遠使用台灣正體中文回覆，不得使用日文、韓文或簡體中文。
 
+## GitHub Issue 慣例
+
+### 標題前綴
+
+所有 issue 標題必須有前綴：
+
+| 前綴 | 用途 |
+|---|---|
+| `[backend]` | 後端開發任務（Go） |
+| `[frontend]` | 前端開發任務（React / TypeScript） |
+| `[discussion]` | 架構決策、設計討論，尚未有結論 |
+
+範例：
+- `[backend] PointsService — 雙帳本記帳`
+- `[frontend] Extension — 點數餘額顯示`
+- `[discussion] Token 經濟設計與 Soulbound 衝突`
+
+### Label
+
+| Label | 用途 |
+|---|---|
+| `feature` | 開發任務 |
+| `discussion` | 討論票（搭配 `[discussion]` 前綴使用） |
+| `awaiting-review` | PR 等待 reviewer 審查或複查 |
+| `changes-requested` | Reviewer 已提出 blocker，輪到作者修正 |
+| `auto-ready` | Codex task draft PR 的 opt-in label；required checks 全綠後由 workflow 自動轉 ready |
+
+### Issue 內容格式
+
+開發任務（`[backend]` / `[frontend]`）需包含：
+
+- **背景** — 這個功能是為了解決什麼問題
+- **任務** — 具體要做什麼（用 checklist）
+- **介面／規格** — Go interface、API 規格、或 component props
+- **參考** — 現有的範本檔案路徑
+- **完成條件** — PR merge 前必須達成的條件（checklist）
+
+對於 MVP 邊界、migration / schema、frontend page、docs / design、setup / scaffold 這類容易被擴張範圍的 issue，建議額外補一段 **本票明確不做**，只需列出最常見的外擴方向即可，不必追求完整黑名單。
+
+討論票（`[discussion]`）不需要固定格式，但要列出待決定的問題點。
+
 ## Branch 命名
 
 `<type>/<short-description>`

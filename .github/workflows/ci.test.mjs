@@ -33,7 +33,7 @@ const dependencyInventoryWorkflowPath = path.join(currentDir, 'dependency-invent
 const notifyRebaseNeededWorkflowPath = path.join(currentDir, 'notify-rebase-needed.yml')
 const releasePrWorkflowPath = path.join(currentDir, 'release-pr.yml')
 const claudePath = path.join(repoRoot, 'CLAUDE.md')
-const conventionsPath = path.join(repoRoot, '.claude', 'rules', 'conventions.md')
+const claudeConventionsPath = path.join(repoRoot, '.claude', 'rules', 'conventions.md')
 const prScopePolicyPath = path.join(repoRoot, 'docs', 'pr-scope-policy.md')
 const dependabotPolicyPath = path.join(repoRoot, 'docs', 'dependabot-update-policy.md')
 const securityScannerEvaluationPath = path.join(repoRoot, 'docs', 'security-scanner-evaluation.md')
@@ -1163,14 +1163,16 @@ test('scope gate backend contract regex accepts full-width and half-width colons
   )
 })
 
-test('PR size thresholds match CLAUDE.md', async () => {
+test('PR size thresholds match Claude conventions source of truth', async () => {
   const claude = await readFile(claudePath, 'utf8')
+  const conventions = await readFile(claudeConventionsPath, 'utf8')
   const workflow = await readFile(workflowPath, 'utf8')
   const scopePolice = await readFile(scopePolicePath, 'utf8')
 
-  assert.match(claude, /\|\s+\*\*警告門檻\*\*\s+\|\s+600\+\s+\|/)
-  assert.match(claude, /\|\s+\*\*硬限制\*\*\s+\|\s+1000\+\s+\|/)
-  assert.match(claude, /\|\s+\*\*例外 bypass\*\*\s+\|\s+無固定上限\s+\|/)
+  assert.match(claude, /@\.claude\/rules\/conventions\.md/)
+  assert.match(conventions, /\|\s+600-1000 行\s+\|\s+⚠️ 危險\s+\|/)
+  assert.match(conventions, /\|\s+1000\+ 行\s+\|\s+❌ 超限\s+\|/)
+  assert.match(conventions, /scope-exception/)
   assert.match(workflow, /const hardMaxDiffLines = 1000/)
   assert.match(scopePolice, /const warningDiffLines = 600/)
   assert.match(scopePolice, /const hardMaxDiffLines = 1000/)
@@ -1253,7 +1255,7 @@ test('PR template includes a delegation execution log for autonomous work', asyn
 })
 
 test('shared conventions document the R4 auto-ready exception', async () => {
-  const conventions = await readFile(conventionsPath, 'utf8')
+  const conventions = await readFile(claudeConventionsPath, 'utf8')
 
   assert.match(conventions, /R4/)
   assert.match(conventions, /auto-ready/)
