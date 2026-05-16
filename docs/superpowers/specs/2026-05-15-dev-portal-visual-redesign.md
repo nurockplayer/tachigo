@@ -24,16 +24,16 @@ Phase 1 Link Layer（#694–#698）已將 Dev Portal 內容層建置完成，#69
 1. **內頁完全沒有自訂樣式**。首頁有 573 行 `custom.css`（拓撲圖、卡片網格），但 `start-here`、`domain-maps`、`flows` 等內頁直接使用 Docusaurus 預設樣式，table 是無底色邊框、heading 沒有層次、整體質感顯著低於首頁。使用者實測後反映「沒有質感」。
 2. **資料殘片散落**。`domain-maps.md` 有 5 個「Coming soon」字串、`flows.md` 有 1 個未完成流程，且 sidebar 結構扁平（5 個分類），P0 onboarding 路徑與 reference / archive 條目混雜。
 
-本次工作將以 **Trello 鮮明色彩 × Notion 卡片堆疊** 為視覺方向，全面重塑 Dev Portal 的 CSS 系統、補上 3 個 MDX 元件、並重新組織 sidebar 與資料殘片。目標是讓 Dev Portal 在 `*.pages.dev` 公開部署前達到「人類與 AI agent 都覺得有質感且可掃讀」的狀態。
+本次工作將以 **engineering console × atlas workbook** 為視覺方向，全面重塑 Dev Portal 的 CSS 系統、補上 3 個 MDX 元件、並重新組織 sidebar 與資料殘片。目標是讓 Dev Portal 在 `*.pages.dev` 公開部署前達到「人類與 AI agent 都覺得有質感且可掃讀」的狀態。
 
 ## 視覺方向
 
-採用 **方向 B（Trello-primary）+ 部分 Notion 元素**：
+採用 **engineering console / atlas workbook**：
 
-- 看板灰底（`#f4f5f7`）+ 白色卡片（`box-shadow: 0 1px 0 rgba(9,30,66,.25)`）
-- 鮮明彩色 pill badge（藍/綠/橘）標示狀態
-- 卡片堆疊 list 取代部分 markdown table
-- Notion 的 callout 樣式（左側色條 + emoji）用於提示塊
+- 安靜的文件工作台：灰底 board、白色 card、薄 border、低陰影
+- 以藍/綠/橘/紅 token 做狀態與拓撲提示，但避免整頁變成高彩度看板
+- 首頁像專案導覽 console；內頁像可掃讀的 engineering runbook
+- Callout 保留左側色條語彙，PR2/PR3 若導入 MDX markup 再補更精準的狀態型別
 
 ## 設計系統
 
