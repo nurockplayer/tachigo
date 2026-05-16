@@ -34,7 +34,8 @@ jobs:
             const owner = context.repo.owner
             const repo = context.repo.repo
             const autoReadyLabel = 'auto-ready'
-            const reviewLabel = 'needs-codex-review'
+            const reviewLabel = 'awaiting-review'
+            const staleReviewLabel = 'needs-codex-review'
             const changesLabel = 'changes-requested'
             const targetBaseBranches = new Set(['main', 'develop'])
             const successConclusions = new Set(['success', 'neutral', 'skipped'])
@@ -56,8 +57,10 @@ jobs:
               ],
             }
 
-            const hasAutoReadyLabel = (pr) =>
-              (pr.labels || []).some((label) => label.name === autoReadyLabel)
+            const hasLabel = (pr, name) =>
+              (pr.labels || []).some((label) => label.name === name)
+
+            const hasAutoReadyLabel = (pr) => hasLabel(pr, autoReadyLabel)
 
             const ensureLabel = async (name, color, description) => {
               try {
@@ -76,19 +79,22 @@ jobs:
               }
             }
 
-            const flagForCodexReview = async (pr) => {
+            const flagForReview = async (pr) => {
               await ensureLabel(
                 reviewLabel,
                 '0075ca',
-                'New PR opened or new commits pushed after the latest Codex review — pending Codex review',
+                'New PR opened or new commits pushed after the latest trusted review — pending review',
               )
               await ensureLabel(
                 changesLabel,
                 'd73a4a',
-                'Codex has requested changes — author should update the PR',
+                'Reviewer has requested changes — author should update the PR',
               )
               await github.rest.issues.addLabels({ owner, repo, issue_number: pr.number, labels: [reviewLabel] })
               await removeLabel(pr.number, changesLabel)
+              if (hasLabel(pr, staleReviewLabel)) {
+                await removeLabel(pr.number, staleReviewLabel)
+              }
             }
 
             const isEligibleAutoReadyPr = (pr) => {
@@ -355,18 +361,18 @@ jobs:
               }
 
               try {
-                await flagForCodexReview(pr)
+                await flagForReview(pr)
               } catch (error) {
                 core.warning(
-                  `Failed to flag PR #${pr.number} for Codex review; ${autoReadyLabel} will retry while the label remains (${error?.message || error}).`,
+                  `Failed to flag PR #${pr.number} for review; ${autoReadyLabel} will retry while the label remains (${error?.message || error}).`,
                 )
                 continue
               }
 
               const readyMessage = markedReady ? 'marked ready for review, ' : ''
               if (workflowFileChanged) {
-                core.notice(`PR #${pr.number} ${readyMessage}skipped auto-merge for workflow-file PR, and flagged for Codex review.`)
+                core.notice(`PR #${pr.number} ${readyMessage}skipped auto-merge for workflow-file PR, and flagged for review.`)
               } else {
-                core.notice(`PR #${pr.number} ${readyMessage}armed auto-merge, and flagged for Codex review.`)
+                core.notice(`PR #${pr.number} ${readyMessage}armed auto-merge, and flagged for review.`)
               }
             }
