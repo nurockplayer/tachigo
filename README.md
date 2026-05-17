@@ -62,6 +62,7 @@ docker compose up --build
 | Backend  | http://localhost:8080                    |
 | Swagger  | http://localhost:8080/swagger/index.html |
 | Frontend | http://localhost:5173                    |
+| Dev Portal | http://localhost:3000/tachigo/         |
 | Postgres | localhost:5433                           |
 
 If you want local `.env` files, copy the examples first. Docker Compose can still start without them because the env files are optional.
@@ -78,6 +79,7 @@ On Windows PowerShell, you can generate the local env files with:
 ```bash
 docker compose up --build     # start all services (foreground — see logs)
 docker compose up -d --build  # start in background
+docker compose up docs --build # start only the Dev Portal docs site
 docker compose down           # stop all services
 docker compose logs -f        # tail all logs
 ```
@@ -88,10 +90,16 @@ docker compose logs -f        # tail all logs
 
 - Hot reload via [air](https://github.com/air-verse/air) — save any `.go` file to rebuild
 - Swagger docs regenerated automatically on each build (`swag init`)
-- Tests use SQLite in-memory — no Postgres required
+- Unit tests mostly use SQLite in-memory.
+- Schema/migration validation uses PostgreSQL via Atlas and CI.
+- Changes touching migrations, PostgreSQL constraints, partial indexes, or the Atlas loader must be verified against PostgreSQL.
 
 ```bash
+# Unit tests
 docker compose run --no-deps --rm app go test ./...
+
+# Integration / PostgreSQL-related tests
+docker compose run --rm app go test -tags integration ./...
 ```
 
 ### Frontend (`apps/extension/`)

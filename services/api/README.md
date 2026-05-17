@@ -48,7 +48,7 @@ make run
 常用後端指令：
 
 ```bash
-make run    # go run ./cmd/server
+make run    # atlas migrate apply, then go run ./cmd/server
 make build  # go build -o bin/tachigo ./cmd/server
 make test   # go test ./... -v
 make tidy   # go mod tidy
@@ -119,24 +119,23 @@ swag init -g cmd/server/main.go --output docs --quiet
 
 ## 資料庫與 migrations
 
-目前 server startup 會執行：
+Atlas owns runtime schema changes. Server startup no longer runs schema DDL; schema changes must enter through [`migrations/`](migrations/) and be applied with Atlas.
 
-- 建立 `user_role` enum
-- `db.AutoMigrate(schema.AutoMigrateModels()...)`
-- 需要 PostgreSQL partial index / FK / runtime repair 的 idempotent SQL patch
+Current paths:
 
-[`migrations/`](migrations/) 內的 `001-019` SQL 是現有 schema history / manual setup reference。Atlas 遷移正在 #463 路線中推進；在正式 runner 完成前，不要把這個目錄誤認為 production migration pipeline。
+- Docker entrypoint applies `atlas migrate apply` before starting `air` or `/tachigo`.
+- `make run` depends on `make migrate`; use `make run-no-migrate` only when intentionally reusing an already-migrated database.
+- `cmd/loader` uses `internal/schema.AtlasSchemaModels()` as the GORM schema source for Atlas.
+- Legacy raffle claim token hashing remains a data-only startup repair; do not add schema DDL to server bootstrap.
 
-若需要在乾淨 local PostgreSQL 上重播目前 SQL reference，可以使用：
+若需要在乾淨 local PostgreSQL 上重播目前 migration directory，可以使用：
 
 ```bash
 cd services/api
-for file in migrations/*.sql; do
-  psql "$DATABASE_URL" -v ON_ERROR_STOP=1 -f "$file"
-done
+atlas migrate apply --dir file://migrations --url "$ATLAS_DATABASE_URL"
 ```
 
-注意：這個 loop 只適合本機驗證或 schema reconciliation。正式環境變更要依當前 PR / issue 的 migration strategy 執行。
+注意：正式環境變更要依當前 deploy workflow / runbook 的 Atlas migration strategy 執行，不要讓 API binary 重新取得 schema DDL ownership。
 
 ## 分層結構
 
@@ -152,8 +151,8 @@ done
 | `internal/handlers` | HTTP request / response layer |
 | `internal/services` | domain logic 與 transaction boundaries |
 | `internal/models` | GORM models 與 persisted schema shape |
-| `internal/schema` | server AutoMigrate 與 Atlas loader 共用的 model list |
-| `migrations` | historical / manual SQL migration reference |
+| `internal/schema` | Atlas loader 使用的 GORM model list |
+| `migrations` | Atlas-owned SQL migration directory |
 | `docs` | generated Swagger artifacts |
 
 通常修改順序：
@@ -165,7 +164,7 @@ done
 
 ## 測試
 
-後端測試預設使用 SQLite in-memory，少數 PostgreSQL-specific 測試使用 testcontainers 或 `DATABASE_URL`。
+後端 unit tests 預設多數使用 SQLite in-memory；schema / migration validation 以及 PostgreSQL-specific constraints、partial indexes、Atlas loader 相關變更必須走 PostgreSQL path。
 
 常用指令：
 
@@ -179,7 +178,11 @@ go test ./internal/handlers -count=1
 從 repo root 用 Docker 跑：
 
 ```bash
+# SQLite-backed unit tests only
 docker compose run --no-deps --rm app go test ./...
+
+# Integration / PostgreSQL-related tests
+docker compose run --rm app go test -tags integration ./...
 ```
 
 新增 API endpoint 時，請同步檢查 handler tests、router auth / role boundary、Swagger annotation，以及 `services/api/docs/` 產物是否需要更新。

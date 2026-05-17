@@ -74,9 +74,28 @@ export async function importCSV(
   return data.data
 }
 
+export async function activateRaffle(raffleId: string): Promise<Raffle> {
+  const { data } = await client.post<ApiResponse<{ raffle: Raffle }>>(
+    `/api/v1/dashboard/raffles/${raffleId}/activate`,
+    undefined,
+  )
+  return data.data.raffle
+}
+
 export async function completeRaffle(raffleId: string): Promise<void> {
   await client.post(
     `/api/v1/dashboard/raffles/${raffleId}/complete`,
     undefined,
   )
+}
+
+export async function setDiscordWebhook(
+  raffleId: string,
+  webhookUrl: string,
+): Promise<boolean> {
+  const { data } = await client.patch<ApiResponse<{ discord_webhook_configured: boolean }>>(
+    `/api/v1/dashboard/raffles/${raffleId}/discord-webhook`,
+    { discord_webhook_url: webhookUrl },
+  )
+  return data.data.discord_webhook_configured
 }

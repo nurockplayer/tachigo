@@ -1,0 +1,12 @@
+<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 1200 630" role="img" aria-label="tachigo Dev Portal card">
+  <rect width="1200" height="630" fill="#f6f3ec"/>
+  <rect x="64" y="64" width="1072" height="502" rx="18" fill="#17201f"/>
+  <circle cx="990" cy="156" r="54" fill="#c9483d"/>
+  <rect x="124" y="132" width="340" height="38" fill="#7bd2c8"/>
+  <rect x="124" y="206" width="620" height="48" fill="#f6f3ec"/>
+  <rect x="124" y="278" width="440" height="28" fill="#afc4bd"/>
+  <rect x="124" y="374" width="196" height="96" rx="10" fill="#2a8b9f"/>
+  <rect x="350" y="374" width="196" height="96" rx="10" fill="#bf8d2c"/>
+  <rect x="576" y="374" width="196" height="96" rx="10" fill="#7bd2c8"/>
+  <path d="M840 404h204M840 442h140M840 480h178" stroke="#f6f3ec" stroke-width="18" stroke-linecap="round"/>
+</svg>

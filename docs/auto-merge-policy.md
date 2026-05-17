@@ -24,6 +24,20 @@ Scope Police 強制分拆 PR，分拆後的 PR merge 回 develop 會造成其他
 
 Approve 前應確認：CI 全過、scope 正確、無 blocker。
 
+## PR Risk Class
+
+Auto-merge 只會在 PR body 剛好勾選一個 `PR Risk Class` 且該 class 不是 `R4` 時被 workflow arm。
+
+| Class | auto-merge |
+|---|---|
+| R0 docs / template / metadata only | 可用 |
+| R1 tests / CI / tooling only | 可用 |
+| R2 frontend behavior | 可用，但仍需 branch protection 要求的 review |
+| R3 backend / API behavior | 可用，但仍需 branch protection 要求的 review |
+| R4 auth / permissions / security / schema / migration / secrets / payments / wallet / workflow / release | 不可用 |
+
+`R4` PR 必須由 human reviewer 明確 review / approve，且不得使用 `auto-ready` 或 native auto-merge path。若 PR 未勾選 risk class、勾選多個 class，或勾選 `R4`，auto-merge workflow 會 skip，`PR Scope Police` 會在 sticky comment 顯示原因。
+
 ## Review 動作對應
 
 | 嚴重程度 | 動作 |

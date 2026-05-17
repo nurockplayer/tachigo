@@ -37,12 +37,58 @@ jobs:
             const labels = (pr.labels || []).map((label) => label.name)
             const bypassed = labels.some((label) => bypassLabels.has(label))
 
-            const autonomousLabels = new Set(['codex', 'codex-automation', 'auto-ready'])
+            const autonomousLabels = new Set(['autonomous', 'codex', 'codex-automation', 'codex-workflow', 'auto-ready'])
             const bodyForAutonomousGate = (pr.body || '').replace(/<!--[\s\S]*?-->/g, '')
-            const delegationExecutionLogSectionMatch = bodyForAutonomousGate.match(
-              /(?:^|\n)\s*##\s*Delegation Execution Log\b[^\n]*\n([\s\S]*?)(?=\n\s*##\s+|\n*$)/i,
+            const riskClassDefinitions = [
+              { id: 'R0', label: 'docs / template / metadata only' },
+              { id: 'R1', label: 'tests / CI / tooling only' },
+              { id: 'R2', label: 'frontend behavior' },
+              { id: 'R3', label: 'backend / API behavior' },
+              {
+                id: 'R4',
+                label: 'auth / permissions / security / schema / migration / secrets / payments / wallet / workflow / release',
+              },
+            ]
+            const extractMarkdownSection = (markdown, heading) => {
+              const escapedHeading = heading.replace(/[.*+?^${}()|[\]\\]/g, '\\$&')
+              const match = markdown.match(
+                new RegExp(
+                  `(?:^|\\n)\\s*##\\s*${escapedHeading}\\b[^\\n]*\\n([\\s\\S]*?)(?=\\n\\s*##\\s+|\\n*$)`,
+                  'i',
+                ),
+              )
+              return match?.[1] || ''
+            }
+            const riskClassSection = extractMarkdownSection(bodyForAutonomousGate, 'PR Risk Class')
+            const checkedRiskClassIds = Array.from(
+              riskClassSection.matchAll(/^\s*-\s*\[[xX]\]\s*(R[0-4])\b/gm),
+              (match) => match[1],
             )
-            const delegationExecutionLogSection = delegationExecutionLogSectionMatch?.[1] || ''
+            const checkedRiskClasses = checkedRiskClassIds
+              .map((checkedId) => riskClassDefinitions.find(({ id }) => id === checkedId))
+            const uniqueCheckedRiskClassIds = [...new Set(checkedRiskClassIds)]
+            const selectedRiskClass = checkedRiskClasses.length === 1 ? checkedRiskClasses[0] : null
+            const selectedRiskClassId =
+              checkedRiskClassIds.length === 0
+                ? 'unclassified'
+                : uniqueCheckedRiskClassIds.length === 1
+                  ? uniqueCheckedRiskClassIds[0]
+                  : 'invalid'
+            const hasAutoReadyLabel = labels.includes('auto-ready')
+            const autoReadyAllowedByRiskClass =
+              checkedRiskClassIds.length === 1 && selectedRiskClassId !== 'R4'
+            const delegationExecutionLogSection = extractMarkdownSection(
+              bodyForAutonomousGate,
+              'Delegation Execution Log',
+            )
+            const reviewConversationCloseoutSection = extractMarkdownSection(
+              bodyForAutonomousGate,
+              'Review conversation closeout',
+            )
+            const finalMergeGateSection = extractMarkdownSection(
+              bodyForAutonomousGate,
+              'Final merge gate',
+            )
             const hasNoDelegationMeaning = (value) =>
               !value?.trim() || /^(?:n\/a|none|無|不適用)$/i.test(value.trim())
             const hasMeaningfulValue = (value) => !hasNoDelegationMeaning(value)
@@ -50,8 +96,21 @@ jobs:
               /^(Source issue delegation plan|Actual worker profile\(s\)|Model strength|Verification evidence|Self-review\s*\/\s*exception reason)\s*[：:]\s*(.*?)$/i
             const closeoutFieldPattern =
               /^Worker session closeout\s*[：:]\s*(.*?)$/i
+            const spawnDirectiveFieldPattern =
+              /^Spawn directive\(s\)\s*[：:]\s*(.*?)$/i
             const actualWorkerProfileFieldPattern =
               /^Actual worker profile\(s\)\s*[：:]\s*(.*?)$/i
+            const readyToMergeFieldPattern =
+              /^Ready-to-merge decision\s*[：:]\s*(.*?)$/i
+            const reviewCloseoutFieldPattern =
+              /^(Unresolved threads|CodeRabbit|chatgpt-codex-connector|Final reviewer action)\s*[：:]\s*(.*?)$/i
+            const reviewEvidenceFieldPatterns = [
+              /^review_triage_ref\s*[：:]\s*(.*?)$/i,
+              /^root_cause_gate_ref\s*[：:]\s*(.*?)$/i,
+              /^finding_disposition_ref\s*[：:]\s*(.*?)$/i,
+            ]
+            const finalMergeGateFieldPattern =
+              /^(Ready-to-merge decision|Latest head SHA|Required checks|spec workflow-check evidence|Evidence URL)\s*[：:]\s*(.*?)$/i
             const hasMeaningfulExceptionReason = (value) =>
               Boolean(value?.trim()) && !/^(?:n\/a|none|無|不適用)$/i.test(value.trim())
             const hasSelfReviewTrivialExceptionReason = (value) =>
@@ -68,7 +127,9 @@ jobs:
             ]
 
             const isDelegationFieldHeader = (line) =>
-              delegationFieldPattern.test(line) || closeoutFieldPattern.test(line)
+              delegationFieldPattern.test(line) ||
+              closeoutFieldPattern.test(line) ||
+              spawnDirectiveFieldPattern.test(line)
 
             const hasMeaningfulDelegationValue = (lines, startIndex, fieldPattern, valueEvaluator = hasMeaningfulValue) => {
               const line = lines[startIndex]
@@ -118,12 +179,181 @@ jobs:
 
               return false
             }
+            const collectDelegationFieldValues = (lines, fieldPattern) => {
+              const values = []
+
+              for (let startIndex = 0; startIndex < lines.length; startIndex += 1) {
+                const line = lines[startIndex]
+                const normalized = line.trim().replace(/^[*-]\s*/, '').trim()
+                if (!normalized) {
+                  continue
+                }
+
+                const headerMatch = normalized.match(fieldPattern)
+                if (!headerMatch) {
+                  continue
+                }
+
+                const directValue =
+                  headerMatch[2] !== undefined
+                    ? headerMatch[2].trim()
+                    : headerMatch[1]?.trim()
+                if (directValue) {
+                  values.push(directValue)
+                }
+
+                for (let nestedIndex = startIndex + 1; nestedIndex < lines.length; nestedIndex += 1) {
+                  const rawNestedLine = lines[nestedIndex]
+                  const nestedTrimmed = rawNestedLine.trim()
+
+                  if (!nestedTrimmed) {
+                    continue
+                  }
+
+                  if (!/^\s+/.test(rawNestedLine)) {
+                    break
+                  }
+
+                  const normalizedNested = nestedTrimmed.replace(/^[*-]\s*/, '').trim()
+                  if (!normalizedNested) {
+                    continue
+                  }
+
+                  if (isDelegationFieldHeader(normalizedNested)) {
+                    break
+                  }
+
+                  values.push(normalizedNested)
+                }
+              }
+
+              return values
+            }
+            const isSectionFieldHeader = (line, fieldPattern) => fieldPattern.test(line)
+            const hasMeaningfulSectionFieldValue = (lines, startIndex, fieldPattern) => {
+              const line = lines[startIndex]
+              const normalized = line.trim().replace(/^[*-]\s*/, '').trim()
+              if (!normalized) {
+                return false
+              }
+
+              const headerMatch = normalized.match(fieldPattern)
+              if (!headerMatch) {
+                return false
+              }
+
+              const value =
+                headerMatch[2] !== undefined
+                  ? headerMatch[2].trim()
+                  : headerMatch[1]?.trim()
+              if (hasMeaningfulValue(value)) {
+                return true
+              }
+
+              for (let nestedIndex = startIndex + 1; nestedIndex < lines.length; nestedIndex += 1) {
+                const rawNestedLine = lines[nestedIndex]
+                const nestedTrimmed = rawNestedLine.trim()
+
+                if (!nestedTrimmed) {
+                  continue
+                }
+
+                if (!/^\s+/.test(rawNestedLine)) {
+                  break
+                }
+
+                const normalizedNested = nestedTrimmed.replace(/^[*-]\s*/, '').trim()
+                if (!normalizedNested) {
+                  continue
+                }
+
+                if (isSectionFieldHeader(normalizedNested, fieldPattern)) {
+                  break
+                }
+
+                if (hasMeaningfulValue(normalizedNested)) {
+                  return true
+                }
+              }
+
+              return false
+            }
+            const collectSectionFieldValues = (lines, fieldPattern) => {
+              const values = []
+
+              for (let startIndex = 0; startIndex < lines.length; startIndex += 1) {
+                const line = lines[startIndex]
+                const normalized = line.trim().replace(/^[*-]\s*/, '').trim()
+                if (!normalized) {
+                  continue
+                }
+
+                const headerMatch = normalized.match(fieldPattern)
+                if (!headerMatch) {
+                  continue
+                }
+
+                const directValue =
+                  headerMatch[2] !== undefined
+                    ? headerMatch[2].trim()
+                    : headerMatch[1]?.trim()
+                if (directValue) {
+                  values.push(directValue)
+                }
+
+                for (let nestedIndex = startIndex + 1; nestedIndex < lines.length; nestedIndex += 1) {
+                  const rawNestedLine = lines[nestedIndex]
+                  const nestedTrimmed = rawNestedLine.trim()
+
+                  if (!nestedTrimmed) {
+                    continue
+                  }
+
+                  if (!/^\s+/.test(rawNestedLine)) {
+                    break
+                  }
+
+                  const normalizedNested = nestedTrimmed.replace(/^[*-]\s*/, '').trim()
+                  if (!normalizedNested) {
+                    continue
+                  }
+
+                  if (isSectionFieldHeader(normalizedNested, fieldPattern)) {
+                    break
+                  }
+
+                  values.push(normalizedNested)
+                }
+              }
+
+              return values
+            }
+            const hasMeaningfulSectionContent = (section, fieldPattern) => {
+              const lines = section.split('\n')
+              const hasKnownField = lines.some((line) =>
+                fieldPattern.test(line.trim().replace(/^[*-]\s*/, '').trim()),
+              )
+
+              if (hasKnownField) {
+                return lines.some((line, index) =>
+                  hasMeaningfulSectionFieldValue(lines, index, fieldPattern),
+                )
+              }
+
+              return lines
+                .map((line) => line.trim().replace(/^[*-]\s*/, '').trim())
+                .some((line) => hasMeaningfulValue(line))
+            }
             const delegationExecutionLogLines = delegationExecutionLogSection.split('\n')
             const hasDelegationExecutionLog = delegationExecutionLogLines.some((line, index) =>
               hasMeaningfulDelegationValue(delegationExecutionLogLines, index, delegationFieldPattern),
             )
             const hasWorkerSessionCloseout = delegationExecutionLogLines.some((line, index) =>
               hasMeaningfulDelegationValue(delegationExecutionLogLines, index, closeoutFieldPattern),
+            )
+            const spawnDirectives = collectDelegationFieldValues(
+              delegationExecutionLogLines,
+              spawnDirectiveFieldPattern,
             )
             const workerProfiles = [
               'controller',
@@ -143,12 +373,74 @@ jobs:
             const hasActualWorkerProfile = delegationExecutionLogLines.some((line, index) =>
               hasMeaningfulDelegationValue(delegationExecutionLogLines, index, actualWorkerProfileFieldPattern, hasWorkerProfileInValue),
             )
+            const hasAutonomousBranchSignal =
+              /(?:^|[/-])(?:autonomous|codex)(?:[/-]|$)/i.test(pr.head?.ref || '')
+            const hasAutonomousBodySignal =
+              /(?:^|\n)\s*-?\s*(?:Autonomous PR|Codex workflow)\s*[：:]\s*(?:yes|true|enabled)/i.test(bodyForAutonomousGate)
             const isAutonomousPr =
-              labels.some((label) => autonomousLabels.has(label)) || hasDelegationExecutionLog
+              labels.some((label) => autonomousLabels.has(label)) ||
+              hasAutonomousBranchSignal ||
+              hasAutonomousBodySignal ||
+              hasDelegationExecutionLog
             const hasTrivialExceptionReason = trivialExceptionFieldPatterns.some((fieldPattern) =>
               delegationExecutionLogLines.some((line, index) =>
                 hasMeaningfulDelegationValue(delegationExecutionLogLines, index, fieldPattern.pattern, fieldPattern.valueEvaluator),
               ),
+            )
+            const hasReviewConversationCloseout = hasMeaningfulSectionContent(
+              reviewConversationCloseoutSection,
+              reviewCloseoutFieldPattern,
+            )
+            const reviewConversationCloseoutLines = reviewConversationCloseoutSection.split('\n')
+            const hasAllReviewEvidenceRefs = reviewEvidenceFieldPatterns.every((fieldPattern) =>
+              reviewConversationCloseoutLines.some((line, index) =>
+                hasMeaningfulSectionFieldValue(reviewConversationCloseoutLines, index, fieldPattern),
+              ),
+            )
+            const hasPendingReviewEvidenceRef = reviewEvidenceFieldPatterns.some((fieldPattern) =>
+              collectSectionFieldValues(reviewConversationCloseoutLines, fieldPattern).some((value) =>
+                /^pending\b/i.test(value),
+              ),
+            )
+            const hasBarePendingReviewEvidenceRef = reviewEvidenceFieldPatterns.some((fieldPattern) =>
+              collectSectionFieldValues(reviewConversationCloseoutLines, fieldPattern).some((value) =>
+                /^pending$/i.test(value),
+              ),
+            )
+            const hasValidReviewEvidenceRefs =
+              hasReviewConversationCloseout && hasAllReviewEvidenceRefs && !hasBarePendingReviewEvidenceRef
+            const finalMergeGateLines = finalMergeGateSection.split('\n')
+            const hasFinalMergeGate = hasMeaningfulSectionContent(
+              finalMergeGateSection,
+              finalMergeGateFieldPattern,
+            )
+            const hasCompleteSpawnDirective = (directive) =>
+              /\bprofile=\S+/i.test(directive) &&
+              /\bmodel=\S+/i.test(directive) &&
+              /\breasoning=\S+/i.test(directive) &&
+              /\bcontroller_fallback=\S+/i.test(directive)
+            const hasControllerFallbackReason = (directive) =>
+              /\b(?:fallback_reason|controller_fallback_reason)=\S/i.test(directive)
+            const allowedControllerFallbackPattern = /\bcontroller_fallback=allowed\b/i
+            const usesHighEndControllerModelForOpsSpark = (directive) =>
+              /\bprofile=ops_spark\b/i.test(directive) &&
+              /\bmodel=(?:controller|gpt-5\.5|gpt-5\.5-[^\s]+)/i.test(directive)
+            const readyToMergeValues = collectSectionFieldValues(
+              finalMergeGateLines,
+              readyToMergeFieldPattern,
+            )
+            const hasBarePendingMergeGate = readyToMergeValues.some((value) => /^pending$/i.test(value))
+            const hasReadyToMergeDecision = readyToMergeValues.some((value) => /^ready\b/i.test(value))
+            const reviewEvidenceRefsPass =
+              hasValidReviewEvidenceRefs && !(hasReadyToMergeDecision && hasPendingReviewEvidenceRef)
+            const hasValidSpawnDirective = spawnDirectives.some(hasCompleteSpawnDirective)
+            const hasInvalidAllowedFallbackDirective = spawnDirectives.some(
+              (directive) =>
+                allowedControllerFallbackPattern.test(directive) && !hasControllerFallbackReason(directive),
+            )
+            const hasOpsSparkControllerWithoutFallbackReason = spawnDirectives.some(
+              (directive) =>
+                usesHighEndControllerModelForOpsSpark(directive) && !hasControllerFallbackReason(directive),
             )
 
             const hardMaxChangedFiles = 35
@@ -232,6 +524,16 @@ jobs:
             const intentionallyBlocked = /If no, this PR is:[\s\S]*?- \[[xX]\] intentionally blocked until dependency merges/i.test(body)
 
             if (!isDependabotPr) {
+              if (checkedRiskClasses.length !== 1) {
+                policyFailures.push('PR body must select exactly one PR risk class (R0-R4).')
+              }
+
+              if (selectedRiskClassId === 'R4' && hasAutoReadyLabel) {
+                policyFailures.push(
+                  'R4 PRs cannot use `auto-ready`; remove the `auto-ready` label and require human review.',
+                )
+              }
+
               if (isAutonomousPr) {
                 if (!hasDelegationExecutionLog) {
                   policyFailures.push('Autonomous PR must include a `Delegation Execution Log` section.')
@@ -246,6 +548,45 @@ jobs:
                 if (hasDelegationExecutionLog && !hasWorkerSessionCloseout) {
                   policyFailures.push(
                     'Autonomous PR must include a meaningful `Worker session closeout` value (not blank / n/a / none / 無 / 不適用).',
+                  )
+                }
+
+                if (!hasReviewConversationCloseout && !hasFinalMergeGate) {
+                  policyFailures.push(
+                    'Autonomous PR must include either `Review conversation closeout` or `Final merge gate` evidence.',
+                  )
+                }
+
+                if (
+                  hasReviewConversationCloseout &&
+                  (!hasValidReviewEvidenceRefs || (hasReadyToMergeDecision && hasPendingReviewEvidenceRef))
+                ) {
+                  policyFailures.push(
+                    'Autonomous PR review closeout must include `review_triage_ref`, `root_cause_gate_ref`, and `finding_disposition_ref`; ready-to-merge closeout cannot leave those refs pending.',
+                  )
+                }
+
+                if (!hasTrivialExceptionReason && !hasValidSpawnDirective) {
+                  policyFailures.push(
+                    'Autonomous PR must include at least one spawn directive with `profile=`, `model=`, `reasoning=`, and `controller_fallback=`.',
+                  )
+                }
+
+                if (hasInvalidAllowedFallbackDirective) {
+                  policyFailures.push(
+                    '`controller_fallback=allowed` requires a non-empty `fallback_reason=` in the same spawn directive.',
+                  )
+                }
+
+                if (hasOpsSparkControllerWithoutFallbackReason) {
+                  policyFailures.push(
+                    'ops_spark tasks must not use a high-end controller model unless the same spawn directive records a fallback reason.',
+                  )
+                }
+
+                if (hasBarePendingMergeGate) {
+                  policyFailures.push(
+                    'Autonomous PR final merge gate must not leave a bare `pending` ready-to-merge decision.',
                   )
                 }
               }
@@ -441,6 +782,39 @@ jobs:
               summaryLines.push('- Title prefix, source of truth, dependency line, explicit non-goals, size, and surface checks still apply.')
             }
 
+            if (isAutonomousPr) {
+              summaryLines.push('')
+              summaryLines.push('### Autonomous evidence snapshot')
+              summaryLines.push(`- Delegation log: ${hasDelegationExecutionLog ? 'pass' : 'fail'}`)
+              summaryLines.push(
+                `- Worker session closeout: ${hasWorkerSessionCloseout ? 'pass' : 'fail'}`,
+              )
+              summaryLines.push(
+                `- Spawn directives: ${
+                  hasTrivialExceptionReason || hasValidSpawnDirective ? 'pass' : 'fail'
+                }`,
+              )
+              summaryLines.push(
+                `- Controller fallback detail: ${
+                  hasInvalidAllowedFallbackDirective || hasOpsSparkControllerWithoutFallbackReason
+                    ? 'fail'
+                    : 'pass'
+                }`,
+              )
+              summaryLines.push(
+                `- Review closeout: ${hasReviewConversationCloseout ? 'pass' : 'fail'}`,
+              )
+              summaryLines.push(
+                `- Review evidence refs: ${
+                  hasReviewConversationCloseout ? (reviewEvidenceRefsPass ? 'pass' : 'fail') : 'n/a'
+                }`,
+              )
+              summaryLines.push(`- Final merge gate: ${hasFinalMergeGate ? 'pass' : 'fail'}`)
+              summaryLines.push(
+                `- Ready-to-merge pending cleared: ${hasBarePendingMergeGate ? 'fail' : 'pass'}`,
+              )
+            }
+
             summaryLines.push('')
             summaryLines.push('### Snapshot')
             summaryLines.push(`- Mode: ${isReleasePromotionPr ? 'release promotion (develop -> main)' : 'standard PR'}`)
@@ -450,6 +824,8 @@ jobs:
             summaryLines.push(
               `- Product surfaces: ${productSurfaces.length > 0 ? productSurfaces.join(', ') : 'none'}`,
             )
+            summaryLines.push(`- PR risk class: ${selectedRiskClassId}`)
+            summaryLines.push(`- Auto-ready allowed by risk class: ${autoReadyAllowedByRiskClass ? 'yes' : 'no'}`)
             summaryLines.push(`- Dependency blocked: ${dependencyFailures.length > 0 ? 'yes' : 'no'}`)
             summaryLines.push(`- Autonomous PR: ${isAutonomousPr ? 'yes' : 'no'}`)
             summaryLines.push(

@@ -16,6 +16,7 @@ services/api/bin/
 .superpowers/
 .continue/
 .omc/
+.worktrees
 
 # Frontend
 apps/extension/node_modules/
@@ -30,6 +31,14 @@ apps/dashboard/.env
 apps/dashboard/.env.local
 apps/dashboard/*.local
 
+apps/docs/node_modules/
+apps/docs/build/
+apps/docs/.docusaurus/
+apps/docs/.env
+apps/docs/.env.local
+apps/docs/*.local
+apps/docs/.cache/
+
 extensions/tachigo-demo-sidepanel/node_modules/
 extensions/tachigo-demo-sidepanel/dist/
 extensions/tachigo-demo-sidepanel/.env
@@ -43,6 +52,7 @@ node_modules/
 # Local caches
 .gocache/
 .go-build-cache/
+.wrangler/
 
 # IDE
 .vscode/

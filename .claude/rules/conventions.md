@@ -4,6 +4,47 @@
 
 永遠使用台灣正體中文回覆，不得使用日文、韓文或簡體中文。
 
+## GitHub Issue 慣例
+
+### 標題前綴
+
+所有 issue 標題必須有前綴：
+
+| 前綴 | 用途 |
+|---|---|
+| `[backend]` | 後端開發任務（Go） |
+| `[frontend]` | 前端開發任務（React / TypeScript） |
+| `[discussion]` | 架構決策、設計討論，尚未有結論 |
+
+範例：
+- `[backend] PointsService — 雙帳本記帳`
+- `[frontend] Extension — 點數餘額顯示`
+- `[discussion] Token 經濟設計與 Soulbound 衝突`
+
+### Label
+
+| Label | 用途 |
+|---|---|
+| `feature` | 開發任務 |
+| `discussion` | 討論票（搭配 `[discussion]` 前綴使用） |
+| `awaiting-review` | PR 等待 reviewer 審查或複查 |
+| `changes-requested` | Reviewer 已提出 blocker，輪到作者修正 |
+| `auto-ready` | Codex task draft PR 的 opt-in label；required checks 全綠後由 workflow 自動轉 ready |
+
+### Issue 內容格式
+
+開發任務（`[backend]` / `[frontend]`）需包含：
+
+- **背景** — 這個功能是為了解決什麼問題
+- **任務** — 具體要做什麼（用 checklist）
+- **介面／規格** — Go interface、API 規格、或 component props
+- **參考** — 現有的範本檔案路徑
+- **完成條件** — PR merge 前必須達成的條件（checklist）
+
+對於 MVP 邊界、migration / schema、frontend page、docs / design、setup / scaffold 這類容易被擴張範圍的 issue，建議額外補一段 **本票明確不做**，只需列出最常見的外擴方向即可，不必追求完整黑名單。
+
+討論票（`[discussion]`）不需要固定格式，但要列出待決定的問題點。
+
 ## Branch 命名
 
 `<type>/<short-description>`
@@ -38,6 +79,7 @@ Type：`feat` / `fix` / `docs` / `chore` / `refactor` / `test`
 - Codex task PR 預設以 draft 建立並加上 `auto-ready` label；required
   checks 通過後由 workflow 自動轉成 Ready for review。非 Codex task 或長期
   WIP draft 不應加 `auto-ready`。
+- PR Risk Class 為 R4 時不得使用 `auto-ready`；高風險 PR 需要人工審查核可。
 
 ## Codex task PR auto-ready
 
@@ -46,6 +88,8 @@ workflow 會在 required checks 全綠後自動把 PR 轉成 ready for review，
 review label 流程接手。
 
 - 建立 Codex task PR 時使用 `--draft --label auto-ready`
+- 若 PR Risk Class 為 R4（auth / permissions / security / schema / migration /
+  secrets / payments / wallet / workflow / release），不要加 `auto-ready` label。
 - 非 Codex task、人工長期 WIP draft、或不想自動進 review queue 的 PR，不要加
   `auto-ready` label
 - 不要在 auto-ready 前自動 approve、merge、resolve review comments，這些仍需人工或既有流程處理
@@ -146,6 +190,7 @@ review label 流程接手。
 - 不得讓 AI 自行擴張 issue scope；AI 提出的額外功能、future work、重構建議，必須拆成獨立 issue / PR
 - 不得把 docs / research draft / brainstorming 內容直接當成 implementation source of truth，除非 repo 已明確指定
 - 不得未經驗證就宣稱「已完成」；至少要回報實際執行過的測試、未驗證部分、以及已知風險
+- 不得自行新增依賴或執行 `npx` / `pnpm dlx` / `npm exec` / `curl | bash` / `wget | sh`；依賴與 lockfile 變更必須符合 [docs/ai/supply-chain-security.md](../../docs/ai/supply-chain-security.md) 的供應鏈安全規則
 - reviewer 應優先檢查 AI 是否偏離 issue、腦補需求、混入未要求的 schema / API / UI 改動，而不是只看程式碼表面是否完整
 
 ## 操作權限邊界

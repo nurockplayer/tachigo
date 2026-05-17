@@ -4,9 +4,18 @@
   "private": true,
   "description": "Chrome sidepanel extension + Web3 rewards platform. Viewers spend Bits to earn on-chain tokens; streamers manage rewards from the dashboard.",
   "packageManager": "pnpm@10.33.0",
+  "engines": {
+    "node": ">=24.0.0 <25"
+  },
   "scripts": {
+    "docs:start": "pnpm --filter ./apps/docs start",
+    "build:docs": "pnpm --filter ./apps/docs build",
+    "build:cloudflare-pages": "pnpm --filter ./apps/docs build:cloudflare-pages",
     "build:extension": "pnpm --filter ./apps/extension build",
     "build:dashboard": "pnpm --filter ./apps/dashboard build",
+    "api:types:generate": "pnpm --filter @tachigo/shared-types generate",
+    "api:types:check": "pnpm --filter @tachigo/shared-types check",
+    "api:client:test": "pnpm --filter @tachigo/api-client test",
     "test": "echo \"No root test suite configured\""
   },
   "repository": {
@@ -18,5 +27,11 @@
   "bugs": {
     "url": "https://github.com/nurockplayer/tachigo/issues"
   },
-  "homepage": "https://github.com/nurockplayer/tachigo#readme"
+  "homepage": "https://github.com/nurockplayer/tachigo#readme",
+  "pnpm": {
+    "overrides": {
+      "copy-webpack-plugin": "14.0.0",
+      "serialize-javascript": "7.0.5"
+    }
+  }
 }

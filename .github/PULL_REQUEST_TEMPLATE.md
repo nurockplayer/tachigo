@@ -14,6 +14,14 @@
 - [ ] Test-Driven / Debug Loop
 - [ ] Architecture / High Risk
 
+## PR Risk Class
+<!-- 必填且只能勾一項。R4 不可使用 auto-ready，必須由 human reviewer 明確 review / approve 後再 merge。 -->
+- [ ] R0 docs / template / metadata only
+- [ ] R1 tests / CI / tooling only
+- [ ] R2 frontend behavior
+- [ ] R3 backend / API behavior
+- [ ] R4 auth / permissions / security / schema / migration / secrets / payments / wallet / workflow / release
+
 ## Scope 對齊
 <!-- 一般 feature PR 若超過約 35 個檔案、diff 過大、同時改多個 product surface，或依賴尚未 merge 的 backend contract，會被 PR Scope Police 自動擋下。正式 `develop -> main` release PR 請使用 `[release]` title prefix，並在上方 Release Context 填 `develop -> main`。 -->
 - Source of truth：<!-- issue / PR / 文件，例如 #115 -->
@@ -39,6 +47,8 @@
   - <!-- 例：controller / docs_worker / ops_spark -->
 - Model strength：
   - <!-- 例：controller = high；docs_worker = medium -->
+- Spawn directive(s)：
+  - <!-- 例：profile=ops_spark model=gpt-5.3-codex-spark reasoning=medium controller_fallback=denied fallback_reason=n/a -->
 - Verification evidence：
   - <!-- 例：git diff --check；node --test .github/workflows/ci.test.mjs -->
 - Self-review / exception reason：
@@ -46,7 +56,37 @@
 - Worker session closeout：
   - <!-- 例：已讀回 worker 結果，不需追加任務的 worker session 已 close；stale handle / not found 已說明 -->
 - Workflow friction / follow-up split：
-  - <!-- autonomous PR 請說明本次約 40% infra 複雜 / 約 60% 工作流摩擦中，哪些已由 worker routing / closeout / follow-up issue 收斂；非 autonomous PR 可填 n/a -->
+  - <!-- autonomous PR 請說明本次約 40% infra 複雜 / 約 60% 工作流摩擦中，哪些已由 worker routing / closeout / follow-up issue 收斂；threshold calibration 只留 #664 ledger comment URL 或 n/a，非 autonomous PR 可填 n/a -->
+
+## Review conversation closeout
+<!-- autonomous PR 必填；非 autonomous PR 可填 n/a。所有 review finding 必須修正並回覆/resolve，或留下技術理由後 resolve。 -->
+- Unresolved threads：
+  - <!-- 例：0；若非 0，列 blocker 與下一步 -->
+- CodeRabbit：
+  - <!-- 例：reviewed latest head；rate limit fallback；n/a -->
+- chatgpt-codex-connector：
+  - <!-- 例：commented latest head；reaction-only fallback；n/a -->
+- review_triage_ref：
+  - <!-- autonomous PR：latest-head review triage evidence ref（issue / PR comment / spec output ref）；非 autonomous PR 可填 n/a -->
+- root_cause_gate_ref：
+  - <!-- autonomous PR：同概念第二次 finding 時的 root-cause / state-model evidence ref；若尚未觸發可填 latest-head rationale ref；非 autonomous PR 可填 n/a -->
+- finding_disposition_ref：
+  - <!-- autonomous PR：adopted / partial / rejected / deferred disposition evidence ref；非 autonomous PR 可填 n/a -->
+- Final reviewer action：
+  - <!-- 例：all findings fixed/resolved；adopted / partial / rejected / deferred recorded at latest head；n/a -->
+
+## Final merge gate
+<!-- autonomous PR merge 前更新一次即可；PR initial body 請先填 pending/n/a，final closeout 只在狀態穩定後更新一次。 -->
+- Ready-to-merge decision：
+  - <!-- 例：ready / blocked by CI / n/a；autonomous ready-to-merge closeout 不可留下裸 pending -->
+- Latest head SHA：
+  - <!-- 例：abc1234；開 PR 前可填 n/a -->
+- Required checks：
+  - <!-- 例：PR Scope Police pass；CI pass；開 PR 前可填 pending with reason -->
+- spec workflow-check evidence：
+  - <!-- status + ref only：使用 spec-injector 者填 local-only gate status 與 evidence ref；未使用者填 n/a 或人工 checklist；完整三段細節留在 Evidence URL 或 review/issue comment，不塞 PR body -->
+- Evidence URL：
+  - <!-- 例：final closeout comment / CI run / n/a -->
 
 ## PR 拆分檢查
 <!-- 一個 PR = 一個可獨立理解、可獨立驗證的行為變更。若超過 400 行、同時改 backend/frontend、或同時包含 schema/service/handler/UI 任兩種以上，請優先拆 PR。 -->

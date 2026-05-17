@@ -1,15 +1,20 @@
 import { describe, it, expect, vi, beforeEach } from 'vitest'
-import { listRaffles, createRaffle, listDraws, drawNext, importCSV, completeRaffle } from '@/services/raffles'
+import { listRaffles, createRaffle, listDraws, drawNext, importCSV, completeRaffle, setDiscordWebhook, activateRaffle } from '@/services/raffles'
 
 const getMock = vi.fn()
 const postMock = vi.fn()
+const patchMock = vi.fn()
 
 vi.mock('@/services/api', () => ({
-  default: { get: (...a: unknown[]) => getMock(...a), post: (...a: unknown[]) => postMock(...a) },
+  default: {
+    get: (...a: unknown[]) => getMock(...a),
+    post: (...a: unknown[]) => postMock(...a),
+    patch: (...a: unknown[]) => patchMock(...a),
+  },
 }))
 
 const mockRaffle = { id: 'r1', user_id: 'u1', title: 'Test', status: 'draft' as const, created_at: '', updated_at: '' }
-beforeEach(() => { getMock.mockReset(); postMock.mockReset() })
+beforeEach(() => { getMock.mockReset(); postMock.mockReset(); patchMock.mockReset() })
 
 describe('listRaffles', () => {
   it('returns raffles array', async () => {
@@ -69,5 +74,37 @@ describe('completeRaffle', () => {
     postMock.mockResolvedValue({ data: { success: true, data: {} } })
     await completeRaffle('r1')
     expect(postMock).toHaveBeenCalledWith('/api/v1/dashboard/raffles/r1/complete', undefined)
+  })
+})
+
+describe('activateRaffle', () => {
+  it('posts to activate endpoint and returns updated raffle', async () => {
+    const activeRaffle = { ...mockRaffle, status: 'active' as const }
+    postMock.mockResolvedValue({ data: { success: true, data: { raffle: activeRaffle } } })
+    const result = await activateRaffle('r1')
+    expect(result).toEqual(activeRaffle)
+    expect(postMock).toHaveBeenCalledWith('/api/v1/dashboard/raffles/r1/activate', undefined)
+  })
+})
+
+describe('setDiscordWebhook', () => {
+  it('patches the endpoint with URL and returns configured=true', async () => {
+    patchMock.mockResolvedValue({ data: { success: true, data: { discord_webhook_configured: true } } })
+    const result = await setDiscordWebhook('r1', 'https://discord.com/api/webhooks/123/abc')
+    expect(result).toBe(true)
+    expect(patchMock).toHaveBeenCalledWith(
+      '/api/v1/dashboard/raffles/r1/discord-webhook',
+      { discord_webhook_url: 'https://discord.com/api/webhooks/123/abc' },
+    )
+  })
+
+  it('patches with empty string to clear and returns configured=false', async () => {
+    patchMock.mockResolvedValue({ data: { success: true, data: { discord_webhook_configured: false } } })
+    const result = await setDiscordWebhook('r1', '')
+    expect(result).toBe(false)
+    expect(patchMock).toHaveBeenCalledWith(
+      '/api/v1/dashboard/raffles/r1/discord-webhook',
+      { discord_webhook_url: '' },
+    )
   })
 })

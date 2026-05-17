@@ -31,6 +31,7 @@ jobs:
       run_backend_integration: ${{ steps.evaluate.outputs.run_backend_integration }}
       run_backend_scanners: ${{ steps.evaluate.outputs.run_backend_scanners }}
       run_dependency_review: ${{ steps.evaluate.outputs.run_dependency_review }}
+      run_api_contracts: ${{ steps.evaluate.outputs.run_api_contracts }}
       run_frontend: ${{ steps.evaluate.outputs.run_frontend }}
       run_dashboard: ${{ steps.evaluate.outputs.run_dashboard }}
       run_contracts: ${{ steps.evaluate.outputs.run_contracts }}
@@ -48,6 +49,7 @@ jobs:
               runBackendIntegration,
               runBackendScanners,
               runDependencyReview,
+              runApiContracts,
               runFrontend,
               runDashboard,
               runContracts,
@@ -59,6 +61,7 @@ jobs:
               core.setOutput('run_backend_integration', runBackendIntegration ? 'true' : 'false')
               core.setOutput('run_backend_scanners', runBackendScanners ? 'true' : 'false')
               core.setOutput('run_dependency_review', runDependencyReview ? 'true' : 'false')
+              core.setOutput('run_api_contracts', runApiContracts ? 'true' : 'false')
               core.setOutput('run_frontend', runFrontend ? 'true' : 'false')
               core.setOutput('run_dashboard', runDashboard ? 'true' : 'false')
               core.setOutput('run_contracts', runContracts ? 'true' : 'false')
@@ -71,6 +74,7 @@ jobs:
               runBackendIntegration: true,
               runBackendScanners: true,
               runDependencyReview: false,
+              runApiContracts: true,
               runFrontend: true,
               runDashboard: true,
               runContracts: true,
@@ -83,6 +87,7 @@ jobs:
               runBackendIntegration: false,
               runBackendScanners: false,
               runDependencyReview: false,
+              runApiContracts: false,
               runFrontend: false,
               runDashboard: false,
               runContracts: false,
@@ -100,6 +105,7 @@ jobs:
                   runBackendIntegration: false,
                   runBackendScanners: true,
                   runDependencyReview: false,
+                  runApiContracts: false,
                   runFrontend: false,
                   runDashboard: false,
                   runContracts: false,
@@ -255,6 +261,13 @@ jobs:
               /^pnpm-lock\.yaml$/,
               /^pnpm-workspace\.yaml$/,
             ]
+            const apiContractPaths = [
+              /^packages\/(?:shared-types|api-client)\//,
+              /^services\/api\/docs\/(?:docs\.go|swagger\.json|swagger\.ya?ml)$/,
+              /^package\.json$/,
+              /^pnpm-lock\.yaml$/,
+              /^pnpm-workspace\.yaml$/,
+            ]
             const runFullCi = runCi && (
               isReleasePromotionPr ||
               allFilePaths.some((name) => ciWorkflowPaths.some((pattern) => pattern.test(name)))
@@ -275,6 +288,9 @@ jobs:
             const runDependencyReview = runCi && allFilePaths.some((name) =>
               dependencyReviewPaths.some((pattern) => pattern.test(name)),
             )
+            const runApiContracts = runFullCi || (runCi && allFilePaths.some((name) =>
+              apiContractPaths.some((pattern) => pattern.test(name)),
+            ))
             const runBackendIntegration = allFilePaths.some((name) =>
               backendIntegrationPaths.some((pattern) => pattern.test(name)),
             )
@@ -287,6 +303,7 @@ jobs:
                 runBackendIntegration: shouldRunBackendIntegration,
                 runBackendScanners,
                 runDependencyReview,
+                runApiContracts,
                 runFrontend,
                 runDashboard,
                 runContracts,
@@ -326,10 +343,30 @@ jobs:
 
       - uses: actions/setup-node@49933ea5288caeca8642d1e84afbd3f7d6820020 # v4
         with:
-          node-version: 22.12.0
+          node-version: 24.15.0
 
       - name: Verify CI workflow assertions
         run: node --test .github/workflows/ci.test.mjs
+
+      - name: Verify supply-chain guardrail assertions
+        run: bash infra/scripts/check-supply-chain-guardrails.test.sh
+
+      - name: Verify developer persistence guardrail assertions
+        run: bash infra/scripts/check-developer-persistence.test.sh
+
+  supply-chain-guardrails:
+    timeout-minutes: 5
+    name: Supply-chain guardrails
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@34e114876b0b11c390a56381ad16ebd13914f8d5 # v4
+
+      - uses: actions/setup-node@49933ea5288caeca8642d1e84afbd3f7d6820020 # v4
+        with:
+          node-version: 24.15.0
+
+      - name: Verify dependency install guardrails
+        run: node infra/scripts/check-supply-chain-guardrails.mjs
 
   commit-message-regression:
     timeout-minutes: 5
@@ -581,6 +618,33 @@ jobs:
           comment-summary-in-pr: never
           show-openssf-scorecard: false
 
+  api-contracts:
+    timeout-minutes: 10
+    name: API contract drift
+    needs: scope-gate
+    if: needs.scope-gate.outputs.run_api_contracts == 'true'
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@34e114876b0b11c390a56381ad16ebd13914f8d5 # v4
+
+      - uses: actions/setup-node@49933ea5288caeca8642d1e84afbd3f7d6820020 # v4
+        with:
+          node-version: 24.15.0
+
+      - uses: pnpm/action-setup@f40ffcd9367d9f12939873eb1018b921a783ffaa # v4
+        with:
+          version: 10.33.0
+          run_install: false
+
+      - name: Install dependencies
+        run: pnpm install --frozen-lockfile --ignore-scripts
+
+      - name: Check generated API types
+        run: pnpm api:types:check
+
+      - name: Test typed API client
+        run: pnpm api:client:test
+
   frontend:
     timeout-minutes: 15
     name: Frontend build
@@ -763,7 +827,7 @@ jobs:
   auto-ready-after-ci:
     timeout-minutes: 5
     name: Auto-ready draft PR after CI
-    needs: [scope-gate, backend-ci, dependency-review, frontend, dashboard, contracts, contracts-slither, contracts-gas-snapshot]
+    needs: [scope-gate, supply-chain-guardrails, backend-ci, dependency-review, api-contracts, frontend, dashboard, contracts, contracts-slither, contracts-gas-snapshot]
     if: always() && github.event_name == 'pull_request'
     runs-on: ubuntu-latest
     permissions:
@@ -777,8 +841,10 @@ jobs:
         uses: actions/github-script@f28e40c7f34bde8b3046d885e986cb6290c5673b # v7
         env:
           SCOPE_GATE_RESULT: ${{ needs.scope-gate.result }}
+          SUPPLY_CHAIN_GUARDRAILS_RESULT: ${{ needs.supply-chain-guardrails.result }}
           BACKEND_CI_RESULT: ${{ needs.backend-ci.result }}
           DEPENDENCY_REVIEW_RESULT: ${{ needs.dependency-review.result }}
+          API_CONTRACTS_RESULT: ${{ needs.api-contracts.result }}
           FRONTEND_RESULT: ${{ needs.frontend.result }}
           DASHBOARD_RESULT: ${{ needs.dashboard.result }}
           CONTRACTS_RESULT: ${{ needs.contracts.result }}
@@ -789,7 +855,8 @@ jobs:
             const owner = context.repo.owner
             const repo = context.repo.repo
             const autoReadyLabel = 'auto-ready'
-            const reviewLabel = 'needs-codex-review'
+            const reviewLabel = 'awaiting-review'
+            const staleReviewLabel = 'needs-codex-review'
             const changesLabel = 'changes-requested'
             const targetBaseBranches = new Set(['main', 'develop'])
             const allowedJobResults = new Set(['success', 'skipped'])
@@ -799,9 +866,14 @@ jobs:
             const requiredCheckSnapshots = {
               develop: [
                 { context: 'Scope gate', appId: 15368 },
+                { context: 'Supply-chain guardrails', appId: 15368 },
+                { context: 'Dependency Review', appId: 15368 },
+                { context: 'API contract drift', appId: 15368 },
                 { context: 'Frontend build', appId: 15368 },
                 { context: 'Dashboard build', appId: 15368 },
                 { context: 'Contracts build', appId: 15368 },
+                { context: 'Contracts Slither report', appId: 15368 },
+                { context: 'Contracts gas snapshot report', appId: 15368 },
                 { context: 'Backend CI (gate)', appId: 15368 },
               ],
               main: [
@@ -810,8 +882,10 @@ jobs:
             }
             const requiredJobResults = [
               ['scope-gate', process.env.SCOPE_GATE_RESULT],
+              ['supply-chain-guardrails', process.env.SUPPLY_CHAIN_GUARDRAILS_RESULT],
               ['backend-ci', process.env.BACKEND_CI_RESULT],
               ['dependency-review', process.env.DEPENDENCY_REVIEW_RESULT],
+              ['api-contracts', process.env.API_CONTRACTS_RESULT],
               ['frontend', process.env.FRONTEND_RESULT],
               ['dashboard', process.env.DASHBOARD_RESULT],
               ['contracts', process.env.CONTRACTS_RESULT],
@@ -826,8 +900,28 @@ jobs:
               }
             }
 
-            const hasAutoReadyLabel = (pr) =>
-              (pr.labels || []).some((label) => label.name === autoReadyLabel)
+            const hasLabel = (pr, name) =>
+              (pr.labels || []).some((label) => label.name === name)
+
+            const hasAutoReadyLabel = (pr) => hasLabel(pr, autoReadyLabel)
+            const extractMarkdownSection = (markdown, heading) => {
+              const escapedHeading = heading.replace(/[.*+?^${}()|[\]\\]/g, '\\$&')
+              const match = markdown.match(
+                new RegExp(
+                  `(?:^|\\n)\\s*##\\s*${escapedHeading}\\b[^\\n]*\\n([\\s\\S]*?)(?=\\n\\s*##\\s+|\\n*$)`,
+                  'i',
+                ),
+              )
+              return match?.[1] || ''
+            }
+            const checkedRiskClasses = (pr) =>
+              [...extractMarkdownSection((pr.body || '').replace(/<!--[\s\S]*?-->/g, ''), 'PR Risk Class')
+                .matchAll(/^\s*-\s*\[[xX]\]\s*(R[0-4])\b/gm)]
+                .map((match) => match[1])
+            const autoReadyRiskClassAllowed = (pr) => {
+              const checked = checkedRiskClasses(pr)
+              return checked.length === 1 && checked[0] !== 'R4'
+            }
 
             const ensureLabel = async (name, color, description) => {
               try {
@@ -846,19 +940,22 @@ jobs:
               }
             }
 
-            const flagForCodexReview = async (pr) => {
+            const flagForReview = async (pr) => {
               await ensureLabel(
                 reviewLabel,
                 '0075ca',
-                'New PR opened or new commits pushed after the latest Codex review — pending Codex review',
+                'New PR opened or new commits pushed after the latest trusted review — pending review',
               )
               await ensureLabel(
                 changesLabel,
                 'd73a4a',
-                'Codex has requested changes — author should update the PR',
+                'Reviewer has requested changes — author should update the PR',
               )
               await github.rest.issues.addLabels({ owner, repo, issue_number: pr.number, labels: [reviewLabel] })
               await removeLabel(pr.number, changesLabel)
+              if (hasLabel(pr, staleReviewLabel)) {
+                await removeLabel(pr.number, staleReviewLabel)
+              }
             }
 
             const enableAutoMerge = async (pr) => {
@@ -917,6 +1014,10 @@ jobs:
               core.info(`Skipping PR #${pr.number}: live PR state is no longer eligible.`)
               return
             }
+            if (!autoReadyRiskClassAllowed(pr)) {
+              core.info(`Skipping PR #${pr.number}: auto-ready requires exactly one non-R4 PR Risk Class.`)
+              return
+            }
 
             const requiredCheckKey = (contextName, appId) =>
               appId ? `check:${contextName}:${appId}` : `context:${contextName}`
@@ -941,6 +1042,25 @@ jobs:
                 ref: headSha,
               })
               return response.data.statuses || []
+            }
+
+            const listChangedFilePaths = async (pr) => {
+              const files = await github.paginate(github.rest.pulls.listFiles, {
+                owner,
+                repo,
+                pull_number: pr.number,
+                per_page: 100,
+              })
+              return files.flatMap((file) =>
+                file.status === 'renamed' && file.previous_filename
+                  ? [file.filename, file.previous_filename]
+                  : [file.filename],
+              )
+            }
+
+            const changesWorkflowFiles = async (pr) => {
+              const paths = await listChangedFilePaths(pr)
+              return paths.some((filePath) => filePath.startsWith('.github/workflows/'))
             }
 
             const checkRunPassed = (run) =>
@@ -1025,6 +1145,14 @@ jobs:
             }
 
             const markedReady = pr.draft === true
+            let workflowFileChanged = false
+            try {
+              workflowFileChanged = await changesWorkflowFiles(pr)
+            } catch (error) {
+              core.warning(`Skipping PR #${pr.number}: failed to fetch changed files (${error?.message || error}).`)
+              return
+            }
+
             if (markedReady) {
               try {
                 await github.graphql(
@@ -1046,31 +1174,39 @@ jobs:
               }
             }
 
-            try {
-              await enableAutoMerge(pr)
-            } catch (error) {
-              core.warning(
-                `Failed to arm auto-merge for PR #${pr.number}; ${autoReadyLabel} will retry while the label remains (${error?.message || error}).`,
-              )
-              return
+            if (!workflowFileChanged) {
+              try {
+                await enableAutoMerge(pr)
+              } catch (error) {
+                core.warning(
+                  `Failed to arm auto-merge for PR #${pr.number}; ${autoReadyLabel} will retry while the label remains (${error?.message || error}).`,
+                )
+                return
+              }
+            } else {
+              core.info(`Skipping auto-merge for workflow-file PR #${pr.number}.`)
             }
 
             try {
-              await flagForCodexReview(pr)
+              await flagForReview(pr)
             } catch (error) {
               core.warning(
-                `Failed to flag PR #${pr.number} for Codex review; ${autoReadyLabel} will retry while the label remains (${error?.message || error}).`,
+                `Failed to flag PR #${pr.number} for review; ${autoReadyLabel} will retry while the label remains (${error?.message || error}).`,
               )
               return
             }
 
             const readyMessage = markedReady ? 'marked ready for review, ' : ''
-            core.notice(`PR #${pr.number} ${readyMessage}armed auto-merge, and flagged for Codex review.`)
+            if (workflowFileChanged) {
+              core.notice(`PR #${pr.number} ${readyMessage}skipped auto-merge for workflow-file PR, and flagged for review.`)
+            } else {
+              core.notice(`PR #${pr.number} ${readyMessage}armed auto-merge, and flagged for review.`)
+            }
 
   notify-discord:
     timeout-minutes: 5
     name: Notify Discord on failure
-    needs: [workflow-regression, commit-message-regression, pr-metadata-regression, check-cache-wiring, atlas-migration-tooling, backend-ci, dependency-review, frontend, dashboard, contracts, contracts-slither, contracts-gas-snapshot]
+    needs: [workflow-regression, supply-chain-guardrails, commit-message-regression, pr-metadata-regression, check-cache-wiring, atlas-migration-tooling, backend-ci, dependency-review, frontend, dashboard, contracts, contracts-slither, contracts-gas-snapshot]
     if: failure()
     runs-on: ubuntu-latest
     steps:

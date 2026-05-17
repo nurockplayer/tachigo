@@ -37,7 +37,7 @@ func (h *StreamerHandler) Register(c *gin.Context) {
 		return
 	}
 
-	streamer, err := h.streamerSvc.Register(userID, body.ChannelID, body.DisplayName)
+	streamer, err := h.streamerSvc.RegisterContext(c.Request.Context(), userID, body.ChannelID, body.DisplayName)
 	if err != nil {
 		if errors.Is(err, services.ErrChannelNotOwned) {
 			c.JSON(http.StatusForbidden, Response{Success: false, Error: "channel_id does not match your Twitch account"})
@@ -77,7 +77,7 @@ func (h *StreamerHandler) Create(c *gin.Context) {
 		agencyUserID = &aid
 	}
 
-	streamer, err := h.streamerSvc.Create(userID, agencyUserID, body.ChannelID)
+	streamer, err := h.streamerSvc.CreateContext(c.Request.Context(), userID, agencyUserID, body.ChannelID)
 	if err != nil {
 		if errors.Is(err, services.ErrChannelNotOwned) {
 			c.JSON(http.StatusForbidden, Response{Success: false, Error: "channel_id does not match user's Twitch account"})
@@ -102,7 +102,7 @@ func (h *StreamerHandler) ListChannels(c *gin.Context) {
 		return
 	}
 
-	channels, err := h.streamerSvc.ListChannels(userID)
+	channels, err := h.streamerSvc.ListChannelsContext(c.Request.Context(), userID)
 	if err != nil {
 		internal(c)
 		return
@@ -120,14 +120,14 @@ func (h *StreamerHandler) List(c *gin.Context) {
 	)
 	switch claims.Role {
 	case models.RoleAdmin:
-		streamers, err = h.streamerSvc.ListAll()
+		streamers, err = h.streamerSvc.ListAllContext(c.Request.Context())
 	case models.RoleAgency:
 		agencyUserID, parseErr := uuid.Parse(claims.UserID)
 		if parseErr != nil {
 			badRequest(c, "invalid user id")
 			return
 		}
-		streamers, err = h.streamerSvc.ListByAgencyUserID(agencyUserID)
+		streamers, err = h.streamerSvc.ListByAgencyUserIDContext(c.Request.Context(), agencyUserID)
 	default:
 		c.JSON(http.StatusForbidden, Response{Success: false, Error: "forbidden"})
 		return
@@ -143,7 +143,7 @@ func (h *StreamerHandler) List(c *gin.Context) {
 		channelIDs = append(channelIDs, s.ChannelID)
 	}
 
-	summaryMap, err := h.streamerSvc.GetSummaryStats(channelIDs)
+	summaryMap, err := h.streamerSvc.GetSummaryStatsContext(c.Request.Context(), channelIDs)
 	if err != nil {
 		internal(c)
 		return
@@ -184,7 +184,7 @@ func (h *StreamerHandler) GetChannelStats(c *gin.Context) {
 			badRequest(c, "invalid user id")
 			return
 		}
-		owns, err := h.streamerSvc.OwnsChannel(userID, channelID)
+		owns, err := h.streamerSvc.OwnsChannelContext(c.Request.Context(), userID, channelID)
 		if err != nil {
 			internal(c)
 			return
@@ -195,7 +195,7 @@ func (h *StreamerHandler) GetChannelStats(c *gin.Context) {
 		}
 	}
 
-	stats, err := h.streamerSvc.GetChannelStats(channelID)
+	stats, err := h.streamerSvc.GetChannelStatsContext(c.Request.Context(), channelID)
 	if err != nil {
 		if errors.Is(err, services.ErrStreamerNotFound) {
 			notFound(c, "streamer not found")
@@ -215,7 +215,7 @@ func (h *StreamerHandler) GetStats(c *gin.Context) {
 		return
 	}
 
-	streamer, err := h.streamerSvc.GetByID(streamerID)
+	streamer, err := h.streamerSvc.GetByIDContext(c.Request.Context(), streamerID)
 	if err != nil {
 		if errors.Is(err, services.ErrStreamerNotFound) {
 			notFound(c, "streamer not found")
@@ -240,7 +240,7 @@ func (h *StreamerHandler) GetStats(c *gin.Context) {
 			badRequest(c, "invalid user id")
 			return
 		}
-		owns, ownErr := h.streamerSvc.OwnsStreamer(agencyUserID, streamerID)
+		owns, ownErr := h.streamerSvc.OwnsStreamerContext(c.Request.Context(), agencyUserID, streamerID)
 		if ownErr != nil {
 			internal(c)
 			return
@@ -255,7 +255,7 @@ func (h *StreamerHandler) GetStats(c *gin.Context) {
 		return
 	}
 
-	stats, err := h.streamerSvc.GetStats(streamer.ID)
+	stats, err := h.streamerSvc.GetStatsContext(c.Request.Context(), streamer.ID)
 	if err != nil {
 		if errors.Is(err, services.ErrStreamerNotFound) {
 			notFound(c, "streamer not found")

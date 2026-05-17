@@ -1,0 +1,3 @@
+name = "tachigo-dev-portal"
+compatibility_date = "2026-05-15"
+pages_build_output_dir = "apps/docs/build"

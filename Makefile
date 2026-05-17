@@ -1,4 +1,4 @@
-.PHONY: setup dev up down logs pr-meta-check pr-open session-index session-find session-index-test
+.PHONY: setup dev up down logs pr-meta-check pr-open session-index session-find session-index-test supply-chain-check developer-persistence-check
 
 # ── Setup (run once after cloning) ────────────────────────────────────────────
 setup:
@@ -25,7 +25,7 @@ logs:
 pr-meta-check:
 	@test -n "$(TITLE)" || (echo "TITLE is required"; exit 2)
 	@test -n "$(BODY_FILE)" || (echo "BODY_FILE is required"; exit 2)
-	@./infra/scripts/pr-metadata-check.sh --title "$(TITLE)" --body-file "$(BODY_FILE)" --base "$(or $(BASE),develop)" $(if $(HEAD),--head "$(HEAD)",)
+	@./infra/scripts/pr-metadata-check.sh --title "$(TITLE)" --body-file "$(BODY_FILE)" --base "$(or $(BASE),develop)" $(if $(HEAD),--head "$(HEAD)",) $(if $(filter 1,$(AUTO_READY)),--auto-ready,)
 
 pr-open:
 	@test -n "$(TITLE)" || (echo "TITLE is required"; exit 2)
@@ -43,3 +43,10 @@ session-find:
 
 session-index-test:
 	@./infra/scripts/session-index.test.sh
+
+# ── Supply-chain guardrails ──────────────────────────────────────────────────
+supply-chain-check:
+	@node infra/scripts/check-supply-chain-guardrails.mjs
+
+developer-persistence-check:
+	@bash infra/scripts/check-developer-persistence.sh

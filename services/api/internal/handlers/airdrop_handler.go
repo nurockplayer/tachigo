@@ -1,6 +1,7 @@
 package handlers
 
 import (
+	"context"
 	"errors"
 	"net/http"
 
@@ -47,7 +48,7 @@ func (h *AirdropHandler) Airdrop(c *gin.Context) {
 	}
 
 	claims := middleware.MustClaims(c)
-	allowed, err := h.authorize(claims, channelID)
+	allowed, err := h.authorize(c.Request.Context(), claims, channelID)
 	if err != nil {
 		internal(c)
 		return
@@ -93,7 +94,7 @@ func (h *AirdropHandler) Airdrop(c *gin.Context) {
 	ok(c, result)
 }
 
-func (h *AirdropHandler) authorize(claims *services.Claims, channelID string) (bool, error) {
+func (h *AirdropHandler) authorize(ctx context.Context, claims *services.Claims, channelID string) (bool, error) {
 	switch claims.Role {
 	case models.RoleAdmin:
 		return true, nil
@@ -103,9 +104,9 @@ func (h *AirdropHandler) authorize(claims *services.Claims, channelID string) (b
 			return false, err
 		}
 		if claims.Role == models.RoleStreamer {
-			return h.streamerSvc.OwnsChannel(userID, channelID)
+			return h.streamerSvc.OwnsChannelContext(ctx, userID, channelID)
 		}
-		return h.agencySvc.OwnsChannel(userID, channelID)
+		return h.agencySvc.OwnsChannelContext(ctx, userID, channelID)
 	default:
 		return false, nil
 	}

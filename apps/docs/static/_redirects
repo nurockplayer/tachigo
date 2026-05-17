@@ -1,0 +1,7 @@
+# Cloudflare Pages serves the Docusaurus build from the static output root.
+# Keep the public /tachigo/* base path by rewriting those requests to the
+# generated root-level files and assets. This is a static Pages rewrite only;
+# do not replace it with Workers or Functions for #699.
+/tachigo / 200
+/tachigo/ / 200
+/tachigo/* /:splat 200

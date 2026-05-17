@@ -39,7 +39,7 @@ func atlasDialect() string {
 }
 
 func atlasModels() []any {
-	return schema.AutoMigrateModels()
+	return schema.AtlasSchemaModels()
 }
 
 func atlasCustomPostgresSchema() string {

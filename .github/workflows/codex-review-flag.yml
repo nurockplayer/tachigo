@@ -1,10 +1,10 @@
-name: Flag PR for Codex review
+name: Flag PR for review
 
 on:
   schedule:
     - cron: '*/10 * * * *'
   pull_request:
-    types: [opened, synchronize, reopened, ready_for_review]
+    types: [opened, synchronize, reopened, ready_for_review, closed]
     branches: [main, develop]
   pull_request_review:
     types: [submitted, dismissed]
@@ -15,7 +15,7 @@ permissions:
 
 jobs:
   label-state:
-    name: Manage Codex review labels
+    name: Manage PR review labels
     runs-on: ubuntu-latest
     steps:
       - name: Sync labels
@@ -24,12 +24,72 @@ jobs:
           script: |
             const owner = context.repo.owner
             const repo = context.repo.repo
-            const reviewLabel = 'needs-codex-review'
+            const reviewLabel = 'awaiting-review'
+            const staleReviewLabel = 'needs-codex-review'
             const changesLabel = 'changes-requested'
-            const reviewer = 'nurockplayer'
+            const trustedAuthorAssociations = new Set(['OWNER', 'MEMBER', 'COLLABORATOR'])
             const targetBaseBranches = new Set(['main', 'develop'])
 
             const isTargetBase = (pr) => targetBaseBranches.has(pr.base?.ref)
+            const hasLabel = (pr, name) =>
+              (pr.labels || []).some((label) => label.name === name)
+
+            const isTrustedReview = (review) => {
+              const login = review.user?.login || ''
+              if (!trustedAuthorAssociations.has(review.author_association)) return false
+              if (review.user?.type === 'Bot' || login.endsWith('[bot]')) return false
+              return true
+            }
+
+            const reviewState = (review) => (review.state || '').toLowerCase()
+            const reviewSubmittedAt = (review) => (
+              Date.parse(review.submitted_at || review.submittedAt || review.updated_at || review.updatedAt || '') || 0
+            )
+            const isSameReview = (review, otherReview) => {
+              if (!review || !otherReview) return false
+              if (review.id && otherReview.id && review.id === otherReview.id) return true
+              if (review.node_id && otherReview.node_id && review.node_id === otherReview.node_id) return true
+              return (
+                (review.user?.login || '') === (otherReview.user?.login || '') &&
+                (review.commit_id || '') === (otherReview.commit_id || '') &&
+                (review.submitted_at || review.submittedAt || '') === (otherReview.submitted_at || otherReview.submittedAt || '') &&
+                reviewState(review) === reviewState(otherReview)
+              )
+            }
+            const isReviewNewer = (review, currentReview) => (
+              reviewSubmittedAt(review) >= reviewSubmittedAt(currentReview)
+            )
+
+            const fetchTrustedReviewSummary = async (pr, currentReview = null, dismissedReview = null) => {
+              const reviews = await github.paginate(github.rest.pulls.listReviews, {
+                owner, repo, pull_number: pr.number, per_page: 100,
+              })
+              const latestByReviewer = new Map()
+              let lastTrustedReview = null
+
+              for (const review of [...reviews, currentReview].filter(Boolean)) {
+                if (reviewState(review) === 'dismissed') continue
+                if (dismissedReview && isSameReview(review, dismissedReview)) continue
+                if (!isTrustedReview(review)) continue
+                const login = review.user?.login
+                if (!login) continue
+
+                if (!lastTrustedReview || isReviewNewer(review, lastTrustedReview)) {
+                  lastTrustedReview = review
+                }
+
+                const latestReview = latestByReviewer.get(login)
+                if (!latestReview || isReviewNewer(review, latestReview)) {
+                  latestByReviewer.set(login, review)
+                }
+              }
+
+              const latestReviews = [...latestByReviewer.values()]
+              return {
+                hasChangesRequested: latestReviews.some((review) => reviewState(review) === 'changes_requested'),
+                lastTrustedReview,
+              }
+            }
 
             const ensureLabel = async (name, color, description) => {
               try {
@@ -58,31 +118,35 @@ jobs:
               }
             }
 
-            // For schedule cron: find the last review by self (any state)
+            const removeStaleReviewLabel = async (pr) => {
+              if (hasLabel(pr, staleReviewLabel)) {
+                await removeLabel(pr.number, staleReviewLabel)
+              }
+            }
+
+            // For schedule cron: find the last trusted review (any state)
             // to detect whether new commits have been pushed since the last review.
-            const getLastReviewBySelf = async (pr) => {
-              const reviews = await github.paginate(github.rest.pulls.listReviews, {
-                owner, repo, pull_number: pr.number, per_page: 100,
-              })
-              return [...reviews].reverse().find(r => r.user?.login === reviewer)
+            const getLastTrustedReview = async (pr) => {
+              const { lastTrustedReview } = await fetchTrustedReviewSummary(pr)
+              return lastTrustedReview
             }
 
             // shouldFlag is only used by the schedule cron as a fallback sweep.
             // It re-evaluates:
             // 1. PRs stuck with `changes-requested` that have received new commits
             //    since the last review.
-            // 2. PRs with no Codex review history yet, as a fallback if the
+            // 2. PRs with no review history yet, as a fallback if the
             //    original `opened` event was missed.
-            // 3. PRs previously reviewed by Codex that have new commits since
+            // 3. PRs previously reviewed that have new commits since
             //    that review, but currently lack the review label because a
             //    `synchronize` event was missed.
             const shouldFlag = async (pr) => {
               const labels = (pr.labels || []).map(l => l.name)
               if (labels.includes(reviewLabel)) return false
 
-              const lastReview = await getLastReviewBySelf(pr)
+              const lastReview = await getLastTrustedReview(pr)
 
-              // No prior Codex review means the PR likely missed the original
+              // No prior trusted review means the PR likely missed the original
               // flagging event and should be put into the review queue.
               if (!lastReview) {
                 return !labels.includes(changesLabel)
@@ -102,12 +166,12 @@ jobs:
             await ensureLabel(
               reviewLabel,
               '0075ca',
-              'New PR opened or new commits pushed after the latest Codex review — pending Codex review',
+              'New PR opened or new commits pushed after the latest trusted review — pending review',
             )
             await ensureLabel(
               changesLabel,
               'd73a4a',
-              'Codex has requested changes — author should update the PR',
+              'Reviewer has requested changes — author should update the PR',
             )
 
             if (context.eventName === 'pull_request_review') {
@@ -119,30 +183,44 @@ jobs:
                 return
               }
 
-              if (review.user?.login !== reviewer) {
+              if (!isTrustedReview(review)) {
                 core.notice(`Ignoring review from ${review.user?.login || 'unknown reviewer'}.`)
                 return
               }
 
-              if (review.state === 'changes_requested') {
-                await addLabels(pr.number, [changesLabel])
-                await removeLabel(pr.number, reviewLabel)
-                core.notice(`PR #${pr.number} marked as ${changesLabel}.`)
-                return
-              }
-
-              if (review.state === 'approved') {
-                await removeLabel(pr.number, changesLabel)
-                await removeLabel(pr.number, reviewLabel)
-                core.notice(`PR #${pr.number} cleared review-state labels after approval.`)
-                return
-              }
+              const dismissedReview = context.payload.action === 'dismissed' ? review : null
+              const currentReview = dismissedReview ? null : review
+              const trustedReviewSummary = await fetchTrustedReviewSummary(pr, currentReview, dismissedReview)
 
               if (context.payload.action === 'dismissed') {
-                // Dismissed means the review is no longer active — always re-flag.
+                if (trustedReviewSummary.hasChangesRequested) {
+                  await addLabels(pr.number, [changesLabel])
+                  await removeLabel(pr.number, reviewLabel)
+                  await removeStaleReviewLabel(pr)
+                  core.notice(`PR #${pr.number} kept ${changesLabel} because a trusted reviewer still requests changes.`)
+                  return
+                }
+
                 await addLabels(pr.number, [reviewLabel])
                 await removeLabel(pr.number, changesLabel)
-                core.notice(`PR #${pr.number} flagged for Codex review after dismissal.`)
+                await removeStaleReviewLabel(pr)
+                core.notice(`PR #${pr.number} flagged for review after dismissal.`)
+                return
+              }
+
+              if (trustedReviewSummary.hasChangesRequested) {
+                await addLabels(pr.number, [changesLabel])
+                await removeLabel(pr.number, reviewLabel)
+                await removeStaleReviewLabel(pr)
+                core.notice(`PR #${pr.number} kept ${changesLabel} because a trusted reviewer still requests changes.`)
+                return
+              }
+
+              if (reviewState(review) === 'approved') {
+                await removeLabel(pr.number, changesLabel)
+                await removeLabel(pr.number, reviewLabel)
+                await removeStaleReviewLabel(pr)
+                core.notice(`PR #${pr.number} cleared review-state labels after approval.`)
                 return
               }
 
@@ -167,6 +245,14 @@ jobs:
 
               const action = context.payload.action
 
+              if (action === 'closed') {
+                await removeLabel(pr.number, changesLabel)
+                await removeLabel(pr.number, reviewLabel)
+                await removeStaleReviewLabel(pr)
+                core.notice(`PR #${pr.number} cleared review-state labels after close.`)
+                continue
+              }
+
               if (pr.draft) {
                 const reason = context.eventName === 'pull_request' ? `${action}` : 'schedule'
                 core.notice(`Skipping PR #${pr.number} (${reason}): draft PR.`)
@@ -183,7 +269,8 @@ jobs:
               ) {
                 await addLabels(pr.number, [reviewLabel])
                 await removeLabel(pr.number, changesLabel)
-                core.notice(`PR #${pr.number} flagged for Codex review (${action}).`)
+                await removeStaleReviewLabel(pr)
+                core.notice(`PR #${pr.number} flagged for review (${action}).`)
                 continue
               }
 
@@ -192,6 +279,9 @@ jobs:
               if (await shouldFlag(pr)) {
                 await addLabels(pr.number, [reviewLabel])
                 await removeLabel(pr.number, changesLabel)
-                core.notice(`PR #${pr.number} flagged for Codex review (schedule catch-up).`)
+                await removeStaleReviewLabel(pr)
+                core.notice(`PR #${pr.number} flagged for review (schedule catch-up).`)
+              } else {
+                await removeStaleReviewLabel(pr)
               }
             }

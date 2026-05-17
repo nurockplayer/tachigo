@@ -2,6 +2,7 @@ package handlers_test
 
 import (
 	"bytes"
+	"context"
 	"encoding/json"
 	"fmt"
 	"math"
@@ -48,9 +49,11 @@ func newWatchTestEnv(t *testing.T) *watchEnv {
 
 type failingPointsService struct {
 	addHeartbeatTimeErr error
+	gotContext          context.Context
 }
 
-func (s *failingPointsService) AddHeartbeatTime(uuid.UUID, string, int64) error {
+func (s *failingPointsService) AddHeartbeatTimeContext(ctx context.Context, _ uuid.UUID, _ string, _ int64) error {
+	s.gotContext = ctx
 	return s.addHeartbeatTimeErr
 }
 
@@ -197,6 +200,40 @@ func TestWatchHandler_Heartbeat_PointsServiceFailure_Returns500(t *testing.T) {
 	}
 	if resp.Error != "internal server error" {
 		t.Fatalf("expected internal server error, got %q", resp.Error)
+	}
+}
+
+type watchHandlerContextKey string
+
+func TestWatchHandler_Heartbeat_PassesRequestContextToPointsService(t *testing.T) {
+	base := newTestEnv(t)
+	watchSvc := services.NewWatchService(base.db)
+	pointsSvc := &failingPointsService{}
+	watchH := handlers.NewWatchHandler(watchSvc, pointsSvc)
+
+	watch := base.router.Group("/api/v1/extension/watch")
+	watch.Use(middleware.JWTAuth(base.authSvc))
+	watch.POST("/heartbeat", watchH.Heartbeat)
+
+	e := &watchEnv{testEnv: base, watchSvc: watchSvc}
+	channelID := "ch_test_context"
+	userID, token := e.registerViewer(t, "ctx")
+	e.seedActiveSession(t, userID, channelID, 30)
+
+	key := watchHandlerContextKey("request-context")
+	body, _ := json.Marshal(map[string]string{"channel_id": channelID})
+	req := httptest.NewRequest(http.MethodPost, "/api/v1/extension/watch/heartbeat", bytes.NewReader(body)).
+		WithContext(context.WithValue(context.Background(), key, "watch-request"))
+	req.Header.Set("Content-Type", "application/json")
+	req.Header.Set("Authorization", "Bearer "+token)
+	w := httptest.NewRecorder()
+	base.router.ServeHTTP(w, req)
+
+	if w.Code != http.StatusOK {
+		t.Fatalf("expected 200, got %d: %s", w.Code, w.Body.String())
+	}
+	if pointsSvc.gotContext == nil || pointsSvc.gotContext.Value(key) != "watch-request" {
+		t.Fatal("expected heartbeat handler to pass request context to points service")
 	}
 }
 

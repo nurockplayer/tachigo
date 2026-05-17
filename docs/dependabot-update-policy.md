@@ -59,6 +59,20 @@ triggered by security alerts on the default branch. Production security update
 PRs remain manual-review changes because dependency upgrades can introduce new
 supply-chain, compatibility, or runtime risks even when they fix a known issue.
 
+## Default-Branch Security Updates
+
+Routine Dependabot version updates target `develop`, but Dependabot
+security/default-branch updates can still open against the repository default
+branch (`main`). Treat those PRs as urgent security maintenance, not as normal
+feature or release promotion work.
+
+When a Dependabot PR is merged into `main`, `dependabot-main-backport.yml`
+creates a draft backport PR from `develop` with the same dependency changes and
+the `auto-ready` label. Review and merge that backport before the next
+`develop -> main` release promotion. If the automatic cherry-pick conflicts,
+the workflow comments on the original PR and a human must open the backport
+manually.
+
 ## Cooldown
 
 High-frequency frontend tooling updates use Dependabot cooldown:

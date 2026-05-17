@@ -2,7 +2,7 @@ import { useOne } from '@refinedev/core'
 import { useCallback, useEffect, useRef, useState } from 'react'
 import { useNavigate, useParams } from 'react-router'
 import { Skeleton } from '@/components/ui/skeleton'
-import { completeRaffle, drawNext, importCSV, listDraws } from '@/services/raffles'
+import { activateRaffle, completeRaffle, drawNext, importCSV, listDraws, setDiscordWebhook } from '@/services/raffles'
 import type { Raffle, RaffleDraw, RaffleStatus } from '@/services/raffles'
 
 const statusLabel: Record<RaffleStatus, string> = {
@@ -78,15 +78,28 @@ function WinnerList({ draws }: { draws: RaffleDraw[] }) {
 
 function CsvUploadZone({
   raffleId,
+  locked,
   onSuccess,
 }: {
   raffleId: string
+  locked: boolean
   onSuccess: (result: { imported: number; skipped: number }) => void
 }) {
   const inputRef = useRef<HTMLInputElement>(null)
   const [uploading, setUploading] = useState(false)
   const [result, setResult] = useState<{ imported: number; skipped: number } | null>(null)
   const [error, setError] = useState<string | null>(null)
+
+  if (locked) {
+    return (
+      <div
+        data-testid="csv-locked"
+        className="rounded-xl border border-dashed border-white/10 bg-white/[.02] px-4 py-3 text-center"
+      >
+        <p className="text-sm text-white/30">名單已鎖定，無法再匯入</p>
+      </div>
+    )
+  }
 
   async function handleFile(file: File) {
     setUploading(true)
@@ -223,6 +236,90 @@ function DrawControls({
         </div>
       )}
     </div>
+  )
+}
+
+function DiscordWebhookPanel({ raffleId }: { raffleId: string }) {
+  const [url, setUrl] = useState('')
+  const [configured, setConfigured] = useState<boolean | null>(null)
+  const [saving, setSaving] = useState(false)
+  const [error, setError] = useState<string | null>(null)
+
+  async function handleSave() {
+    if (saving) return
+    setSaving(true)
+    setError(null)
+    try {
+      const result = await setDiscordWebhook(raffleId, url)
+      setConfigured(result)
+    } catch (err: unknown) {
+      const e = err as { response?: { data?: { error?: string } } }
+      setError(e?.response?.data?.error ?? '儲存失敗，請稍後再試')
+    } finally {
+      setSaving(false)
+    }
+  }
+
+  async function handleClear() {
+    if (saving) return
+    setSaving(true)
+    setError(null)
+    try {
+      const result = await setDiscordWebhook(raffleId, '')
+      setConfigured(result)
+    } catch (err: unknown) {
+      const e = err as { response?: { data?: { error?: string } } }
+      setError(e?.response?.data?.error ?? '清除失敗，請稍後再試')
+    } finally {
+      setSaving(false)
+    }
+  }
+
+  return (
+    <section className="rounded-xl border border-white/10 bg-white/[.04] p-4 space-y-3">
+      <div className="flex items-center gap-2">
+        <h2 className="text-[10px] uppercase tracking-widest text-white/30">Discord 通知</h2>
+        {configured !== null && (
+          <span
+            data-testid="discord-webhook-status"
+            className={`text-[10px] rounded-full px-2 py-0.5 ${configured ? 'bg-green-500/20 text-green-400' : 'bg-white/10 text-white/30'}`}
+          >
+            {configured ? '已設定' : '未設定'}
+          </span>
+        )}
+      </div>
+      <div className="flex gap-2">
+        <input
+          data-testid="discord-webhook-input"
+          type="text"
+          value={url}
+          onInput={(e) => setUrl((e.target as HTMLInputElement).value)}
+          onChange={(e) => setUrl(e.target.value)}
+          placeholder="https://discord.com/api/webhooks/..."
+          disabled={saving}
+          className="flex-1 rounded-lg border border-white/10 bg-black/30 px-3 py-2 text-xs text-white/80 placeholder:text-white/20 focus:outline-none focus:border-amber-500/50 disabled:opacity-40"
+        />
+        <button
+          data-testid="discord-webhook-save"
+          onClick={() => { void handleSave() }}
+          disabled={saving}
+          className="rounded-lg border border-amber-500/30 bg-amber-500/10 px-3 py-2 text-xs text-amber-400 transition hover:bg-amber-500/20 disabled:opacity-40"
+        >
+          {saving ? '...' : '儲存'}
+        </button>
+        <button
+          data-testid="discord-webhook-clear"
+          onClick={() => { void handleClear() }}
+          disabled={saving}
+          className="rounded-lg border border-white/10 bg-white/5 px-3 py-2 text-xs text-white/40 transition hover:bg-white/10 disabled:opacity-40"
+        >
+          清除
+        </button>
+      </div>
+      {error && (
+        <p data-testid="discord-webhook-error" className="text-xs text-red-400">{error}</p>
+      )}
+    </section>
   )
 }
 
@@ -445,8 +542,11 @@ export default function RaffleDetailPage() {
   const [confirmEnd, setConfirmEnd] = useState(false)
   const [ending, setEnding] = useState(false)
   const [localCompleted, setLocalCompleted] = useState(false)
+  const [localActivated, setLocalActivated] = useState(false)
+  const [activating, setActivating] = useState(false)
+  const [activateError, setActivateError] = useState<string | null>(null)
 
-  const effectiveStatus = localCompleted ? 'completed' : (raffle?.status ?? '')
+  const effectiveStatus = localCompleted ? 'completed' : localActivated ? 'active' : (raffle?.status ?? '')
 
   const fetchDraws = useCallback(async () => {
     if (!raffleId) return
@@ -493,6 +593,21 @@ export default function RaffleDetailPage() {
       }
     } finally {
       setDrawing(false)
+    }
+  }
+
+  async function handleActivate() {
+    if (!raffleId || activating) return
+    setActivating(true)
+    setActivateError(null)
+    try {
+      await activateRaffle(raffleId)
+      setLocalActivated(true)
+    } catch (err: unknown) {
+      const e = err as { response?: { data?: { error?: string } } }
+      setActivateError(e?.response?.data?.error ?? '啟動失敗，請稍後再試')
+    } finally {
+      setActivating(false)
     }
   }
 
@@ -561,7 +676,27 @@ export default function RaffleDetailPage() {
             <StatCard label="剩餘" value={remaining?.toString() ?? '--'} colorClass="text-amber-400" />
           </div>
 
-          <CsvUploadZone raffleId={raffle.id} onSuccess={(result) => { setTotalEntries(prev => (prev ?? 0) + result.imported); setExhausted(false) }} />
+          <CsvUploadZone
+            raffleId={raffle.id}
+            locked={effectiveStatus !== 'draft'}
+            onSuccess={(result) => { setTotalEntries(prev => (prev ?? 0) + result.imported); setExhausted(false) }}
+          />
+
+          {effectiveStatus === 'draft' && (
+            <>
+              <button
+                data-testid="activate-btn"
+                disabled={activating}
+                onClick={() => { void handleActivate() }}
+                className="w-full rounded-full border border-amber-500/40 bg-amber-500/10 px-4 py-3 text-sm font-bold tracking-widest text-amber-400 transition hover:bg-amber-500/20 disabled:opacity-40"
+              >
+                {activating ? '鎖定中...' : '開始抽獎（鎖定名單）'}
+              </button>
+              {activateError && (
+                <p data-testid="activate-error" className="mt-1 text-center text-xs text-red-400">{activateError}</p>
+              )}
+            </>
+          )}
 
           <DrawControls
             status={effectiveStatus}
@@ -574,6 +709,8 @@ export default function RaffleDetailPage() {
             onConfirmEnd={() => { void handleConfirmEnd() }}
             onCancelEnd={() => setConfirmEnd(false)}
           />
+
+          <DiscordWebhookPanel raffleId={raffle.id} />
 
           <div>
             <p className="mb-2 text-[10px] uppercase tracking-widest text-white/30">

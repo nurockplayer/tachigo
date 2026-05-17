@@ -29,7 +29,7 @@
 
 ## 快捷指令
 
-完整清單見 [CLAUDE.md](../../CLAUDE.md)（AI 分工 → 建議優先使用的快捷指令）。
+完整清單見 [CLAUDE.md](https://github.com/nurockplayer/tachigo/blob/develop/CLAUDE.md)（AI 分工 → 建議優先使用的快捷指令）。
 
 | 指令 | 一句話 |
 | --- | --- |

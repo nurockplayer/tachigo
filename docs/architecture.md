@@ -5,9 +5,9 @@
 │                           CLIENT LAYER                             │
 │                                                                    │
 │  ┌──────────────────┐  ┌──────────────────┐  ┌──────────────────┐  │
-│  │ Chrome Sidepanel │  │  Dashboard [TBD] │  │  Wallet [Phs.2]  │  │
-│  │   (tachimint)    │  │  Agency/Streamer │  │  Claim on-chain  │  │
-│  │ React+TypeScript │  │  Mgmt Interface  │  │                  │  │
+│  │ Chrome Sidepanel │  │  Dashboard [MVP] │  │  Wallet [Phs.2]  │  │
+│  │   (tachimint)    │  │ React+Vite+Refine│  │  Claim on-chain  │  │
+│  │ React+TypeScript │  │ Agency/Strm Mgmt │  │                  │  │
 │  └────────┬─────────┘  └────────┬─────────┘  └────────┬─────────┘  │
 └───────────┼─────────────────────┼─────────────────────┼────────────┘
             │ Heartbeat + JWT     │ Admin API           │ Claim
@@ -46,12 +46,13 @@
                                             │  Private stream [Phs2] │
                                             └────────────────────────┘
 
-[done] = 已完成    [TBD] = MVP 待實作    [Phs.2] = Phase 2+
+[done] = 已完成    [MVP] = MVP 已進入實作    [TBD] = MVP 待實作    [Phs.2] = Phase 2+
 ```
 
 ## 主要資料流
 
 > 補充：`tachimint` 的前端 runtime 方向已定為 Chrome sidepanel extension；本階段 viewer identity 與既有 API contract 仍沿用 Twitch / extension auth 流程。詳見 [docs/history/2026-04-16-tachimint-chrome-sidepanel-migration.md](history/2026-04-16-tachimint-chrome-sidepanel-migration.md)。
+> Dashboard frontend 已在 `apps/dashboard/` 以 React + Vite + Refine 進入 MVP 實作；上圖後端 `Agency Service [TBD]` 仍表示 agency/management backend maturity，而不是 dashboard app 不存在。
 
 ```
 觀眾觀看直播（定時 Heartbeat）

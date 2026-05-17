@@ -26,7 +26,7 @@ func (h *ChannelConfigHandler) GetChannelConfig(c *gin.Context) {
 		return
 	}
 
-	cfg, err := h.configSvc.Get(channelID)
+	cfg, err := h.configSvc.GetContext(c.Request.Context(), channelID)
 	if err != nil {
 		internal(c)
 		return
@@ -61,7 +61,7 @@ func (h *ChannelConfigHandler) UpdateChannelConfig(c *gin.Context) {
 		return
 	}
 
-	cfg, err := h.configSvc.UpdateChannelConfig(channelID, body.SecondsPerPoint, body.Multiplier)
+	cfg, err := h.configSvc.UpdateChannelConfigContext(c.Request.Context(), channelID, body.SecondsPerPoint, body.Multiplier)
 	if err != nil {
 		internal(c)
 		return
@@ -87,7 +87,7 @@ func (h *ChannelConfigHandler) authorizeChannelAccess(c *gin.Context) (string, b
 			badRequest(c, "invalid user id")
 			return "", false
 		}
-		owns, err := h.streamerSvc.OwnsAgencyChannel(agencyUserID, channelID)
+		owns, err := h.streamerSvc.OwnsAgencyChannelContext(c.Request.Context(), agencyUserID, channelID)
 		if err != nil {
 			internal(c)
 			return "", false
@@ -103,7 +103,7 @@ func (h *ChannelConfigHandler) authorizeChannelAccess(c *gin.Context) (string, b
 			badRequest(c, "invalid user id")
 			return "", false
 		}
-		owns, err := h.streamerSvc.OwnsChannel(userID, channelID)
+		owns, err := h.streamerSvc.OwnsChannelContext(c.Request.Context(), userID, channelID)
 		if err != nil {
 			internal(c)
 			return "", false

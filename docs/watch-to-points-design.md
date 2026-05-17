@@ -254,7 +254,7 @@ ON CONFLICT (user_id, channel_id) DO UPDATE SET
 | `created_at` | TIMESTAMPTZ | 建立時間 |
 | `updated_at` | TIMESTAMPTZ | 最後更新時間 |
 
-無對應此 channel 的設定時，後端 fallback 至預設值 60。Dashboard API 會以 request validation 限制 `seconds_per_point >= 1`；若資料庫內已存在異常值（<= 0），`WatchService` 仍會回退到預設值 60，避免除以零或無限發點。
+無對應此 channel 的設定時，後端 fallback 至預設值 60。Dashboard API 會以 request validation 限制 `seconds_per_point >= 1`；若資料庫內已存在異常值（小於等於 0），`WatchService` 仍會回退到預設值 60，避免除以零或無限發點。
 
 ### Dashboard API
 

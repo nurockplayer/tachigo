@@ -4,22 +4,34 @@
 
 **目標：** 將 `services/api` 的 schema 管理由 GORM `AutoMigrate` 遷移到 Atlas，同時不削弱既有資料庫 invariant，也不送出不安全的 baseline。
 
-**架構：** Atlas 遷移原本規劃拆成多個小型、可獨立 review 的 PR：先導入 tooling 與 CI validation，再盤點現有 schema source，接著決定並驗證 baseline 策略，最後移除 runtime `AutoMigrate` 與手寫 schema patches。2026-05-10 後續決策改為由 PR `#588` 一次交付完整 runtime migration path，因為專案尚未正式上線，保留半套 migration ownership 反而會增加風險。
+**架構：** Atlas 遷移原本規劃拆成多個小型、可獨立 review 的 PR。2026-05-10 後續決策改為由 PR `#588` 一次交付完整 runtime migration path，因為專案尚未正式上線，保留半套 migration ownership 反而會增加風險。下方 PR 1-4 保留為 historical plan，不再作為新的 implementation checklist。
 
 **Tech Stack：** Go、GORM、PostgreSQL、Atlas、`atlas-provider-gorm`、GitHub Actions。
 
 ---
 
-## Source Of Truth
+## Issue And Artifact References
 
 - GitHub issue：`#463` `[backend] Migration 工具遷移：GORM AutoMigrate → Atlas`
 - 前置討論：`#214`
 - Migration 目錄：`services/api/migrations/`
 - Atlas 設定檔：`services/api/atlas.hcl`
-- 目前 runtime schema 入口：`services/api/cmd/server/main.go`
-- 目前 GORM models：`services/api/internal/models/`
+- API server entrypoint：`services/api/cmd/server/main.go`
+- GORM model structs：`services/api/internal/models/`
+- Atlas loader model list：`services/api/internal/schema.AtlasSchemaModels()`
 
-本文件只是執行計劃，不代表 `#463` 已完成，也不得把文件本身當成 implementation source of truth。
+## Current Source Of Truth
+
+目前 `develop` 的實作狀態：
+
+- Atlas migration directory is active at `services/api/migrations/`.
+- Docker entrypoint applies migrations before starting `air`, `/tachigo`, or `tachigo`.
+- Local `make run` depends on `make migrate`; `make run-no-migrate` is the explicit skip path.
+- API binary must not execute schema DDL; startup guard tests enforce this boundary.
+- GORM model structs remain the Atlas loader schema source via `AtlasSchemaModels()`, not a runtime migration owner.
+- Legacy raffle token hash repair remains a data-only startup repair.
+
+本文件記錄 issue `#463` 的遷移背景與現況；future implementation 必須以上方 current source of truth 和 repo code 為準，不得把 historical checklist 當成新的待辦。
 
 ## Guardrails
 
@@ -30,7 +42,9 @@
 - 不得把 production deploy automation 或 rollback automation 混進 `#463`；issue 已明確排除。
 - 任何改變 runtime schema 行為的 PR，都必須在 PR body 補 staging 驗證說明。
 
-## PR 拆分順序
+## Historical Plan
+
+以下 PR 1-4 是原始拆分計畫，已被 PR `#588` 取代，不再作為新的 implementation checklist。保留它們只為了說明 Atlas ownership 遷移時的決策脈絡。
 
 ### PR 1：Atlas Tooling Only
 
@@ -226,6 +240,7 @@ Co-Authored-By: Codex <codex[bot]@openai.com>
 ### 運作邊界
 
 - Fresh DB / 新 Docker volume：API Docker entrypoint 會先套用 `001-020`，再啟動 `air`（dev target）或 `/tachigo`（runtime target）；API binary 本身不再執行 schema DDL。
+- Local Go startup：`make run` 會先執行 `make migrate`；只有明確使用 `make run-no-migrate` 才會跳過 Atlas migration。
 - 既有 dev DB / 舊 volume：若 schema 是早期 `AutoMigrate` 建出來、但沒有 `atlas_schema_revisions`，Atlas 不能自動判斷已套用哪些歷史 migration；本專案尚未正式上線，建議 reset dev volume 或由 operator 手動 baseline。
 - Production deploy automation 仍不屬於 `#463` 範圍；上線前需要在部署 workflow/runbook 中重用同一個 `atlas migrate apply` 流程。
 
@@ -236,13 +251,13 @@ Co-Authored-By: Codex <codex[bot]@openai.com>
 - [x] `services/api/migrations/001-019` 與 GORM model drift 已記錄或修正。
 - [x] Baseline strategy 明確，採 guarded apply-safe reconciliation migration。
 - [x] `AutoMigrate` 已從 server startup 移除；server 不再執行 schema DDL。
-- [x] Migration runner 存在：Docker image entrypoint 與 `make migrate` 都有 `atlas migrate apply` path，確保 fresh DB / 新 volume 可正確 bootstrap schema。
+- [x] Migration runner 存在：Docker image entrypoint 與 `make migrate` 都有 `atlas migrate apply` path；`make run` 依賴 `make migrate`，確保 fresh DB / 新 volume / 本機 Go startup 可正確 bootstrap schema。
 - [x] CI 改成 official/latest Atlas + ephemeral Postgres apply（移除舊版 pin、Community binary 與 migrate lint）。
 
 ## Atlas References
 
-- External schema loading：<https://atlasgo.io/atlas-schema/external>
-- Versioned migration diff：<https://atlasgo.io/versioned/diff>
+- External schema loading：[https://atlasgo.io/atlas-schema/external](https://atlasgo.io/atlas-schema/external)
+- Versioned migration diff：[https://atlasgo.io/versioned/diff](https://atlasgo.io/versioned/diff)
 
 ## Review Checklist
 
