@@ -4,7 +4,7 @@ import { readFileSync } from 'node:fs'
 
 const files = {
   router: readFile('services/api/internal/router/router.go'),
-  swagger: JSON.parse(readFile('services/api/docs/swagger.json')),
+  swagger: readJsonFile('services/api/docs/swagger.json'),
   dashboardChannels: readFile('apps/dashboard/src/services/channels.ts'),
   dashboardRaffles: readFile('apps/dashboard/src/services/raffles.ts'),
   dashboardDataProvider: readFile('apps/dashboard/src/providers/dataProvider.ts'),
@@ -68,6 +68,14 @@ function readFile(path) {
   return readFileSync(path, 'utf8')
 }
 
+function readJsonFile(path) {
+  try {
+    return JSON.parse(readFile(path))
+  } catch (err) {
+    throw new Error(`failed to read or parse ${path}: ${err.message}`)
+  }
+}
+
 for (const check of checks) {
   assert.ok(
     check.frontend[0].includes(check.frontend[1]),
@@ -79,6 +87,10 @@ for (const check of checks) {
   )
 
   if (check.swagger) {
+    assert.ok(
+      files.swagger?.paths && typeof files.swagger.paths === 'object',
+      'swagger.json is missing or has invalid paths property',
+    )
     assert.ok(
       Object.prototype.hasOwnProperty.call(files.swagger.paths, check.swagger),
       `${check.label}: swagger.json no longer documents ${check.swagger}`,
