@@ -10,8 +10,11 @@
   "scripts": {
     "dev": "vite",
     "build": "tsc -b && vite build",
+    "build:local": "TACHIGO_EXTENSION_MANIFEST_TARGET=dev pnpm build",
     "check:i18n": "node --experimental-strip-types scripts/check-i18n.ts",
     "lint": "eslint .",
+    "package:production": "pnpm build && pnpm package:readback",
+    "package:readback": "node --experimental-strip-types scripts/verify-production-package.ts",
     "test": "vitest run",
     "preview": "vite preview"
   },
