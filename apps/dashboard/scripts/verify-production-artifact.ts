@@ -4,7 +4,13 @@ import { fileURLToPath } from 'node:url'
 
 const distUrl = new URL('../dist/', import.meta.url)
 const productionApiOrigin = 'https://api.tachigo.io'
-const localOnlyPattern = /localhost|127\.0\.0\.1|0\.0\.0\.0/
+// Match local API URLs only (host + port form), not the bare "localhost" token
+// that ships inside vendored libraries like axios's browser fallback.
+const localApiUrlPatterns = [
+  /https?:\/\/localhost:\d+/,
+  /https?:\/\/127\.0\.0\.1:\d+/,
+  /https?:\/\/0\.0\.0\.0:\d+/,
+]
 
 function assertFile(relativePath: string, label: string) {
   const fileUrl = new URL(relativePath, distUrl)
@@ -24,11 +30,14 @@ function listAssetFiles() {
 }
 
 function assertNoLocalOnlyURLs(relativePath: string, contents: string) {
-  assert.equal(
-    localOnlyPattern.test(contents),
-    false,
-    `${relativePath} must not include localhost / loopback URLs in a production artifact.`,
-  )
+  for (const pattern of localApiUrlPatterns) {
+    const match = contents.match(pattern)
+    assert.equal(
+      match,
+      null,
+      `${relativePath} must not include local API URLs (found ${match?.[0]}) in a production artifact.`,
+    )
+  }
 }
 
 assert.ok(existsSync(distUrl), `Missing dashboard dist directory: ${fileURLToPath(distUrl)}. Run pnpm build first.`)
