@@ -262,7 +262,11 @@ jobs:
               /^pnpm-workspace\.yaml$/,
             ]
             const apiContractPaths = [
+              /^apps\/dashboard\/src\/(?:providers\/dataProvider\.ts|services\/)/,
+              /^apps\/extension\/src\/services\/api\.ts$/,
+              /^infra\/scripts\/check-frontend-api-contracts\.mjs$/,
               /^packages\/(?:shared-types|api-client)\//,
+              /^services\/api\/internal\/router\/router\.go$/,
               /^services\/api\/docs\/(?:docs\.go|swagger\.json|swagger\.ya?ml)$/,
               /^package\.json$/,
               /^pnpm-lock\.yaml$/,
@@ -644,6 +648,9 @@ jobs:
 
       - name: Test typed API client
         run: pnpm api:client:test
+
+      - name: Cross-surface contract smoke
+        run: pnpm smoke:contracts
 
   frontend:
     timeout-minutes: 15

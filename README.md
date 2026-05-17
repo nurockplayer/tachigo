@@ -28,6 +28,7 @@ tachigo/
 | System architecture | [docs/architecture.md](docs/architecture.md) |
 | Auth baseline | [docs/auth-architecture.md](docs/auth-architecture.md) |
 | Backend permissions | [docs/backend-permissions.md](docs/backend-permissions.md) |
+| Cross-surface smoke baseline | [docs/cross-surface-smoke.md](docs/cross-surface-smoke.md) |
 | Chrome sidepanel migration | [docs/history/2026-04-16-tachimint-chrome-sidepanel-migration.md](docs/history/2026-04-16-tachimint-chrome-sidepanel-migration.md) |
 | PR scope policy | [docs/pr-scope-policy.md](docs/pr-scope-policy.md) |
 | Dependency update policy | [docs/dependabot-update-policy.md](docs/dependabot-update-policy.md) |

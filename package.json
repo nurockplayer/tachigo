@@ -16,6 +16,7 @@
     "api:types:generate": "pnpm --filter @tachigo/shared-types generate",
     "api:types:check": "pnpm --filter @tachigo/shared-types check",
     "api:client:test": "pnpm --filter @tachigo/api-client test",
+    "smoke:contracts": "node infra/scripts/check-frontend-api-contracts.mjs",
     "test": "echo \"No root test suite configured\""
   },
   "repository": {
