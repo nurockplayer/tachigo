@@ -26,6 +26,8 @@ http://localhost:5174
 ```bash
 pnpm dev
 pnpm build
+pnpm package:production
+pnpm package:readback
 pnpm test
 pnpm lint
 pnpm preview
@@ -53,6 +55,15 @@ cp apps/dashboard/.env.example apps/dashboard/.env
 | `VITE_API_URL` | 舊本機 env 的 fallback key；新設定請優先使用 `VITE_TACHIGO_API_URL` |
 
 Dashboard API client 會自行帶上 `/api/v1` path prefix。登入後的 request 使用 in-memory access token，refresh flow 透過後端 httpOnly cookie。
+
+Production env 範例在 [`.env.production.example`](.env.production.example)。正式 production artifact 請使用：
+
+```bash
+cd apps/dashboard
+pnpm package:production
+```
+
+`pnpm package:production` 會以 `https://api.tachigo.io` 產出 `dist/`，再用 `pnpm package:readback` 確認 artifact 沒有 localhost / loopback URL。Production deploy target、rollback 與 smoke checklist 見 [`docs/dashboard-deployment.md`](../../docs/dashboard-deployment.md)。
 
 ## 主要模組
 
@@ -104,6 +115,7 @@ cd apps/dashboard
 pnpm test
 pnpm lint
 pnpm build
+pnpm package:production
 ```
 
 PR 若修改頁面或 dataProvider，建議至少跑相關 Vitest，加上 `pnpm build` 確認 TypeScript 與 Vite build 都通過。
