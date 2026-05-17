@@ -1,8 +1,12 @@
 package services
 
 import (
+	"bytes"
 	"context"
+	"errors"
+	"log"
 	"net/http"
+	"strings"
 	"testing"
 	"time"
 
@@ -135,6 +139,62 @@ func TestRunScheduledSnapshots_TwitchTokenMissing_StaysDraft(t *testing.T) {
 	db.First(&r, "id = ?", raffle.ID)
 	if r.Status != models.RaffleStatusDraft {
 		t.Errorf("expected draft after failed snapshot, got %s", r.Status)
+	}
+}
+
+func TestRunScheduledSnapshots_LogsSafeJobEvents(t *testing.T) {
+	db := newTestDB(t)
+	svc := NewRaffleService(db, "test-client-id", "", nil)
+
+	user := insertRaffleTestUser(t, db)
+	scheduledAt := time.Now().UTC().Add(5 * time.Minute)
+	raffle := insertScheduledRaffle(t, db, user.ID, scheduledAt, models.RaffleSourceTwitchAPI)
+
+	var logs bytes.Buffer
+	previousOutput := log.Writer()
+	log.SetOutput(&logs)
+	t.Cleanup(func() {
+		log.SetOutput(previousOutput)
+	})
+
+	if err := svc.RunScheduledSnapshots(context.Background(), time.Now().UTC()); err != nil {
+		t.Fatalf("unexpected batch error: %v", err)
+	}
+
+	line := logs.String()
+	for _, want := range []string{
+		"event=raffle_scheduled_snapshots_start",
+		"event=raffle_scheduled_snapshot_error",
+		"event=raffle_scheduled_snapshots_complete",
+		"job=raffle_scheduled_snapshots",
+		"candidate_count=1",
+		"failed=1",
+		"raffle_id=" + raffle.ID.String(),
+	} {
+		if !strings.Contains(line, want) {
+			t.Fatalf("expected scheduler log to contain %q, got %q", want, line)
+		}
+	}
+	for _, leaked := range []string{"access_token", "refresh_token", "Authorization", "Bearer"} {
+		if strings.Contains(line, leaked) {
+			t.Fatalf("scheduler log leaked %q: %s", leaked, line)
+		}
+	}
+}
+
+func TestSafeScheduledJobErrorRedactsSensitiveMaterial(t *testing.T) {
+	for _, err := range []error{
+		errors.New("upstream failed with access_token=secret"),
+		errors.New("Authorization: Bearer secret"),
+		errors.New("client_secret leaked"),
+	} {
+		if got := safeScheduledJobError(err); got != "[redacted]" {
+			t.Fatalf("expected redacted error, got %q", got)
+		}
+	}
+
+	if got := safeScheduledJobError(errors.New("twitch token missing")); got != `"twitch token missing"` {
+		t.Fatalf("expected safe operational error to remain visible, got %q", got)
 	}
 }
 
