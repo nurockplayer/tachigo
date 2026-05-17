@@ -66,3 +66,9 @@ test('calculateCharacterBuff leaves whale and capybara at neutral phase 1 buffs'
   assert.equal(calculateCharacterBuff('whale', {}), 1)
   assert.equal(calculateCharacterBuff('capybara', {}), 1)
 })
+
+test('calculateCharacterBuff leaves future stages neutral until phase 2 hooks land', () => {
+  assert.equal(calculateCharacterBuff('crab', { effectiveClicksInWindow: 20, stage: 2 }), 1)
+  assert.equal(calculateCharacterBuff('dolphin', { chatCount: 5, stage: 3 }), 1)
+  assert.equal(calculateCharacterBuff('turtle', { continuousWatchSeconds: 90 * 60, stage: 2 }), 1)
+})
