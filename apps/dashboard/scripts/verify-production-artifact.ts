@@ -4,12 +4,13 @@ import { fileURLToPath } from 'node:url'
 
 const distUrl = new URL('../dist/', import.meta.url)
 const productionApiOrigin = 'https://api.tachigo.io'
-// Match local API URLs only (host + port form), not the bare "localhost" token
-// that ships inside vendored libraries like axios's browser fallback.
+// Match local API URLs, not the bare "localhost" token that ships inside
+// vendored libraries like axios's browser fallback.
 const localApiUrlPatterns = [
-  /https?:\/\/localhost:\d+/,
-  /https?:\/\/127\.0\.0\.1:\d+/,
-  /https?:\/\/0\.0\.0\.0:\d+/,
+  /https?:\/\/localhost:\d+(?:\/|["'\s]|$)/i,
+  /https:\/\/localhost(?:\/|["'\s]|$)/i,
+  /https?:\/\/127\.0\.0\.1(?::\d+)?(?:\/|["'\s]|$)/i,
+  /https?:\/\/0\.0\.0\.0(?::\d+)?(?:\/|["'\s]|$)/i,
 ]
 
 function assertFile(relativePath: string, label: string) {
