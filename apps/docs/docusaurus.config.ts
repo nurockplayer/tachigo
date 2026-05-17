@@ -11,7 +11,7 @@ const siteUrl =
 
 const config: Config = {
   title: 'tachigo Dev Portal',
-  tagline: 'Project navigation for tachigo and tachiya',
+  tagline: 'tachigo 與 tachiya 專案導覽',
   favicon: 'img/favicon.svg',
 
   url: siteUrl,
@@ -111,7 +111,7 @@ const config: Config = {
           type: 'docSidebar',
           sidebarId: 'docsSidebar',
           position: 'left',
-          label: 'Guide',
+          label: '指南',
         },
         {
           href: 'https://github.com/nurockplayer/tachigo',
@@ -129,15 +129,15 @@ const config: Config = {
       style: 'dark',
       links: [
         {
-          title: 'Dev Portal',
+          title: '開發者入口',
           items: [
-            {label: 'Start Here', to: '/dev-portal/start-here'},
-            {label: 'Domain Maps', to: '/dev-portal/domain-maps'},
-            {label: 'Daily Dev Guide', to: '/dev-portal/daily-dev-guide'},
+            {label: '從這裡開始', to: '/dev-portal/start-here'},
+            {label: '領域地圖', to: '/dev-portal/domain-maps'},
+            {label: '日常開發指南', to: '/dev-portal/daily-dev-guide'},
           ],
         },
         {
-          title: 'Repos',
+          title: '程式庫',
           items: [
             {label: 'tachigo', href: 'https://github.com/nurockplayer/tachigo'},
             {label: 'tachiya', href: 'https://github.com/nurockplayer/tachiya'},

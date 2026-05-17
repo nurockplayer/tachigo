@@ -1,5 +1,5 @@
 ---
-title: Daily Dev Guide
+title: 日常開發指南
 sidebar_position: 3
 status: active
 owner: engineering
@@ -14,11 +14,11 @@ related_repos:
   - tachiya
 ---
 
-# Daily Dev Guide
+# 日常開發指南
 
 這頁回答「我要改 X，從哪裡開始？」每一列都是可以直接進入 source 的日常路徑。
 
-## Change map
+## 改動地圖
 
 | 我要改 | 先看 | 常跑驗證 | 注意 |
 |---|---|---|---|
@@ -29,7 +29,7 @@ related_repos:
 | Coupon redemption | [`spend_service.go`](https://github.com/nurockplayer/tachigo/blob/develop/services/api/internal/services/spend_service.go), [`tachiya_client.go`](https://github.com/nurockplayer/tachigo/blob/develop/services/api/internal/services/tachiya_client.go) | `docker compose run --no-deps --rm app go test ./internal/services ./internal/handlers` | idempotency、timeout、partial failure、tachiya contract。 |
 | Docs portal | [`docs/dev-portal`](https://github.com/nurockplayer/tachigo/tree/develop/docs/dev-portal), [`apps/docs`](https://github.com/nurockplayer/tachigo/tree/develop/apps/docs) | `pnpm build:docs` | broken links、stale source paths、scope creep。 |
 
-## PR scope routine
+## PR 範圍慣例
 
 1. 找到 source issue，確認 Acceptance Criteria。
 2. 用 [Domain Maps](/tachigo/dev-portal/domain-maps) 找 P0 / P1 domain 邊界。
@@ -37,7 +37,7 @@ related_repos:
 4. 若碰到 migration、auth、wallet signature、points ledger、金流或權限模型，PR body 要寫風險與驗證。
 5. 若新增 dependency，必須說明套件名稱、版本、用途、lifecycle script、lockfile 變更與 guardrail 結果。
 
-## Useful commands
+## 常用指令
 
 | 目的 | 指令 |
 |---|---|
@@ -49,9 +49,9 @@ related_repos:
 | Docs build | `pnpm build:docs` |
 | Supply-chain guardrail | `make supply-chain-check` |
 
-## Review heuristics
+## 審查要點
 
-| Surface | 快速檢查 |
+| 介面層 | 快速檢查 |
 |---|---|
 | API handler | request validation、auth middleware、Swagger / shared type 是否需同步。 |
 | Service | transaction boundary、context cancellation、idempotency、nil error handling。 |
