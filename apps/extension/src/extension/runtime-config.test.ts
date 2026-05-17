@@ -17,7 +17,7 @@ interface ExtensionManifest {
 }
 
 async function readManifest(target: 'dev' | 'production') {
-  const raw = await readFile(new URL(`../../../manifests/${target}.json`, import.meta.url), 'utf8')
+  const raw = await readFile(new URL(`../../manifests/${target}.json`, import.meta.url), 'utf8')
   return JSON.parse(raw) as ExtensionManifest
 }
 
