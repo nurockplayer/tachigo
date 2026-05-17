@@ -1,10 +1,10 @@
 import { mkdirSync, rmSync, writeFileSync } from 'node:fs'
 import { spawnSync } from 'node:child_process'
-import { fileURLToPath } from 'node:url'
+import { join } from 'node:path'
 import { afterEach, describe, expect, it } from 'vitest'
 
-const dashboardRoot = fileURLToPath(new URL('../../', import.meta.url))
-const distRoot = fileURLToPath(new URL('../../dist/', import.meta.url))
+const dashboardRoot = process.cwd()
+const distRoot = join(dashboardRoot, 'dist')
 
 function writeDistWithJavascript(contents: string) {
   rmSync(distRoot, { force: true, recursive: true })
