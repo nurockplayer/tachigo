@@ -49,7 +49,7 @@ func wire(db *gorm.DB, cfg *config.Config, ctx context.Context) *gin.Engine {
 		oauthTokenSecret = cfg.JWT.RefreshSecret
 	}
 	raffleSvc := services.NewRaffleService(db, cfg.OAuth.Twitch.ClientID, cfg.App.FrontendURL, mailer, oauthTokenSecret)
-	services.NewRaffleScheduler(raffleSvc).Start(ctx)
+	startRaffleSchedulerIfEnabled(ctx, cfg, raffleSvc)
 	agencyH := handlers.NewAgencyHandler(agencySvc, emailAuthSvc)
 
 	return router.New(
@@ -71,4 +71,19 @@ func wire(db *gorm.DB, cfg *config.Config, ctx context.Context) *gin.Engine {
 		cfg.Server.AllowedOrigins,
 		router.InternalRouterConfig{DB: db, Config: cfg},
 	)
+}
+
+type raffleSchedulerStarter interface {
+	Start(context.Context)
+}
+
+var raffleSchedulerFactory = func(raffleSvc *services.RaffleService) raffleSchedulerStarter {
+	return services.NewRaffleScheduler(raffleSvc)
+}
+
+func startRaffleSchedulerIfEnabled(ctx context.Context, cfg *config.Config, raffleSvc *services.RaffleService) {
+	if cfg != nil && !cfg.Server.EnableScheduler {
+		return
+	}
+	raffleSchedulerFactory(raffleSvc).Start(ctx)
 }
