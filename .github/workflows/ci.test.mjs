@@ -2620,6 +2620,18 @@ test('release PR workflow includes grouped PR summaries in generated body', asyn
   assert.match(jobBlock, /\$\(cat \/tmp\/release-pr-summary\.md\)/)
 })
 
+test('release PR workflow marks generated release PRs as R4 risk', async () => {
+  const workflow = await readFile(releasePrWorkflowPath, 'utf8')
+  const jobBlock = workflowJobBlock(workflow, 'create-release-pr')
+
+  assert.match(jobBlock, /## PR Risk Class/)
+  assert.match(jobBlock, /- \[ \] R0 docs \/ template \/ metadata only/)
+  assert.match(jobBlock, /- \[ \] R1 tests \/ CI \/ tooling only/)
+  assert.match(jobBlock, /- \[ \] R2 frontend behavior/)
+  assert.match(jobBlock, /- \[ \] R3 backend \/ API behavior/)
+  assert.match(jobBlock, /- \[x\] R4 auth \/ permissions \/ security \/ schema \/ migration \/ secrets \/ payments \/ wallet \/ workflow \/ release/)
+})
+
 test('release cadence documentation matches the automated gate', async () => {
   const claude = await readFile(claudePath, 'utf8')
   const policy = await readFile(prScopePolicyPath, 'utf8')
