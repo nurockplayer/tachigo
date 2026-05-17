@@ -1,5 +1,6 @@
 import assert from 'node:assert/strict'
-import { existsSync, readFileSync } from 'node:fs'
+import { existsSync, readFileSync, readdirSync } from 'node:fs'
+import path from 'node:path'
 import { fileURLToPath } from 'node:url'
 
 interface ExtensionManifest {
@@ -17,10 +18,14 @@ interface ExtensionManifest {
 }
 
 const distUrl = new URL('../dist/', import.meta.url)
+const distPath = fileURLToPath(distUrl)
 const manifestUrl = new URL('manifest.json', distUrl)
-const productionApiPermission = 'https://api.tachigo.io/*'
+const productionApiUrl = 'https://api.tachigo.io'
+const productionApiPermission = `${productionApiUrl}/*`
 const productionTwitchMatch = 'https://www.twitch.tv/*'
 const localOnlyPattern = /localhost|127\.0\.0\.1|0\.0\.0\.0/
+const localApiPattern = /https?:\/\/(?:localhost|127\.0\.0\.1|0\.0\.0\.0):8080\b/
+const scannedBundleExtensions = new Set(['.css', '.html', '.js'])
 
 function readManifest(): ExtensionManifest {
   assert.ok(
@@ -42,6 +47,27 @@ function collectManifestUrls(manifest: ExtensionManifest) {
     ...(manifest.host_permissions ?? []),
     ...(manifest.content_scripts ?? []).flatMap((script) => script.matches ?? []),
   ]
+}
+
+function collectBundleFiles(directoryPath = distPath): Array<{ relativePath: string; contents: string }> {
+  return readdirSync(directoryPath, { withFileTypes: true }).flatMap((entry) => {
+    const entryPath = path.join(directoryPath, entry.name)
+
+    if (entry.isDirectory()) {
+      return collectBundleFiles(entryPath)
+    }
+
+    if (!entry.isFile() || !scannedBundleExtensions.has(path.extname(entry.name))) {
+      return []
+    }
+
+    return [
+      {
+        relativePath: path.relative(distPath, entryPath),
+        contents: readFileSync(entryPath, 'utf8'),
+      },
+    ]
+  })
 }
 
 const manifest = readManifest()
@@ -68,5 +94,20 @@ assert.ok(
 assertDistFile('assets/background.js', 'background service worker')
 assertDistFile('assets/content.js', 'content script')
 assertDistFile('sidepanel.html', 'side panel entry')
+
+const bundleFiles = collectBundleFiles()
+const localApiBundleFiles = bundleFiles
+  .filter(({ contents }) => localApiPattern.test(contents))
+  .map(({ relativePath }) => relativePath)
+
+assert.deepEqual(
+  localApiBundleFiles,
+  [],
+  `Production bundle must not include local API URLs: ${localApiBundleFiles.join(', ')}`,
+)
+assert.ok(
+  bundleFiles.some(({ contents }) => contents.includes(productionApiUrl)),
+  `Production bundle must include ${productionApiUrl}`,
+)
 
 console.log('Production extension package readback passed.')

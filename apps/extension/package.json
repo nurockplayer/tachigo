@@ -8,12 +8,12 @@
     "node": ">=24.0.0 <25"
   },
   "scripts": {
-    "dev": "vite",
+    "dev": "VITE_TACHIGO_API_URL=http://localhost:8080 vite",
     "build": "tsc -b && vite build",
-    "build:local": "TACHIGO_EXTENSION_MANIFEST_TARGET=dev pnpm build",
+    "build:local": "TACHIGO_EXTENSION_MANIFEST_TARGET=dev VITE_TACHIGO_API_URL=http://localhost:8080 pnpm build",
     "check:i18n": "node --experimental-strip-types scripts/check-i18n.ts",
     "lint": "eslint .",
-    "package:production": "pnpm build && pnpm package:readback",
+    "package:production": "TACHIGO_EXTENSION_MANIFEST_TARGET=production VITE_TACHIGO_API_URL=https://api.tachigo.io pnpm build && pnpm package:readback",
     "package:readback": "node --experimental-strip-types scripts/verify-production-package.ts",
     "test": "vitest run",
     "preview": "vite preview"

@@ -16,8 +16,11 @@ const processEnv =
 
 const BASE_URL =
   import.meta.env?.VITE_TACHIGO_API_URL ??
-  processEnv?.VITE_TACHIGO_API_URL ??
-  'http://localhost:8080'
+  processEnv?.VITE_TACHIGO_API_URL
+
+if (!BASE_URL) {
+  throw new Error('Missing VITE_TACHIGO_API_URL for Tachigo API client.')
+}
 
 const client = axios.create({
   baseURL: BASE_URL,
