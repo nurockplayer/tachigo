@@ -1,5 +1,5 @@
 ---
-title: Cross-Repo Flows
+title: 跨 Repo 流程
 sidebar_position: 4
 status: active
 owner: engineering
@@ -13,11 +13,11 @@ related_repos:
   - tachiya
 ---
 
-# Cross-Repo Flows
+# 跨 Repo 流程
 
 這頁只描述跨 major system 的主流程。細節仍回到 source、tests 與 domain docs。
 
-## Twitch viewer watch flow
+## Twitch 觀看流程
 
 <span className="tachigo-status">P0 complete</span>
 
@@ -38,7 +38,7 @@ sequenceDiagram
   API-->>Extension: updated watch / points state
 ```
 
-| Boundary | Source |
+| 邊界 | 原始碼 |
 |---|---|
 | Extension heartbeat | [`apps/extension/src/hooks/useHeartbeat.ts`](https://github.com/nurockplayer/tachigo/blob/develop/apps/extension/src/hooks/useHeartbeat.ts) |
 | Extension API client | [`apps/extension/src/services/api.ts`](https://github.com/nurockplayer/tachigo/blob/develop/apps/extension/src/services/api.ts) |
@@ -47,13 +47,13 @@ sequenceDiagram
 | Points service | [`services/api/internal/services/points_service.go`](https://github.com/nurockplayer/tachigo/blob/develop/services/api/internal/services/points_service.go) |
 | Schema | [`003_watch_points.sql`](https://github.com/nurockplayer/tachigo/blob/develop/services/api/migrations/003_watch_points.sql), [`012_tachi_balances.sql`](https://github.com/nurockplayer/tachigo/blob/develop/services/api/migrations/012_tachi_balances.sql) |
 
-Review focus:
+審查重點：
 
 - heartbeat debounce / cadence 是否避免 double credit。
 - ledger insert 和 balance update 是否在同一個 consistency boundary。
 - API 回傳型別是否仍符合 extension hook 的假設。
 
-## Coupon redemption flow
+## 折扣碼兌換流程 {#coupon-redemption-flow}
 
 <span className="tachigo-status">P0 complete</span>
 
@@ -79,7 +79,7 @@ sequenceDiagram
   API-->>Extension: coupon code or failure state
 ```
 
-| Boundary | Source |
+| 邊界 | 原始碼 |
 |---|---|
 | Extension coupon panel | [`CouponShopPanel.tsx`](https://github.com/nurockplayer/tachigo/blob/develop/apps/extension/src/app/components/CouponShopPanel.tsx) |
 | Extension redeem logic | [`redeemCouponForPanel.ts`](https://github.com/nurockplayer/tachigo/blob/develop/apps/extension/src/app/components/redeemCouponForPanel.ts), [`couponRedeem.ts`](https://github.com/nurockplayer/tachigo/blob/develop/apps/extension/src/app/couponRedeem.ts) |
@@ -95,7 +95,7 @@ Review focus:
 - external redemption id 應避免重複建立 coupon 或重複扣點。
 - tachiya 連結使用 `master` 穩定路徑；未合併內容要用 commit permalink。
 
-## Streamer / agency management flow
+## 主播 / 經紀管理流程
 
 <span className="tachigo-status">P1 stub</span>
 

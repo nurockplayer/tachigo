@@ -1,5 +1,5 @@
 ---
-title: Reverse Index Changelog
+title: 反向索引更新日誌
 sidebar_position: 6
 status: active
 owner: engineering
@@ -15,7 +15,7 @@ reverse_index_mode: explicit_only
 
 import ReverseIndexChangelog from '@site/src/components/ReverseIndexChangelog'
 
-# Reverse Index Changelog
+# 反向索引更新日誌
 
 這頁列出 committed reverse-index cache 中，近 90 天 merged PR 對應到的文件。Frontmatter 仍是 authoritative source；這裡顯示的是 build-time GitHub metadata 推論結果。
 

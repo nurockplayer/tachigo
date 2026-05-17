@@ -1,5 +1,5 @@
 ---
-title: Start Here
+title: 從這裡開始
 sidebar_position: 1
 status: active
 owner: engineering
@@ -14,11 +14,11 @@ related_repos:
   - tachiya
 ---
 
-# Start Here
+# 從這裡開始
 
 這條路徑讓你不用先讀完整 `docs/` 樹，也能快速知道 tachigo 怎麼運作、哪些地方最常改、哪些流程跨到 tachiya。
 
-## First hour
+## 第一個小時
 
 | 順序 | 讀什麼 | 你要帶走的 mental model |
 |---|---|---|
@@ -27,7 +27,7 @@ related_repos:
 | 3 | [Domain Maps](/tachigo/dev-portal/domain-maps) | 先掌握 Points、Auth、Extension 三個 P0 domain。 |
 | 4 | [Cross-Repo Flows](/tachigo/dev-portal/flows) | 看 watch flow 與 coupon redemption flow 如何跨 repo。 |
 
-## First day
+## 第一天
 
 | 任務 | 路徑 | 檢查點 |
 |---|---|---|
@@ -37,7 +37,7 @@ related_repos:
 | 看 dashboard 入口 | [`apps/dashboard/src/App.tsx`](https://github.com/nurockplayer/tachigo/blob/develop/apps/dashboard/src/App.tsx) | Refine / React Router resource 如何對上 API。 |
 | 看 tachiya 邊界 | [Coupon redemption flow](/tachigo/dev-portal/flows#coupon-redemption-flow) | tachigo 扣點，tachiya 保護 Saleor commerce logic。 |
 
-## First PR
+## 第一個 PR
 
 1. 先找 issue，確認 scope 只做 source of truth 明確要求的事情。
 2. 從 [Daily Dev Guide](/tachigo/dev-portal/daily-dev-guide) 找對應 domain 的 source、tests、policy。
