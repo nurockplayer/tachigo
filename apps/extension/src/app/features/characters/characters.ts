@@ -99,11 +99,6 @@ export function calculateCharacterBuff(
   characterId: CharacterId,
   context: CharacterBuffContext,
 ): number {
-  const stage = context.stage ?? 1
-  if (stage !== 1) {
-    return 1
-  }
-
   switch (characterId) {
     case 'crab':
       return (context.effectiveClicksInWindow ?? 0) >= 10 ? 1.5 : 1
