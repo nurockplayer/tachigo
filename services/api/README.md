@@ -88,6 +88,13 @@ cp services/api/.env.example services/api/.env
 | `GOOGLE_REDIRECT_URL` | Google OAuth callback URL |
 | `TACHI_CONTRACT_ADDRESS` | Sepolia 上的 TachiToken contract address |
 | `SEPOLIA_SIGNER_KEY` | 後端送鏈上交易用的 Sepolia testnet signer private key；不可 commit 真實值 |
+| `TRACING_ENABLED` | 是否啟用 OpenTelemetry tracing；預設 `false` |
+| `OTEL_SERVICE_NAME` | trace resource 的 service name，預設 `tachigo-api` |
+| `OTEL_ENVIRONMENT` | trace resource 的 deployment environment，預設跟 `APP_ENV` 一致 |
+| `OTEL_TRACES_SAMPLE_RATIO` | root span sampling ratio，必須介於 `0` 到 `1` |
+| `OTEL_EXPORTER_OTLP_TRACES_ENDPOINT` | OTLP HTTP traces endpoint；啟用 tracing 時必填 |
+| `OTEL_EXPORTER_OTLP_TRACES_INSECURE` | 是否停用 OTLP TLS transport security，本機 collector 才應使用 |
+| `OTEL_EXPORTER_OTLP_HEADERS` | OTLP exporter headers，逗號分隔；不可 commit 真實 token |
 | `ALLOWED_ORIGINS` | CORS allowlist，使用逗號分隔 |
 
 `config.Load()` 也支援以下變數；需要 email 或前端連結行為時可以加入 `.env`：
@@ -116,6 +123,12 @@ swag init -g cmd/server/main.go --output docs --quiet
 ```
 
 如果在本機直接修改 Swagger annotation，也可以在 `services/api` 手動執行同一個指令。
+
+## Observability
+
+後端目前使用 structured request logs 加上 env-gated OpenTelemetry tracing。Tracing 預設關閉；開啟時會透過 OTLP HTTP exporter 送出 spans，並只記錄 request id、HTTP method、matched route、status code、Gin error count 等低基數 attributes。middleware 不記 query string、body、`Authorization`、cookies、OAuth token、signing key、wallet address 或原始 handler error text。
+
+OTel / OTLP 是 vendor-neutral baseline；Sentry 目前只作為錯誤回報 vendor 的後續 adapter 選項，不需要 DSN 或 vendor account 才能啟用本 baseline。staging / production 啟用前請設定 `TRACING_ENABLED=true`、`OTEL_EXPORTER_OTLP_TRACES_ENDPOINT`，並確認 `OTEL_TRACES_SAMPLE_RATIO` 介於 `0` 到 `1`。
 
 ## 資料庫與 migrations
 
