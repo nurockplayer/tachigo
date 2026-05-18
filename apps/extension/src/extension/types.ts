@@ -1,6 +1,8 @@
 import type { AppLanguage } from '../i18n'
+import { defaultNavigationFlags, type NavigationFlags } from '../app/navigation/types'
 
 export type DemoScreen = 'login' | 'loading' | 'hud' | 'claim' | 'coupon' | 'raffle'
+export const defaultDemoScreen: DemoScreen = 'login'
 
 interface RaffleResultEntry {
   id: string
@@ -26,8 +28,8 @@ export interface HudDemoState {
 export type CouponRedeemResult = 'success' | 'insufficient' | 'already_redeemed'
 
 export interface DemoState {
-  screen: DemoScreen
   language: AppLanguage
+  flags: NavigationFlags
   hud: HudDemoState
   tcgBalance: number
   redeemedCouponIds: string[]
@@ -42,8 +44,8 @@ export const defaultHudDemoState: HudDemoState = {
 }
 
 export const defaultDemoState: DemoState = {
-  screen: 'login',
   language: 'en',
+  flags: { ...defaultNavigationFlags },
   hud: { ...defaultHudDemoState },
   tcgBalance: 0,
   redeemedCouponIds: [],
@@ -56,6 +58,7 @@ function createDefaultHudDemoState(): HudDemoState {
 export function createDefaultDemoState(): DemoState {
   return {
     ...defaultDemoState,
+    flags: { ...defaultDemoState.flags },
     hud: createDefaultHudDemoState(),
     redeemedCouponIds: [...defaultDemoState.redeemedCouponIds],
   }
@@ -93,16 +96,35 @@ export function sanitizeHudDemoState(value: unknown): HudDemoState {
   }
 }
 
+export function sanitizeNavigationFlags(value: unknown): NavigationFlags {
+  if (!value || typeof value !== 'object') {
+    return { ...defaultNavigationFlags }
+  }
+
+  const candidate = value as Partial<NavigationFlags>
+
+  return {
+    hasCompletedLogin:
+      typeof candidate.hasCompletedLogin === 'boolean'
+        ? candidate.hasCompletedLogin
+        : defaultNavigationFlags.hasCompletedLogin,
+    onboardingVersion: toNonNegativeFiniteNumber(
+      candidate.onboardingVersion,
+      defaultNavigationFlags.onboardingVersion,
+    ),
+    selectedCharacterOnce:
+      typeof candidate.selectedCharacterOnce === 'boolean'
+        ? candidate.selectedCharacterOnce
+        : defaultNavigationFlags.selectedCharacterOnce,
+  }
+}
+
 export function sanitizeDemoState(value: unknown): DemoState {
   if (!value || typeof value !== 'object') {
     return createDefaultDemoState()
   }
 
   const candidate = value as Partial<DemoState>
-  const screen = candidate.screen === 'login' || candidate.screen === 'loading' || candidate.screen === 'hud' || candidate.screen === 'claim' || candidate.screen === 'coupon' || candidate.screen === 'raffle'
-    ? candidate.screen
-    : defaultDemoState.screen
-
   const tcgBalance =
     typeof candidate.tcgBalance === 'number' && Number.isFinite(candidate.tcgBalance)
       ? Math.max(0, candidate.tcgBalance)
@@ -114,8 +136,8 @@ export function sanitizeDemoState(value: unknown): DemoState {
     : createDefaultDemoState().redeemedCouponIds
 
   return {
-    screen,
     language: normalizeAppLanguage(candidate.language),
+    flags: sanitizeNavigationFlags(candidate.flags),
     hud: sanitizeHudDemoState(candidate.hud),
     tcgBalance,
     redeemedCouponIds: [...redeemedCouponIds],

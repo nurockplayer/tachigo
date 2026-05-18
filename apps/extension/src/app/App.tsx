@@ -3,11 +3,13 @@ import { useTranslation } from 'react-i18next'
 
 import { loadDemoState, saveDemoState } from '../extension/storage';
 import {
+  defaultDemoScreen,
   defaultDemoState,
   normalizeAppLanguage,
   type DemoScreen,
   type HudDemoState,
 } from '../extension/types';
+import type { NavigationFlags } from './navigation/types'
 import type { AppLanguage } from '../i18n';
 import { LoadingScreen } from './components/LoadingScreen';
 import { LoginScreen } from './components/LoginScreen';
@@ -34,7 +36,8 @@ export default function App() {
       : "'Press Start 2P', monospace",
   } as CSSProperties
   const [isHydrated, setIsHydrated] = useState(false);
-  const [screen, setScreen] = useState<DemoScreen>(defaultDemoState.screen);
+  const [screen, setScreen] = useState<DemoScreen>(defaultDemoScreen);
+  const [flags, setFlags] = useState<NavigationFlags>(() => ({ ...defaultDemoState.flags }));
   const [hudState, setHudState] = useState<HudDemoState>(defaultDemoState.hud);
   const [tcgBalance, setTcgBalance] = useState(defaultDemoState.tcgBalance);
   const [redeemedCouponIds, setRedeemedCouponIds] = useState<string[]>(defaultDemoState.redeemedCouponIds);
@@ -52,7 +55,7 @@ export default function App() {
           return
         }
 
-        setScreen(storedState.screen)
+        setFlags(storedState.flags)
         setHudState(storedState.hud)
         setTcgBalance(storedState.tcgBalance)
         tcgBalanceRef.current = storedState.tcgBalance
@@ -90,8 +93,8 @@ export default function App() {
 
     const persistTimer = window.setTimeout(() => {
       void saveDemoState({
-        screen,
         language: currentLanguage,
+        flags,
         hud: hudState,
         tcgBalance,
         redeemedCouponIds,
@@ -101,7 +104,7 @@ export default function App() {
     }, 120)
 
     return () => window.clearTimeout(persistTimer)
-  }, [currentLanguage, hudState, isHydrated, redeemedCouponIds, screen, tcgBalance])
+  }, [currentLanguage, flags, hudState, isHydrated, redeemedCouponIds, tcgBalance])
 
   const handleClaim = (cpcAmount: number) => {
     const claimable = Math.max(0, Math.min(cpcAmount, hudState.points))
@@ -142,15 +145,6 @@ export default function App() {
     setCurrentLanguage(language)
     void i18n.changeLanguage(language).catch((error: unknown) => {
       console.warn('Failed to switch panel language', error)
-    })
-    void saveDemoState({
-      screen,
-      language,
-      hud: hudState,
-      tcgBalance,
-      redeemedCouponIds,
-    }).catch((error: unknown) => {
-      console.warn('Failed to persist language switch', error)
     })
   }
 

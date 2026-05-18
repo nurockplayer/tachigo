@@ -12,14 +12,20 @@ test('sanitizeDemoState returns fresh default objects instead of shared referenc
   const first = types.sanitizeDemoState(null)
   first.hud.points = 99
   first.redeemedCouponIds.push('coupon-1')
+  first.flags.hasCompletedLogin = true
 
   const second = types.sanitizeDemoState(null)
 
   assert.notEqual(first, second)
   assert.notEqual(first.hud, second.hud)
+  assert.notEqual(first.flags, second.flags)
   assert.deepEqual(second, {
-    screen: 'login',
     language: 'en',
+    flags: {
+      hasCompletedLogin: false,
+      onboardingVersion: 0,
+      selectedCharacterOnce: false,
+    },
     hud: {
       points: 0,
       totalPoints: 12847,
@@ -55,14 +61,14 @@ test('sanitizeHudDemoState rejects non-finite numeric values', async () => {
 
 test('sanitizeDemoState accepts raffle as a valid screen', async () => {
   const types = await importTypesModule()
-  const result = types.sanitizeDemoState({ screen: 'raffle' })
-  assert.equal(result.screen, 'raffle')
+  const result = types.sanitizeDemoState({ flags: { hasCompletedLogin: true } })
+  assert.equal(result.flags.hasCompletedLogin, true)
 })
 
-test('sanitizeDemoState falls back to login for unknown screen', async () => {
+test('sanitizeDemoState ignores legacy screen state', async () => {
   const types = await importTypesModule()
-  const result = types.sanitizeDemoState({ screen: 'unknown_screen' })
-  assert.equal(result.screen, 'login')
+  const result = types.sanitizeDemoState({ screen: 'raffle' })
+  assert.equal('screen' in result, false)
 })
 
 test('sanitizeHudDemoState normalizes negative zero to positive zero', async () => {
