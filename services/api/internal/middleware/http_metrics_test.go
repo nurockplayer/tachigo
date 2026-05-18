@@ -73,6 +73,14 @@ func TestMetricsBearerGuard(t *testing.T) {
 	}
 
 	req = httptest.NewRequest(http.MethodGet, "/metrics", nil)
+	req.Header.Set("Authorization", "Bearer wrong-token")
+	rec = httptest.NewRecorder()
+	engine.ServeHTTP(rec, req)
+	if rec.Code != http.StatusUnauthorized {
+		t.Fatalf("expected wrong token to return 401, got %d", rec.Code)
+	}
+
+	req = httptest.NewRequest(http.MethodGet, "/metrics", nil)
 	req.Header.Set("Authorization", "Bearer expected-token")
 	rec = httptest.NewRecorder()
 	engine.ServeHTTP(rec, req)
