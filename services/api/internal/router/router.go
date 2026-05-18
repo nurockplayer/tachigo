@@ -59,10 +59,6 @@ func New(
 
 	r := gin.New()
 	r.Use(middleware.RequestID(), middleware.StructuredRequestLogger(log.Default()), gin.Recovery())
-	if cfg != nil {
-		r.Use(middleware.RequestTimeout(cfg.Server.RequestTimeout))
-	}
-	r.Use(middleware.CORS(allowedOrigins))
 	var metricsCollector *metrics.Collector
 	if cfg != nil && cfg.Metrics.EnableMetrics {
 		metricsCollector = metrics.NewCollector()
@@ -71,6 +67,10 @@ func New(
 			raffleSvc.SetMetricsCollector(metricsCollector)
 		}
 	}
+	if cfg != nil {
+		r.Use(middleware.RequestTimeout(cfg.Server.RequestTimeout))
+	}
+	r.Use(middleware.CORS(allowedOrigins))
 
 	if cfg != nil && len(cfg.Server.TrustedProxies) > 0 {
 		if err := r.SetTrustedProxies(cfg.Server.TrustedProxies); err != nil {

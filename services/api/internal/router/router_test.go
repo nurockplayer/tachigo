@@ -207,6 +207,39 @@ func TestMetricsRoute_GatedByConfigAndBearerToken(t *testing.T) {
 	}
 }
 
+func TestMetricsRoute_RecordsTimeoutStatusAfterRequestTimeout(t *testing.T) {
+	cfg := routerTestConfig("development", false, false)
+	cfg.Server.RequestTimeout = time.Millisecond
+	cfg.Metrics.EnableMetrics = true
+	cfg.Metrics.BearerToken = "metrics-token"
+	env := newRouterTestEnv(t, cfg)
+	env.router.GET("/test-metrics-timeout", func(c *gin.Context) {
+		<-c.Request.Context().Done()
+	})
+
+	req := httptest.NewRequest(http.MethodGet, "/test-metrics-timeout", nil)
+	rec := httptest.NewRecorder()
+	env.router.ServeHTTP(rec, req)
+	if rec.Code != http.StatusGatewayTimeout {
+		t.Fatalf("expected timeout request to return 504, got %d", rec.Code)
+	}
+
+	req = httptest.NewRequest(http.MethodGet, "/metrics", nil)
+	req.Header.Set("Authorization", "Bearer metrics-token")
+	rec = httptest.NewRecorder()
+	env.router.ServeHTTP(rec, req)
+	if rec.Code != http.StatusOK {
+		t.Fatalf("expected metrics endpoint to return 200, got %d", rec.Code)
+	}
+	text := rec.Body.String()
+	if !strings.Contains(text, `tachigo_http_requests_total{route="/test-metrics-timeout",status_family="5xx"} 1`) {
+		t.Fatalf("expected timeout request to be recorded as 5xx, got:\n%s", text)
+	}
+	if !strings.Contains(text, `tachigo_http_request_errors_total{route="/test-metrics-timeout",status_family="5xx"} 1`) {
+		t.Fatalf("expected timeout request to be recorded as error, got:\n%s", text)
+	}
+}
+
 func routerTestConfig(serverEnv string, enableSwagger, enableSwaggerSet bool) *config.Config {
 	return &config.Config{
 		Server: config.ServerConfig{
