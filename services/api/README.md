@@ -83,6 +83,8 @@ cp services/api/.env.example services/api/.env
 | `TWITCH_EXTENSION_SECRET` | Twitch Extension dashboard 內的 base64 extension secret |
 | `TACHIYA_INTERNAL_SHARED_SECRET` | tachiya -> tachigo server-to-server request shared secret |
 | `TACHIYA_BASE_URL` | tachiya internal API base URL |
+| `ENABLE_METRICS` | 啟用 Prometheus-compatible `/metrics` endpoint，預設 `false` |
+| `METRICS_BEARER_TOKEN` | `/metrics` bearer token；production 啟用 metrics 時必填 |
 | `GOOGLE_CLIENT_ID` | Google OAuth client id |
 | `GOOGLE_CLIENT_SECRET` | Google OAuth client secret |
 | `GOOGLE_REDIRECT_URL` | Google OAuth callback URL |

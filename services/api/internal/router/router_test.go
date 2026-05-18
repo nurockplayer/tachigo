@@ -167,6 +167,46 @@ func TestRouter_AppliesRequestTimeoutMiddleware(t *testing.T) {
 	}
 }
 
+func TestMetricsRoute_GatedByConfigAndBearerToken(t *testing.T) {
+	disabled := newRouterTestEnv(t, routerTestConfig("development", false, false))
+	req := httptest.NewRequest(http.MethodGet, "/metrics", nil)
+	rec := httptest.NewRecorder()
+	disabled.router.ServeHTTP(rec, req)
+	if rec.Code != http.StatusNotFound {
+		t.Fatalf("expected disabled metrics endpoint to return 404, got %d", rec.Code)
+	}
+
+	cfg := routerTestConfig("development", false, false)
+	cfg.Metrics.EnableMetrics = true
+	cfg.Metrics.BearerToken = "metrics-token"
+	enabled := newRouterTestEnv(t, cfg)
+
+	req = httptest.NewRequest(http.MethodGet, "/health", nil)
+	rec = httptest.NewRecorder()
+	enabled.router.ServeHTTP(rec, req)
+	if rec.Code != http.StatusOK {
+		t.Fatalf("health request: want 200, got %d", rec.Code)
+	}
+
+	req = httptest.NewRequest(http.MethodGet, "/metrics", nil)
+	rec = httptest.NewRecorder()
+	enabled.router.ServeHTTP(rec, req)
+	if rec.Code != http.StatusUnauthorized {
+		t.Fatalf("expected missing metrics bearer token to return 401, got %d", rec.Code)
+	}
+
+	req = httptest.NewRequest(http.MethodGet, "/metrics", nil)
+	req.Header.Set("Authorization", "Bearer metrics-token")
+	rec = httptest.NewRecorder()
+	enabled.router.ServeHTTP(rec, req)
+	if rec.Code != http.StatusOK {
+		t.Fatalf("expected metrics endpoint to return 200, got %d", rec.Code)
+	}
+	if !strings.Contains(rec.Body.String(), `tachigo_http_requests_total{route="/health",status_family="2xx"} 1`) {
+		t.Fatalf("expected /health request metric, got:\n%s", rec.Body.String())
+	}
+}
+
 func routerTestConfig(serverEnv string, enableSwagger, enableSwaggerSet bool) *config.Config {
 	return &config.Config{
 		Server: config.ServerConfig{
