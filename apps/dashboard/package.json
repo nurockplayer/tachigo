@@ -11,6 +11,8 @@
     "dev": "vite",
     "build": "tsc -b && vite build",
     "lint": "eslint .",
+    "package:production": "VITE_TACHIGO_API_URL=https://api.tachigo.io pnpm build && pnpm package:readback",
+    "package:readback": "node --experimental-strip-types scripts/verify-production-artifact.ts",
     "preview": "vite preview",
     "test": "vitest run"
   },

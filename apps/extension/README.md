@@ -29,6 +29,9 @@ http://localhost:5173
 ```bash
 pnpm dev
 pnpm build
+pnpm build:local
+pnpm package:production
+pnpm package:readback
 pnpm test
 pnpm lint
 pnpm check:i18n
@@ -53,15 +56,33 @@ cp apps/extension/.env.example apps/extension/.env
 | --- | --- |
 | `VITE_TACHIGO_API_URL` | Tachigo API origin，例如 `http://localhost:8080` |
 
-Chrome manifest 目前允許 `http://localhost:8080/*` host permission；若本機 API origin 改變，請同步檢查 [`public/manifest.json`](public/manifest.json)。
+本機 dev manifest 允許 `http://localhost:8080/*` host permission，並讓 content script 只匹配 `http://localhost:3000/*`。
+若本機 API origin 改變，請同步檢查 [`manifests/dev.json`](manifests/dev.json) 與 `src/extension/runtime-config.test.ts`。
+
+Production package 使用 [`manifests/production.json`](manifests/production.json)：
+
+| 設定 | Production 值 |
+| --- | --- |
+| API origin | `https://api.tachigo.io` |
+| API host permission | `https://api.tachigo.io/*` |
+| Content script match | `https://www.twitch.tv/*` |
+
+Production env 範例在 [`.env.production.example`](.env.production.example)。正式送審前，release owner 必須確認 `https://api.tachigo.io` 的 DNS、TLS、CORS allowlist 與後端部署已可用。
 
 ## Chrome Extension 載入方式
 
-先產出 `dist/`：
+Production package 的 `pnpm build` 預設會把 production manifest 複製成 `dist/manifest.json`。正式 package/readback 請跑：
 
 ```bash
 cd apps/extension
-pnpm build
+pnpm package:production
+```
+
+如果只是要用 localhost API 載入本機 unpacked extension，請改跑：
+
+```bash
+cd apps/extension
+pnpm build:local
 ```
 
 在 Chrome 載入 unpacked extension：
@@ -72,11 +93,25 @@ pnpm build
 4. 選擇 `apps/extension/dist`
 5. 點擊 Tachimint extension action，或從 Chrome side panel 開啟
 
-目前 Manifest V3 設定在 [`public/manifest.json`](public/manifest.json)：
+Manifest V3 template 位於 [`manifests/`](manifests/)：
 
 - `side_panel.default_path` 指向 `sidepanel.html`
 - background service worker 由 `src/extension/background.ts` build 成 `assets/background.js`
 - content script 由 `src/extension/content.ts` build 成 `assets/content.js`
+
+`pnpm package:readback` 會檢查 `dist/manifest.json`、`assets/background.js`、`assets/content.js`、`sidepanel.html`，並確認 production package 沒有 `localhost` / `127.0.0.1` / `0.0.0.0` 權限。
+
+## Chrome Web Store / sideload release checklist
+
+Owner：當次 Chrome Web Store submission 的 extension release owner。
+
+- 跑 `pnpm package:production`，確認 readback 通過。
+- 用 Chrome `Load unpacked` 載入 `apps/extension/dist`。
+- 開啟 Twitch channel 頁面，點擊 Tachimint extension action，確認 side panel 可開啟。
+- 走一次 login flow，確認請求打到 `https://api.tachigo.io`，沒有連到 localhost。
+- 確認後端 production `ALLOWED_ORIGINS` / CORS 已允許 extension 需要的 origin。
+- 在 Chrome Web Store permission review 中說明 `sidePanel`、`storage`、`activeTab`、`https://www.twitch.tv/*` 與 `https://api.tachigo.io/*` 的用途。
+- 記錄 package SHA、送審帳號、Chrome Web Store draft/review 狀態到 release ticket。
 
 ## `sidepanel.html` 與 `index.html`
 
