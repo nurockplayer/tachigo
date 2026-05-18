@@ -1,0 +1,24 @@
+{
+  "manifest_version": 3,
+  "name": "Tachimint",
+  "description": "Tachimint Chrome sidepanel extension.",
+  "version": "0.0.1",
+  "permissions": ["sidePanel", "storage", "activeTab"],
+  "background": {
+    "service_worker": "assets/background.js",
+    "type": "module"
+  },
+  "content_scripts": [
+    {
+      "matches": ["https://www.twitch.tv/*"],
+      "js": ["assets/content.js"]
+    }
+  ],
+  "side_panel": {
+    "default_path": "sidepanel.html"
+  },
+  "action": {
+    "default_title": "Open Tachimint"
+  },
+  "host_permissions": ["https://api.tachigo.io/*"]
+}
