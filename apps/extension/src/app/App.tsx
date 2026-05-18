@@ -146,15 +146,6 @@ export default function App() {
     void i18n.changeLanguage(language).catch((error: unknown) => {
       console.warn('Failed to switch panel language', error)
     })
-    void saveDemoState({
-      language,
-      flags,
-      hud: hudState,
-      tcgBalance,
-      redeemedCouponIds,
-    }).catch((error: unknown) => {
-      console.warn('Failed to persist language switch', error)
-    })
   }
 
   if (!isHydrated) {

@@ -58,7 +58,7 @@ function setChromeStorage(callbacks?: ChromeStorageCallbacks) {
   }
 }
 
-function setWindowLocalStorage(initialValue?: DemoState | null): MockLocalStorage {
+function setWindowLocalStorage(initialValue?: unknown): MockLocalStorage {
   const store = new Map<string, string>()
 
   if (initialValue) {
@@ -236,6 +236,56 @@ test('loadDemoState clears legacy localStorage after migrating state into chrome
 
   assert.deepEqual(chromeStoredValue, migratedState)
   assert.equal(localStorage.removes, 1)
+  assert.equal(localStorage.getItem(LEGACY_STORAGE_KEY), null)
+})
+
+test('loadDemoState migrates true v2 screen payloads into v3 state shape', async () => {
+  let chromeStoredValue: DemoState | null = null
+
+  setChromeStorage({
+    get: (_key, callback) => callback({}),
+    set: (items, callback) => {
+      chromeStoredValue = items[STORAGE_KEY] as DemoState
+      callback()
+    },
+  })
+  const localStorage = setWindowLocalStorage({
+    language: 'zh-TW',
+    screen: 'coupon',
+    hud: {
+      points: 72,
+      totalPoints: 4096,
+      countdown: 18,
+      isWatching: false,
+      clickCount: 8,
+    },
+    tcgBalance: 20,
+    redeemedCouponIds: ['tachiya-95'],
+  })
+
+  const storage = await importStorageModule()
+
+  const migratedState = await storage.loadDemoState()
+
+  const expectedState: DemoState = {
+    language: 'zh-TW',
+    flags: {
+      hasCompletedLogin: false,
+      onboardingVersion: 0,
+      selectedCharacterOnce: false,
+    },
+    hud: {
+      points: 72,
+      totalPoints: 4096,
+      countdown: 18,
+      isWatching: false,
+      clickCount: 8,
+    },
+    tcgBalance: 20,
+    redeemedCouponIds: ['tachiya-95'],
+  }
+  assert.deepEqual(migratedState, expectedState)
+  assert.deepEqual(chromeStoredValue, expectedState)
   assert.equal(localStorage.getItem(LEGACY_STORAGE_KEY), null)
 })
 

@@ -6,12 +6,16 @@ import {
   type Scene,
 } from './types'
 
+type SetNavigationFlagAction = {
+  [K in keyof NavigationFlags]: { type: 'setFlag'; key: K; value: NavigationFlags[K] }
+}[keyof NavigationFlags]
+
 export type NavigationAction =
   | { type: 'goScene'; scene: Scene }
   | { type: 'pushOverlay'; entry: OverlayEntry }
   | { type: 'popOverlay' }
   | { type: 'closeAllOverlays' }
-  | { type: 'setFlag'; key: keyof NavigationFlags; value: NavigationFlags[keyof NavigationFlags] }
+  | SetNavigationFlagAction
 
 export function createInitialNavState(flags: Partial<NavigationFlags> = {}): NavState {
   const mergedFlags = {
