@@ -3,10 +3,9 @@ import { test } from 'vitest'
 
 import {
   createInitialNavState,
-  defaultNavigationFlags,
   navigationReducer,
-  type NavState,
-} from './NavigationProvider.tsx'
+} from './reducer'
+import { defaultNavigationFlags, type NavState } from './types'
 
 function createState(overrides: Partial<NavState> = {}): NavState {
   return {

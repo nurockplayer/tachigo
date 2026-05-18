@@ -9,7 +9,7 @@ import {
   type DemoScreen,
   type HudDemoState,
 } from '../extension/types';
-import type { NavigationFlags } from './navigation/NavigationProvider'
+import type { NavigationFlags } from './navigation/types'
 import type { AppLanguage } from '../i18n';
 import { LoadingScreen } from './components/LoadingScreen';
 import { LoginScreen } from './components/LoginScreen';
