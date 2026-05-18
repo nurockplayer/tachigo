@@ -422,43 +422,81 @@ type googleUserInfo struct {
 }
 
 func (s *AuthService) upsertOAuthUser(
-	_ context.Context,
+	ctx context.Context,
 	provider models.ProviderType,
 	providerID, username, email string,
 	avatarURL *string,
 	token *oauth2.Token,
 ) (*models.User, *TokenPair, error) {
-
-	var ap models.AuthProvider
-	err := s.db.Where("provider = ? AND provider_id = ?", provider, providerID).First(&ap).Error
-
-	if err == nil {
-		// Already linked – update tokens, return user
-		if token != nil {
-			if err := s.assignProviderTokens(&ap, provider, token); err != nil {
-				return nil, nil, err
-			}
-			if err := s.db.Save(&ap).Error; err != nil {
-				return nil, nil, err
-			}
-		}
-		var user models.User
-		if err := s.db.First(&user, "id = ?", ap.UserID).Error; err != nil {
-			return nil, nil, ErrUserNotFound
-		}
-		tokens, err := s.issueTokenPair(&user)
-		return &user, tokens, err
+	if ctx == nil {
+		ctx = context.Background()
 	}
 
-	// New provider – find or create user
-	var user models.User
+	user, tokens, err := s.upsertOAuthUserInTransaction(s.db.WithContext(ctx), provider, providerID, username, email, avatarURL, token)
+	if err == nil {
+		return user, tokens, nil
+	}
+	if !isDuplicatedKeyError(err) {
+		return nil, nil, err
+	}
 
+	user, tokens, recoverErr := s.recoverOAuthProviderConflict(ctx, provider, providerID, token)
+	if recoverErr == nil {
+		return user, tokens, nil
+	}
+	if !errors.Is(recoverErr, gorm.ErrRecordNotFound) {
+		return nil, nil, recoverErr
+	}
+
+	return nil, nil, s.mapOAuthUserUniqueError(ctx, username, email, err)
+}
+
+func (s *AuthService) upsertOAuthUserInTransaction(
+	db *gorm.DB,
+	provider models.ProviderType,
+	providerID, username, email string,
+	avatarURL *string,
+	token *oauth2.Token,
+) (*models.User, *TokenPair, error) {
+	var user *models.User
+	var tokens *TokenPair
+	err := db.Transaction(func(tx *gorm.DB) error {
+		txUser, txTokens, err := s.upsertOAuthUserTx(tx, provider, providerID, username, email, avatarURL, token)
+		if err != nil {
+			return err
+		}
+		user = txUser
+		tokens = txTokens
+		return nil
+	})
+	return user, tokens, err
+}
+
+func (s *AuthService) upsertOAuthUserTx(
+	tx *gorm.DB,
+	provider models.ProviderType,
+	providerID, username, email string,
+	avatarURL *string,
+	token *oauth2.Token,
+) (*models.User, *TokenPair, error) {
+	var ap models.AuthProvider
+	err := tx.Where("provider = ? AND provider_id = ?", provider, providerID).First(&ap).Error
+	if err == nil {
+		return s.finishExistingOAuthProviderTx(tx, &ap, provider, token)
+	}
+	if err != nil && !errors.Is(err, gorm.ErrRecordNotFound) {
+		return nil, nil, err
+	}
+
+	var user models.User
 	if email != "" {
-		s.db.Where("email = ?", email).First(&user)
+		err := tx.Where("email = ?", email).First(&user).Error
+		if err != nil && !errors.Is(err, gorm.ErrRecordNotFound) {
+			return nil, nil, err
+		}
 	}
 
 	if user.ID == uuid.Nil {
-		// Brand-new user
 		if email != "" {
 			user.Email = &email
 		}
@@ -467,12 +505,11 @@ func (s *AuthService) upsertOAuthUser(
 		}
 		user.AvatarURL = avatarURL
 		user.Role = models.RoleViewer
-		if err := s.db.Create(&user).Error; err != nil {
+		if err := tx.Create(&user).Error; err != nil {
 			return nil, nil, err
 		}
 	}
 
-	// Link provider
 	newAP := models.AuthProvider{
 		UserID:     user.ID,
 		Provider:   provider,
@@ -483,12 +520,88 @@ func (s *AuthService) upsertOAuthUser(
 			return nil, nil, err
 		}
 	}
-	if err := s.db.Create(&newAP).Error; err != nil {
+	if err := tx.Create(&newAP).Error; err != nil {
 		return nil, nil, err
 	}
 
-	tokens, err := s.issueTokenPair(&user)
+	tokens, err := s.issueTokenPairTx(tx, &user)
 	return &user, tokens, err
+}
+
+func (s *AuthService) finishExistingOAuthProviderTx(tx *gorm.DB, ap *models.AuthProvider, provider models.ProviderType, token *oauth2.Token) (*models.User, *TokenPair, error) {
+	if token != nil {
+		if err := s.assignProviderTokens(ap, provider, token); err != nil {
+			return nil, nil, err
+		}
+		if err := tx.Save(ap).Error; err != nil {
+			return nil, nil, err
+		}
+	}
+
+	var user models.User
+	if err := tx.First(&user, "id = ?", ap.UserID).Error; err != nil {
+		return nil, nil, ErrUserNotFound
+	}
+	tokens, err := s.issueTokenPairTx(tx, &user)
+	return &user, tokens, err
+}
+
+func (s *AuthService) recoverOAuthProviderConflict(ctx context.Context, provider models.ProviderType, providerID string, token *oauth2.Token) (*models.User, *TokenPair, error) {
+	var user *models.User
+	var tokens *TokenPair
+	err := s.db.WithContext(ctx).Transaction(func(tx *gorm.DB) error {
+		var ap models.AuthProvider
+		if err := tx.Where("provider = ? AND provider_id = ?", provider, providerID).First(&ap).Error; err != nil {
+			return err
+		}
+
+		txUser, txTokens, err := s.finishExistingOAuthProviderTx(tx, &ap, provider, token)
+		if err != nil {
+			return err
+		}
+		user = txUser
+		tokens = txTokens
+		return nil
+	})
+	return user, tokens, err
+}
+
+func isDuplicatedKeyError(err error) bool {
+	if err == nil {
+		return false
+	}
+	if errors.Is(err, gorm.ErrDuplicatedKey) {
+		return true
+	}
+	msg := err.Error()
+	return strings.Contains(msg, "UNIQUE constraint failed") ||
+		strings.Contains(msg, "duplicate key") ||
+		strings.Contains(msg, "duplicated key")
+}
+
+func (s *AuthService) mapOAuthUserUniqueError(ctx context.Context, username, email string, fallback error) error {
+	db := s.db.WithContext(ctx)
+	if email != "" {
+		var count int64
+		if err := db.Model(&models.User{}).Where("email = ?", email).Count(&count).Error; err == nil && count > 0 {
+			return ErrEmailExists
+		}
+	}
+	if username != "" {
+		var count int64
+		if err := db.Model(&models.User{}).Where("username = ?", username).Count(&count).Error; err == nil && count > 0 {
+			return ErrUsernameExists
+		}
+	}
+
+	msg := fallback.Error()
+	if strings.Contains(msg, "email") {
+		return ErrEmailExists
+	}
+	if strings.Contains(msg, "username") {
+		return ErrUsernameExists
+	}
+	return fallback
 }
 
 func (s *AuthService) assignProviderTokens(ap *models.AuthProvider, provider models.ProviderType, token *oauth2.Token) error {
