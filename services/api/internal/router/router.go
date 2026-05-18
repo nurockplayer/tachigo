@@ -365,6 +365,16 @@ func readinessHandler(db *gorm.DB) gin.HandlerFunc {
 	}
 }
 
+// metricsHandler returns Prometheus-compatible backend metrics.
+//
+// @Summary      Scrape backend metrics
+// @Description  Operational endpoint exposed at root /metrics when ENABLE_METRICS=true. Requires Authorization: Bearer <METRICS_BEARER_TOKEN>.
+// @Tags         observability
+// @Produce      plain
+// @Param        Authorization  header  string  true  "Bearer metrics token"
+// @Success      200  {string}  string  "Prometheus text metrics"
+// @Failure      401  {object}  map[string]string
+// @Router       /metrics [get]
 func metricsHandler(collector *metrics.Collector) gin.HandlerFunc {
 	return func(c *gin.Context) {
 		c.Data(http.StatusOK, "text/plain; version=0.0.4; charset=utf-8", []byte(collector.RenderPrometheus()))

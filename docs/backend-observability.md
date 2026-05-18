@@ -23,8 +23,8 @@ HTTP metrics:
 
 Raffle scheduler metrics:
 
-- `tachigo_raffle_scheduler_runs_total{result}`: scheduled snapshot run count.
-- `tachigo_raffle_scheduler_failures_total{result="failure"}`: failed scheduled snapshot run count.
+- `tachigo_raffle_scheduler_runs_total{result}`: scheduled snapshot run count. `result` is `success`, `partial_failure`, or `failure`.
+- `tachigo_raffle_scheduler_failures_total{result="failure"}`: failed scheduled snapshot batch count. Per-raffle tolerated errors use `result="partial_failure"` and do not increment this counter.
 - `tachigo_raffle_scheduler_duration_seconds{result}`: scheduled snapshot duration histogram.
 
 ## Local readback
@@ -71,13 +71,13 @@ Staging thresholds:
 
 - Request 5xx rate: warn if `sum(rate(tachigo_http_request_errors_total[5m])) / sum(rate(tachigo_http_requests_total[5m])) > 0.02` for 10 minutes.
 - Request latency: warn if the 95th percentile from `tachigo_http_request_duration_seconds` exceeds 1 second for 10 minutes.
-- Raffle scheduler failure: warn on any increase in `tachigo_raffle_scheduler_failures_total` over 30 minutes.
+- Raffle scheduler failure: warn on any increase in `tachigo_raffle_scheduler_failures_total` over 30 minutes; track `result="partial_failure"` separately for noisy upstream/data issues.
 
 Production thresholds:
 
 - Request 5xx rate: page if the 5xx ratio exceeds 1% for 10 minutes, warn above 0.5% for 15 minutes.
 - Request latency: page if the 95th percentile exceeds 2 seconds for 10 minutes, warn above 1 second for 15 minutes.
-- Raffle scheduler failure: page on any production scheduler failure, because the scheduled snapshot window is daily and user-visible.
+- Raffle scheduler failure: page on any production scheduler batch failure, because the scheduled snapshot window is daily and user-visible. Treat `result="partial_failure"` as an investigation signal, not a paging signal.
 
 Dashboard readback ownership:
 

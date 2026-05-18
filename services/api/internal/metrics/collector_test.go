@@ -35,12 +35,14 @@ func TestCollectorRendersRaffleSchedulerMetricsByResult(t *testing.T) {
 	collector := NewCollector()
 
 	collector.ObserveRaffleSchedulerRun("success", 1400*time.Millisecond)
+	collector.ObserveRaffleSchedulerRun("partial_failure", 1500*time.Millisecond)
 	collector.ObserveRaffleSchedulerRun("failure", 2*time.Second)
 
 	text := collector.RenderPrometheus()
 
 	for _, want := range []string{
 		`tachigo_raffle_scheduler_runs_total{result="success"} 1`,
+		`tachigo_raffle_scheduler_runs_total{result="partial_failure"} 1`,
 		`tachigo_raffle_scheduler_runs_total{result="failure"} 1`,
 		`tachigo_raffle_scheduler_failures_total{result="failure"} 1`,
 		`tachigo_raffle_scheduler_duration_seconds_count{result="success"} 1`,

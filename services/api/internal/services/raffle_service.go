@@ -731,7 +731,7 @@ func (s *RaffleService) RunScheduledSnapshots(ctx context.Context, now time.Time
 		}
 	}
 	if failed > 0 {
-		result = "failure"
+		result = "partial_failure"
 	}
 	log.Printf(
 		"event=raffle_scheduled_snapshots_complete job=raffle_scheduled_snapshots run_at=%s window_end=%s candidate_count=%d processed=%d failed=%d",

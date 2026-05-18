@@ -206,7 +206,7 @@ func safeRoute(route string) string {
 
 func safeResult(result string) string {
 	switch result {
-	case "success", "failure":
+	case "success", "partial_failure", "failure":
 		return result
 	default:
 		return "unknown"

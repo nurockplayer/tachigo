@@ -7,6 +7,7 @@ import (
 	"time"
 
 	"github.com/tachigo/tachigo/internal/metrics"
+	"github.com/tachigo/tachigo/internal/models"
 )
 
 func TestRunScheduledSnapshotsRecordsSchedulerMetrics(t *testing.T) {
@@ -56,5 +57,32 @@ func TestRunScheduledSnapshotsRecordsFailureMetrics(t *testing.T) {
 		if !strings.Contains(text, want) {
 			t.Fatalf("expected scheduler failure metric %q, got:\n%s", want, text)
 		}
+	}
+}
+
+func TestRunScheduledSnapshotsRecordsPartialFailureWithoutFailureCounter(t *testing.T) {
+	db := newTestDB(t)
+	svc := NewRaffleService(db, "test-client-id", "", nil)
+	collector := metrics.NewCollector()
+	svc.SetMetricsCollector(collector)
+
+	user := insertRaffleTestUser(t, db)
+	insertScheduledRaffle(t, db, user.ID, time.Now().UTC().Add(5*time.Minute), models.RaffleSourceTwitchAPI)
+
+	if err := svc.RunScheduledSnapshots(context.Background(), time.Now().UTC()); err != nil {
+		t.Fatalf("unexpected batch error: %v", err)
+	}
+
+	text := collector.RenderPrometheus()
+	for _, want := range []string{
+		`tachigo_raffle_scheduler_runs_total{result="partial_failure"} 1`,
+		`tachigo_raffle_scheduler_duration_seconds_count{result="partial_failure"} 1`,
+	} {
+		if !strings.Contains(text, want) {
+			t.Fatalf("expected scheduler partial failure metric %q, got:\n%s", want, text)
+		}
+	}
+	if strings.Contains(text, `tachigo_raffle_scheduler_failures_total{result="failure"}`) {
+		t.Fatalf("partial per-raffle errors must not increment batch failure counter, got:\n%s", text)
 	}
 }
