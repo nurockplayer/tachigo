@@ -18,6 +18,8 @@ import { MarioHUD } from './components/MarioHUD';
 import { ClaimPanel } from './components/ClaimPanel';
 import { CouponShopPanel } from './components/CouponShopPanel';
 import { RaffleResultPanel } from './components/RaffleResultPanel';
+import { OnboardingOverlay } from './components/OnboardingOverlay';
+import { markOnboardingComplete, shouldShowOnboarding } from './onboarding';
 import { useTwitch } from '../hooks/useTwitch';
 import { executeCouponRedeem, type CouponRedeemOutcome } from './couponRedeem';
 
@@ -148,6 +150,11 @@ export default function App() {
     })
   }
 
+  const completeOnboarding = () => {
+    setFlags(markOnboardingComplete)
+  }
+  const showOnboarding = shouldShowOnboarding(screen, flags)
+
   if (!isHydrated) {
     return (
       <div
@@ -241,6 +248,9 @@ export default function App() {
         ) : (
           <MarioHUD state={hudState} onStateChange={setHudState} onNavigate={(s) => setScreen(s)} />
         )}
+        {showOnboarding ? (
+          <OnboardingOverlay onComplete={completeOnboarding} />
+        ) : null}
       </div>
 
       {/* Demo controls */}
