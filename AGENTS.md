@@ -4,6 +4,19 @@
 
 永遠使用台灣正體中文回覆，不得使用日文、韓文或簡體中文。
 
+## RTK 使用規則
+
+`rtk` 只用於 `git` 指令，降低 git 輸出 token。
+
+範例：
+
+```bash
+rtk git --no-optional-locks status
+rtk git --no-optional-locks diff -- AGENTS.md
+```
+
+非 `git` 指令不要加 `rtk`，例如 `rg`、`sed`、`make`、`go test`、`docker compose` 都直接執行。
+
 ## 你的角色
 
 你同時承擔兩種模式，依任務性質切換：
