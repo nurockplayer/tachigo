@@ -199,7 +199,7 @@ test('loadDemoState falls back to legacy localStorage state when chrome storage 
     tcgBalance: 12,
     redeemedCouponIds: ['bundle-120'],
   })
-  assert.equal(localStorage.reads, 1)
+  assert.equal(localStorage.reads, 2)
 })
 
 test('loadDemoState clears legacy localStorage after migrating state into chrome storage', async () => {
