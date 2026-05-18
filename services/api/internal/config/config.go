@@ -27,6 +27,7 @@ type Config struct {
 	Contract ContractConfig
 	Internal InternalConfig
 	Tracing  TracingConfig
+	Metrics  MetricsConfig
 }
 
 type ContractConfig struct {
@@ -48,6 +49,11 @@ type TracingConfig struct {
 	OTLPTracesEndpoint string
 	OTLPInsecure       bool
 	OTLPHeaders        map[string]string
+}
+
+type MetricsConfig struct {
+	EnableMetrics bool
+	BearerToken   string // METRICS_BEARER_TOKEN — never log or expose
 }
 
 type SMTPConfig struct {
@@ -190,6 +196,10 @@ func Load() *Config {
 			OTLPInsecure:       getBoolEnv("OTEL_EXPORTER_OTLP_TRACES_INSECURE", false),
 			OTLPHeaders:        getMapEnv("OTEL_EXPORTER_OTLP_HEADERS"),
 		},
+		Metrics: MetricsConfig{
+			EnableMetrics: getBoolEnv("ENABLE_METRICS", false),
+			BearerToken:   strings.TrimSpace(getEnv("METRICS_BEARER_TOKEN", "")),
+		},
 	}
 }
 
@@ -259,6 +269,9 @@ func ValidateProductionSecrets(cfg *Config) error {
 	}
 	if err := ValidateTracing(cfg.Tracing); err != nil {
 		return err
+	}
+	if cfg.Metrics.EnableMetrics && strings.TrimSpace(cfg.Metrics.BearerToken) == "" {
+		return fmt.Errorf("METRICS_BEARER_TOKEN must be configured when ENABLE_METRICS is true in production")
 	}
 
 	// These launch flows are mounted unconditionally in production, so fail fast

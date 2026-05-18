@@ -15,6 +15,7 @@ import (
 
 	"github.com/tachigo/tachigo/internal/config"
 	"github.com/tachigo/tachigo/internal/handlers"
+	"github.com/tachigo/tachigo/internal/metrics"
 	"github.com/tachigo/tachigo/internal/middleware"
 	"github.com/tachigo/tachigo/internal/models"
 	"github.com/tachigo/tachigo/internal/services"
@@ -67,6 +68,14 @@ func New(
 		r.Use(middleware.RequestTimeout(cfg.Server.RequestTimeout))
 	}
 	r.Use(middleware.CORS(allowedOrigins))
+	var metricsCollector *metrics.Collector
+	if cfg != nil && cfg.Metrics.EnableMetrics {
+		metricsCollector = metrics.NewCollector()
+		r.Use(middleware.HTTPMetrics(metricsCollector))
+		if raffleSvc != nil {
+			raffleSvc.SetMetricsCollector(metricsCollector)
+		}
+	}
 
 	if cfg != nil && len(cfg.Server.TrustedProxies) > 0 {
 		if err := r.SetTrustedProxies(cfg.Server.TrustedProxies); err != nil {
@@ -99,6 +108,9 @@ func New(
 
 	r.GET("/health", healthHandler(db))
 	r.GET("/readyz", readinessHandler(db))
+	if metricsCollector != nil {
+		r.GET("/metrics", middleware.MetricsBearerGuard(cfg.Metrics.BearerToken), metricsHandler(metricsCollector))
+	}
 	if config.ShouldEnableSwagger(cfg) {
 		r.GET("/swagger/*any", ginSwagger.WrapHandler(swaggerFiles.Handler))
 	}
@@ -355,6 +367,12 @@ func readinessHandler(db *gorm.DB) gin.HandlerFunc {
 			"status": "ready",
 			"db":     "ok",
 		})
+	}
+}
+
+func metricsHandler(collector *metrics.Collector) gin.HandlerFunc {
+	return func(c *gin.Context) {
+		c.Data(http.StatusOK, "text/plain; version=0.0.4; charset=utf-8", []byte(collector.RenderPrometheus()))
 	}
 }
 
