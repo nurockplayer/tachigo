@@ -1329,6 +1329,32 @@ paths:
       summary: Complete a T-point transaction
       tags:
       - extension
+  /metrics:
+    get:
+      description: 'Operational endpoint exposed at root /metrics when ENABLE_METRICS=true.
+        Requires Authorization: Bearer <METRICS_BEARER_TOKEN>.'
+      parameters:
+      - description: Bearer metrics token
+        in: header
+        name: Authorization
+        required: true
+        type: string
+      produces:
+      - text/plain
+      responses:
+        "200":
+          description: Prometheus text metrics
+          schema:
+            type: string
+        "401":
+          description: Unauthorized
+          schema:
+            additionalProperties:
+              type: string
+            type: object
+      summary: Scrape backend metrics
+      tags:
+      - observability
   /spend/redeem:
     post:
       consumes:
