@@ -20,6 +20,7 @@ import (
 	"gorm.io/gorm"
 	"gorm.io/gorm/clause"
 
+	"github.com/tachigo/tachigo/internal/metrics"
 	"github.com/tachigo/tachigo/internal/models"
 )
 
@@ -56,6 +57,7 @@ type RaffleService struct {
 	mailer         Mailer
 	frontendURL    string
 	tokenCipher    *oauthTokenCipher
+	metrics        *metrics.Collector
 }
 
 func NewRaffleService(db *gorm.DB, twitchClientID, frontendURL string, mailer Mailer, tokenEncryptionSecret ...string) *RaffleService {
@@ -80,6 +82,13 @@ func (s *RaffleService) SetHTTPClient(c *http.Client) {
 		return
 	}
 	s.httpClient = c
+}
+
+func (s *RaffleService) SetMetricsCollector(collector *metrics.Collector) {
+	if s == nil {
+		return
+	}
+	s.metrics = collector
 }
 
 // Create creates a new raffle owned by the given user.
@@ -679,9 +688,17 @@ func (s *RaffleService) clearProviderTokens(providerID uuid.UUID) {
 // and triggers their snapshot. Per-raffle errors are logged and do not abort the batch.
 // CSV raffles are excluded: they are uploaded manually and have no remote source to sync from.
 func (s *RaffleService) RunScheduledSnapshots(ctx context.Context, now time.Time) error {
+	start := time.Now()
+	result := "success"
+	defer func() {
+		if s != nil && s.metrics != nil {
+			s.metrics.ObserveRaffleSchedulerRun(result, time.Since(start))
+		}
+	}()
+
 	window := now.Add(10 * time.Minute)
 	var raffles []models.Raffle
-	if err := s.db.Where(
+	if err := s.db.WithContext(ctx).Where(
 		"status = ? AND source != ? AND scheduled_at IS NOT NULL AND scheduled_at >= ? AND scheduled_at <= ?",
 		models.RaffleStatusDraft, models.RaffleSourceCSV, now, window,
 	).Find(&raffles).Error; err != nil {
@@ -691,6 +708,7 @@ func (s *RaffleService) RunScheduledSnapshots(ctx context.Context, now time.Time
 			window.Format(time.RFC3339),
 			err,
 		)
+		result = "failure"
 		return err
 	}
 	log.Printf(
@@ -711,6 +729,9 @@ func (s *RaffleService) RunScheduledSnapshots(ctx context.Context, now time.Time
 				safeScheduledJobError(err),
 			)
 		}
+	}
+	if failed > 0 {
+		result = "partial_failure"
 	}
 	log.Printf(
 		"event=raffle_scheduled_snapshots_complete job=raffle_scheduled_snapshots run_at=%s window_end=%s candidate_count=%d processed=%d failed=%d",
@@ -768,7 +789,7 @@ func (s *RaffleService) snapshotOne(ctx context.Context, r models.Raffle) error 
 		return fmt.Errorf("unsupported snapshot source: %s", r.Source)
 	}
 	// Guard against concurrent status changes: only promote if still draft.
-	return s.db.Model(&models.Raffle{}).
+	return s.db.WithContext(ctx).Model(&models.Raffle{}).
 		Where("id = ? AND status = ?", r.ID, models.RaffleStatusDraft).
 		Update("status", models.RaffleStatusActive).Error
 }

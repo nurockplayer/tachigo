@@ -157,6 +157,21 @@ func TestValidateProductionSecrets(t *testing.T) {
 			}),
 			wantErr: "OAUTH_TOKEN_ENCRYPTION_KEY",
 		},
+		{
+			name: "rejects enabled production metrics without bearer token",
+			cfg: withConfig(func(cfg *Config) {
+				cfg.Metrics.EnableMetrics = true
+			}),
+			wantErr: "METRICS_BEARER_TOKEN",
+		},
+		{
+			name: "rejects enabled production metrics with blank bearer token",
+			cfg: withConfig(func(cfg *Config) {
+				cfg.Metrics.EnableMetrics = true
+				cfg.Metrics.BearerToken = "   "
+			}),
+			wantErr: "METRICS_BEARER_TOKEN",
+		},
 	}
 
 	for _, tc := range tests {
@@ -176,6 +191,20 @@ func TestValidateProductionSecrets(t *testing.T) {
 				t.Fatalf("expected error containing %q, got %q", tc.wantErr, err.Error())
 			}
 		})
+	}
+}
+
+func TestLoad_MetricsConfig(t *testing.T) {
+	t.Setenv("ENABLE_METRICS", "true")
+	t.Setenv("METRICS_BEARER_TOKEN", " local-metrics-token ")
+
+	cfg := Load()
+
+	if !cfg.Metrics.EnableMetrics {
+		t.Fatal("expected EnableMetrics=true")
+	}
+	if cfg.Metrics.BearerToken != "local-metrics-token" {
+		t.Fatalf("expected bearer token to load, got %q", cfg.Metrics.BearerToken)
 	}
 }
 

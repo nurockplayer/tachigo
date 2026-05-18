@@ -25,6 +25,7 @@ type Config struct {
 	App      AppConfig
 	Contract ContractConfig
 	Internal InternalConfig
+	Metrics  MetricsConfig
 }
 
 type ContractConfig struct {
@@ -36,6 +37,11 @@ type ContractConfig struct {
 type InternalConfig struct {
 	TachiyaSharedSecret string // TACHIYA_INTERNAL_SHARED_SECRET
 	TachiyaBaseURL      string // TACHIYA_BASE_URL
+}
+
+type MetricsConfig struct {
+	EnableMetrics bool
+	BearerToken   string // METRICS_BEARER_TOKEN — never log or expose
 }
 
 type SMTPConfig struct {
@@ -168,6 +174,10 @@ func Load() *Config {
 			TachiyaSharedSecret: getEnv("TACHIYA_INTERNAL_SHARED_SECRET", ""),
 			TachiyaBaseURL:      getEnv("TACHIYA_BASE_URL", "http://localhost:8001"),
 		},
+		Metrics: MetricsConfig{
+			EnableMetrics: getBoolEnv("ENABLE_METRICS", false),
+			BearerToken:   strings.TrimSpace(getEnv("METRICS_BEARER_TOKEN", "")),
+		},
 	}
 }
 
@@ -234,6 +244,9 @@ func ValidateProductionSecrets(cfg *Config) error {
 	}
 	if cfg.SMTP.Host == "" {
 		return fmt.Errorf("SMTP_HOST must be configured when email-dependent production flows are enabled")
+	}
+	if cfg.Metrics.EnableMetrics && strings.TrimSpace(cfg.Metrics.BearerToken) == "" {
+		return fmt.Errorf("METRICS_BEARER_TOKEN must be configured when ENABLE_METRICS is true in production")
 	}
 
 	// These launch flows are mounted unconditionally in production, so fail fast

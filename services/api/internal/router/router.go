@@ -14,6 +14,7 @@ import (
 
 	"github.com/tachigo/tachigo/internal/config"
 	"github.com/tachigo/tachigo/internal/handlers"
+	"github.com/tachigo/tachigo/internal/metrics"
 	"github.com/tachigo/tachigo/internal/middleware"
 	"github.com/tachigo/tachigo/internal/models"
 	"github.com/tachigo/tachigo/internal/services"
@@ -58,6 +59,14 @@ func New(
 
 	r := gin.New()
 	r.Use(middleware.RequestID(), middleware.StructuredRequestLogger(log.Default()), gin.Recovery())
+	var metricsCollector *metrics.Collector
+	if cfg != nil && cfg.Metrics.EnableMetrics {
+		metricsCollector = metrics.NewCollector()
+		r.Use(middleware.HTTPMetrics(metricsCollector))
+		if raffleSvc != nil {
+			raffleSvc.SetMetricsCollector(metricsCollector)
+		}
+	}
 	if cfg != nil {
 		r.Use(middleware.RequestTimeout(cfg.Server.RequestTimeout))
 	}
@@ -94,6 +103,9 @@ func New(
 
 	r.GET("/health", healthHandler(db))
 	r.GET("/readyz", readinessHandler(db))
+	if metricsCollector != nil {
+		r.GET("/metrics", middleware.MetricsBearerGuard(cfg.Metrics.BearerToken), metricsHandler(metricsCollector))
+	}
 	if config.ShouldEnableSwagger(cfg) {
 		r.GET("/swagger/*any", ginSwagger.WrapHandler(swaggerFiles.Handler))
 	}
@@ -350,6 +362,22 @@ func readinessHandler(db *gorm.DB) gin.HandlerFunc {
 			"status": "ready",
 			"db":     "ok",
 		})
+	}
+}
+
+// metricsHandler returns Prometheus-compatible backend metrics.
+//
+// @Summary      Scrape backend metrics
+// @Description  Operational endpoint exposed at root /metrics when ENABLE_METRICS=true. Requires Authorization: Bearer <METRICS_BEARER_TOKEN>.
+// @Tags         observability
+// @Produce      plain
+// @Param        Authorization  header  string  true  "Bearer metrics token"
+// @Success      200  {string}  string  "Prometheus text metrics"
+// @Failure      401  {object}  map[string]string
+// @Router       /metrics [get]
+func metricsHandler(collector *metrics.Collector) gin.HandlerFunc {
+	return func(c *gin.Context) {
+		c.Data(http.StatusOK, "text/plain; version=0.0.4; charset=utf-8", []byte(collector.RenderPrometheus()))
 	}
 }
 

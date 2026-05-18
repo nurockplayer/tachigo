@@ -397,6 +397,9 @@ export interface ApiOperations {
       data?: HandlersAuthResponse;
     };
   };
+  "GET /metrics": {
+    response: string;
+  };
   "POST /spend/redeem": {
     requestBody: HandlersRedeemRequest;
     response: HandlersResponse & {
