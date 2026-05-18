@@ -17,6 +17,13 @@ export type NavigationAction =
   | { type: 'closeAllOverlays' }
   | SetNavigationFlagAction
 
+export function createSetNavigationFlagAction<K extends keyof NavigationFlags>(
+  key: K,
+  value: NavigationFlags[K],
+): SetNavigationFlagAction {
+  return { type: 'setFlag', key, value } as SetNavigationFlagAction
+}
+
 export function createInitialNavState(flags: Partial<NavigationFlags> = {}): NavState {
   const mergedFlags = {
     ...defaultNavigationFlags,

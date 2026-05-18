@@ -1,7 +1,7 @@
 import { useMemo, useReducer, type ReactNode } from 'react'
 
 import { NavigationContext, type NavigationContextValue } from './NavigationContext'
-import { createInitialNavState, navigationReducer } from './reducer'
+import { createInitialNavState, createSetNavigationFlagAction, navigationReducer } from './reducer'
 import type { NavigationFlags } from './types'
 
 interface NavigationProviderProps {
@@ -20,7 +20,7 @@ export function NavigationProvider({ children, initialFlags }: NavigationProvide
       pushOverlay: (entry) => dispatch({ type: 'pushOverlay', entry }),
       popOverlay: () => dispatch({ type: 'popOverlay' }),
       closeAllOverlays: () => dispatch({ type: 'closeAllOverlays' }),
-      setFlag: (key, value) => dispatch({ type: 'setFlag', key, value }),
+      setFlag: (key, value) => dispatch(createSetNavigationFlagAction(key, value)),
     }),
     [state],
   )
