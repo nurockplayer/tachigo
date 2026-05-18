@@ -106,15 +106,9 @@ func (s *ExtensionService) VerifyReceiptJWT(receiptStr string) (*ReceiptClaims, 
 	return claims, nil
 }
 
-// LoginWithExtension looks up an existing tachigo account by Twitch user ID and
-// issues a tachigo token pair. The viewer must have already signed up on tachigo
-// and linked their Twitch account — this endpoint does not create new accounts.
-//
-// Returns ErrInvalidExtJWT if the JWT is invalid or the viewer has not authorized
-// the Extension (UserID is empty). Returns ErrUserNotFound if no tachigo account
-// is linked to the Twitch identity.
-// lookupExtensionUser resolves a Twitch identity to a tachigo User.
+// lookupExtensionUser resolves a Twitch identity to an existing tachigo User.
 // It does not issue tokens; call issueTokenPair separately.
+// Returns ErrInvalidExtJWT if UserID is empty, ErrUserNotFound if no account is linked.
 func (s *ExtensionService) lookupExtensionUser(claims *ExtensionClaims) (*models.User, error) {
 	if claims.UserID == "" {
 		return nil, ErrInvalidExtJWT
@@ -135,12 +129,77 @@ func (s *ExtensionService) lookupExtensionUser(claims *ExtensionClaims) (*models
 	return &user, nil
 }
 
+// findOrCreateExtensionUser finds or creates a tachigo account for the Twitch identity in claims.
+// New users receive username "twitch_<twitchUserID>" and role viewer.
+// On concurrent unique-constraint violation the winner's record is returned (conflict recovery).
+func (s *ExtensionService) findOrCreateExtensionUser(claims *ExtensionClaims) (*models.User, error) {
+	if claims.UserID == "" {
+		return nil, ErrInvalidExtJWT
+	}
+
+	user, err := s.findOrCreateExtensionUserTx(claims)
+	if err == nil {
+		return user, nil
+	}
+	if !isDuplicatedKeyError(err) {
+		return nil, err
+	}
+	// conflict recovery: concurrent goroutine won the INSERT race; look up the winning record
+	return s.lookupExtensionUser(claims)
+}
+
+func (s *ExtensionService) findOrCreateExtensionUserTx(claims *ExtensionClaims) (*models.User, error) {
+	var result *models.User
+	err := s.db.Transaction(func(tx *gorm.DB) error {
+		var ap models.AuthProvider
+		if err := tx.Where("provider = ? AND provider_id = ?", models.ProviderTwitch, claims.UserID).
+			First(&ap).Error; err == nil {
+			var u models.User
+			if err := tx.First(&u, ap.UserID).Error; err != nil {
+				return err
+			}
+			result = &u
+			return nil
+		} else if !errors.Is(err, gorm.ErrRecordNotFound) {
+			return err
+		}
+
+		username := "twitch_" + claims.UserID
+		newUser := models.User{
+			Username: &username,
+			Role:     models.RoleViewer,
+		}
+		if err := tx.Create(&newUser).Error; err != nil {
+			return err
+		}
+
+		newAP := models.AuthProvider{
+			UserID:     newUser.ID,
+			Provider:   models.ProviderTwitch,
+			ProviderID: claims.UserID,
+		}
+		if err := tx.Create(&newAP).Error; err != nil {
+			return err
+		}
+
+		result = &newUser
+		return nil
+	})
+	return result, err
+}
+
+// LoginWithExtension verifies the Extension JWT and issues a tachigo token pair.
+// If no tachigo account is linked to the Twitch identity yet, one is created automatically
+// (username: "twitch_<twitchUserID>"). Concurrent first-logins are safe: at most one account
+// is created and all callers receive a token pair for the same account.
+//
+// Returns ErrInvalidExtJWT if the JWT is invalid or the viewer has not shared their identity.
 func (s *ExtensionService) LoginWithExtension(extJWT string) (*models.User, *TokenPair, error) {
 	claims, err := s.VerifyExtJWT(extJWT)
 	if err != nil {
 		return nil, nil, err
 	}
-	user, err := s.lookupExtensionUser(claims)
+	user, err := s.findOrCreateExtensionUser(claims)
 	if err != nil {
 		return nil, nil, err
 	}
