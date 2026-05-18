@@ -685,14 +685,77 @@ func (s *RaffleService) RunScheduledSnapshots(ctx context.Context, now time.Time
 		"status = ? AND source != ? AND scheduled_at IS NOT NULL AND scheduled_at >= ? AND scheduled_at <= ?",
 		models.RaffleStatusDraft, models.RaffleSourceCSV, now, window,
 	).Find(&raffles).Error; err != nil {
+		log.Printf(
+			"event=raffle_scheduled_snapshots_query_error job=raffle_scheduled_snapshots run_at=%s window_end=%s err=%q",
+			now.Format(time.RFC3339),
+			window.Format(time.RFC3339),
+			err,
+		)
 		return err
 	}
+	log.Printf(
+		"event=raffle_scheduled_snapshots_start job=raffle_scheduled_snapshots run_at=%s window_end=%s candidate_count=%d",
+		now.Format(time.RFC3339),
+		window.Format(time.RFC3339),
+		len(raffles),
+	)
+	failed := 0
 	for _, r := range raffles {
 		if err := s.snapshotOne(ctx, r); err != nil {
-			log.Printf("raffle %s snapshot error: %v", r.ID, err)
+			failed++
+			log.Printf(
+				"event=raffle_scheduled_snapshot_error job=raffle_scheduled_snapshots raffle_id=%s user_id=%s source=%s err=%s",
+				r.ID,
+				r.UserID,
+				r.Source,
+				safeScheduledJobError(err),
+			)
 		}
 	}
+	log.Printf(
+		"event=raffle_scheduled_snapshots_complete job=raffle_scheduled_snapshots run_at=%s window_end=%s candidate_count=%d processed=%d failed=%d",
+		now.Format(time.RFC3339),
+		window.Format(time.RFC3339),
+		len(raffles),
+		len(raffles),
+		failed,
+	)
 	return nil
+}
+
+func safeScheduledJobError(err error) string {
+	if err == nil {
+		return "-"
+	}
+	msg := err.Error()
+	lower := strings.ToLower(msg)
+	for _, marker := range []string{
+		"access_token",
+		"refresh_token",
+		"authorization",
+		"bearer ",
+		"client_secret",
+		"private_key",
+		"signer_key",
+		"voucher",
+		"receipt",
+	} {
+		if strings.Contains(lower, marker) {
+			return "[redacted]"
+		}
+	}
+	msg = strings.Map(func(r rune) rune {
+		switch r {
+		case '\n', '\r', '\t':
+			return ' '
+		default:
+			return r
+		}
+	}, msg)
+	if len(msg) > 512 {
+		return msg[:512]
+	}
+	return fmt.Sprintf("%q", msg)
 }
 
 func (s *RaffleService) snapshotOne(ctx context.Context, r models.Raffle) error {

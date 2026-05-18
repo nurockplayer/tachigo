@@ -57,7 +57,7 @@ func New(
 	}
 
 	r := gin.New()
-	r.Use(gin.Logger(), gin.Recovery())
+	r.Use(middleware.RequestID(), middleware.StructuredRequestLogger(log.Default()), gin.Recovery())
 	if cfg != nil {
 		r.Use(middleware.RequestTimeout(cfg.Server.RequestTimeout))
 	}

@@ -1,5 +1,5 @@
 ---
-title: Graph Explorer
+title: 圖譜探索器
 sidebar_position: 6
 status: active
 owner: engineering
@@ -15,7 +15,7 @@ related_repos:
   - tachiya
 ---
 
-# Graph Explorer
+# 圖譜探索器
 
 Graphify 的知識圖譜適合當成「影響範圍雷達」：快速看哪些檔案、domain、docs 可能互相關聯，再回到人工整理過的 source map 驗證。
 

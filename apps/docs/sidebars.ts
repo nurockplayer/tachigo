@@ -5,11 +5,11 @@ const sidebars: SidebarsConfig = {
     {
       type: 'doc',
       id: 'index',
-      label: 'Dev Portal Home',
+      label: '開發者入口首頁',
     },
     {
       type: 'category',
-      label: 'Dev Portal',
+      label: '開發者入口',
       collapsed: false,
       items: [
         'dev-portal/start-here',
@@ -24,7 +24,7 @@ const sidebars: SidebarsConfig = {
     },
     {
       type: 'category',
-      label: 'Architecture',
+      label: '架構',
       collapsed: true,
       items: [
         'architecture',
@@ -37,7 +37,7 @@ const sidebars: SidebarsConfig = {
     },
     {
       type: 'category',
-      label: 'Policies',
+      label: '政策規範',
       collapsed: true,
       items: [
         'auto-merge-policy',
@@ -50,7 +50,7 @@ const sidebars: SidebarsConfig = {
     },
     {
       type: 'category',
-      label: 'AI Workflow',
+      label: 'AI 工作流程',
       collapsed: true,
       items: [
         'ai/README',
@@ -65,7 +65,7 @@ const sidebars: SidebarsConfig = {
     },
     {
       type: 'category',
-      label: 'Plans and Proposals',
+      label: '計畫與提案',
       collapsed: true,
       items: [
         'atlas-migration-plan',
@@ -77,7 +77,7 @@ const sidebars: SidebarsConfig = {
     },
     {
       type: 'category',
-      label: 'Reference Notes',
+      label: '參考紀錄',
       collapsed: true,
       items: [
         'extension-ui-prompts',
