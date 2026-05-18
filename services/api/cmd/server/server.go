@@ -6,6 +6,8 @@ import (
 	"net/http"
 	"time"
 
+	"github.com/tachigo/tachigo/internal/config"
+	tracingprovider "github.com/tachigo/tachigo/internal/tracing"
 	"gorm.io/gorm"
 )
 
@@ -28,6 +30,22 @@ func newHTTPServer(addr string, handler http.Handler) *http.Server {
 		ReadTimeout:  serverReadTimeout,
 		WriteTimeout: serverWriteTimeout,
 		IdleTimeout:  serverIdleTimeout,
+	}
+}
+
+func configureTracing(ctx context.Context, cfg *config.Config) (tracingprovider.ShutdownFunc, error) {
+	if cfg == nil {
+		return func(context.Context) error { return nil }, nil
+	}
+	return tracingprovider.ConfigureProvider(ctx, cfg.Tracing)
+}
+
+func closeServerResources(db *gorm.DB, tracingShutdown tracingprovider.ShutdownFunc) func() error {
+	return func() error {
+		if tracingShutdown == nil {
+			tracingShutdown = func(context.Context) error { return nil }
+		}
+		return errors.Join(tracingShutdown(context.Background()), closeDatabase(db))
 	}
 }
 

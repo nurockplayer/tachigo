@@ -35,14 +35,16 @@ func main() {
 	db := bootstrap(cfg)
 	serverCtx, serverStop := signal.NotifyContext(context.Background(), syscall.SIGINT, syscall.SIGTERM)
 	defer serverStop()
+	tracingShutdown, err := configureTracing(serverCtx, cfg)
+	if err != nil {
+		log.Fatalf("invalid tracing config: %v", err)
+	}
 	r := wire(db, cfg, serverCtx)
 
 	addr := ":" + cfg.Server.Port
 	log.Printf("server starting on %s (env=%s)", addr, cfg.Server.Env)
 	srv := newHTTPServer(addr, r)
-	if err := runHTTPServer(serverCtx, srv, func() error {
-		return closeDatabase(db)
-	}); err != nil {
+	if err := runHTTPServer(serverCtx, srv, closeServerResources(db, tracingShutdown)); err != nil {
 		log.Fatalf("server error: %v", err)
 	}
 }

@@ -299,7 +299,7 @@ func TestMainUsesHTTPServerGracefulShutdown(t *testing.T) {
 	for _, want := range []string{
 		"newHTTPServer(addr, r)",
 		"runHTTPServer(serverCtx, srv,",
-		"closeDatabase(db)",
+		"closeServerResources(db, tracingShutdown)",
 	} {
 		if !strings.Contains(mainSource, want) {
 			t.Fatalf("main.go should use graceful HTTP server wiring %q", want)
