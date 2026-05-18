@@ -91,6 +91,23 @@
       }
     }
   },
+  "onboarding": {
+    "title": "Mining guide",
+    "progress": "{{current}} / {{total}}",
+    "next": "NEXT",
+    "finish": "START",
+    "skip": "SKIP",
+    "steps": {
+      "points": {
+        "title": "Mine points while you watch",
+        "body": "Stay on stream to earn CPC, then tap the miner for short click boosts."
+      },
+      "rewards": {
+        "title": "Claim coins and shop rewards",
+        "body": "Convert CPC into TCG, spend it in the coupon shop, and swap characters as the world grows."
+      }
+    }
+  },
   "raffle_result": {
     "title": "RAFFLE RESULTS",
     "loading": "LOADING...",

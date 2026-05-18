@@ -91,6 +91,23 @@
       }
     }
   },
+  "onboarding": {
+    "title": "挖矿导览",
+    "progress": "{{current}} / {{total}}",
+    "next": "下一步",
+    "finish": "开始挖矿",
+    "skip": "略过",
+    "steps": {
+      "points": {
+        "title": "观看时累积点数",
+        "body": "停留在直播间可累积 CPC，也能点击矿工取得短时间加速。"
+      },
+      "rewards": {
+        "title": "提领平台币并兑换奖励",
+        "body": "把 CPC 转成 TCG，前往 Coupon 商城兑换福利，之后还能切换角色。"
+      }
+    }
+  },
   "raffle_result": {
     "title": "抽奖结果",
     "loading": "加载中...",
