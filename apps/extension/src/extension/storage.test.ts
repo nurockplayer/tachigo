@@ -3,11 +3,16 @@ import { afterEach, test, vi } from 'vitest'
 
 import type { DemoState } from './types.ts'
 
-const STORAGE_KEY = 'tachigo.sidepanel.demo-state.v2'
+const STORAGE_KEY = 'tachigo.sidepanel.app-state.v3'
+const LEGACY_STORAGE_KEY = 'tachigo.sidepanel.demo-state.v2'
 
 const EXPECTED_DEFAULT_DEMO_STATE: DemoState = {
-  screen: 'login',
   language: 'en',
+  flags: {
+    hasCompletedLogin: false,
+    onboardingVersion: 0,
+    selectedCharacterOnce: false,
+  },
   hud: {
     points: 0,
     totalPoints: 12847,
@@ -57,7 +62,7 @@ function setWindowLocalStorage(initialValue?: DemoState | null): MockLocalStorag
   const store = new Map<string, string>()
 
   if (initialValue) {
-    store.set(STORAGE_KEY, JSON.stringify(initialValue))
+    store.set(LEGACY_STORAGE_KEY, JSON.stringify(initialValue))
   }
 
   const localStorage: MockLocalStorage = {
@@ -111,8 +116,12 @@ test('loadDemoState returns sanitized chrome storage state without reading local
   setChromeStorage({
     get: (_key, callback) => callback({
       [STORAGE_KEY]: {
-        screen: 'hud',
         language: 'zh-TW',
+        flags: {
+          hasCompletedLogin: true,
+          onboardingVersion: -1,
+          selectedCharacterOnce: 'yes',
+        },
         hud: {
           points: -5,
           totalPoints: Number.POSITIVE_INFINITY,
@@ -130,8 +139,12 @@ test('loadDemoState returns sanitized chrome storage state without reading local
   const storage = await importStorageModule()
 
   assert.deepEqual(await storage.loadDemoState(), {
-    screen: 'hud',
     language: 'zh-TW',
+    flags: {
+      hasCompletedLogin: true,
+      onboardingVersion: 0,
+      selectedCharacterOnce: false,
+    },
     hud: {
       points: 0,
       totalPoints: 12847,
@@ -150,8 +163,12 @@ test('loadDemoState falls back to legacy localStorage state when chrome storage 
     get: (_key, callback) => callback({}),
   })
   const localStorage = setWindowLocalStorage({
-    screen: 'coupon',
     language: 'zh-CN',
+    flags: {
+      hasCompletedLogin: true,
+      onboardingVersion: 2,
+      selectedCharacterOnce: true,
+    },
     hud: {
       points: 48,
       totalPoints: 2048,
@@ -166,8 +183,12 @@ test('loadDemoState falls back to legacy localStorage state when chrome storage 
   const storage = await importStorageModule()
 
   assert.deepEqual(await storage.loadDemoState(), {
-    screen: 'coupon',
     language: 'zh-CN',
+    flags: {
+      hasCompletedLogin: true,
+      onboardingVersion: 2,
+      selectedCharacterOnce: true,
+    },
     hud: {
       points: 48,
       totalPoints: 2048,
@@ -192,8 +213,12 @@ test('loadDemoState clears legacy localStorage after migrating state into chrome
     },
   })
   const localStorage = setWindowLocalStorage({
-    screen: 'coupon',
     language: 'zh-CN',
+    flags: {
+      hasCompletedLogin: true,
+      onboardingVersion: 2,
+      selectedCharacterOnce: true,
+    },
     hud: {
       points: 48,
       totalPoints: 2048,
@@ -211,7 +236,7 @@ test('loadDemoState clears legacy localStorage after migrating state into chrome
 
   assert.deepEqual(chromeStoredValue, migratedState)
   assert.equal(localStorage.removes, 1)
-  assert.equal(localStorage.getItem(STORAGE_KEY), null)
+  assert.equal(localStorage.getItem(LEGACY_STORAGE_KEY), null)
 })
 
 test('saveDemoState falls back to localStorage when chrome storage write fails', async () => {
@@ -231,8 +256,12 @@ test('saveDemoState falls back to localStorage when chrome storage write fails',
   const storage = await importStorageModule()
 
   await storage.saveDemoState({
-    screen: 'hud',
     language: 'zh-TW',
+    flags: {
+      hasCompletedLogin: true,
+      onboardingVersion: 1,
+      selectedCharacterOnce: true,
+    },
     hud: {
       points: 80,
       totalPoints: 2048,
@@ -246,8 +275,12 @@ test('saveDemoState falls back to localStorage when chrome storage write fails',
 
   assert.equal(localStorage.writes, 1)
   assert.deepEqual(JSON.parse(localStorage.getItem(STORAGE_KEY) ?? 'null'), {
-    screen: 'hud',
     language: 'zh-TW',
+    flags: {
+      hasCompletedLogin: true,
+      onboardingVersion: 1,
+      selectedCharacterOnce: true,
+    },
     hud: {
       points: 80,
       totalPoints: 2048,
@@ -274,8 +307,12 @@ test('saveDemoState mirrors state to localStorage after a successful chrome stor
   const storage = await importStorageModule()
 
   await storage.saveDemoState({
-    screen: 'hud',
     language: 'zh-TW',
+    flags: {
+      hasCompletedLogin: true,
+      onboardingVersion: 1,
+      selectedCharacterOnce: true,
+    },
     hud: {
       points: 80,
       totalPoints: 2048,
@@ -288,8 +325,12 @@ test('saveDemoState mirrors state to localStorage after a successful chrome stor
   })
 
   const expectedState = {
-    screen: 'hud',
     language: 'zh-TW',
+    flags: {
+      hasCompletedLogin: true,
+      onboardingVersion: 1,
+      selectedCharacterOnce: true,
+    },
     hud: {
       points: 80,
       totalPoints: 2048,
