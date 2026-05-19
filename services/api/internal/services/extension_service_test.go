@@ -309,6 +309,100 @@ func TestCompleteTPointTransaction_PointsWriteFailure_NoOrphanRefreshToken(t *te
 	}
 }
 
+// --- LoginWithExtension find-or-create tests ---
+
+func TestLoginWithExtension_NewUser_CreatesAccountAndReturnsTokens(t *testing.T) {
+	svc, _ := newExtSvc(t)
+	twitchID := "twitch-new-user-001"
+	extJWT := makeExtJWT(t, twitchID, "channel-1")
+
+	user, tokens, err := svc.LoginWithExtension(extJWT)
+	if err != nil {
+		t.Fatalf("want nil error for new user, got %v", err)
+	}
+	if user == nil {
+		t.Fatal("want user, got nil")
+	}
+	if tokens == nil {
+		t.Fatal("want tokens, got nil")
+	}
+
+	// auth_provider must exist now
+	var ap models.AuthProvider
+	if err := svc.db.Where("provider = ? AND provider_id = ?", models.ProviderTwitch, twitchID).First(&ap).Error; err != nil {
+		t.Errorf("auth_provider not created: %v", err)
+	}
+	if ap.UserID != user.ID {
+		t.Errorf("auth_provider.user_id mismatch: want %s, got %s", user.ID, ap.UserID)
+	}
+}
+
+func TestLoginWithExtension_NewUser_UsernameIsDeterministic(t *testing.T) {
+	svc, _ := newExtSvc(t)
+	twitchID := "twitch-det-user-002"
+	extJWT := makeExtJWT(t, twitchID, "channel-1")
+
+	user, _, err := svc.LoginWithExtension(extJWT)
+	if err != nil {
+		t.Fatalf("unexpected error: %v", err)
+	}
+	want := "twitch_" + twitchID
+	if user.Username == nil || *user.Username != want {
+		t.Errorf("want username=%q, got %v", want, user.Username)
+	}
+}
+
+func TestLoginWithExtension_ExistingUser_DoesNotDuplicate(t *testing.T) {
+	svc, _ := newExtSvc(t)
+	twitchID := "twitch-exist-003"
+	extJWT := makeExtJWT(t, twitchID, "channel-1")
+
+	// first login creates user
+	user1, _, err := svc.LoginWithExtension(extJWT)
+	if err != nil {
+		t.Fatalf("first login: %v", err)
+	}
+
+	// second login must return the same user
+	user2, tokens2, err := svc.LoginWithExtension(extJWT)
+	if err != nil {
+		t.Fatalf("second login: %v", err)
+	}
+	if user1.ID != user2.ID {
+		t.Errorf("second login created new user: got %s, want %s", user2.ID, user1.ID)
+	}
+	if tokens2 == nil {
+		t.Error("second login returned nil tokens")
+	}
+
+	var count int64
+	svc.db.Model(&models.AuthProvider{}).
+		Where("provider = ? AND provider_id = ?", models.ProviderTwitch, twitchID).
+		Count(&count)
+	if count != 1 {
+		t.Errorf("want exactly 1 auth_provider, got %d", count)
+	}
+}
+
+func TestLoginWithExtension_EmptyUserID_ReturnsErrInvalidExtJWT(t *testing.T) {
+	svc, _ := newExtSvc(t)
+	// JWT with empty user_id (identity not shared)
+	claims := ExtensionClaims{
+		UserID:                "",
+		ExtensionScopedUserID: "U-opaque-only",
+		ChannelID:             "channel-1",
+		Role:                  "viewer",
+		RegisteredClaims:      jwt.RegisteredClaims{ExpiresAt: jwt.NewNumericDate(time.Now().Add(time.Hour))},
+	}
+	token := jwt.NewWithClaims(jwt.SigningMethodHS256, claims)
+	signed, _ := token.SignedString([]byte(testExtSecretRaw))
+
+	_, _, err := svc.LoginWithExtension(signed)
+	if !errors.Is(err, ErrInvalidExtJWT) {
+		t.Errorf("want ErrInvalidExtJWT for empty user_id, got %v", err)
+	}
+}
+
 func TestCompleteTPointTransaction_ReceiptUserMismatch_DoesNotCreditPoints(t *testing.T) {
 	svc, pointsSvc := newExtSvc(t)
 	userID, twitchID := seedTwitchUser(t, svc.db)
