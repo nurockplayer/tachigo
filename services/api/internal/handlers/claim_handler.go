@@ -100,7 +100,7 @@ func (h *ClaimHandler) GetTachiBalance(c *gin.Context) {
 		return
 	}
 
-	balance, err := h.claimSvc.GetTachiBalance(userID)
+	balance, err := h.claimSvc.GetTachiBalanceContext(c.Request.Context(), userID)
 	if err != nil {
 		internal(c)
 		return

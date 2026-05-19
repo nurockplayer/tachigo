@@ -36,6 +36,8 @@ type mintCall struct {
 	amount int64
 }
 
+type claimContextKey string
+
 func (m *mockMintCaller) MintBroadcastOnChain(_ context.Context, toAddr string, amount int64) (string, error) {
 	m.broadcastCalls = append(m.broadcastCalls, mintCall{toAddr: toAddr, amount: amount})
 	if m.broadcastErr != nil {
@@ -171,6 +173,22 @@ func TestGetTachiBalance_Zero(t *testing.T) {
 	}
 	if bal != 0 {
 		t.Fatalf("expected 0, got %d", bal)
+	}
+}
+
+func TestGetTachiBalanceContext_UsesRequestContext(t *testing.T) {
+	db := newTestDB(t)
+	svc := &ClaimService{db: db}
+	userID := userIDForClaim(t, db)
+	key := claimContextKey("tachi-balance-context")
+	seen := installDBContextProbe(t, db, key, "tachi-balance")
+
+	_, err := svc.GetTachiBalanceContext(context.WithValue(context.Background(), key, "tachi-balance"), userID)
+	if err != nil {
+		t.Fatalf("get tachi balance with context: %v", err)
+	}
+	if seen() == 0 {
+		t.Fatal("expected GetTachiBalanceContext DB operations to carry request context")
 	}
 }
 

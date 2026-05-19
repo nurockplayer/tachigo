@@ -10,6 +10,7 @@ import (
 
 	"github.com/gin-gonic/gin"
 	"github.com/google/uuid"
+	"gorm.io/gorm"
 
 	"github.com/tachigo/tachigo/internal/config"
 	"github.com/tachigo/tachigo/internal/handlers"
@@ -68,6 +69,36 @@ func seedLedgerForHandler(t *testing.T, env *testEnv, userID uuid.UUID, channelI
 	}
 }
 
+type claimHandlerContextKey struct{}
+
+func installClaimHandlerDBContextProbe(t *testing.T, db *gorm.DB, key, want any) func() int {
+	t.Helper()
+
+	var seen int
+	name := "test:claim_handler_db_context:" + uuid.NewString()
+	probe := func(tx *gorm.DB) {
+		if tx.Statement != nil && tx.Statement.Context != nil && tx.Statement.Context.Value(key) == want {
+			seen++
+		}
+	}
+
+	if err := db.Callback().Raw().Before("gorm:raw").Register(name+":raw", probe); err != nil {
+		t.Fatalf("register raw context probe: %v", err)
+	}
+	if err := db.Callback().Row().Before("gorm:row").Register(name+":row", probe); err != nil {
+		t.Fatalf("register row context probe: %v", err)
+	}
+
+	t.Cleanup(func() {
+		_ = db.Callback().Raw().Remove(name + ":raw")
+		_ = db.Callback().Row().Remove(name + ":row")
+	})
+
+	return func() int {
+		return seen
+	}
+}
+
 // resolveUserID resolves a userID from email, failing the test if not found or unparseable.
 func resolveUserID(t *testing.T, env *testEnv, email string) uuid.UUID {
 	t.Helper()
@@ -83,6 +114,26 @@ func resolveUserID(t *testing.T, env *testEnv, email string) uuid.UUID {
 		t.Fatalf("resolveUserID: parse error: %v", err)
 	}
 	return userID
+}
+
+func TestClaimHandler_GetTachiBalance_UsesRequestContext(t *testing.T) {
+	env, r := newClaimTestEnv(t)
+	token, _ := env.registerUser(t, "user_context", "user_context@example.com", "password123")
+	key := claimHandlerContextKey{}
+	seen := installClaimHandlerDBContextProbe(t, env.db, key, "tachi-balance")
+	ctx := context.WithValue(context.Background(), key, "tachi-balance")
+
+	w := httptest.NewRecorder()
+	req := httptest.NewRequestWithContext(ctx, http.MethodGet, "/api/v1/users/me/tachi/balance", nil)
+	req.Header.Set("Authorization", "Bearer "+token)
+	r.ServeHTTP(w, req)
+
+	if w.Code != http.StatusOK {
+		t.Fatalf("expected 200, got %d: %s", w.Code, w.Body.String())
+	}
+	if seen() == 0 {
+		t.Fatal("expected GetTachiBalance handler to pass request context to GORM")
+	}
 }
 
 func TestClaimHandler_GetTachiBalance_Empty(t *testing.T) {
