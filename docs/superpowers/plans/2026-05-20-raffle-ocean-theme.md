@@ -15,8 +15,8 @@
 | 檔案 | 動作 |
 |---|---|
 | `apps/dashboard/src/pages/RaffleDetailPage.tsx` | 主要改版 |
-| `apps/dashboard/src/assets/raffle-bg.jpg.png` | 已存在，無需異動 |
-| `apps/dashboard/src/pages/__tests__/RaffleDetailPage.test.tsx` | 不改動，全數通過為驗收標準 |
+| `apps/dashboard/src/assets/raffle-bg.jpg.png` | 新增至版控（binary asset，原已存在於工作目錄） |
+| `apps/dashboard/src/pages/__tests__/RaffleDetailPage.test.tsx` | 新增 2 個 WinnerModal 測試案例（Task 7） |
 
 ---
 

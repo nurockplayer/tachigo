@@ -10,7 +10,7 @@
 
 三欄水平佈局（`flex` 排列）：
 
-```
+```text
 [左欄 160px] [中欄 flex:1] [右欄 160px]
 ```
 
@@ -93,10 +93,10 @@
 | 檔案 | 動作 |
 |---|---|
 | `apps/dashboard/src/pages/RaffleDetailPage.tsx` | 主要改版 |
-| `apps/dashboard/src/assets/raffle-bg.jpg.png` | 新增（已存在） |
-| `apps/dashboard/src/styles/` 或 inline CSS | 新增海洋主題樣式 |
+| `apps/dashboard/src/assets/raffle-bg.jpg.png` | 新增至版控（binary image asset） |
+| `apps/dashboard/src/pages/__tests__/RaffleDetailPage.test.tsx` | 新增 2 個測試（WinnerModal 顯示 / 關閉） |
 
-不涉及後端、API、路由、測試（視覺改版）。
+不涉及後端、API、路由。
 
 ---
 
