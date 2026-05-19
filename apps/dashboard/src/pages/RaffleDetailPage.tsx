@@ -4,6 +4,7 @@ import { useNavigate, useParams } from 'react-router'
 import { Skeleton } from '@/components/ui/skeleton'
 import { activateRaffle, completeRaffle, drawNext, importCSV, listDraws, setDiscordWebhook } from '@/services/raffles'
 import type { Raffle, RaffleDraw, RaffleStatus } from '@/services/raffles'
+import gachaBg from '../assets/raffle-bg.jpg.png'
 
 const OCEAN_KEYFRAMES = `
 @keyframes oceanShake {
@@ -59,6 +60,15 @@ const glassStyle: React.CSSProperties = {
   backdropFilter: 'blur(14px)',
   WebkitBackdropFilter: 'blur(14px)',
 }
+
+const BALL_COLORS = [
+  'linear-gradient(135deg,#93c5fd,#3b82f6)',
+  'linear-gradient(135deg,#d8b4fe,#8b5cf6)',
+  'linear-gradient(135deg,#86efac,#22c55e)',
+  'linear-gradient(135deg,#fde68a,#f59e0b)',
+  'linear-gradient(135deg,#f9a8d4,#ec4899)',
+  'linear-gradient(135deg,#a5f3fc,#06b6d4)',
+]
 
 const statusLabel: Record<RaffleStatus, string> = {
   draft: '草稿',
@@ -375,6 +385,47 @@ function DiscordWebhookPanel({ raffleId }: { raffleId: string }) {
         <p data-testid="discord-webhook-error" className="text-xs text-red-400">{error}</p>
       )}
     </section>
+  )
+}
+
+interface OceanGachaMachineProps {
+  shaking: boolean
+  popBallColor: string | null
+}
+
+function OceanGachaMachine({ shaking, popBallColor }: OceanGachaMachineProps) {
+  return (
+    <div style={{ position: 'relative', width: '100%' }}>
+      <img
+        src={gachaBg}
+        alt="扭蛋機"
+        style={{
+          width: '100%',
+          height: 'auto',
+          display: 'block',
+          borderRadius: 12,
+          filter: 'drop-shadow(0 0 50px rgba(30,100,255,.55)) drop-shadow(0 16px 60px rgba(0,0,0,.85))',
+          animation: shaking ? 'oceanShake .5s ease-in-out' : undefined,
+        }}
+      />
+      {popBallColor !== null && (
+        <div
+          style={{
+            position: 'absolute',
+            width: 44,
+            height: 44,
+            borderRadius: '50%',
+            background: popBallColor,
+            border: '2.5px solid rgba(255,255,255,.45)',
+            boxShadow: '0 0 24px rgba(255,220,60,.95),inset 4px 4px 9px rgba(255,255,255,.3)',
+            bottom: '22%',
+            left: '50%',
+            animation: 'oceanPopout 1.2s cubic-bezier(.22,.68,0,1.15) forwards',
+            pointerEvents: 'none',
+          }}
+        />
+      )}
+    </div>
   )
 }
 
