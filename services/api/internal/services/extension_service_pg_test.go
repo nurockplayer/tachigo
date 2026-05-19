@@ -30,11 +30,11 @@ func TestLoginWithExtension_ConcurrentLogin_NoDuplicateUser(t *testing.T) {
 	results := make([]result, goroutines)
 	var wg sync.WaitGroup
 	wg.Add(goroutines)
+	extJWT := makeExtJWT(t, twitchID, "channel-concurrent")
 	for i := 0; i < goroutines; i++ {
 		i := i
 		go func() {
 			defer wg.Done()
-			extJWT := makeExtJWT(t, twitchID, "channel-concurrent")
 			u, _, err := svc.LoginWithExtension(extJWT)
 			results[i] = result{u, err}
 		}()
