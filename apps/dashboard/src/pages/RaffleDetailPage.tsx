@@ -5,6 +5,61 @@ import { Skeleton } from '@/components/ui/skeleton'
 import { activateRaffle, completeRaffle, drawNext, importCSV, listDraws, setDiscordWebhook } from '@/services/raffles'
 import type { Raffle, RaffleDraw, RaffleStatus } from '@/services/raffles'
 
+const OCEAN_KEYFRAMES = `
+@keyframes oceanShake {
+  0%,100%{transform:translateX(0)}
+  15%{transform:translateX(-9px)}
+  30%{transform:translateX(9px)}
+  45%{transform:translateX(-6px)}
+  60%{transform:translateX(6px)}
+  75%{transform:translateX(-3px)}
+  90%{transform:translateX(3px)}
+}
+@keyframes oceanPopout {
+  0%{transform:translateX(-50%) translateY(0) scale(0);opacity:0}
+  25%{transform:translateX(-50%) translateY(0) scale(1.4);opacity:1}
+  60%{transform:translateX(-50%) translateY(38px) scale(1.1);opacity:1}
+  85%{transform:translateX(-50%) translateY(70px) scale(.8);opacity:.6}
+  100%{transform:translateX(-50%) translateY(100px) scale(0);opacity:0}
+}
+@keyframes oceanTwinkle {
+  0%,100%{opacity:1;transform:scale(1)}
+  50%{opacity:.3;transform:scale(.6)}
+}
+@keyframes oceanFloat {
+  0%,100%{transform:translateY(0)}
+  50%{transform:translateY(-6px)}
+}
+@keyframes oceanFadeSlideIn {
+  from{opacity:0;transform:translateY(8px)}
+  to{opacity:1;transform:translateY(0)}
+}
+@keyframes oceanNewMsg {
+  from{opacity:0;transform:translateY(-6px)}
+  to{opacity:1;transform:translateY(0)}
+}
+@keyframes oceanModalIn {
+  from{opacity:0}
+  to{opacity:1}
+}
+@keyframes oceanBoxBounce {
+  from{transform:scale(.6)}
+  to{transform:scale(1)}
+}
+@keyframes oceanLiveDot {
+  0%,100%{opacity:1}
+  50%{opacity:.25}
+}
+`
+
+const glassStyle: React.CSSProperties = {
+  background: 'rgba(4,14,52,.55)',
+  border: '1px solid rgba(80,160,255,.22)',
+  borderRadius: 14,
+  backdropFilter: 'blur(14px)',
+  WebkitBackdropFilter: 'blur(14px)',
+}
+
 const statusLabel: Record<RaffleStatus, string> = {
   draft: '草稿',
   active: '進行中',
