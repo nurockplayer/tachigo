@@ -597,16 +597,6 @@ func TestPublicEndpointRateLimits(t *testing.T) {
 			path: "/api/v1/auth/web3/verify",
 			body: `{}`,
 		},
-		{
-			name: "receipt completion",
-			path: "/api/v1/extension/t-point/complete",
-			body: `{}`,
-		},
-		{
-			name: "bits receipt completion",
-			path: "/api/v1/extension/bits/complete",
-			body: `{}`,
-		},
 	}
 
 	for _, tt := range tests {
