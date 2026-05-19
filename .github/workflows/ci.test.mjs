@@ -2286,9 +2286,12 @@ test('dependency review policy documents Dependabot split and waiver handling', 
 test('Dependabot pnpm version updates skip routine production patch releases', () => {
   const config = parseYaml(dependabotConfigPath)
   const pnpmUpdates = config.updates.filter((update) => update['package-ecosystem'] === 'npm')
+  const rootUpdate = pnpmUpdates.find((update) => update.directory === '/')
+  const workspaceUpdates = pnpmUpdates.filter((update) => update.directory !== '/')
 
-  assert.equal(pnpmUpdates.length, 2)
-  for (const update of pnpmUpdates) {
+  assert.equal(rootUpdate['target-branch'], 'develop')
+  assert.equal(workspaceUpdates.length, 2)
+  for (const update of workspaceUpdates) {
     assert.deepEqual(update.allow, [
       {
         'dependency-type': 'production',
