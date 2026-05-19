@@ -118,7 +118,13 @@ func (s *ClaimService) SetMintCallerForTest(mc MintCaller) { s.mintCaller = mc }
 // GetTachiBalance returns the user's current $TACHI balance.
 // Returns 0 if no balance record exists yet.
 func (s *ClaimService) GetTachiBalance(userID uuid.UUID) (int64, error) {
-	balance, err := loadTachiBalanceValue(s.db, userID)
+	return s.GetTachiBalanceContext(context.Background(), userID)
+}
+
+// GetTachiBalanceContext returns the user's current $TACHI balance using ctx
+// for request cancellation.
+func (s *ClaimService) GetTachiBalanceContext(ctx context.Context, userID uuid.UUID) (int64, error) {
+	balance, err := loadTachiBalanceValue(ctx, s.db, userID)
 	if err != nil {
 		if errors.Is(err, gorm.ErrRecordNotFound) {
 			return 0, nil
@@ -555,7 +561,7 @@ func (s *ClaimService) finalizeClaim(tx *gorm.DB, reservation claimReservation, 
 		}
 
 		if existing.Status == models.ClaimStatusConfirmed {
-			balance, err := loadTachiBalanceValue(tx, reservation.userID)
+			balance, err := loadTachiBalanceValue(gormStatementContext(tx), tx, reservation.userID)
 			if err != nil {
 				return 0, fmt.Errorf("finalizeClaim: confirmed claim missing tachi balance: %w", err)
 			}
@@ -581,7 +587,7 @@ func (s *ClaimService) finalizeClaim(tx *gorm.DB, reservation claimReservation, 
 		return 0, err
 	}
 
-	balance, err := loadTachiBalanceValue(tx, reservation.userID)
+	balance, err := loadTachiBalanceValue(gormStatementContext(tx), tx, reservation.userID)
 	if err != nil {
 		return 0, err
 	}
@@ -589,9 +595,12 @@ func (s *ClaimService) finalizeClaim(tx *gorm.DB, reservation claimReservation, 
 	return balance, nil
 }
 
-func loadTachiBalanceValue(db *gorm.DB, userID uuid.UUID) (int64, error) {
+func loadTachiBalanceValue(ctx context.Context, db *gorm.DB, userID uuid.UUID) (int64, error) {
+	if ctx == nil {
+		ctx = context.Background()
+	}
 	var balance int64
-	err := db.Raw(
+	err := db.WithContext(ctx).Raw(
 		// Claim and spend flows currently store whole-token int64 balances.
 		"SELECT CAST(balance AS BIGINT) FROM tachi_balances WHERE user_id = ?",
 		userID,
@@ -603,6 +612,13 @@ func loadTachiBalanceValue(db *gorm.DB, userID uuid.UUID) (int64, error) {
 		return 0, err
 	}
 	return balance, nil
+}
+
+func gormStatementContext(db *gorm.DB) context.Context {
+	if db != nil && db.Statement != nil && db.Statement.Context != nil {
+		return db.Statement.Context
+	}
+	return context.Background()
 }
 
 func (s *ClaimService) resolveWalletAddress(db *gorm.DB, userID uuid.UUID) (string, error) {
