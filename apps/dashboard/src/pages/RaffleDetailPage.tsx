@@ -255,7 +255,7 @@ function DrawControls({
   return (
     <div className="flex flex-col gap-2">
       <button
-        data-testid="draw-btn"
+        data-testid="mgmt-draw-btn"
         disabled={drawDisabled}
         onClick={onDraw}
         className="w-full rounded-full bg-gradient-to-br from-amber-300 via-amber-500 to-amber-700 px-4 py-4 text-base font-black tracking-widest text-amber-950 shadow-lg shadow-amber-500/30 transition hover:-translate-y-0.5 disabled:cursor-not-allowed disabled:opacity-40"
@@ -559,6 +559,12 @@ export default function RaffleDetailPage() {
   const [popBallColor, setPopBallColor] = useState<string | null>(null)
   const [modalWinner, setModalWinner] = useState<string | null>(null)
 
+  const pendingTimers = useRef<number[]>([])
+
+  useEffect(() => {
+    return () => { pendingTimers.current.forEach(id => window.clearTimeout(id)) }
+  }, [])
+
   const effectiveStatus = localCompleted ? 'completed' : localActivated ? 'active' : (raffle?.status ?? '')
 
   const fetchDraws = useCallback(async (): Promise<RaffleDraw[]> => {
@@ -598,21 +604,28 @@ export default function RaffleDetailPage() {
     setDrawing(true)
 
     setShaking(true)
-    window.setTimeout(() => setShaking(false), 550)
+    pendingTimers.current.push(window.setTimeout(() => setShaking(false), 550))
 
-    window.setTimeout(() => {
+    pendingTimers.current.push(window.setTimeout(() => {
       const color = BALL_COLORS[Math.floor(Math.random() * BALL_COLORS.length)]
       setPopBallColor(color)
-      window.setTimeout(() => setPopBallColor(null), 1200)
-    }, 400)
+      pendingTimers.current.push(window.setTimeout(() => setPopBallColor(null), 1200))
+    }, 400))
 
     try {
       await drawNext(raffleId)
       const result = await fetchDraws()
-      const latest = result?.[0]
+      const latest = result != null && result.length > 0
+        ? [...result].sort((a, b) => new Date(b.drawn_at).getTime() - new Date(a.drawn_at).getTime())[0]
+        : null
       if (latest) {
         const name = latest.entry.display_name || latest.entry.twitch_login
-        window.setTimeout(() => setModalWinner(name), 900)
+        pendingTimers.current.push(window.setTimeout(() => {
+          setModalWinner(name)
+          setDrawing(false)
+        }, 900))
+      } else {
+        setDrawing(false)
       }
       setExhausted(false)
     } catch (error: unknown) {
@@ -620,7 +633,6 @@ export default function RaffleDetailPage() {
         const response = (error as { response?: { status?: number } }).response
         if (response?.status === 409) setExhausted(true)
       }
-    } finally {
       setDrawing(false)
     }
   }
