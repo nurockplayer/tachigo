@@ -429,6 +429,111 @@ function OceanGachaMachine({ shaking, popBallColor }: OceanGachaMachineProps) {
   )
 }
 
+const INITIAL_CHAT = [
+  { emoji: '🐬', name: '小海豚', msg: '來啦來啦 🐬' },
+  { emoji: '🏊', name: '海底探險家', msg: '抽我抽我！' },
+  { emoji: '🐙', name: '章魚哥', msg: '希望中獎～' },
+  { emoji: '🐚', name: '小貝殼', msg: '好期待 😄' },
+  { emoji: '🪼', name: '水母寶寶', msg: '祝大家好運！' },
+  { emoji: '🌊', name: '藍藍海', msg: '加油加油 💪' },
+  { emoji: '🪸', name: '珊瑚小妹', msg: '衝衝衝！' },
+]
+
+const AUTO_CHAT = [
+  { emoji: '🦀', name: '螃蟹哥', msg: '來啦！' },
+  { emoji: '🐡', name: '河豚兒', msg: '好興奮～' },
+  { emoji: '🦑', name: '魷魚妹', msg: '抽我抽我 🙏' },
+  { emoji: '🐠', name: '熱帶魚', msg: '加油加油！' },
+  { emoji: '🦈', name: '鯊魚君', msg: '必中！' },
+  { emoji: '🐟', name: '小鯉魚', msg: '希望中獎～' },
+]
+
+interface ChatMsg { emoji: string; name: string; msg: string }
+
+function ChatPanel() {
+  const [messages, setMessages] = useState<ChatMsg[]>(INITIAL_CHAT)
+  const autoIdx = useRef(0)
+
+  useEffect(() => {
+    const id = window.setInterval(() => {
+      const next = AUTO_CHAT[autoIdx.current % AUTO_CHAT.length]
+      autoIdx.current += 1
+      setMessages(prev => [...prev.slice(-7), next])
+    }, 2800)
+    return () => window.clearInterval(id)
+  }, [])
+
+  return (
+    <div style={{ display: 'flex', flexDirection: 'column', gap: 8, ...glassStyle, padding: '11px 13px', flex: 1, overflow: 'hidden' }}>
+      <div style={{ fontSize: 12, fontWeight: 600, color: 'rgba(180,220,255,.8)', marginBottom: 4, display: 'flex', justifyContent: 'space-between' }}>
+        聊天室 <span style={{ color: 'rgba(148,210,255,.3)' }}>›</span>
+      </div>
+      <div style={{ display: 'flex', flexDirection: 'column', gap: 6, overflow: 'hidden' }}>
+        {messages.map((m, i) => (
+          <div key={i} style={{ display: 'flex', alignItems: 'flex-start', gap: 6, animation: i === messages.length - 1 ? 'oceanNewMsg .5s ease' : undefined }}>
+            <div style={{ width: 22, height: 22, borderRadius: '50%', flexShrink: 0, display: 'flex', alignItems: 'center', justifyContent: 'center', fontSize: 11, border: '1px solid rgba(255,255,255,.1)', background: 'rgba(100,200,255,.12)' }}>
+              {m.emoji}
+            </div>
+            <div style={{ fontSize: 11, color: 'rgba(200,230,255,.85)', lineHeight: 1.4 }}>
+              <span style={{ fontWeight: 700, color: 'rgba(147,210,255,.95)' }}>{m.name}：</span>
+              {m.msg}
+            </div>
+          </div>
+        ))}
+      </div>
+    </div>
+  )
+}
+
+interface WinnerModalProps {
+  name: string | null
+  onClose: () => void
+}
+
+function WinnerModal({ name, onClose }: WinnerModalProps) {
+  if (name === null) return null
+  return (
+    <div
+      onClick={onClose}
+      style={{
+        position: 'fixed', inset: 0, zIndex: 50,
+        display: 'flex', alignItems: 'center', justifyContent: 'center',
+        background: 'rgba(0,0,0,.65)',
+        backdropFilter: 'blur(4px)',
+        animation: 'oceanModalIn .4s ease forwards',
+      }}
+    >
+      <div
+        onClick={e => e.stopPropagation()}
+        style={{
+          background: 'rgba(4,20,70,.92)',
+          border: '2px solid rgba(56,189,248,.4)',
+          borderRadius: 20,
+          padding: '32px 52px',
+          textAlign: 'center',
+          boxShadow: '0 0 60px rgba(14,165,233,.4)',
+          animation: 'oceanBoxBounce .5s cubic-bezier(.22,.68,0,1.3)',
+          color: '#fff',
+        }}
+      >
+        <div style={{ fontSize: 52, marginBottom: 10 }}>🎉</div>
+        <div style={{ fontSize: 13, color: 'rgba(148,210,255,.6)', letterSpacing: '.1em', marginBottom: 8 }}>恭喜中獎！</div>
+        <div style={{ fontSize: 'clamp(24px,4vw,38px)', fontWeight: 900, textShadow: '0 0 20px rgba(56,189,248,.9)' }}>{name}</div>
+        <button
+          onClick={onClose}
+          style={{
+            marginTop: 18, padding: '8px 30px', borderRadius: 30,
+            border: '1px solid rgba(56,189,248,.3)', background: 'transparent',
+            color: 'rgba(148,210,255,.7)', fontSize: 12, cursor: 'pointer', letterSpacing: '.08em',
+          }}
+        >
+          繼續抽獎
+        </button>
+      </div>
+    </div>
+  )
+}
+
 function GachaMachine() {
   return (
     <div
