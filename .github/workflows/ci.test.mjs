@@ -2289,6 +2289,7 @@ test('Dependabot pnpm version updates skip routine production patch releases', (
   const rootUpdate = pnpmUpdates.find((update) => update.directory === '/')
   const workspaceUpdates = pnpmUpdates.filter((update) => update.directory !== '/')
 
+  assert.ok(rootUpdate, 'expected Dependabot npm config to include root directory "/" update')
   assert.equal(rootUpdate['target-branch'], 'develop')
   assert.equal(workspaceUpdates.length, 2)
   for (const update of workspaceUpdates) {
