@@ -534,207 +534,6 @@ function WinnerModal({ name, onClose }: WinnerModalProps) {
   )
 }
 
-function GachaMachine() {
-  return (
-    <div
-      aria-hidden="true"
-      style={{
-        position: 'relative',
-        display: 'flex',
-        justifyContent: 'center',
-        alignItems: 'center',
-        height: '260px',
-      }}
-    >
-      <div
-        style={{
-          position: 'absolute',
-          width: '280px',
-          height: '280px',
-          borderRadius: '50%',
-          background:
-            'conic-gradient(from 0deg,rgba(200,150,30,.055) 0deg 9deg,rgba(0,0,0,0) 9deg 18deg,rgba(200,150,30,.055) 18deg 27deg,rgba(0,0,0,0) 27deg 36deg,rgba(200,150,30,.055) 36deg 45deg,rgba(0,0,0,0) 45deg 54deg,rgba(200,150,30,.055) 54deg 63deg,rgba(0,0,0,0) 63deg 72deg,rgba(200,150,30,.055) 72deg 81deg,rgba(0,0,0,0) 81deg 90deg,rgba(200,150,30,.055) 90deg 99deg,rgba(0,0,0,0) 99deg 108deg,rgba(200,150,30,.055) 108deg 117deg,rgba(0,0,0,0) 117deg 126deg,rgba(200,150,30,.055) 126deg 135deg,rgba(0,0,0,0) 135deg 144deg,rgba(200,150,30,.055) 144deg 153deg,rgba(0,0,0,0) 153deg 162deg,rgba(200,150,30,.055) 162deg 171deg,rgba(0,0,0,0) 171deg 180deg,rgba(200,150,30,.055) 180deg 360deg)',
-          animation: 'gachaRays 22s linear infinite',
-        }}
-      />
-      <div
-        style={{
-          position: 'relative',
-          width: '168px',
-          filter: 'drop-shadow(0 14px 32px rgba(0,0,0,.7))',
-        }}
-      >
-        <div
-          style={{
-            width: '128px',
-            height: '13px',
-            margin: '0 auto',
-            background: 'linear-gradient(180deg,#3a3830,#28261e)',
-            borderRadius: '6px 6px 0 0',
-            border: '1.5px solid #48463c',
-            borderBottom: 'none',
-            display: 'flex',
-            alignItems: 'center',
-            justifyContent: 'center',
-            gap: '5px',
-          }}
-        >
-          {[
-            ['#e05c5c', '0s'],
-            ['#52c26a', '.43s'],
-            ['#f5c518', '.86s'],
-          ].map(([color, delay], index) => (
-            <span
-              key={index}
-              style={{
-                width: '5px',
-                height: '5px',
-                borderRadius: '50%',
-                background: color,
-                boxShadow: `0 0 5px ${color}`,
-                animation: `gachaLed 1.3s ease-in-out infinite ${delay}`,
-              }}
-            />
-          ))}
-        </div>
-        <div style={{ position: 'relative', width: '168px', height: '168px' }}>
-          <div
-            style={{
-              position: 'absolute',
-              top: '-7px',
-              left: '50%',
-              transform: 'translateX(-50%)',
-              width: '13px',
-              height: '13px',
-              borderRadius: '50%',
-              background: 'radial-gradient(circle at 35% 30%,#ffe266,#c48a10)',
-              border: '1.5px solid #7a5008',
-              boxShadow: '0 2px 8px rgba(200,130,10,.6)',
-              zIndex: 2,
-            }}
-          />
-          <div
-            style={{
-              width: '168px',
-              height: '168px',
-              borderRadius: '50%',
-              overflow: 'hidden',
-              position: 'relative',
-              display: 'flex',
-              alignItems: 'center',
-              justifyContent: 'center',
-              background:
-                'radial-gradient(ellipse at 35% 30%,rgba(230,218,190,.12) 0%,transparent 52%),radial-gradient(circle,rgba(160,140,110,.12) 0%,rgba(40,34,26,.5) 100%)',
-              border: '2.5px solid rgba(200,178,130,.2)',
-              boxShadow:
-                'inset -28px -28px 55px rgba(0,0,0,.55),inset 8px 8px 22px rgba(255,238,190,.05),0 0 0 1px rgba(0,0,0,.6),0 8px 34px rgba(0,0,0,.75)',
-            }}
-          >
-            <div
-              style={{
-                position: 'absolute',
-                inset: 0,
-                borderRadius: '50%',
-                background: 'repeating-conic-gradient(rgba(255,255,255,.025) 0deg 15deg,transparent 15deg 30deg)',
-                animation: 'gachaGlobe 16s linear infinite',
-              }}
-            />
-            {[
-              { width: 44, height: 44, background: 'linear-gradient(135deg,#a06248,#7a3e24)', top: 20, left: 16, animation: 'bb1 4.2s' },
-              { width: 36, height: 36, background: 'linear-gradient(135deg,#4e7040,#2e5020)', top: 12, left: 82, animation: 'bb2 3.6s' },
-              { width: 40, height: 40, background: 'linear-gradient(135deg,#5c5c9c,#3c3c7c)', top: 68, left: 106, animation: 'bb3 4.8s' },
-              { width: 34, height: 34, background: 'linear-gradient(135deg,#9c6c3a,#7c4c1a)', top: 90, left: 14, animation: 'bb4 3.9s' },
-              { width: 42, height: 42, background: 'linear-gradient(135deg,#7c4c7c,#5c2c5c)', top: 100, left: 62, animation: 'bb5 4.4s' },
-            ].map((ball, index) => (
-              <div
-                key={index}
-                style={{
-                  position: 'absolute',
-                  borderRadius: '50%',
-                  width: ball.width,
-                  height: ball.height,
-                  background: ball.background,
-                  border: '1.5px solid rgba(255,255,255,.18)',
-                  top: ball.top,
-                  left: ball.left,
-                  animation: `${ball.animation} ease-in-out infinite`,
-                }}
-              />
-            ))}
-            <div
-              style={{
-                position: 'absolute',
-                inset: 0,
-                borderRadius: '50%',
-                background: 'radial-gradient(ellipse at 28% 23%,rgba(255,244,210,.1) 0%,transparent 52%)',
-                pointerEvents: 'none',
-              }}
-            />
-          </div>
-        </div>
-        <div
-          style={{
-            width: '146px',
-            margin: '0 auto',
-            background: 'linear-gradient(180deg,#cc4232 0%,#a42a1a 50%,#8a1e0e 100%)',
-            borderRadius: '0 0 22px 22px',
-            padding: '12px 16px 16px',
-            border: '2px solid #6a1a0a',
-            borderTop: 'none',
-          }}
-        >
-          <div style={{ display: 'flex', justifyContent: 'center', marginBottom: '10px' }}>
-            <div
-              style={{
-                width: '52px',
-                height: '52px',
-                borderRadius: '50%',
-                background: 'radial-gradient(circle at 36% 32%,#8ed060,#3c8a20)',
-                border: '3px solid #1c5a0a',
-                boxShadow: 'inset -5px -5px 10px rgba(0,0,0,.4),0 3px 8px rgba(0,0,0,.4)',
-              }}
-            />
-          </div>
-          <div
-            style={{
-              width: '58px',
-              height: '36px',
-              background: '#0b0a08',
-              borderRadius: '6px',
-              margin: '0 auto 8px',
-              border: '2px solid #3a2012',
-              boxShadow: 'inset 0 3px 7px rgba(0,0,0,.85)',
-            }}
-          />
-          <div style={{ display: 'flex', justifyContent: 'center', gap: '5px' }}>
-            {[0, 1, 2].map((index) => (
-              <span
-                key={index}
-                style={{
-                  width: '7px',
-                  height: '7px',
-                  borderRadius: '50%',
-                  background: index === 0 ? '#f5c518' : 'rgba(245,197,24,.4)',
-                  boxShadow: index === 0 ? '0 0 5px #f5c518' : 'none',
-                }}
-              />
-            ))}
-          </div>
-        </div>
-      </div>
-      <style>{`
-        @keyframes gachaRays { to { transform: rotate(360deg); } }
-        @keyframes gachaLed { 0%,100%{opacity:.3} 50%{opacity:1} }
-        @keyframes gachaGlobe { to { transform: rotate(360deg); } }
-        @keyframes bb1{0%,100%{transform:translate(0,0)}33%{transform:translate(4px,-6px)}66%{transform:translate(-3px,4px)}}
-        @keyframes bb2{0%,100%{transform:translate(0,0)}40%{transform:translate(-5px,-4px)}70%{transform:translate(4px,6px)}}
-        @keyframes bb3{0%,100%{transform:translate(0,0)}35%{transform:translate(-4px,6px)}70%{transform:translate(6px,-5px)}}
-        @keyframes bb4{0%,100%{transform:translate(0,0)}50%{transform:translate(6px,-7px)}}
-        @keyframes bb5{0%,100%{transform:translate(0,0)}25%{transform:translate(-5px,5px)}75%{transform:translate(5px,-5px)}}
-      `}</style>
-    </div>
-  )
-}
 
 export default function RaffleDetailPage() {
   const { raffleId } = useParams()
@@ -756,16 +555,21 @@ export default function RaffleDetailPage() {
   const [localActivated, setLocalActivated] = useState(false)
   const [activating, setActivating] = useState(false)
   const [activateError, setActivateError] = useState<string | null>(null)
+  const [shaking, setShaking] = useState(false)
+  const [popBallColor, setPopBallColor] = useState<string | null>(null)
+  const [modalWinner, setModalWinner] = useState<string | null>(null)
 
   const effectiveStatus = localCompleted ? 'completed' : localActivated ? 'active' : (raffle?.status ?? '')
 
-  const fetchDraws = useCallback(async () => {
-    if (!raffleId) return
+  const fetchDraws = useCallback(async (): Promise<RaffleDraw[]> => {
+    if (!raffleId) return []
     try {
       const result = await listDraws(raffleId)
       setDraws(result)
+      return result
     } catch {
       setDraws([])
+      return []
     }
   }, [raffleId])
 
@@ -791,11 +595,25 @@ export default function RaffleDetailPage() {
 
   async function handleDraw() {
     if (!raffleId || drawing) return
-
     setDrawing(true)
+
+    setShaking(true)
+    window.setTimeout(() => setShaking(false), 550)
+
+    window.setTimeout(() => {
+      const color = BALL_COLORS[Math.floor(Math.random() * BALL_COLORS.length)]
+      setPopBallColor(color)
+      window.setTimeout(() => setPopBallColor(null), 1200)
+    }, 400)
+
     try {
       await drawNext(raffleId)
-      await fetchDraws()
+      const result = await fetchDraws()
+      const latest = result?.[0]
+      if (latest) {
+        const name = latest.entry.display_name || latest.entry.twitch_login
+        window.setTimeout(() => setModalWinner(name), 900)
+      }
       setExhausted(false)
     } catch (error: unknown) {
       if (error && typeof error === 'object' && 'response' in error) {
@@ -835,10 +653,6 @@ export default function RaffleDetailPage() {
     }
   }
 
-  const entryCount = totalEntries
-  const drawnCount = draws.length
-  const remaining = entryCount === null ? null : Math.max(entryCount - drawnCount, 0)
-
   if (isLoading) {
     return <Skeleton data-testid="skeleton" className="h-96 w-full" />
   }
@@ -851,37 +665,28 @@ export default function RaffleDetailPage() {
     )
   }
 
+  const entryCount = totalEntries
+  const drawnCount = draws.length
+  const remaining = entryCount === null ? null : Math.max(entryCount - drawnCount, 0)
+
   return (
-    <div
-      className="min-h-screen space-y-4 px-5 py-6"
-      style={{ background: '#0b0a08', color: '#f0ebe0' }}
-    >
-      <button
-        onClick={() => navigate('/raffles')}
-        className="text-xs tracking-wide text-white/40 transition hover:text-white/70"
-      >
-        返回抽獎列表
-      </button>
+    <div style={{ background: '#050e24', color: '#f0f9ff', minHeight: '100vh', fontFamily: 'var(--font-sans, sans-serif)' }}>
+      <style>{OCEAN_KEYFRAMES}</style>
 
-      <div className="flex flex-col gap-4 lg:grid lg:grid-cols-[1fr_320px] lg:items-start">
-        <div className="space-y-4">
-          <div className="flex items-start gap-3">
-            <h1
-              className="flex-1 text-2xl font-black"
-              style={{
-                background: 'linear-gradient(135deg,#f0e8d0,#f5c518)',
-                WebkitBackgroundClip: 'text',
-                WebkitTextFillColor: 'transparent',
-              }}
-            >
-              {raffle.title}
-            </h1>
-            <span className="mt-1 rounded-full border border-green-500/40 bg-green-500/10 px-3 py-0.5 text-[10px] tracking-wide text-green-400">
-              {statusLabel[effectiveStatus as RaffleStatus] ?? effectiveStatus}
-            </span>
-          </div>
+      {/* Management section (collapsible) */}
+      <details style={{ borderBottom: '1px solid rgba(80,160,255,.15)' }}>
+        <summary style={{ padding: '10px 20px', cursor: 'pointer', fontSize: 12, color: 'rgba(148,210,255,.6)', letterSpacing: '.08em', userSelect: 'none' }}>
+          ⚙ 活動管理 — {raffle.title}
+          <span style={{ marginLeft: 8, background: effectiveStatus === 'active' ? 'rgba(34,197,94,.12)' : 'rgba(148,163,184,.1)', color: effectiveStatus === 'active' ? '#4ade80' : 'rgba(148,163,184,.7)', padding: '2px 8px', borderRadius: 99, fontSize: 10, border: `1px solid ${effectiveStatus === 'active' ? 'rgba(34,197,94,.3)' : 'rgba(148,163,184,.2)'}` }}>
+            {statusLabel[effectiveStatus as RaffleStatus] ?? effectiveStatus}
+          </span>
+        </summary>
+        <div style={{ padding: '12px 20px 16px', display: 'flex', flexDirection: 'column', gap: 12 }}>
+          <button onClick={() => navigate('/raffles')} style={{ alignSelf: 'flex-start', background: 'none', border: 'none', color: 'rgba(148,210,255,.5)', fontSize: 12, cursor: 'pointer' }}>
+            ‹ 返回抽獎列表
+          </button>
 
-          <div className="grid grid-cols-3 gap-2">
+          <div style={{ display: 'grid', gridTemplateColumns: 'repeat(3,1fr)', gap: 8 }}>
             <StatCard label="匯入人數" value={entryCount?.toString() ?? '--'} colorClass="text-blue-400" />
             <StatCard label="已抽出" value={drawnCount.toString()} colorClass="text-green-400" />
             <StatCard label="剩餘" value={remaining?.toString() ?? '--'} colorClass="text-amber-400" />
@@ -899,15 +704,15 @@ export default function RaffleDetailPage() {
                 data-testid="activate-btn"
                 disabled={activating}
                 onClick={() => { void handleActivate() }}
-                className="w-full rounded-full border border-amber-500/40 bg-amber-500/10 px-4 py-3 text-sm font-bold tracking-widest text-amber-400 transition hover:bg-amber-500/20 disabled:opacity-40"
+                style={{ width: '100%', padding: '9px', borderRadius: 8, border: '1px solid rgba(251,191,36,.35)', background: 'rgba(251,191,36,.08)', color: '#fbbf24', fontSize: 12, fontWeight: 600, cursor: 'pointer' }}
               >
                 {activating ? '鎖定中...' : '開始抽獎（鎖定名單）'}
               </button>
-              {activateError && (
-                <p data-testid="activate-error" className="mt-1 text-center text-xs text-red-400">{activateError}</p>
-              )}
+              {activateError && <p data-testid="activate-error" style={{ fontSize: 12, color: '#f87171', textAlign: 'center' }}>{activateError}</p>}
             </>
           )}
+
+          <DiscordWebhookPanel raffleId={raffle.id} />
 
           <DrawControls
             status={effectiveStatus}
@@ -920,19 +725,79 @@ export default function RaffleDetailPage() {
             onConfirmEnd={() => { void handleConfirmEnd() }}
             onCancelEnd={() => setConfirmEnd(false)}
           />
+        </div>
+      </details>
 
-          <DiscordWebhookPanel raffleId={raffle.id} />
+      {/* Title */}
+      <div style={{ textAlign: 'center', padding: '20px 20px 8px' }}>
+        <div style={{ display: 'flex', justifyContent: 'center', gap: 7, marginBottom: 4 }}>
+          {['★','★','★','★','★'].map((s, i) => (
+            <span key={i} style={{ color: i === 2 ? '#93c5fd' : '#60a5fa', fontSize: i === 2 ? 20 : 14, filter: 'drop-shadow(0 0 5px rgba(96,165,250,.9))', animation: `oceanTwinkle 2s ease-in-out ${i * 0.15}s infinite` }}>{s}</span>
+          ))}
+        </div>
+        <div style={{ fontSize: 'clamp(26px,4.5vw,50px)', fontWeight: 900, letterSpacing: '.05em', textShadow: '0 0 22px rgba(56,189,248,.95),0 0 55px rgba(56,189,248,.4)' }}>
+          觀眾抽獎
+        </div>
+        <div style={{ display: 'inline-block', marginTop: 6, background: 'rgba(10,60,160,.5)', border: '1px solid rgba(56,189,248,.3)', borderRadius: 20, padding: '3px 16px', fontSize: 12, color: 'rgba(150,220,255,.9)', letterSpacing: '.06em' }}>
+          扭蛋抽出幸運觀眾！
+        </div>
+      </div>
 
-          <div>
-            <p className="mb-2 text-[10px] uppercase tracking-widest text-white/30">
-              得獎名單，共 {draws.length} 人
-            </p>
-            <WinnerList draws={draws} />
+      {/* Three-column layout */}
+      <div style={{ display: 'flex', alignItems: 'flex-start', gap: 14, padding: '0 16px 20px', maxWidth: 1300, margin: '0 auto' }}>
+
+        {/* Left: Chat */}
+        <div style={{ width: 160, flexShrink: 0, display: 'flex', flexDirection: 'column', gap: 10 }}>
+          <div style={{ ...glassStyle, padding: '11px 13px' }}>
+            <div style={{ display: 'flex', alignItems: 'center', gap: 7, fontSize: 12, fontWeight: 700, color: '#e0f2fe', marginBottom: 4 }}>
+              <div style={{ width: 24, height: 24, borderRadius: '50%', background: 'rgba(56,189,248,.15)', border: '1px solid rgba(56,189,248,.3)', display: 'flex', alignItems: 'center', justifyContent: 'center', fontSize: 11 }}>
+                👤
+              </div>
+              參加方式
+            </div>
+            <div style={{ fontSize: 11, color: 'rgba(148,210,255,.7)', lineHeight: 1.55 }}>在聊天室留言即可參加抽獎！</div>
+          </div>
+          <ChatPanel />
+        </div>
+
+        {/* Center: Gacha machine + draw button */}
+        <div style={{ flex: 1, minWidth: 0, display: 'flex', flexDirection: 'column', alignItems: 'center', gap: 14 }}>
+          <OceanGachaMachine shaking={shaking} popBallColor={popBallColor} />
+          <button
+            data-testid="draw-btn"
+            disabled={effectiveStatus === 'completed' || exhausted || remaining === 0 || drawing}
+            onClick={() => { void handleDraw() }}
+            style={{
+              padding: '13px 60px', borderRadius: 50, border: 'none',
+              background: 'linear-gradient(90deg,#0ea5e9,#2563eb)',
+              color: '#e0f2fe', fontSize: 'clamp(15px,2.2vw,20px)', fontWeight: 900,
+              letterSpacing: '.12em', cursor: 'pointer',
+              boxShadow: '0 0 35px rgba(14,165,233,.75),0 0 70px rgba(14,165,233,.2),0 4px 16px rgba(0,0,0,.5)',
+              opacity: (effectiveStatus === 'completed' || exhausted || remaining === 0 || drawing) ? .5 : 1,
+            }}
+          >
+            {drawing ? '抽獎中...' : '開始抽獎'}
+          </button>
+          <div style={{ fontSize: 11, color: 'rgba(148,210,255,.5)', textAlign: 'center' }}>
+            將從參加者中隨機抽出一位幸運觀眾！
           </div>
         </div>
 
-        <GachaMachine />
+        {/* Right: Winner list */}
+        <div style={{ width: 160, flexShrink: 0 }}>
+          <div style={{ ...glassStyle, padding: '13px', display: 'flex', flexDirection: 'column', alignItems: 'center', minHeight: 300 }}>
+            <div style={{ display: 'flex', alignItems: 'center', gap: 7, fontSize: 12, fontWeight: 700, color: '#e0f2fe', marginBottom: 14, letterSpacing: '.04em' }}>
+              🐚 中獎名單 🐚
+            </div>
+            <WinnerList draws={draws} />
+            <div style={{ marginTop: 'auto', fontSize: 24, opacity: .45, animation: 'oceanFloat 3s ease-in-out infinite' }}>
+              🪼
+            </div>
+          </div>
+        </div>
       </div>
+
+      <WinnerModal name={modalWinner} onClose={() => setModalWinner(null)} />
     </div>
   )
 }
