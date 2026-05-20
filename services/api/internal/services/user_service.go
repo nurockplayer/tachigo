@@ -45,7 +45,10 @@ func (s *UserService) GetByIDContext(ctx context.Context, id uuid.UUID) (*models
 
 	var user models.User
 	if err := s.db.WithContext(ctx).First(&user, "id = ?", id).Error; err != nil {
-		return nil, ErrUserNotFound
+		if errors.Is(err, gorm.ErrRecordNotFound) {
+			return nil, ErrUserNotFound
+		}
+		return nil, err
 	}
 	return &user, nil
 }
