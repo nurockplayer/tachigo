@@ -54,17 +54,32 @@ func (s *UserService) GetByIDContext(ctx context.Context, id uuid.UUID) (*models
 }
 
 func (s *UserService) UpdateProfile(id uuid.UUID, input UpdateProfileInput) (*models.User, error) {
+	return s.UpdateProfileContext(context.Background(), id, input)
+}
+
+func (s *UserService) UpdateProfileContext(ctx context.Context, id uuid.UUID, input UpdateProfileInput) (*models.User, error) {
+	if ctx == nil {
+		ctx = context.Background()
+	}
+
+	db := s.db.WithContext(ctx)
+
 	var user models.User
-	if err := s.db.First(&user, "id = ?", id).Error; err != nil {
-		return nil, ErrUserNotFound
+	if err := db.First(&user, "id = ?", id).Error; err != nil {
+		if errors.Is(err, gorm.ErrRecordNotFound) {
+			return nil, ErrUserNotFound
+		}
+		return nil, err
 	}
 
 	if input.Username != nil {
 		// Uniqueness check
 		var count int64
-		s.db.Model(&models.User{}).
+		if err := db.Model(&models.User{}).
 			Where("username = ? AND id != ?", *input.Username, id).
-			Count(&count)
+			Count(&count).Error; err != nil {
+			return nil, err
+		}
 		if count > 0 {
 			return nil, ErrUsernameExists
 		}
@@ -75,7 +90,7 @@ func (s *UserService) UpdateProfile(id uuid.UUID, input UpdateProfileInput) (*mo
 		user.AvatarURL = input.AvatarURL
 	}
 
-	if err := s.db.Save(&user).Error; err != nil {
+	if err := db.Save(&user).Error; err != nil {
 		return nil, err
 	}
 	return &user, nil

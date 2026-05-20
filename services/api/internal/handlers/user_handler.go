@@ -58,7 +58,7 @@ func (h *UserHandler) UpdateMe(c *gin.Context) {
 		return
 	}
 
-	user, err := h.user.UpdateProfile(userID, input)
+	user, err := h.user.UpdateProfileContext(c.Request.Context(), userID, input)
 	if err != nil {
 		switch err {
 		case services.ErrUsernameExists:
