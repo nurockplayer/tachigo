@@ -127,7 +127,7 @@ func (h *UserHandler) ListProviders(c *gin.Context) {
 	claims := middleware.MustClaims(c)
 	userID, _ := uuid.Parse(claims.UserID)
 
-	providers, err := h.user.ListProviders(userID)
+	providers, err := h.user.ListProvidersContext(c.Request.Context(), userID)
 	if err != nil {
 		internal(c)
 		return
