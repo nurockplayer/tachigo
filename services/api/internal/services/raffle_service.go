@@ -98,8 +98,16 @@ func (s *RaffleService) Create(userID uuid.UUID, title string) (*models.Raffle, 
 
 // GetByID returns a raffle, verifying ownership.
 func (s *RaffleService) GetByID(id, userID uuid.UUID) (*models.Raffle, error) {
+	return s.getByIDContext(context.Background(), id, userID)
+}
+
+func (s *RaffleService) getByIDContext(ctx context.Context, id, userID uuid.UUID) (*models.Raffle, error) {
+	if ctx == nil {
+		ctx = context.Background()
+	}
+
 	var raffle models.Raffle
-	if err := s.db.Where("id = ?", id).First(&raffle).Error; err != nil {
+	if err := s.db.WithContext(ctx).Where("id = ?", id).First(&raffle).Error; err != nil {
 		if errors.Is(err, gorm.ErrRecordNotFound) {
 			return nil, ErrRaffleNotFound
 		}
@@ -375,12 +383,20 @@ func (s *RaffleService) sendDiscordNotification(ctx context.Context, draw *model
 
 // ListDraws returns all draws for a raffle (with entry preloaded).
 func (s *RaffleService) ListDraws(raffleID, userID uuid.UUID) ([]models.RaffleDraw, error) {
-	if _, err := s.GetByID(raffleID, userID); err != nil {
+	return s.ListDrawsContext(context.Background(), raffleID, userID)
+}
+
+func (s *RaffleService) ListDrawsContext(ctx context.Context, raffleID, userID uuid.UUID) ([]models.RaffleDraw, error) {
+	if ctx == nil {
+		ctx = context.Background()
+	}
+
+	if _, err := s.getByIDContext(ctx, raffleID, userID); err != nil {
 		return nil, err
 	}
 
 	var draws []models.RaffleDraw
-	if err := s.db.
+	if err := s.db.WithContext(ctx).
 		Preload("Entry").
 		Where("raffle_id = ?", raffleID).
 		Order("drawn_at DESC").
@@ -498,8 +514,16 @@ func (s *RaffleService) SubmitClaim(token string, userID uuid.UUID, input ClaimI
 
 // GetDrawsByRafflePublic returns drawn entries for Extension display (no auth check).
 func (s *RaffleService) GetDrawsByRafflePublic(raffleID uuid.UUID) ([]models.RaffleDraw, error) {
+	return s.GetDrawsByRafflePublicContext(context.Background(), raffleID)
+}
+
+func (s *RaffleService) GetDrawsByRafflePublicContext(ctx context.Context, raffleID uuid.UUID) ([]models.RaffleDraw, error) {
+	if ctx == nil {
+		ctx = context.Background()
+	}
+
 	var draws []models.RaffleDraw
-	if err := s.db.
+	if err := s.db.WithContext(ctx).
 		Preload("Entry").
 		Where("raffle_id = ?", raffleID).
 		Order("drawn_at DESC").
