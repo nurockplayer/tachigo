@@ -35,8 +35,16 @@ type LinkWalletInput struct {
 }
 
 func (s *UserService) GetByID(id uuid.UUID) (*models.User, error) {
+	return s.GetByIDContext(context.Background(), id)
+}
+
+func (s *UserService) GetByIDContext(ctx context.Context, id uuid.UUID) (*models.User, error) {
+	if ctx == nil {
+		ctx = context.Background()
+	}
+
 	var user models.User
-	if err := s.db.First(&user, "id = ?", id).Error; err != nil {
+	if err := s.db.WithContext(ctx).First(&user, "id = ?", id).Error; err != nil {
 		return nil, ErrUserNotFound
 	}
 	return &user, nil

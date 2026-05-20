@@ -66,6 +66,27 @@ func TestMeHandler_Success(t *testing.T) {
 	}
 }
 
+func TestMeHandler_UsesRequestContext(t *testing.T) {
+	env := newTestEnv(t)
+	accessToken, _ := env.registerUser(t, "mectx", "mectx@example.com", "password123")
+
+	key := userHandlerContextKey{}
+	seen := installUserHandlerDBContextProbe(t, env.db, key, "me")
+	ctx := context.WithValue(context.Background(), key, "me")
+
+	req := httptest.NewRequest(http.MethodGet, "/api/v1/users/me", nil).WithContext(ctx)
+	req.Header.Set("Authorization", "Bearer "+accessToken)
+	w := httptest.NewRecorder()
+	env.router.ServeHTTP(w, req)
+
+	if w.Code != http.StatusOK {
+		t.Fatalf("want 200, got %d: %s", w.Code, w.Body.String())
+	}
+	if seen() == 0 {
+		t.Fatal("expected Me DB query to use request context")
+	}
+}
+
 func TestUpdateMeHandler_Username(t *testing.T) {
 	env := newTestEnv(t)
 	accessToken, _ := env.registerUser(t, "oldname", "update@example.com", "password123")
