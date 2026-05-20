@@ -98,10 +98,10 @@ func (s *RaffleService) Create(userID uuid.UUID, title string) (*models.Raffle, 
 
 // GetByID returns a raffle, verifying ownership.
 func (s *RaffleService) GetByID(id, userID uuid.UUID) (*models.Raffle, error) {
-	return s.getByIDContext(context.Background(), id, userID)
+	return s.GetByIDContext(context.Background(), id, userID)
 }
 
-func (s *RaffleService) getByIDContext(ctx context.Context, id, userID uuid.UUID) (*models.Raffle, error) {
+func (s *RaffleService) GetByIDContext(ctx context.Context, id, userID uuid.UUID) (*models.Raffle, error) {
 	if ctx == nil {
 		ctx = context.Background()
 	}
@@ -391,7 +391,7 @@ func (s *RaffleService) ListDrawsContext(ctx context.Context, raffleID, userID u
 		ctx = context.Background()
 	}
 
-	if _, err := s.getByIDContext(ctx, raffleID, userID); err != nil {
+	if _, err := s.GetByIDContext(ctx, raffleID, userID); err != nil {
 		return nil, err
 	}
 

@@ -17,6 +17,28 @@ import (
 
 type raffleServiceContextKey struct{}
 
+func TestRaffleService_GetByIDContext_UsesRequestContext(t *testing.T) {
+	db := newTestDB(t)
+	ownerID := seedUserWithEmail(t, db, "raffle_get_ctx@example.com")
+	raffleID := seedRaffle(t, db, ownerID)
+
+	key := raffleServiceContextKey{}
+	seen := installDBContextProbe(t, db, key, "raffle-get")
+	ctx := context.WithValue(context.Background(), key, "raffle-get")
+
+	svc := &RaffleService{db: db}
+	raffle, err := svc.GetByIDContext(ctx, raffleID, ownerID)
+	if err != nil {
+		t.Fatalf("GetByIDContext: %v", err)
+	}
+	if raffle.ID != raffleID {
+		t.Fatalf("want raffle ID %s, got %s", raffleID, raffle.ID)
+	}
+	if seen() == 0 {
+		t.Fatal("expected GetByIDContext DB query to use request context")
+	}
+}
+
 func TestRaffleService_ListDrawsContext_UsesRequestContext(t *testing.T) {
 	db := newTestDB(t)
 	ownerID := seedUserWithEmail(t, db, "list_draws_ctx@example.com")
