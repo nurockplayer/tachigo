@@ -277,6 +277,58 @@ func TestLinkWallet_Success(t *testing.T) {
 	}
 }
 
+func TestLinkWalletContext_UsesRequestContext(t *testing.T) {
+	db := newTestDB(t)
+	svc := NewUserService(db)
+	userID := uuid.New()
+	db.Create(&models.User{ID: userID, Role: models.RoleViewer})
+
+	key, addr := newTestWallet(t)
+	nonce := "link-wallet-context"
+	nr := seedWalletNonce(t, db, addr, nonce)
+	msg := siweMessage(addr, nonce, nr.CreatedAt.UTC().Format(time.RFC3339))
+	sig := signSIWE(t, msg, key)
+
+	ctxKey := userServiceContextKey{}
+	seen := installDBContextProbe(t, db, ctxKey, "link-wallet")
+	ctx := context.WithValue(context.Background(), ctxKey, "link-wallet")
+
+	got, err := svc.LinkWalletContext(ctx, userID, LinkWalletInput{
+		Address:   addr,
+		Nonce:     nonce,
+		Signature: sig,
+	})
+	if err != nil {
+		t.Fatalf("LinkWalletContext: %v", err)
+	}
+	if got != addr {
+		t.Errorf("address: want %s, got %s", addr, got)
+	}
+	if seen() == 0 {
+		t.Fatal("expected LinkWalletContext DB operations to use request context")
+	}
+}
+
+func TestLinkWalletContext_CanceledContextReturnsCanceled(t *testing.T) {
+	db := newTestDB(t)
+	svc := NewUserService(db)
+	userID := uuid.New()
+	db.Create(&models.User{ID: userID, Role: models.RoleViewer})
+
+	_, addr := newTestWallet(t)
+	ctx, cancel := context.WithCancel(context.Background())
+	cancel()
+
+	_, err := svc.LinkWalletContext(ctx, userID, LinkWalletInput{
+		Address:   addr,
+		Nonce:     "canceled-link-wallet",
+		Signature: "0x" + strings.Repeat("ab", 65),
+	})
+	if !errors.Is(err, context.Canceled) {
+		t.Fatalf("want context.Canceled, got %v", err)
+	}
+}
+
 func TestLinkWallet_AddressAlreadyLinkedToOtherUser(t *testing.T) {
 	db := newTestDB(t)
 	svc := NewUserService(db)

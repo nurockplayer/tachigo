@@ -96,7 +96,7 @@ func (h *UserHandler) LinkWallet(c *gin.Context) {
 		return
 	}
 
-	addr, err := h.user.LinkWallet(userID, input)
+	addr, err := h.user.LinkWalletContext(c.Request.Context(), userID, input)
 	if err != nil {
 		switch err {
 		case services.ErrInvalidWalletAddress:

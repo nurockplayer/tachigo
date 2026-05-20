@@ -113,15 +113,24 @@ func (s *UserService) ListProvidersContext(ctx context.Context, userID uuid.UUID
 }
 
 func (s *UserService) LinkWallet(userID uuid.UUID, input LinkWalletInput) (string, error) {
+	return s.LinkWalletContext(context.Background(), userID, input)
+}
+
+func (s *UserService) LinkWalletContext(ctx context.Context, userID uuid.UUID, input LinkWalletInput) (string, error) {
+	if ctx == nil {
+		ctx = context.Background()
+	}
+
 	if !common.IsHexAddress(input.Address) {
 		return "", ErrInvalidWalletAddress
 	}
 
+	db := s.db.WithContext(ctx)
 	checksumAddr := common.HexToAddress(input.Address).Hex()
 	lookupAddr := strings.ToLower(checksumAddr)
 
 	var nonceRecord models.Web3Nonce
-	if err := s.db.Where("nonce = ? AND address = ?", input.Nonce, lookupAddr).
+	if err := db.Where("nonce = ? AND address = ?", input.Nonce, lookupAddr).
 		First(&nonceRecord).Error; err != nil {
 		if errors.Is(err, gorm.ErrRecordNotFound) {
 			return "", ErrInvalidNonce
@@ -138,7 +147,7 @@ func (s *UserService) LinkWallet(userID uuid.UUID, input LinkWalletInput) (strin
 		return "", ErrInvalidSignature
 	}
 
-	err := s.db.Transaction(func(tx *gorm.DB) error {
+	err := db.Transaction(func(tx *gorm.DB) error {
 		result := tx.Where("nonce = ? AND address = ?", input.Nonce, lookupAddr).
 			Delete(&models.Web3Nonce{})
 		if result.Error != nil {
