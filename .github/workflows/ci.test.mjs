@@ -2287,7 +2287,11 @@ test('Dependabot pnpm version updates skip routine production patch releases', (
   const config = parseYaml(dependabotConfigPath)
   const pnpmUpdates = config.updates.filter((update) => update['package-ecosystem'] === 'npm')
 
-  assert.equal(pnpmUpdates.length, 2)
+  assert.equal(pnpmUpdates.length, 3)
+  assert.deepEqual(
+    pnpmUpdates.map((update) => update.directory).sort(),
+    ['/', '/apps/dashboard', '/apps/extension'],
+  )
   for (const update of pnpmUpdates) {
     assert.deepEqual(update.allow, [
       {
