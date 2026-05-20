@@ -16,21 +16,27 @@ import (
 
 type internalPointsContextKey struct{}
 
-func installInternalPointsDBContextProbe(t *testing.T, db *gorm.DB, key, want any) func() int {
+func installInternalPointsDBContextProbe(t *testing.T, db *gorm.DB, key, want any) func() (int, int) {
 	t.Helper()
 
-	var seen int
+	var querySeen int
+	var rawSeen int
 	name := "test:internal_points_db_context:" + uuid.NewString()
-	probe := func(tx *gorm.DB) {
+	queryProbe := func(tx *gorm.DB) {
 		if tx.Statement != nil && tx.Statement.Context != nil && tx.Statement.Context.Value(key) == want {
-			seen++
+			querySeen++
+		}
+	}
+	rawProbe := func(tx *gorm.DB) {
+		if tx.Statement != nil && tx.Statement.Context != nil && tx.Statement.Context.Value(key) == want {
+			rawSeen++
 		}
 	}
 
-	if err := db.Callback().Query().Before("gorm:query").Register(name+":query", probe); err != nil {
+	if err := db.Callback().Query().Before("gorm:query").Register(name+":query", queryProbe); err != nil {
 		t.Fatalf("register query context probe: %v", err)
 	}
-	if err := db.Callback().Raw().Before("gorm:raw").Register(name+":raw", probe); err != nil {
+	if err := db.Callback().Raw().Before("gorm:raw").Register(name+":raw", rawProbe); err != nil {
 		t.Fatalf("register raw context probe: %v", err)
 	}
 
@@ -39,8 +45,8 @@ func installInternalPointsDBContextProbe(t *testing.T, db *gorm.DB, key, want an
 		_ = db.Callback().Raw().Remove(name + ":raw")
 	})
 
-	return func() int {
-		return seen
+	return func() (int, int) {
+		return querySeen, rawSeen
 	}
 }
 
@@ -128,8 +134,9 @@ func TestInternalPointsHandler_GetUserPointsBalance_UsesRequestContext(t *testin
 	if rec.Code != http.StatusOK {
 		t.Fatalf("want 200, got %d: %s", rec.Code, rec.Body.String())
 	}
-	if seen() == 0 {
-		t.Fatal("expected internal points handler DB operations to carry request context")
+	querySeen, rawSeen := seen()
+	if querySeen == 0 || rawSeen == 0 {
+		t.Fatalf("expected internal points handler query and raw DB operations to carry request context, got query=%d raw=%d", querySeen, rawSeen)
 	}
 }
 
