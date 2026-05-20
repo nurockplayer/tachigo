@@ -310,7 +310,7 @@ func TestRaffle_ListDraws_UsesRequestContext(t *testing.T) {
 	raffleID := env.createRaffle(t, token, "Draw Context Raffle")
 
 	key := raffleHandlerContextKey{}
-	seen := installRaffleHandlerDBContextProbeForTables(t, env.db, key, "raffle-draw-list", "raffle_draws")
+	seen := installRaffleHandlerDBContextProbeForTables(t, env.db, key, "raffle-draw-list", "raffles", "raffle_draws")
 	ctx := context.WithValue(context.Background(), key, "raffle-draw-list")
 
 	w := httptest.NewRecorder()
@@ -321,8 +321,8 @@ func TestRaffle_ListDraws_UsesRequestContext(t *testing.T) {
 	if w.Code != http.StatusOK {
 		t.Fatalf("want 200, got %d: %s", w.Code, w.Body.String())
 	}
-	if seen() == 0 {
-		t.Fatal("expected raffle draw list DB query to use request context")
+	if seen() < 2 {
+		t.Fatal("expected raffle ownership and draw list DB queries to use request context")
 	}
 }
 

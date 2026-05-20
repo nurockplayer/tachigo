@@ -36,8 +36,8 @@ func TestRaffleService_ListDrawsContext_UsesRequestContext(t *testing.T) {
 	if len(draws) != 1 {
 		t.Fatalf("want 1 draw, got %d", len(draws))
 	}
-	if seen() == 0 {
-		t.Fatal("expected ListDrawsContext DB operations to use request context")
+	if seen() < 2 {
+		t.Fatal("expected at least 2 ListDrawsContext DB operations to use request context")
 	}
 }
 
