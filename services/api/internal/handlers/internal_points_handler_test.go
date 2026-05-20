@@ -20,33 +20,33 @@ func installInternalPointsDBContextProbe(t *testing.T, db *gorm.DB, key, want an
 	t.Helper()
 
 	var querySeen int
-	var rawSeen int
+	var rowSeen int
 	name := "test:internal_points_db_context:" + uuid.NewString()
 	queryProbe := func(tx *gorm.DB) {
 		if tx.Statement != nil && tx.Statement.Context != nil && tx.Statement.Context.Value(key) == want {
 			querySeen++
 		}
 	}
-	rawProbe := func(tx *gorm.DB) {
+	rowProbe := func(tx *gorm.DB) {
 		if tx.Statement != nil && tx.Statement.Context != nil && tx.Statement.Context.Value(key) == want {
-			rawSeen++
+			rowSeen++
 		}
 	}
 
 	if err := db.Callback().Query().Before("gorm:query").Register(name+":query", queryProbe); err != nil {
 		t.Fatalf("register query context probe: %v", err)
 	}
-	if err := db.Callback().Raw().Before("gorm:raw").Register(name+":raw", rawProbe); err != nil {
-		t.Fatalf("register raw context probe: %v", err)
+	if err := db.Callback().Row().Before("gorm:row").Register(name+":row", rowProbe); err != nil {
+		t.Fatalf("register row context probe: %v", err)
 	}
 
 	t.Cleanup(func() {
 		_ = db.Callback().Query().Remove(name + ":query")
-		_ = db.Callback().Raw().Remove(name + ":raw")
+		_ = db.Callback().Row().Remove(name + ":row")
 	})
 
 	return func() (int, int) {
-		return querySeen, rawSeen
+		return querySeen, rowSeen
 	}
 }
 
@@ -134,9 +134,9 @@ func TestInternalPointsHandler_GetUserPointsBalance_UsesRequestContext(t *testin
 	if rec.Code != http.StatusOK {
 		t.Fatalf("want 200, got %d: %s", rec.Code, rec.Body.String())
 	}
-	querySeen, rawSeen := seen()
-	if querySeen == 0 || rawSeen == 0 {
-		t.Fatalf("expected internal points handler query and raw DB operations to carry request context, got query=%d raw=%d", querySeen, rawSeen)
+	querySeen, rowSeen := seen()
+	if querySeen == 0 || rowSeen == 0 {
+		t.Fatalf("expected internal points handler query and row DB operations to carry request context, got query=%d row=%d", querySeen, rowSeen)
 	}
 }
 
