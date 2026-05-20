@@ -109,6 +109,29 @@ func TestUpdateMeHandler_Username(t *testing.T) {
 	}
 }
 
+func TestUpdateMeHandler_UsesRequestContext(t *testing.T) {
+	env := newTestEnv(t)
+	accessToken, _ := env.registerUser(t, "updatectx", "updatectx@example.com", "password123")
+
+	key := userHandlerContextKey{}
+	seen := installUserHandlerDBContextProbe(t, env.db, key, "update-me")
+	ctx := context.WithValue(context.Background(), key, "update-me")
+
+	body := `{"username":"contextupdate"}`
+	req := httptest.NewRequest(http.MethodPut, "/api/v1/users/me", bytes.NewBufferString(body)).WithContext(ctx)
+	req.Header.Set("Authorization", "Bearer "+accessToken)
+	req.Header.Set("Content-Type", "application/json")
+	w := httptest.NewRecorder()
+	env.router.ServeHTTP(w, req)
+
+	if w.Code != http.StatusOK {
+		t.Fatalf("want 200, got %d: %s", w.Code, w.Body.String())
+	}
+	if seen() == 0 {
+		t.Fatal("expected UpdateMe DB query to use request context")
+	}
+}
+
 func TestUpdateMeHandler_DuplicateUsername(t *testing.T) {
 	env := newTestEnv(t)
 	env.registerUser(t, "taken", "taken@example.com", "password123")

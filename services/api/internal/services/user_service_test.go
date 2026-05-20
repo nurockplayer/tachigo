@@ -18,6 +18,8 @@ import (
 	"github.com/tachigo/tachigo/internal/models"
 )
 
+type userServiceContextKey struct{}
+
 func TestGetByID_Found(t *testing.T) {
 	db := newTestDB(t)
 	svc := NewUserService(db)
@@ -68,6 +70,47 @@ func TestUpdateProfile_Username(t *testing.T) {
 	}
 	if *user.Username != newName {
 		t.Errorf("username: want %s, got %s", newName, *user.Username)
+	}
+}
+
+func TestUpdateProfileContext_UsesRequestContext(t *testing.T) {
+	db := newTestDB(t)
+	svc := NewUserService(db)
+
+	userID := uuid.New()
+	db.Create(&models.User{ID: userID, Role: models.RoleViewer})
+
+	key := userServiceContextKey{}
+	seen := installDBContextProbe(t, db, key, "profile-update")
+	ctx := context.WithValue(context.Background(), key, "profile-update")
+
+	newName := "contextname"
+	user, err := svc.UpdateProfileContext(ctx, userID, UpdateProfileInput{Username: &newName})
+	if err != nil {
+		t.Fatalf("UpdateProfileContext: %v", err)
+	}
+	if *user.Username != newName {
+		t.Errorf("username: want %s, got %s", newName, *user.Username)
+	}
+	if seen() == 0 {
+		t.Fatal("expected UpdateProfileContext DB operations to use request context")
+	}
+}
+
+func TestUpdateProfileContext_CanceledContextReturnsCanceled(t *testing.T) {
+	db := newTestDB(t)
+	svc := NewUserService(db)
+
+	userID := uuid.New()
+	db.Create(&models.User{ID: userID, Role: models.RoleViewer})
+
+	ctx, cancel := context.WithCancel(context.Background())
+	cancel()
+
+	newName := "canceledname"
+	_, err := svc.UpdateProfileContext(ctx, userID, UpdateProfileInput{Username: &newName})
+	if !errors.Is(err, context.Canceled) {
+		t.Fatalf("want context.Canceled, got %v", err)
 	}
 }
 
