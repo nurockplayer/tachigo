@@ -1,15 +1,48 @@
 package handlers_test
 
 import (
+	"context"
 	"net/http"
 	"net/http/httptest"
 	"testing"
 
 	"github.com/gin-gonic/gin"
+	"github.com/google/uuid"
+	"gorm.io/gorm"
 
 	"github.com/tachigo/tachigo/internal/handlers"
 	"github.com/tachigo/tachigo/internal/models"
 )
+
+type internalPointsContextKey struct{}
+
+func installInternalPointsDBContextProbe(t *testing.T, db *gorm.DB, key, want any) func() int {
+	t.Helper()
+
+	var seen int
+	name := "test:internal_points_db_context:" + uuid.NewString()
+	probe := func(tx *gorm.DB) {
+		if tx.Statement != nil && tx.Statement.Context != nil && tx.Statement.Context.Value(key) == want {
+			seen++
+		}
+	}
+
+	if err := db.Callback().Query().Before("gorm:query").Register(name+":query", probe); err != nil {
+		t.Fatalf("register query context probe: %v", err)
+	}
+	if err := db.Callback().Raw().Before("gorm:raw").Register(name+":raw", probe); err != nil {
+		t.Fatalf("register raw context probe: %v", err)
+	}
+
+	t.Cleanup(func() {
+		_ = db.Callback().Query().Remove(name + ":query")
+		_ = db.Callback().Raw().Remove(name + ":raw")
+	})
+
+	return func() int {
+		return seen
+	}
+}
 
 func TestInternalPointsHandler_NormalizesEmailQueryAndReturnsCanonicalEmail(t *testing.T) {
 	env := newTestEnv(t)
@@ -62,6 +95,41 @@ func TestInternalPointsHandler_NormalizesEmailQueryAndReturnsCanonicalEmail(t *t
 	}
 	if data["cumulative_total"] != float64(120) {
 		t.Fatalf("want cumulative_total 120, got %v", data["cumulative_total"])
+	}
+}
+
+func TestInternalPointsHandler_GetUserPointsBalance_UsesRequestContext(t *testing.T) {
+	env := newTestEnv(t)
+	key := internalPointsContextKey{}
+	seen := installInternalPointsDBContextProbe(t, env.db, key, "internal-points")
+	ctx := context.WithValue(context.Background(), key, "internal-points")
+
+	canonicalEmail := "context@example.com"
+	user := &models.User{
+		Username: stringPtr("context_viewer"),
+		Email:    &canonicalEmail,
+	}
+	if err := env.db.Create(user).Error; err != nil {
+		t.Fatalf("create user: %v", err)
+	}
+
+	r := gin.New()
+	r.GET("/api/v1/internal/tachiya/users/points/balance", handlers.NewInternalPointsHandler(env.db).GetUserPointsBalance)
+
+	req := httptest.NewRequestWithContext(
+		ctx,
+		http.MethodGet,
+		"/api/v1/internal/tachiya/users/points/balance?email=context@example.com",
+		nil,
+	)
+	rec := httptest.NewRecorder()
+	r.ServeHTTP(rec, req)
+
+	if rec.Code != http.StatusOK {
+		t.Fatalf("want 200, got %d: %s", rec.Code, rec.Body.String())
+	}
+	if seen() == 0 {
+		t.Fatal("expected internal points handler DB operations to carry request context")
 	}
 }
 
