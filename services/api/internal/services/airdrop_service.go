@@ -1,6 +1,7 @@
 package services
 
 import (
+	"context"
 	"database/sql"
 	"errors"
 	"sort"
@@ -75,6 +76,13 @@ func (s *AirdropService) TodayTotal(channelID string) (int64, error) {
 }
 
 func (s *AirdropService) Execute(req AirdropRequest) (*AirdropResult, error) {
+	return s.ExecuteContext(context.Background(), req)
+}
+
+func (s *AirdropService) ExecuteContext(ctx context.Context, req AirdropRequest) (*AirdropResult, error) {
+	if ctx == nil {
+		ctx = context.Background()
+	}
 	if req.Amount <= 0 {
 		return nil, ErrInvalidPointsAmount
 	}
@@ -94,7 +102,7 @@ func (s *AirdropService) Execute(req AirdropRequest) (*AirdropResult, error) {
 		airdropAt := time.Now().UTC()
 		var result *AirdropResult
 
-		lastErr = s.db.Transaction(func(tx *gorm.DB) error {
+		lastErr = s.db.WithContext(ctx).Transaction(func(tx *gorm.DB) error {
 			// Snapshot viewers inside the transaction so each retry reflects
 			// the current session state at commit time.
 			viewers, err := s.activeViewersInTx(tx, req.ChannelID)
