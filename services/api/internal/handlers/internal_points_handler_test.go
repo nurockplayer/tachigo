@@ -39,10 +39,14 @@ func installInternalPointsDBContextProbe(t *testing.T, db *gorm.DB, key, want an
 	if err := db.Callback().Raw().Before("gorm:raw").Register(name+":raw", rawProbe); err != nil {
 		t.Fatalf("register raw context probe: %v", err)
 	}
+	if err := db.Callback().Row().Before("gorm:row").Register(name+":row", rawProbe); err != nil {
+		t.Fatalf("register row context probe: %v", err)
+	}
 
 	t.Cleanup(func() {
 		_ = db.Callback().Query().Remove(name + ":query")
 		_ = db.Callback().Raw().Remove(name + ":raw")
+		_ = db.Callback().Row().Remove(name + ":row")
 	})
 
 	return func() (int, int) {
