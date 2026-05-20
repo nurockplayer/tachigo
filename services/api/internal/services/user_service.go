@@ -1,6 +1,7 @@
 package services
 
 import (
+	"context"
 	"errors"
 	"strings"
 	"time"
@@ -70,8 +71,16 @@ func (s *UserService) UpdateProfile(id uuid.UUID, input UpdateProfileInput) (*mo
 }
 
 func (s *UserService) ListProviders(userID uuid.UUID) ([]models.AuthProvider, error) {
+	return s.ListProvidersContext(context.Background(), userID)
+}
+
+func (s *UserService) ListProvidersContext(ctx context.Context, userID uuid.UUID) ([]models.AuthProvider, error) {
+	if ctx == nil {
+		ctx = context.Background()
+	}
+
 	var providers []models.AuthProvider
-	if err := s.db.Where("user_id = ?", userID).Find(&providers).Error; err != nil {
+	if err := s.db.WithContext(ctx).Where("user_id = ?", userID).Find(&providers).Error; err != nil {
 		return nil, err
 	}
 	return providers, nil
