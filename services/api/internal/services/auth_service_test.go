@@ -1011,6 +1011,34 @@ func TestUnlinkProvider_MultipleProviders(t *testing.T) {
 	}
 }
 
+func TestUnlinkProviderContext_UsesRequestContext(t *testing.T) {
+	db := newTestDB(t)
+	svc := NewAuthService(db, testConfig())
+
+	userID := uuid.New()
+	if err := db.Create(&models.User{ID: userID, Role: models.RoleViewer}).Error; err != nil {
+		t.Fatalf("create user: %v", err)
+	}
+	if err := db.Create(&models.AuthProvider{UserID: userID, Provider: models.ProviderTwitch, ProviderID: "twitch-ctx"}).Error; err != nil {
+		t.Fatalf("create twitch provider: %v", err)
+	}
+	if err := db.Create(&models.AuthProvider{UserID: userID, Provider: models.ProviderGoogle, ProviderID: "google-ctx"}).Error; err != nil {
+		t.Fatalf("create google provider: %v", err)
+	}
+
+	type unlinkProviderContextKey struct{}
+	key := unlinkProviderContextKey{}
+	seen := installDBContextProbe(t, db, key, "unlink-provider")
+	ctx := context.WithValue(context.Background(), key, "unlink-provider")
+
+	if err := svc.UnlinkProviderContext(ctx, userID, models.ProviderTwitch); err != nil {
+		t.Fatalf("unlink provider: %v", err)
+	}
+	if seen() == 0 {
+		t.Fatal("expected UnlinkProvider DB query to use request context")
+	}
+}
+
 // ─── crypto helpers ───────────────────────────────────────────────────────────
 
 func TestHashToken_Deterministic(t *testing.T) {
