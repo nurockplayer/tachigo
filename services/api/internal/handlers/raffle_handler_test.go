@@ -2,6 +2,7 @@ package handlers_test
 
 import (
 	"bytes"
+	"context"
 	"crypto/sha256"
 	"encoding/hex"
 	"encoding/json"
@@ -26,6 +27,32 @@ import (
 	"github.com/tachigo/tachigo/internal/services"
 	"github.com/tachigo/tachigo/internal/testutil"
 )
+
+type raffleHandlerContextKey struct{}
+
+func installRaffleHandlerDBContextProbe(t *testing.T, db *gorm.DB, key, want any) func() int {
+	t.Helper()
+
+	var seen int
+	name := "test:raffle_handler_db_context:" + uuid.NewString()
+	probe := func(tx *gorm.DB) {
+		if tx.Statement != nil && tx.Statement.Context != nil && tx.Statement.Context.Value(key) == want {
+			seen++
+		}
+	}
+
+	if err := db.Callback().Query().Before("gorm:query").Register(name+":query", probe); err != nil {
+		t.Fatalf("register query context probe: %v", err)
+	}
+
+	t.Cleanup(func() {
+		_ = db.Callback().Query().Remove(name + ":query")
+	})
+
+	return func() int {
+		return seen
+	}
+}
 
 // raffleTestEnv wires only the raffle-related handlers.
 type raffleTestEnv struct {
@@ -225,6 +252,37 @@ func TestRaffle_List(t *testing.T) {
 	raffles := data["raffles"].([]interface{})
 	if len(raffles) != 2 {
 		t.Errorf("want 2 raffles, got %d", len(raffles))
+	}
+}
+
+func TestRaffle_List_UsesRequestContext(t *testing.T) {
+	env := newRaffleTestEnv(t)
+	token := env.registerStreamer(t, "streamerctx", "streamerctx@test.com", "pass1234")
+
+	body, _ := json.Marshal(map[string]string{"title": "Context Raffle"})
+	createReq, _ := http.NewRequest(http.MethodPost, "/api/v1/dashboard/raffles", bytes.NewReader(body))
+	createReq.Header.Set("Content-Type", "application/json")
+	createReq.Header.Set("Authorization", bearer(token))
+	createW := httptest.NewRecorder()
+	env.router.ServeHTTP(createW, createReq)
+	if createW.Code != http.StatusCreated {
+		t.Fatalf("create raffle: want 201, got %d: %s", createW.Code, createW.Body.String())
+	}
+
+	key := raffleHandlerContextKey{}
+	seen := installRaffleHandlerDBContextProbe(t, env.db, key, "raffle-list")
+	ctx := context.WithValue(context.Background(), key, "raffle-list")
+
+	w := httptest.NewRecorder()
+	req, _ := http.NewRequestWithContext(ctx, http.MethodGet, "/api/v1/dashboard/raffles", nil)
+	req.Header.Set("Authorization", bearer(token))
+	env.router.ServeHTTP(w, req)
+
+	if w.Code != http.StatusOK {
+		t.Fatalf("want 200, got %d: %s", w.Code, w.Body.String())
+	}
+	if seen() == 0 {
+		t.Fatal("expected raffle list DB query to use request context")
 	}
 }
 
