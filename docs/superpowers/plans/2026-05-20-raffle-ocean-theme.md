@@ -33,7 +33,7 @@
 docker compose run --no-deps --rm dashboard pnpm test --run apps/dashboard/src/pages/__tests__/RaffleDetailPage.test.tsx
 ```
 
-預期：全部 PASS（約 20 個測試）。若有失敗，先修復再繼續。
+預期：全部 PASS（27 個測試）。若有失敗，先修復再繼續。
 
 - [ ] **Step 2：記錄通過的測試數量**
 
@@ -647,7 +647,7 @@ describe('RaffleDetailPage — winner modal', () => {
 docker compose run --no-deps --rm dashboard pnpm test --run apps/dashboard/src/pages/__tests__/RaffleDetailPage.test.tsx
 ```
 
-預期：原有 20 個測試 + 新增 2 個，共 22 個全部 PASS。
+結果：27/27 全部 PASS。
 
 - [ ] **Step 3：commit**
 
