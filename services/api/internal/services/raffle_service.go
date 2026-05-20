@@ -113,8 +113,16 @@ func (s *RaffleService) GetByID(id, userID uuid.UUID) (*models.Raffle, error) {
 
 // ListByStreamer returns all raffles owned by the user.
 func (s *RaffleService) ListByStreamer(userID uuid.UUID) ([]models.Raffle, error) {
+	return s.ListByStreamerContext(context.Background(), userID)
+}
+
+func (s *RaffleService) ListByStreamerContext(ctx context.Context, userID uuid.UUID) ([]models.Raffle, error) {
+	if ctx == nil {
+		ctx = context.Background()
+	}
+
 	var raffles []models.Raffle
-	if err := s.db.Where("user_id = ?", userID).Order("created_at DESC").Find(&raffles).Error; err != nil {
+	if err := s.db.WithContext(ctx).Where("user_id = ?", userID).Order("created_at DESC").Find(&raffles).Error; err != nil {
 		return nil, err
 	}
 	if raffles == nil {

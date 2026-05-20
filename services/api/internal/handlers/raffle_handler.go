@@ -78,7 +78,7 @@ func (h *RaffleHandler) List(c *gin.Context) {
 		return
 	}
 
-	raffles, err := h.raffleSvc.ListByStreamer(userID)
+	raffles, err := h.raffleSvc.ListByStreamerContext(c.Request.Context(), userID)
 	if err != nil {
 		log.Printf("raffle list: %v", err)
 		internal(c)
