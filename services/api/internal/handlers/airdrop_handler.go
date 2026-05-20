@@ -58,7 +58,7 @@ func (h *AirdropHandler) Airdrop(c *gin.Context) {
 		return
 	}
 
-	result, err := h.airdropSvc.Execute(services.AirdropRequest{
+	result, err := h.airdropSvc.ExecuteContext(c.Request.Context(), services.AirdropRequest{
 		ChannelID: channelID,
 		Amount:    body.Amount,
 		Note:      body.Note,
