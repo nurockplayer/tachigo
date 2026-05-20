@@ -13,14 +13,9 @@ import type {
   UpdateParams,
 } from '@refinedev/core'
 import simpleRestDataProvider from '@refinedev/simple-rest'
-import client from '@/services/api'
+import client, { apiBaseURL } from '@/services/api'
 
-const API_ORIGIN =
-  import.meta.env.VITE_TACHIGO_API_URL
-  ?? import.meta.env.VITE_API_URL
-  ?? 'http://localhost:8080'
-
-const API_URL = `${API_ORIGIN.replace(/\/$/, '')}/api/v1`
+const API_URL = `${apiBaseURL.replace(/\/$/, '')}/api/v1`
 
 const resourcePaths: Record<string, string> = {
   streamers: '/dashboard/streamers',

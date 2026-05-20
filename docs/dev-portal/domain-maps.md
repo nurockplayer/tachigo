@@ -1,5 +1,5 @@
 ---
-title: Domain Maps
+title: 領域地圖
 sidebar_position: 2
 status: active
 owner: engineering
@@ -14,11 +14,11 @@ related_repos:
   - tachiya
 ---
 
-# Domain Maps
+# 領域地圖
 
 Domain Maps 是「我要改某個功能」之前的索引。P0 domains 已整理主要責任、資料流、source、tests 與風險；P1 domains 先保留入口。
 
-## P0 domains
+## P0 領域
 
 ### Points / ledger / watch time
 
@@ -82,9 +82,9 @@ Domain Maps 是「我要改某個功能」之前的索引。P0 domains 已整理
 - Extension runtime config 與 API base URL 不要寫死到 production-only 假設。
 - i18n 文字需同步 `en`、`zh-TW`、`zh-CN`，避免 UI key 缺漏。
 
-## P1 domains
+## P1 領域
 
-| Domain | 狀態 | 入口 |
+| 領域 | 狀態 | 入口 |
 |---|---|---|
 | Raffle / airdrop | _Coming soon_ | [`raffle_service.go`](https://github.com/nurockplayer/tachigo/blob/develop/services/api/internal/services/raffle_service.go), [`airdrop_service.go`](https://github.com/nurockplayer/tachigo/blob/develop/services/api/internal/services/airdrop_service.go) |
 | Claim / spend / coupon redemption | _Coming soon_ | [`claim_service.go`](https://github.com/nurockplayer/tachigo/blob/develop/services/api/internal/services/claim_service.go), [`spend_service.go`](https://github.com/nurockplayer/tachigo/blob/develop/services/api/internal/services/spend_service.go) |

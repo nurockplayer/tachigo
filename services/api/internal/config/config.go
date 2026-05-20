@@ -236,6 +236,34 @@ func ValidateProductionSecrets(cfg *Config) error {
 		return fmt.Errorf("SMTP_HOST must be configured when email-dependent production flows are enabled")
 	}
 
+	// These launch flows are mounted unconditionally in production, so fail fast
+	// before starting with OAuth, extension, or server-to-server credentials missing.
+	requiredValues := []struct {
+		name  string
+		value string
+		flow  string
+	}{
+		{"TWITCH_CLIENT_ID", cfg.OAuth.Twitch.ClientID, "Twitch OAuth and raffle snapshot flows are enabled"},
+		{"TWITCH_CLIENT_SECRET", cfg.OAuth.Twitch.ClientSecret, "Twitch OAuth is enabled"},
+		{"TWITCH_EXTENSION_SECRET", cfg.OAuth.Twitch.ExtensionSecret, "Twitch Extension auth is enabled"},
+		{"GOOGLE_CLIENT_ID", cfg.OAuth.Google.ClientID, "Google OAuth is enabled"},
+		{"GOOGLE_CLIENT_SECRET", cfg.OAuth.Google.ClientSecret, "Google OAuth is enabled"},
+		{"TACHIYA_INTERNAL_SHARED_SECRET", cfg.Internal.TachiyaSharedSecret, "Tachiya coupon handoff is enabled"},
+		{"OAUTH_TOKEN_ENCRYPTION_KEY", cfg.OAuth.TokenEncryptionKey, "OAuth token persistence is enabled"},
+	}
+	for _, required := range requiredValues {
+		if err := validateRequiredProductionValue(required.name, required.value, required.flow); err != nil {
+			return err
+		}
+	}
+
+	return nil
+}
+
+func validateRequiredProductionValue(name, value, flow string) error {
+	if strings.TrimSpace(value) == "" {
+		return fmt.Errorf("%s must be configured when %s in production", name, flow)
+	}
 	return nil
 }
 

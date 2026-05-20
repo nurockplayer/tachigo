@@ -94,6 +94,21 @@ func TestPointsService_GetBalance_AfterEarning(t *testing.T) {
 	}
 }
 
+func TestPointsService_GetBalanceContext_UsesRequestContext(t *testing.T) {
+	svc, _ := newPointsSvc(t)
+	userID := seedViewer(t, svc)
+	key := pointsContextKey("points-balance-context")
+	seen := installDBContextProbe(t, svc.db, key, "points-balance")
+
+	_, err := svc.GetBalanceContext(context.WithValue(context.Background(), key, "points-balance"), userID, "ch_context")
+	if err != nil {
+		t.Fatalf("get balance with context: %v", err)
+	}
+	if seen() == 0 {
+		t.Fatal("expected GetBalanceContext DB operations to carry request context")
+	}
+}
+
 // ─── DeductPoints ────────────────────────────────────────────────────────────
 
 func TestPointsService_DeductPoints_InsufficientBalance(t *testing.T) {
@@ -315,6 +330,20 @@ func TestPointsService_ListTransactions_EmptyWhenNoLedger(t *testing.T) {
 	}
 	if len(txs) != 0 {
 		t.Errorf("want 0 transactions, got %d", len(txs))
+	}
+}
+
+func TestPointsService_ListTransactionsContext_UsesRequestContext(t *testing.T) {
+	svc, _ := newPointsSvc(t)
+	userID := seedViewer(t, svc)
+	key := pointsContextKey("points-history-context")
+	seen := installDBContextProbe(t, svc.db, key, "points-history")
+
+	if _, err := svc.ListTransactionsContext(context.WithValue(context.Background(), key, "points-history"), userID, "ch_context"); err != nil {
+		t.Fatalf("list transactions with context: %v", err)
+	}
+	if seen() == 0 {
+		t.Fatal("expected ListTransactionsContext DB operations to carry request context")
 	}
 }
 

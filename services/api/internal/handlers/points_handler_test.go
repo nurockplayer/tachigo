@@ -1,6 +1,7 @@
 package handlers_test
 
 import (
+	"context"
 	"math"
 	"net/http"
 	"net/http/httptest"
@@ -8,6 +9,7 @@ import (
 	"time"
 
 	"github.com/google/uuid"
+	"gorm.io/gorm"
 
 	"github.com/tachigo/tachigo/internal/handlers"
 	"github.com/tachigo/tachigo/internal/middleware"
@@ -48,6 +50,32 @@ func (e *pointsEnv) registerViewer(t *testing.T, suffix string) (uuid.UUID, stri
 	return user.ID, tokens.AccessToken
 }
 
+type pointsHandlerContextKey struct{}
+
+func installPointsHandlerDBContextProbe(t *testing.T, db *gorm.DB, key, want any) func() int {
+	t.Helper()
+
+	var seen int
+	name := "test:points_handler_db_context:" + uuid.NewString()
+	probe := func(tx *gorm.DB) {
+		if tx.Statement != nil && tx.Statement.Context != nil && tx.Statement.Context.Value(key) == want {
+			seen++
+		}
+	}
+
+	if err := db.Callback().Query().Before("gorm:query").Register(name+":query", probe); err != nil {
+		t.Fatalf("register query context probe: %v", err)
+	}
+
+	t.Cleanup(func() {
+		_ = db.Callback().Query().Remove(name + ":query")
+	})
+
+	return func() int {
+		return seen
+	}
+}
+
 func TestPointsHandler_GetBalance_ReturnsWrappedBalances(t *testing.T) {
 	e := newPointsEnv(t)
 	userID, token := e.registerViewer(t, "balance")
@@ -75,6 +103,26 @@ func TestPointsHandler_GetBalance_ReturnsWrappedBalances(t *testing.T) {
 	}
 	if data["cumulative_total"] != float64(100) {
 		t.Fatalf("cumulative_total: want 100, got %v", data["cumulative_total"])
+	}
+}
+
+func TestPointsHandler_GetBalance_UsesRequestContext(t *testing.T) {
+	e := newPointsEnv(t)
+	_, token := e.registerViewer(t, "balance_context")
+	key := pointsHandlerContextKey{}
+	seen := installPointsHandlerDBContextProbe(t, e.db, key, "points-balance")
+	ctx := context.WithValue(context.Background(), key, "points-balance")
+
+	req := httptest.NewRequestWithContext(ctx, http.MethodGet, "/api/v1/users/me/points?channel_id=ch_abc", nil)
+	req.Header.Set("Authorization", "Bearer "+token)
+	rec := httptest.NewRecorder()
+	e.router.ServeHTTP(rec, req)
+
+	if rec.Code != http.StatusOK {
+		t.Fatalf("want 200, got %d: %s", rec.Code, rec.Body.String())
+	}
+	if seen() == 0 {
+		t.Fatal("expected GetBalance handler to pass request context to GORM")
 	}
 }
 
@@ -156,6 +204,26 @@ func TestPointsHandler_GetBalance_RequiresChannelID(t *testing.T) {
 	}
 	if resp["error"] != "channel_id is required" {
 		t.Fatalf("error: want channel_id is required, got %v", resp["error"])
+	}
+}
+
+func TestPointsHandler_GetHistory_UsesRequestContext(t *testing.T) {
+	e := newPointsEnv(t)
+	_, token := e.registerViewer(t, "history_context")
+	key := pointsHandlerContextKey{}
+	seen := installPointsHandlerDBContextProbe(t, e.db, key, "points-history")
+	ctx := context.WithValue(context.Background(), key, "points-history")
+
+	req := httptest.NewRequestWithContext(ctx, http.MethodGet, "/api/v1/users/me/points/history?channel_id=ch_abc", nil)
+	req.Header.Set("Authorization", "Bearer "+token)
+	rec := httptest.NewRecorder()
+	e.router.ServeHTTP(rec, req)
+
+	if rec.Code != http.StatusOK {
+		t.Fatalf("want 200, got %d: %s", rec.Code, rec.Body.String())
+	}
+	if seen() == 0 {
+		t.Fatal("expected GetHistory handler to pass request context to GORM")
 	}
 }
 

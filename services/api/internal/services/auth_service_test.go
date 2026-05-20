@@ -10,6 +10,7 @@ import (
 
 	"github.com/google/uuid"
 	"golang.org/x/oauth2"
+	"gorm.io/gorm"
 
 	"github.com/tachigo/tachigo/internal/models"
 )
@@ -138,6 +139,119 @@ func TestOAuthUser_DoesNotPersistUnusedGoogleTokens(t *testing.T) {
 	}
 	if ap.TokenExpiresAt != nil {
 		t.Fatalf("google token expiry should not be persisted, got %v", ap.TokenExpiresAt)
+	}
+}
+
+func TestRecoverOAuthProviderConflictReturnsExistingAccount(t *testing.T) {
+	db := newTestDB(t)
+	svc := NewAuthService(db, testConfig())
+
+	email := "oauth-race@example.com"
+	username := "oauth-race"
+	seededUser := models.User{
+		Email:    &email,
+		Username: &username,
+		Role:     models.RoleViewer,
+	}
+	if err := db.Create(&seededUser).Error; err != nil {
+		t.Fatalf("seed user: %v", err)
+	}
+
+	const providerID = "google-race-provider"
+	if err := db.Create(&models.AuthProvider{
+		UserID:     seededUser.ID,
+		Provider:   models.ProviderGoogle,
+		ProviderID: providerID,
+	}).Error; err != nil {
+		t.Fatalf("seed auth provider: %v", err)
+	}
+
+	user, tokens, err := svc.recoverOAuthProviderConflict(
+		context.Background(),
+		models.ProviderGoogle,
+		providerID,
+		&oauth2.Token{AccessToken: "google-access-token"},
+	)
+	if err != nil {
+		t.Fatalf("recoverOAuthProviderConflict: %v", err)
+	}
+	if user == nil || tokens == nil || tokens.RefreshToken == "" {
+		t.Fatalf("expected user and tokens, got user=%#v tokens=%#v", user, tokens)
+	}
+	if user.ID != seededUser.ID {
+		t.Fatalf("expected callback to return seeded user %s, got %s", seededUser.ID, user.ID)
+	}
+
+	var providerCount int64
+	db.Model(&models.AuthProvider{}).Where("provider = ? AND provider_id = ?", models.ProviderGoogle, providerID).Count(&providerCount)
+	if providerCount != 1 {
+		t.Fatalf("expected one auth provider row, got %d", providerCount)
+	}
+
+	var userCount int64
+	db.Model(&models.User{}).Where("email = ?", email).Count(&userCount)
+	if userCount != 1 {
+		t.Fatalf("expected one logical user, got %d", userCount)
+	}
+
+	var tokenCount int64
+	db.Model(&models.RefreshToken{}).Where("user_id = ?", seededUser.ID).Count(&tokenCount)
+	if tokenCount != 1 {
+		t.Fatalf("expected one refresh token for recovered callback, got %d", tokenCount)
+	}
+}
+
+func TestUpsertOAuthUser_DuplicateUsernameCreateReturnsStableError(t *testing.T) {
+	db := newTestDB(t)
+	svc := NewAuthService(db, testConfig())
+
+	takenUsername := "oauth-taken"
+	existingEmail := "oauth-taken@example.com"
+	if err := db.Create(&models.User{
+		Username: &takenUsername,
+		Email:    &existingEmail,
+		Role:     models.RoleViewer,
+	}).Error; err != nil {
+		t.Fatalf("seed user: %v", err)
+	}
+
+	user, tokens, err := svc.upsertOAuthUser(
+		context.Background(),
+		models.ProviderGoogle,
+		"google-duplicate-username",
+		takenUsername,
+		"oauth-new@example.com",
+		nil,
+		&oauth2.Token{AccessToken: "google-access-token"},
+	)
+	if !errors.Is(err, ErrUsernameExists) {
+		t.Fatalf("want ErrUsernameExists, got %v (user=%#v tokens=%#v)", err, user, tokens)
+	}
+
+	var providerCount int64
+	db.Model(&models.AuthProvider{}).Where("provider_id = ?", "google-duplicate-username").Count(&providerCount)
+	if providerCount != 0 {
+		t.Fatalf("auth provider should not be created after username conflict, got %d rows", providerCount)
+	}
+}
+
+func TestMapOAuthUserUniqueErrorReturnsStableEmailError(t *testing.T) {
+	db := newTestDB(t)
+	svc := NewAuthService(db, testConfig())
+
+	email := "oauth-email-race@example.com"
+	username := "oauth-email-race"
+	if err := db.Create(&models.User{
+		Username: &username,
+		Email:    &email,
+		Role:     models.RoleViewer,
+	}).Error; err != nil {
+		t.Fatalf("seed user: %v", err)
+	}
+
+	err := svc.mapOAuthUserUniqueError(context.Background(), "new-oauth-user", email, gorm.ErrDuplicatedKey)
+	if !errors.Is(err, ErrEmailExists) {
+		t.Fatalf("want ErrEmailExists, got %v", err)
 	}
 }
 

@@ -9,130 +9,159 @@ import (
 func TestValidateProductionSecrets(t *testing.T) {
 	validAccess := "access-secret-with-at-least-32-chars!"
 	validRefresh := "refresh-secret-with-at-least-32-char"
+	validConfig := func() *Config {
+		return &Config{
+			JWT: JWTConfig{
+				AccessSecret:  validAccess,
+				RefreshSecret: validRefresh,
+			},
+			SMTP: SMTPConfig{
+				Host: "smtp.example.com",
+			},
+			OAuth: OAuthConfig{
+				TokenEncryptionKey: "oauth-token-encryption-secret",
+				Twitch: TwitchConfig{
+					ClientID:        "twitch-client-id",
+					ClientSecret:    "twitch-client-secret",
+					ExtensionSecret: "twitch-extension-secret",
+				},
+				Google: GoogleConfig{
+					ClientID:     "google-client-id",
+					ClientSecret: "google-client-secret",
+				},
+			},
+			Internal: InternalConfig{
+				TachiyaSharedSecret: "tachiya-shared-secret",
+			},
+		}
+	}
+	withConfig := func(mutate func(*Config)) func() *Config {
+		return func() *Config {
+			cfg := validConfig()
+			mutate(cfg)
+			return cfg
+		}
+	}
 
 	tests := []struct {
 		name    string
-		cfg     *Config
+		cfg     func() *Config
 		wantErr string
 	}{
 		{
 			name: "accepts valid production secrets",
-			cfg: &Config{
-				JWT: JWTConfig{
-					AccessSecret:  validAccess,
-					RefreshSecret: validRefresh,
-				},
-				SMTP: SMTPConfig{
-					Host: "smtp.example.com",
-				},
-			},
+			cfg:  validConfig,
 		},
 		{
 			name: "rejects empty access secret",
-			cfg: &Config{
-				JWT: JWTConfig{
-					AccessSecret:  "",
-					RefreshSecret: validRefresh,
-				},
-				SMTP: SMTPConfig{
-					Host: "smtp.example.com",
-				},
-			},
+			cfg: withConfig(func(cfg *Config) {
+				cfg.JWT.AccessSecret = ""
+			}),
 			wantErr: "JWT_ACCESS_SECRET",
 		},
 		{
 			name: "rejects empty refresh secret",
-			cfg: &Config{
-				JWT: JWTConfig{
-					AccessSecret:  validAccess,
-					RefreshSecret: "",
-				},
-				SMTP: SMTPConfig{
-					Host: "smtp.example.com",
-				},
-			},
+			cfg: withConfig(func(cfg *Config) {
+				cfg.JWT.RefreshSecret = ""
+			}),
 			wantErr: "JWT_REFRESH_SECRET",
 		},
 		{
 			name: "rejects default access secret",
-			cfg: &Config{
-				JWT: JWTConfig{
-					AccessSecret:  defaultJWTAccessSecret,
-					RefreshSecret: validRefresh,
-				},
-				SMTP: SMTPConfig{
-					Host: "smtp.example.com",
-				},
-			},
+			cfg: withConfig(func(cfg *Config) {
+				cfg.JWT.AccessSecret = defaultJWTAccessSecret
+			}),
 			wantErr: "default",
 		},
 		{
 			name: "rejects default refresh secret",
-			cfg: &Config{
-				JWT: JWTConfig{
-					AccessSecret:  validAccess,
-					RefreshSecret: defaultJWTRefreshSecret,
-				},
-				SMTP: SMTPConfig{
-					Host: "smtp.example.com",
-				},
-			},
+			cfg: withConfig(func(cfg *Config) {
+				cfg.JWT.RefreshSecret = defaultJWTRefreshSecret
+			}),
 			wantErr: "default",
 		},
 		{
 			name: "rejects short access secret",
-			cfg: &Config{
-				JWT: JWTConfig{
-					AccessSecret:  "short-secret",
-					RefreshSecret: validRefresh,
-				},
-				SMTP: SMTPConfig{
-					Host: "smtp.example.com",
-				},
-			},
+			cfg: withConfig(func(cfg *Config) {
+				cfg.JWT.AccessSecret = "short-secret"
+			}),
 			wantErr: "at least 32 characters",
 		},
 		{
 			name: "rejects short refresh secret",
-			cfg: &Config{
-				JWT: JWTConfig{
-					AccessSecret:  validAccess,
-					RefreshSecret: "short-secret",
-				},
-				SMTP: SMTPConfig{
-					Host: "smtp.example.com",
-				},
-			},
+			cfg: withConfig(func(cfg *Config) {
+				cfg.JWT.RefreshSecret = "short-secret"
+			}),
 			wantErr: "at least 32 characters",
 		},
 		{
 			name: "rejects identical secrets",
-			cfg: &Config{
-				JWT: JWTConfig{
-					AccessSecret:  validAccess,
-					RefreshSecret: validAccess,
-				},
-				SMTP: SMTPConfig{
-					Host: "smtp.example.com",
-				},
-			},
+			cfg: withConfig(func(cfg *Config) {
+				cfg.JWT.RefreshSecret = cfg.JWT.AccessSecret
+			}),
 			wantErr: "must be different",
 		},
 		{
 			name: "rejects missing SMTP host",
-			cfg: &Config{
-				JWT: JWTConfig{
-					AccessSecret:  validAccess,
-					RefreshSecret: validRefresh,
-				},
-			},
+			cfg: withConfig(func(cfg *Config) {
+				cfg.SMTP.Host = ""
+			}),
 			wantErr: "SMTP_HOST",
+		},
+		{
+			name: "rejects missing Twitch OAuth client id",
+			cfg: withConfig(func(cfg *Config) {
+				cfg.OAuth.Twitch.ClientID = ""
+			}),
+			wantErr: "TWITCH_CLIENT_ID",
+		},
+		{
+			name: "rejects missing Twitch OAuth client secret",
+			cfg: withConfig(func(cfg *Config) {
+				cfg.OAuth.Twitch.ClientSecret = ""
+			}),
+			wantErr: "TWITCH_CLIENT_SECRET",
+		},
+		{
+			name: "rejects missing Twitch extension secret",
+			cfg: withConfig(func(cfg *Config) {
+				cfg.OAuth.Twitch.ExtensionSecret = ""
+			}),
+			wantErr: "TWITCH_EXTENSION_SECRET",
+		},
+		{
+			name: "rejects missing Google OAuth client id",
+			cfg: withConfig(func(cfg *Config) {
+				cfg.OAuth.Google.ClientID = ""
+			}),
+			wantErr: "GOOGLE_CLIENT_ID",
+		},
+		{
+			name: "rejects missing Google OAuth client secret",
+			cfg: withConfig(func(cfg *Config) {
+				cfg.OAuth.Google.ClientSecret = ""
+			}),
+			wantErr: "GOOGLE_CLIENT_SECRET",
+		},
+		{
+			name: "rejects missing Tachiya shared secret",
+			cfg: withConfig(func(cfg *Config) {
+				cfg.Internal.TachiyaSharedSecret = ""
+			}),
+			wantErr: "TACHIYA_INTERNAL_SHARED_SECRET",
+		},
+		{
+			name: "rejects missing OAuth token encryption key",
+			cfg: withConfig(func(cfg *Config) {
+				cfg.OAuth.TokenEncryptionKey = ""
+			}),
+			wantErr: "OAUTH_TOKEN_ENCRYPTION_KEY",
 		},
 	}
 
 	for _, tc := range tests {
 		t.Run(tc.name, func(t *testing.T) {
-			err := ValidateProductionSecrets(tc.cfg)
+			err := ValidateProductionSecrets(tc.cfg())
 			if tc.wantErr == "" {
 				if err != nil {
 					t.Fatalf("expected nil error, got %v", err)

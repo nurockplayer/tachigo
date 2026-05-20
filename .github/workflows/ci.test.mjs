@@ -2690,6 +2690,9 @@ test('develop merge issue closer only runs after merged PRs close into develop',
 test('notify rebase workflow uses read-only pull request permission', async () => {
   const parsedWorkflow = parseYaml(notifyRebaseNeededWorkflowPath)
 
+  assert.deepEqual(parsedWorkflow.on.pull_request_target.types, ['closed'])
+  assert.deepEqual(parsedWorkflow.on.pull_request_target.branches, ['develop'])
+  assert.equal(parsedWorkflow.on.pull_request, undefined)
   assert.equal(parsedWorkflow.permissions.issues, 'write')
   assert.equal(parsedWorkflow.permissions['pull-requests'], 'read')
 })

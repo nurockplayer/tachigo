@@ -42,7 +42,7 @@ func (h *PointsHandler) GetBalance(c *gin.Context) {
 		return
 	}
 
-	balance, err := h.pointsSvc.GetBalance(userID, channelID)
+	balance, err := h.pointsSvc.GetBalanceContext(c.Request.Context(), userID, channelID)
 	if err != nil {
 		internal(c)
 		return
@@ -77,7 +77,7 @@ func (h *PointsHandler) GetHistory(c *gin.Context) {
 		return
 	}
 
-	txs, err := h.pointsSvc.ListTransactions(userID, channelID)
+	txs, err := h.pointsSvc.ListTransactionsContext(c.Request.Context(), userID, channelID)
 	if err != nil {
 		internal(c)
 		return

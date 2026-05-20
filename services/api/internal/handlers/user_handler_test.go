@@ -2,6 +2,7 @@ package handlers_test
 
 import (
 	"bytes"
+	"context"
 	"crypto/ecdsa"
 	"encoding/hex"
 	"fmt"
@@ -13,9 +14,37 @@ import (
 
 	"github.com/ethereum/go-ethereum/common"
 	"github.com/ethereum/go-ethereum/crypto"
+	"github.com/google/uuid"
+	"gorm.io/gorm"
 
 	"github.com/tachigo/tachigo/internal/models"
 )
+
+type userHandlerContextKey struct{}
+
+func installUserHandlerDBContextProbe(t *testing.T, db *gorm.DB, key, want any) func() int {
+	t.Helper()
+
+	var seen int
+	name := "test:user_handler_db_context:" + uuid.NewString()
+	probe := func(tx *gorm.DB) {
+		if tx.Statement != nil && tx.Statement.Context != nil && tx.Statement.Context.Value(key) == want {
+			seen++
+		}
+	}
+
+	if err := db.Callback().Query().Before("gorm:query").Register(name+":query", probe); err != nil {
+		t.Fatalf("register query context probe: %v", err)
+	}
+
+	t.Cleanup(func() {
+		_ = db.Callback().Query().Remove(name + ":query")
+	})
+
+	return func() int {
+		return seen
+	}
+}
 
 func TestMeHandler_Success(t *testing.T) {
 	env := newTestEnv(t)
@@ -110,6 +139,27 @@ func TestListProvidersHandler_Success(t *testing.T) {
 	// Register creates an email provider record
 	if len(providers) == 0 {
 		t.Error("expected at least one provider after registration")
+	}
+}
+
+func TestListProvidersHandler_UsesRequestContext(t *testing.T) {
+	env := newTestEnv(t)
+	accessToken, _ := env.registerUser(t, "provctx", "provctx@example.com", "password123")
+
+	key := userHandlerContextKey{}
+	seen := installUserHandlerDBContextProbe(t, env.db, key, "list-providers")
+	ctx := context.WithValue(context.Background(), key, "list-providers")
+
+	req := httptest.NewRequest(http.MethodGet, "/api/v1/users/me/providers", nil).WithContext(ctx)
+	req.Header.Set("Authorization", "Bearer "+accessToken)
+	w := httptest.NewRecorder()
+	env.router.ServeHTTP(w, req)
+
+	if w.Code != http.StatusOK {
+		t.Fatalf("want 200, got %d: %s", w.Code, w.Body.String())
+	}
+	if seen() == 0 {
+		t.Fatal("expected ListProviders DB query to use request context")
 	}
 }
 

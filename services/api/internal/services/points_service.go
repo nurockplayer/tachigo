@@ -67,7 +67,11 @@ func (s *PointsService) dbWithContext(ctx context.Context) *gorm.DB {
 // GetBalance wraps WatchService.GetBalance and returns a PointsBalance struct.
 // Returns zeroed balance if no ledger exists yet.
 func (s *PointsService) GetBalance(userID uuid.UUID, channelID string) (*PointsBalance, error) {
-	spendable, cumulative, err := s.watchSvc.GetBalance(userID, channelID)
+	return s.GetBalanceContext(context.Background(), userID, channelID)
+}
+
+func (s *PointsService) GetBalanceContext(ctx context.Context, userID uuid.UUID, channelID string) (*PointsBalance, error) {
+	spendable, cumulative, err := s.watchSvc.GetBalanceContext(ctx, userID, channelID)
 	if err != nil {
 		return nil, err
 	}
@@ -79,8 +83,13 @@ func (s *PointsService) GetBalance(userID uuid.UUID, channelID string) (*PointsB
 
 // ListTransactions returns the most recent 50 transactions for a viewer in a channel.
 func (s *PointsService) ListTransactions(userID uuid.UUID, channelID string) ([]models.PointsTransaction, error) {
+	return s.ListTransactionsContext(context.Background(), userID, channelID)
+}
+
+func (s *PointsService) ListTransactionsContext(ctx context.Context, userID uuid.UUID, channelID string) ([]models.PointsTransaction, error) {
+	db := s.dbWithContext(ctx)
 	var ledger models.PointsLedger
-	if err := s.db.Where("user_id = ? AND channel_id = ?", userID, channelID).First(&ledger).Error; err != nil {
+	if err := db.Where("user_id = ? AND channel_id = ?", userID, channelID).First(&ledger).Error; err != nil {
 		if errors.Is(err, gorm.ErrRecordNotFound) {
 			return []models.PointsTransaction{}, nil
 		}
@@ -88,7 +97,7 @@ func (s *PointsService) ListTransactions(userID uuid.UUID, channelID string) ([]
 	}
 
 	var txs []models.PointsTransaction
-	err := s.db.Where("ledger_id = ?", ledger.ID).
+	err := db.Where("ledger_id = ?", ledger.ID).
 		Order("created_at DESC, id DESC").
 		Limit(50).
 		Find(&txs).Error

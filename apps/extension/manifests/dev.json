@@ -1,7 +1,7 @@
 {
   "manifest_version": 3,
-  "name": "Tachimint",
-  "description": "Tachimint Chrome sidepanel extension.",
+  "name": "Tachimint Dev",
+  "description": "Tachimint Chrome sidepanel extension for local development.",
   "version": "0.0.1",
   "permissions": ["sidePanel", "storage", "activeTab"],
   "background": {

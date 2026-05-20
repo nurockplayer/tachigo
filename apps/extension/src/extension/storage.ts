@@ -1,6 +1,7 @@
 import { createDefaultDemoState, sanitizeDemoState, type DemoState } from './types.ts'
 
-const STORAGE_KEY = 'tachigo.sidepanel.demo-state.v2'
+const STORAGE_KEY = 'tachigo.sidepanel.app-state.v3'
+const LEGACY_STORAGE_KEY = 'tachigo.sidepanel.demo-state.v2'
 
 function getChromeStorageArea() {
   return globalThis.chrome?.storage?.local
@@ -57,7 +58,7 @@ function warnStorageFailure(context: string, error: unknown) {
   console.warn(context, error)
 }
 
-function getLocalStorageState(): DemoState | null {
+function getLocalStorageState(key: string): DemoState | null {
   if (typeof window === 'undefined') {
     return null
   }
@@ -65,7 +66,7 @@ function getLocalStorageState(): DemoState | null {
   let raw: string | null
 
   try {
-    raw = window.localStorage.getItem(STORAGE_KEY)
+    raw = window.localStorage.getItem(key)
   } catch {
     return null
   }
@@ -93,13 +94,13 @@ function setLocalStorageState(state: DemoState) {
   }
 }
 
-function clearLocalStorageState() {
+function clearLocalStorageState(key: string) {
   if (typeof window === 'undefined') {
     return
   }
 
   try {
-    window.localStorage.removeItem(STORAGE_KEY)
+    window.localStorage.removeItem(key)
   } catch {
     // Ignore localStorage removal failures in restricted environments.
   }
@@ -123,13 +124,19 @@ export async function loadDemoState(): Promise<DemoState> {
     }
   }
 
-  const legacyState = getLocalStorageState()
+  const localState = getLocalStorageState(STORAGE_KEY)
+
+  if (localState) {
+    return localState
+  }
+
+  const legacyState = getLocalStorageState(LEGACY_STORAGE_KEY)
 
   if (legacyState) {
     if (chromeStorage) {
       await setChromeStoredState(legacyState)
         .then(() => {
-          clearLocalStorageState()
+          clearLocalStorageState(LEGACY_STORAGE_KEY)
         })
         .catch((error) => {
           warnStorageFailure(

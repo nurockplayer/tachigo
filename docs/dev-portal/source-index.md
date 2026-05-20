@@ -1,5 +1,5 @@
 ---
-title: Source Index
+title: 來源索引
 sidebar_position: 5
 status: active
 owner: engineering
@@ -15,11 +15,11 @@ related_repos:
   - tachiya
 ---
 
-# Source Index
+# 來源索引
 
 這頁承接原本 `docs/README.md` 的 taxonomy：Markdown 仍是 source of truth，Dev Portal 只把入口整理得更容易掃描。
 
-## Directory taxonomy
+## 目錄分類
 
 | 位置 | 用途 | 命名 |
 |---|---|---|
@@ -31,7 +31,7 @@ related_repos:
 | `docs/superpowers/plans/` | 實作前計畫與完成後的執行紀錄 | `YYYY-MM-DD-<feature>.md` |
 | `plans/` | repo 既有工作計畫或執行紀錄 | `<feature-slug>.md` |
 
-## Root source of truth
+## 核心 Source of Truth
 
 | 文件 | 定位 |
 |---|---|
@@ -47,7 +47,7 @@ related_repos:
 | [uuid-v7.md](/tachigo/uuid-v7) | UUID 版本策略 |
 | [watch-to-points-design.md](/tachigo/watch-to-points-design) | Watch-to-points 已完成設計 |
 
-## Active plans / proposals
+## 進行中計畫與提案
 
 | 文件 | 定位 |
 |---|---|
@@ -57,7 +57,7 @@ related_repos:
 | [openapi-codegen-flow.md](/tachigo/openapi-codegen-flow) | #401 OpenAPI → TypeScript contracts / codegen rollout 計畫 |
 | [tachigo Dev Portal spec](/tachigo/superpowers/specs/2026-05-14-project-atlas-design) | #674 Dev Portal 設計規格；命名已避開 atlasgo tooling 混淆 |
 
-## Root reference / discussion notes
+## 參考與討論文件
 
 | 文件 | 定位 |
 |---|---|
@@ -65,15 +65,15 @@ related_repos:
 | [feature-discussion.md](/tachigo/feature-discussion) | 早期產品討論紀錄；仍保留供背景參考，不得單獨視為 implementation source of truth |
 | [tachimint-loyalty-claim-boundary.md](/tachigo/tachimint-loyalty-claim-boundary) | Tachimint / claim flow 邊界討論短文件，不是正式 architecture source of truth |
 
-## Dev Portal operations
+## 開發者入口運維
 
 | 文件 | 定位 |
 |---|---|
 | [deployment.md](/tachigo/dev-portal/deployment) | Cloudflare Pages 手動連 repo、branch deploy / PR preview、公開 URL 驗證與 rollback/readback checklist |
 
-## Code source map
+## 程式碼來源對照
 
-| Area | Source |
+| 區域 | 原始碼 |
 |---|---|
 | API bootstrap / router | [`cmd/server`](https://github.com/nurockplayer/tachigo/tree/develop/services/api/cmd/server), [`internal/router/router.go`](https://github.com/nurockplayer/tachigo/blob/develop/services/api/internal/router/router.go) |
 | API handlers | [`services/api/internal/handlers`](https://github.com/nurockplayer/tachigo/tree/develop/services/api/internal/handlers) |
@@ -85,7 +85,7 @@ related_repos:
 | API client package | [`packages/api-client`](https://github.com/nurockplayer/tachigo/tree/develop/packages/api-client) |
 | Docs portal | [`apps/docs`](https://github.com/nurockplayer/tachigo/tree/develop/apps/docs), [`docs/dev-portal`](https://github.com/nurockplayer/tachigo/tree/develop/docs/dev-portal) |
 
-## Naming rules
+## 命名規則
 
 - 目前仍是 source of truth 的文件不加日期，例如 `architecture.md`、`tokenomics.md`。
 - 歷史紀錄與決策紀錄使用日期開頭，例如 `2026-04-30-monorepo-directory-refactor.md`。

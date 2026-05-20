@@ -1,6 +1,7 @@
 package services
 
 import (
+	"context"
 	"errors"
 	"math"
 	"sync"
@@ -38,6 +39,67 @@ func seedAirdropViewer(t *testing.T, db *gorm.DB, channelID string, accumulatedS
 	}
 
 	return userID
+}
+
+func installAirdropDBContextProbe(t *testing.T, db *gorm.DB, key, expected any) func() int {
+	t.Helper()
+
+	var mu sync.Mutex
+	seen := 0
+	record := func(tx *gorm.DB) {
+		if tx.Statement.Context.Value(key) != expected {
+			return
+		}
+		mu.Lock()
+		seen++
+		mu.Unlock()
+	}
+
+	queryName := "test:airdrop_context_probe_query"
+	rawName := "test:airdrop_context_probe_raw"
+	if err := db.Callback().Query().Before("gorm:query").Register(queryName, record); err != nil {
+		t.Fatalf("register query context probe: %v", err)
+	}
+	if err := db.Callback().Raw().Before("gorm:raw").Register(rawName, record); err != nil {
+		t.Fatalf("register raw context probe: %v", err)
+	}
+	t.Cleanup(func() {
+		_ = db.Callback().Query().Remove(queryName)
+		_ = db.Callback().Raw().Remove(rawName)
+	})
+
+	return func() int {
+		mu.Lock()
+		defer mu.Unlock()
+		return seen
+	}
+}
+
+func TestAirdrop_ExecuteContextUsesRequestContext(t *testing.T) {
+	db := newTestDB(t)
+	watchSvc := NewWatchService(db)
+	pointsSvc := NewPointsService(db, watchSvc)
+	configSvc := NewChannelConfigService(db)
+	svc := NewAirdropService(db, pointsSvc, configSvc)
+
+	channelID := "ch_context"
+	seedAirdropViewer(t, db, channelID, 60)
+
+	type contextKey string
+	key := contextKey("airdrop-context-probe")
+	ctx := context.WithValue(context.Background(), key, "request-context")
+	seen := installAirdropDBContextProbe(t, db, key, "request-context")
+
+	_, err := svc.ExecuteContext(ctx, AirdropRequest{
+		ChannelID: channelID,
+		Amount:    100,
+	})
+	if err != nil {
+		t.Fatalf("execute context: %v", err)
+	}
+	if seen() == 0 {
+		t.Fatal("expected airdrop DB operations to use request context")
+	}
 }
 
 func TestAirdrop_NoActiveSessions(t *testing.T) {

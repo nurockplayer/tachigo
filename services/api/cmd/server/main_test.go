@@ -12,6 +12,9 @@ import (
 	"sync/atomic"
 	"testing"
 	"time"
+
+	"github.com/tachigo/tachigo/internal/config"
+	"github.com/tachigo/tachigo/internal/services"
 )
 
 func TestServerStartupDoesNotRunSchemaDDL(t *testing.T) {
@@ -101,7 +104,7 @@ func TestServerStartupIsSplitByResponsibility(t *testing.T) {
 		"func wire(db *gorm.DB, cfg *config.Config, ctx context.Context) *gin.Engine",
 		"services.NewAuthService(db, cfg)",
 		"context.WithTimeout(ctx, 10*time.Second)",
-		"services.NewRaffleScheduler(raffleSvc).Start(ctx)",
+		"startRaffleSchedulerIfEnabled(ctx, cfg, raffleSvc)",
 		"router.New(",
 	} {
 		if !strings.Contains(wiringSource, want) {
@@ -111,6 +114,53 @@ func TestServerStartupIsSplitByResponsibility(t *testing.T) {
 	if strings.Contains(wiringSource, "context.WithTimeout(context.Background(), 10*time.Second)") {
 		t.Fatalf("Sepolia RPC dial timeout should inherit the server context")
 	}
+}
+
+func TestStartRaffleSchedulerIfEnabledRespectsConfig(t *testing.T) {
+	originalFactory := raffleSchedulerFactory
+	defer func() { raffleSchedulerFactory = originalFactory }()
+
+	var starts atomic.Int32
+	raffleSchedulerFactory = func(_ *services.RaffleService) raffleSchedulerStarter {
+		return fakeRaffleSchedulerStarter{starts: &starts}
+	}
+
+	startRaffleSchedulerIfEnabled(context.Background(), &config.Config{
+		Server: config.ServerConfig{EnableScheduler: false},
+	}, nil)
+	if got := starts.Load(); got != 0 {
+		t.Fatalf("disabled scheduler starts: want 0, got %d", got)
+	}
+
+	startRaffleSchedulerIfEnabled(context.Background(), &config.Config{
+		Server: config.ServerConfig{EnableScheduler: true},
+	}, nil)
+	if got := starts.Load(); got != 1 {
+		t.Fatalf("enabled scheduler starts: want 1, got %d", got)
+	}
+}
+
+func TestStartRaffleSchedulerIfEnabledDefaultsToEnabledForNilConfig(t *testing.T) {
+	originalFactory := raffleSchedulerFactory
+	defer func() { raffleSchedulerFactory = originalFactory }()
+
+	var starts atomic.Int32
+	raffleSchedulerFactory = func(_ *services.RaffleService) raffleSchedulerStarter {
+		return fakeRaffleSchedulerStarter{starts: &starts}
+	}
+
+	startRaffleSchedulerIfEnabled(context.Background(), nil, nil)
+	if got := starts.Load(); got != 1 {
+		t.Fatalf("nil config scheduler starts: want 1, got %d", got)
+	}
+}
+
+type fakeRaffleSchedulerStarter struct {
+	starts *atomic.Int32
+}
+
+func (f fakeRaffleSchedulerStarter) Start(context.Context) {
+	f.starts.Add(1)
 }
 
 func TestHTTPServerConfiguresProductionTimeouts(t *testing.T) {

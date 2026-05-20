@@ -27,4 +27,20 @@ describe('api client base URL env', () => {
 
     expect(client.defaults.baseURL).toBe('https://legacy.example.test')
   })
+
+  it('uses localhost only for non-production builds without explicit API env', async () => {
+    vi.stubEnv('DEV', true)
+    vi.stubEnv('PROD', false)
+
+    const client = await loadApiClient()
+
+    expect(client.defaults.baseURL).toBe('http://localhost:8080')
+  })
+
+  it('fails closed in production builds without explicit API env', async () => {
+    vi.stubEnv('DEV', false)
+    vi.stubEnv('PROD', true)
+
+    await expect(loadApiClient()).rejects.toThrow('VITE_TACHIGO_API_URL is required for production dashboard builds')
+  })
 })

@@ -10,6 +10,7 @@ const mockClient = vi.hoisted(() => ({
 
 vi.mock('@/services/api', () => ({
   default: mockClient,
+  apiBaseURL: 'https://api.example.test/',
 }))
 
 describe('dataProvider API URL', () => {

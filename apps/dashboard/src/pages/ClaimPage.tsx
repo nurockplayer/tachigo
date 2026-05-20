@@ -36,6 +36,17 @@ function Shell({ children }: { children: ReactNode }) {
   )
 }
 
+function NotFoundMessage() {
+  return (
+    <Shell>
+      <div className="text-center space-y-2">
+        <h1 className="text-2xl font-bold">找不到此領獎連結</h1>
+        <p className="text-muted-foreground">連結可能有誤，請確認 Email 中的連結是否完整。</p>
+      </div>
+    </Shell>
+  )
+}
+
 export default function ClaimPage() {
   const { token = '' } = useParams<{ token: string }>()
   const [state, setState] = useState<ViewState>({ phase: 'loading' })
@@ -45,7 +56,6 @@ export default function ClaimPage() {
 
   useEffect(() => {
     if (!token) {
-      setState({ phase: 'not_found' })
       return
     }
     let cancelled = false
@@ -71,6 +81,10 @@ export default function ClaimPage() {
       cancelled = true
     }
   }, [token])
+
+  if (!token) {
+    return <NotFoundMessage />
+  }
 
   async function handleSubmit(e: FormEvent) {
     e.preventDefault()
@@ -120,14 +134,7 @@ export default function ClaimPage() {
   }
 
   if (state.phase === 'not_found') {
-    return (
-      <Shell>
-        <div className="text-center space-y-2">
-          <h1 className="text-2xl font-bold">找不到此領獎連結</h1>
-          <p className="text-muted-foreground">連結可能有誤，請確認 Email 中的連結是否完整。</p>
-        </div>
-      </Shell>
-    )
+    return <NotFoundMessage />
   }
 
   if (state.phase === 'expired') {

@@ -1,10 +1,23 @@
 import axios, { type AxiosRequestConfig } from 'axios'
 
-export const apiBaseURL: string =
-  import.meta.env.VITE_TACHIGO_API_URL ??
-  // Temporary fallback for existing local env files during the key migration.
-  import.meta.env.VITE_API_URL ??
-  'http://localhost:8080'
+function resolveApiBaseURL() {
+  const configuredBaseURL =
+    import.meta.env.VITE_TACHIGO_API_URL ??
+    // Temporary fallback for existing local env files during the key migration.
+    import.meta.env.VITE_API_URL
+
+  if (configuredBaseURL) {
+    return configuredBaseURL
+  }
+
+  if (import.meta.env.PROD) {
+    throw new Error('VITE_TACHIGO_API_URL is required for production dashboard builds')
+  }
+
+  return 'http://localhost:8080'
+}
+
+export const apiBaseURL: string = resolveApiBaseURL()
 
 const BASE_URL = apiBaseURL
 
