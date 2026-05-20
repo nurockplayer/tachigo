@@ -1039,6 +1039,73 @@ func TestUnlinkProviderContext_UsesRequestContext(t *testing.T) {
 	}
 }
 
+func installUnlinkProviderQueryError(t *testing.T, db *gorm.DB, err error, failOnQuery int) {
+	t.Helper()
+
+	queryCount := 0
+	name := "test:unlink_provider_query_error:" + uuid.NewString()
+	probe := func(tx *gorm.DB) {
+		queryCount++
+		if queryCount == failOnQuery {
+			tx.AddError(err)
+		}
+	}
+
+	if err := db.Callback().Query().Before("gorm:query").Register(name, probe); err != nil {
+		t.Fatalf("register unlink provider query error probe: %v", err)
+	}
+
+	t.Cleanup(func() {
+		_ = db.Callback().Query().Remove(name)
+	})
+}
+
+func TestUnlinkProviderContext_ReturnsCountError(t *testing.T) {
+	db := newTestDB(t)
+	svc := NewAuthService(db, testConfig())
+
+	userID := uuid.New()
+	if err := db.Create(&models.User{ID: userID, Role: models.RoleViewer}).Error; err != nil {
+		t.Fatalf("create user: %v", err)
+	}
+	if err := db.Create(&models.AuthProvider{UserID: userID, Provider: models.ProviderTwitch, ProviderID: "twitch-count-err"}).Error; err != nil {
+		t.Fatalf("create twitch provider: %v", err)
+	}
+	if err := db.Create(&models.AuthProvider{UserID: userID, Provider: models.ProviderGoogle, ProviderID: "google-count-err"}).Error; err != nil {
+		t.Fatalf("create google provider: %v", err)
+	}
+
+	installUnlinkProviderQueryError(t, db, context.Canceled, 1)
+
+	err := svc.UnlinkProviderContext(context.Background(), userID, models.ProviderTwitch)
+	if !errors.Is(err, context.Canceled) {
+		t.Fatalf("expected context.Canceled from count query, got %v", err)
+	}
+}
+
+func TestUnlinkProviderContext_ReturnsUserLookupError(t *testing.T) {
+	db := newTestDB(t)
+	svc := NewAuthService(db, testConfig())
+
+	userID := uuid.New()
+	if err := db.Create(&models.User{ID: userID, Role: models.RoleViewer}).Error; err != nil {
+		t.Fatalf("create user: %v", err)
+	}
+	if err := db.Create(&models.AuthProvider{UserID: userID, Provider: models.ProviderTwitch, ProviderID: "twitch-first-err"}).Error; err != nil {
+		t.Fatalf("create twitch provider: %v", err)
+	}
+	if err := db.Create(&models.AuthProvider{UserID: userID, Provider: models.ProviderGoogle, ProviderID: "google-first-err"}).Error; err != nil {
+		t.Fatalf("create google provider: %v", err)
+	}
+
+	installUnlinkProviderQueryError(t, db, context.DeadlineExceeded, 2)
+
+	err := svc.UnlinkProviderContext(context.Background(), userID, models.ProviderTwitch)
+	if !errors.Is(err, context.DeadlineExceeded) {
+		t.Fatalf("expected context.DeadlineExceeded from user lookup, got %v", err)
+	}
+}
+
 // ─── crypto helpers ───────────────────────────────────────────────────────────
 
 func TestHashToken_Deterministic(t *testing.T) {

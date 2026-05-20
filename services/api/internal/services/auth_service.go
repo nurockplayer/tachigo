@@ -349,10 +349,14 @@ func (s *AuthService) UnlinkProviderContext(ctx context.Context, userID uuid.UUI
 
 	// Ensure the user still has at least one other way to log in
 	var count int64
-	db.Model(&models.AuthProvider{}).Where("user_id = ?", userID).Count(&count)
+	if err := db.Model(&models.AuthProvider{}).Where("user_id = ?", userID).Count(&count).Error; err != nil {
+		return err
+	}
 
 	var user models.User
-	db.First(&user, "id = ?", userID)
+	if err := db.First(&user, "id = ?", userID).Error; err != nil {
+		return err
+	}
 	hasPassword := user.PasswordHash != nil
 
 	if count <= 1 && !hasPassword {
