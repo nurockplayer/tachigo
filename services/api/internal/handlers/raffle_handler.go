@@ -54,7 +54,7 @@ func (h *RaffleHandler) Create(c *gin.Context) {
 		return
 	}
 
-	raffle, err := h.raffleSvc.Create(userID, body.Title)
+	raffle, err := h.raffleSvc.CreateContext(c.Request.Context(), userID, body.Title)
 	if err != nil {
 		log.Printf("raffle create: %v", err)
 		internal(c)
