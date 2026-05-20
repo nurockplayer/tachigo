@@ -62,9 +62,13 @@ func installRaffleHandlerDBContextProbeForTables(t *testing.T, db *gorm.DB, key,
 	if err := db.Callback().Query().Before("gorm:query").Register(name+":query", probe); err != nil {
 		t.Fatalf("register query context probe: %v", err)
 	}
+	if err := db.Callback().Create().Before("gorm:create").Register(name+":create", probe); err != nil {
+		t.Fatalf("register create context probe: %v", err)
+	}
 
 	t.Cleanup(func() {
 		_ = db.Callback().Query().Remove(name + ":query")
+		_ = db.Callback().Create().Remove(name + ":create")
 	})
 
 	return func() int {
@@ -225,6 +229,29 @@ func TestRaffle_Create(t *testing.T) {
 	}
 	if raffle["status"] != "draft" {
 		t.Errorf("expected draft status, got %v", raffle["status"])
+	}
+}
+
+func TestRaffle_Create_UsesRequestContext(t *testing.T) {
+	env := newRaffleTestEnv(t)
+	token := env.registerStreamer(t, "createctx", "createctx@test.com", "pass1234")
+
+	key := raffleHandlerContextKey{}
+	seen := installRaffleHandlerDBContextProbeForTables(t, env.db, key, "raffle-create", "raffles")
+	ctx := context.WithValue(context.Background(), key, "raffle-create")
+
+	body, _ := json.Marshal(map[string]string{"title": "Context Create Raffle"})
+	w := httptest.NewRecorder()
+	req, _ := http.NewRequestWithContext(ctx, http.MethodPost, "/api/v1/dashboard/raffles", bytes.NewReader(body))
+	req.Header.Set("Content-Type", "application/json")
+	req.Header.Set("Authorization", bearer(token))
+	env.router.ServeHTTP(w, req)
+
+	if w.Code != http.StatusCreated {
+		t.Fatalf("want 201, got %d: %s", w.Code, w.Body.String())
+	}
+	if seen() == 0 {
+		t.Fatal("expected raffle create DB operation to use request context")
 	}
 }
 

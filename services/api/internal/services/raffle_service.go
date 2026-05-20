@@ -84,13 +84,21 @@ func (s *RaffleService) SetHTTPClient(c *http.Client) {
 
 // Create creates a new raffle owned by the given user.
 func (s *RaffleService) Create(userID uuid.UUID, title string) (*models.Raffle, error) {
+	return s.CreateContext(context.Background(), userID, title)
+}
+
+func (s *RaffleService) CreateContext(ctx context.Context, userID uuid.UUID, title string) (*models.Raffle, error) {
+	if ctx == nil {
+		ctx = context.Background()
+	}
+
 	raffle := &models.Raffle{
 		UserID: userID,
 		Title:  title,
 		Status: models.RaffleStatusDraft,
 		Source: models.RaffleSourceCSV,
 	}
-	if err := s.db.Create(raffle).Error; err != nil {
+	if err := s.db.WithContext(ctx).Create(raffle).Error; err != nil {
 		return nil, err
 	}
 	return raffle, nil

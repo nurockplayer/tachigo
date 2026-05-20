@@ -17,6 +17,27 @@ import (
 
 type raffleServiceContextKey struct{}
 
+func TestRaffleService_CreateContext_UsesRequestContext(t *testing.T) {
+	db := newTestDB(t)
+	ownerID := seedUserWithEmail(t, db, "raffle_create_ctx@example.com")
+
+	key := raffleServiceContextKey{}
+	seen := installDBContextProbe(t, db, key, "raffle-create")
+	ctx := context.WithValue(context.Background(), key, "raffle-create")
+
+	svc := &RaffleService{db: db}
+	raffle, err := svc.CreateContext(ctx, ownerID, "Context Create Raffle")
+	if err != nil {
+		t.Fatalf("CreateContext: %v", err)
+	}
+	if raffle.UserID != ownerID {
+		t.Fatalf("want user ID %s, got %s", ownerID, raffle.UserID)
+	}
+	if seen() == 0 {
+		t.Fatal("expected CreateContext DB operation to use request context")
+	}
+}
+
 func TestRaffleService_GetByIDContext_UsesRequestContext(t *testing.T) {
 	db := newTestDB(t)
 	ownerID := seedUserWithEmail(t, db, "raffle_get_ctx@example.com")
