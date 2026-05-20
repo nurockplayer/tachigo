@@ -15,6 +15,8 @@ import (
 	"github.com/tachigo/tachigo/internal/models"
 )
 
+type raffleServiceContextKey struct{}
+
 func TestRaffleService_ListDrawsContext_UsesRequestContext(t *testing.T) {
 	db := newTestDB(t)
 	ownerID := seedUserWithEmail(t, db, "list_draws_ctx@example.com")
@@ -22,7 +24,7 @@ func TestRaffleService_ListDrawsContext_UsesRequestContext(t *testing.T) {
 	entryID := seedEntry(t, db, raffleID, nil, "draw_ctx_player")
 	seedDraw(t, db, raffleID, entryID, "draw-context-token")
 
-	key := struct{}{}
+	key := raffleServiceContextKey{}
 	seen := installDBContextProbe(t, db, key, "raffle-list-draws")
 	ctx := context.WithValue(context.Background(), key, "raffle-list-draws")
 
@@ -46,7 +48,7 @@ func TestRaffleService_GetDrawsByRafflePublicContext_UsesRequestContext(t *testi
 	entryID := seedEntry(t, db, raffleID, nil, "public_draw_ctx_player")
 	seedDraw(t, db, raffleID, entryID, "public-draw-context-token")
 
-	key := struct{}{}
+	key := raffleServiceContextKey{}
 	seen := installDBContextProbe(t, db, key, "raffle-public-draws")
 	ctx := context.WithValue(context.Background(), key, "raffle-public-draws")
 
