@@ -476,3 +476,44 @@ describe('RaffleDetailPage — activate button', () => {
     cleanup(root, container)
   })
 })
+
+describe('RaffleDetailPage — winner modal', () => {
+  it('shows winner modal after draw completes', async () => {
+    vi.mocked(rafflesService.drawNext).mockResolvedValue(mockDraw)
+    vi.mocked(rafflesService.listDraws).mockResolvedValue([mockDraw])
+    const dp = createMockDataProvider({
+      getOne: { raffles: vi.fn().mockResolvedValue(mockRaffle as BaseRecord) },
+    })
+    const { container, root } = await renderAt('r1', dp)
+    await waitFor(() => expect(container.querySelector('[data-testid="draw-btn"]')).toBeTruthy())
+
+    await act(async () => {
+      container.querySelector('[data-testid="draw-btn"]')!.dispatchEvent(new MouseEvent('click', { bubbles: true }))
+    })
+    await waitFor(() => expect(container.textContent).toContain('恭喜中獎'), 2000)
+    expect(container.textContent).toContain('Viewer One')
+    cleanup(root, container)
+  })
+
+  it('closes modal when 繼續抽獎 button clicked', async () => {
+    vi.mocked(rafflesService.drawNext).mockResolvedValue(mockDraw)
+    vi.mocked(rafflesService.listDraws).mockResolvedValue([mockDraw])
+    const dp = createMockDataProvider({
+      getOne: { raffles: vi.fn().mockResolvedValue(mockRaffle as BaseRecord) },
+    })
+    const { container, root } = await renderAt('r1', dp)
+    await waitFor(() => expect(container.querySelector('[data-testid="draw-btn"]')).toBeTruthy())
+
+    await act(async () => {
+      container.querySelector('[data-testid="draw-btn"]')!.dispatchEvent(new MouseEvent('click', { bubbles: true }))
+    })
+    await waitFor(() => expect(container.textContent).toContain('恭喜中獎'), 2000)
+
+    const closeBtn = Array.from(container.querySelectorAll('button')).find(b => b.textContent?.includes('繼續抽獎'))
+    await act(async () => {
+      closeBtn!.dispatchEvent(new MouseEvent('click', { bubbles: true }))
+    })
+    expect(container.textContent).not.toContain('恭喜中獎')
+    cleanup(root, container)
+  })
+})
