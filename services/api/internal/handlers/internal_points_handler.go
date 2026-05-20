@@ -25,8 +25,10 @@ func (h *InternalPointsHandler) GetUserPointsBalance(c *gin.Context) {
 		return
 	}
 
+	db := h.db.WithContext(c.Request.Context())
+
 	var user models.User
-	if err := h.db.Where("LOWER(email) = ?", email).First(&user).Error; err != nil {
+	if err := db.Where("LOWER(email) = ?", email).First(&user).Error; err != nil {
 		if errors.Is(err, gorm.ErrRecordNotFound) {
 			notFound(c, "user not found")
 			return
@@ -39,7 +41,7 @@ func (h *InternalPointsHandler) GetUserPointsBalance(c *gin.Context) {
 		SpendableBalance int64 `gorm:"column:spendable_balance"`
 		CumulativeTotal  int64 `gorm:"column:cumulative_total"`
 	}
-	if err := h.db.Raw(`
+	if err := db.Raw(`
 		SELECT
 			COALESCE(SUM(spendable_balance), 0) AS spendable_balance,
 			COALESCE(SUM(cumulative_total), 0) AS cumulative_total
