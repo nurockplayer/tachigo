@@ -28,7 +28,7 @@ func (h *UserHandler) Me(c *gin.Context) {
 	claims := middleware.MustClaims(c)
 	userID, _ := uuid.Parse(claims.UserID)
 
-	user, err := h.user.GetByID(userID)
+	user, err := h.user.GetByIDContext(c.Request.Context(), userID)
 	if err != nil {
 		notFound(c, "user not found")
 		return

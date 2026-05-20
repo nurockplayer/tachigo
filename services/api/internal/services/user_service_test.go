@@ -1,8 +1,10 @@
 package services
 
 import (
+	"context"
 	"crypto/ecdsa"
 	"encoding/hex"
+	"errors"
 	"fmt"
 	"strings"
 	"testing"
@@ -38,6 +40,17 @@ func TestGetByID_NotFound(t *testing.T) {
 	_, err := svc.GetByID(uuid.New())
 	if err != ErrUserNotFound {
 		t.Errorf("want ErrUserNotFound, got %v", err)
+	}
+}
+
+func TestGetByIDContext_CanceledContextReturnsCanceled(t *testing.T) {
+	svc := NewUserService(newTestDB(t))
+	ctx, cancel := context.WithCancel(context.Background())
+	cancel()
+
+	_, err := svc.GetByIDContext(ctx, uuid.New())
+	if !errors.Is(err, context.Canceled) {
+		t.Fatalf("want context.Canceled, got %v", err)
 	}
 }
 
