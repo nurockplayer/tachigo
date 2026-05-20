@@ -2287,29 +2287,29 @@ test('Dependabot pnpm version updates skip routine production patch releases', (
   const config = parseYaml(dependabotConfigPath)
   const pnpmUpdates = config.updates.filter((update) => update['package-ecosystem'] === 'npm')
   const rootUpdate = pnpmUpdates.find((update) => update.directory === '/')
-  const workspaceUpdates = pnpmUpdates.filter((update) => update.directory !== '/')
+  const expectedAllow = [
+    {
+      'dependency-type': 'production',
+      'update-types': [
+        'version-update:semver-minor',
+        'version-update:semver-major',
+      ],
+    },
+    {
+      'dependency-type': 'development',
+      'update-types': [
+        'version-update:semver-patch',
+        'version-update:semver-minor',
+        'version-update:semver-major',
+      ],
+    },
+  ]
 
   assert.ok(rootUpdate, 'expected Dependabot npm config to include root directory "/" update')
   assert.equal(rootUpdate['target-branch'], 'develop')
-  assert.equal(workspaceUpdates.length, 2)
-  for (const update of workspaceUpdates) {
-    assert.deepEqual(update.allow, [
-      {
-        'dependency-type': 'production',
-        'update-types': [
-          'version-update:semver-minor',
-          'version-update:semver-major',
-        ],
-      },
-      {
-        'dependency-type': 'development',
-        'update-types': [
-          'version-update:semver-patch',
-          'version-update:semver-minor',
-          'version-update:semver-major',
-        ],
-      },
-    ])
+  assert.equal(pnpmUpdates.length, 3)
+  for (const update of pnpmUpdates) {
+    assert.deepEqual(update.allow, expectedAllow)
   }
 })
 

@@ -28,6 +28,16 @@ updates:
     open-pull-requests-limit: 2
     labels:
       - chore
+    allow:
+      - dependency-type: production
+        update-types:
+          - version-update:semver-minor
+          - version-update:semver-major
+      - dependency-type: development
+        update-types:
+          - version-update:semver-patch
+          - version-update:semver-minor
+          - version-update:semver-major
 
   # Dependabot uses the "npm" ecosystem name for npm, yarn, and pnpm projects.
   - package-ecosystem: npm
