@@ -1,6 +1,7 @@
 package services
 
 import (
+	"context"
 	"crypto/sha256"
 	"encoding/hex"
 	"errors"
@@ -13,6 +14,56 @@ import (
 
 	"github.com/tachigo/tachigo/internal/models"
 )
+
+type raffleServiceContextKey struct{}
+
+func TestRaffleService_ListDrawsContext_UsesRequestContext(t *testing.T) {
+	db := newTestDB(t)
+	ownerID := seedUserWithEmail(t, db, "list_draws_ctx@example.com")
+	raffleID := seedRaffle(t, db, ownerID)
+	entryID := seedEntry(t, db, raffleID, nil, "draw_ctx_player")
+	seedDraw(t, db, raffleID, entryID, "draw-context-token")
+
+	key := raffleServiceContextKey{}
+	seen := installDBContextProbe(t, db, key, "raffle-list-draws")
+	ctx := context.WithValue(context.Background(), key, "raffle-list-draws")
+
+	svc := &RaffleService{db: db}
+	draws, err := svc.ListDrawsContext(ctx, raffleID, ownerID)
+	if err != nil {
+		t.Fatalf("ListDrawsContext: %v", err)
+	}
+	if len(draws) != 1 {
+		t.Fatalf("want 1 draw, got %d", len(draws))
+	}
+	if seen() < 2 {
+		t.Fatal("expected at least 2 ListDrawsContext DB operations to use request context")
+	}
+}
+
+func TestRaffleService_GetDrawsByRafflePublicContext_UsesRequestContext(t *testing.T) {
+	db := newTestDB(t)
+	ownerID := seedUserWithEmail(t, db, "public_draws_ctx@example.com")
+	raffleID := seedRaffle(t, db, ownerID)
+	entryID := seedEntry(t, db, raffleID, nil, "public_draw_ctx_player")
+	seedDraw(t, db, raffleID, entryID, "public-draw-context-token")
+
+	key := raffleServiceContextKey{}
+	seen := installDBContextProbe(t, db, key, "raffle-public-draws")
+	ctx := context.WithValue(context.Background(), key, "raffle-public-draws")
+
+	svc := &RaffleService{db: db}
+	draws, err := svc.GetDrawsByRafflePublicContext(ctx, raffleID)
+	if err != nil {
+		t.Fatalf("GetDrawsByRafflePublicContext: %v", err)
+	}
+	if len(draws) != 1 {
+		t.Fatalf("want 1 draw, got %d", len(draws))
+	}
+	if seen() == 0 {
+		t.Fatal("expected GetDrawsByRafflePublicContext DB operations to use request context")
+	}
+}
 
 // TestDrawNext_SkipsAlreadyDrawnEntry verifies that if one entry is already
 // drawn (seeded directly into DB), DrawNext picks the remaining entry rather

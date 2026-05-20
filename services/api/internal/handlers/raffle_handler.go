@@ -270,7 +270,7 @@ func (h *RaffleHandler) ListDraws(c *gin.Context) {
 		return
 	}
 
-	draws, err := h.raffleSvc.ListDraws(raffleID, userID)
+	draws, err := h.raffleSvc.ListDrawsContext(c.Request.Context(), raffleID, userID)
 	if err != nil {
 		if errors.Is(err, services.ErrRaffleNotFound) {
 			notFound(c, "raffle not found")
@@ -597,7 +597,7 @@ func (h *RaffleHandler) GetResult(c *gin.Context) {
 		return
 	}
 
-	draws, err := h.raffleSvc.GetDrawsByRafflePublic(raffleID)
+	draws, err := h.raffleSvc.GetDrawsByRafflePublicContext(c.Request.Context(), raffleID)
 	if err != nil {
 		internal(c)
 		return

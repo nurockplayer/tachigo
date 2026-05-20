@@ -33,9 +33,27 @@ type raffleHandlerContextKey struct{}
 func installRaffleHandlerDBContextProbe(t *testing.T, db *gorm.DB, key, want any) func() int {
 	t.Helper()
 
+	return installRaffleHandlerDBContextProbeForTables(t, db, key, want)
+}
+
+func installRaffleHandlerDBContextProbeForTables(t *testing.T, db *gorm.DB, key, want any, tables ...string) func() int {
+	t.Helper()
+
 	var seen int
 	name := "test:raffle_handler_db_context:" + uuid.NewString()
+	wantedTables := map[string]struct{}{}
+	for _, table := range tables {
+		wantedTables[table] = struct{}{}
+	}
 	probe := func(tx *gorm.DB) {
+		if len(wantedTables) > 0 {
+			if tx.Statement == nil {
+				return
+			}
+			if _, ok := wantedTables[tx.Statement.Table]; !ok {
+				return
+			}
+		}
 		if tx.Statement != nil && tx.Statement.Context != nil && tx.Statement.Context.Value(key) == want {
 			seen++
 		}
@@ -283,6 +301,28 @@ func TestRaffle_List_UsesRequestContext(t *testing.T) {
 	}
 	if seen() == 0 {
 		t.Fatal("expected raffle list DB query to use request context")
+	}
+}
+
+func TestRaffle_ListDraws_UsesRequestContext(t *testing.T) {
+	env := newRaffleTestEnv(t)
+	token := env.registerStreamer(t, "drawctx", "drawctx@test.com", "pass1234")
+	raffleID := env.createRaffle(t, token, "Draw Context Raffle")
+
+	key := raffleHandlerContextKey{}
+	seen := installRaffleHandlerDBContextProbeForTables(t, env.db, key, "raffle-draw-list", "raffles", "raffle_draws")
+	ctx := context.WithValue(context.Background(), key, "raffle-draw-list")
+
+	w := httptest.NewRecorder()
+	req, _ := http.NewRequestWithContext(ctx, http.MethodGet, "/api/v1/dashboard/raffles/"+raffleID+"/draws", nil)
+	req.Header.Set("Authorization", bearer(token))
+	env.router.ServeHTTP(w, req)
+
+	if w.Code != http.StatusOK {
+		t.Fatalf("want 200, got %d: %s", w.Code, w.Body.String())
+	}
+	if seen() < 2 {
+		t.Fatal("expected raffle ownership and draw list DB queries to use request context")
 	}
 }
 
@@ -753,6 +793,26 @@ func TestRaffle_GetResult_Extension(t *testing.T) {
 	draws := extResp["data"].(map[string]interface{})["draws"].([]interface{})
 	if len(draws) != 1 {
 		t.Errorf("want 1 draw, got %d", len(draws))
+	}
+}
+
+func TestRaffle_GetResult_UsesRequestContext(t *testing.T) {
+	env := newRaffleTestEnv(t)
+	raffleID := uuid.NewString()
+
+	key := raffleHandlerContextKey{}
+	seen := installRaffleHandlerDBContextProbeForTables(t, env.db, key, "raffle-result", "raffle_draws")
+	ctx := context.WithValue(context.Background(), key, "raffle-result")
+
+	w := httptest.NewRecorder()
+	req, _ := http.NewRequestWithContext(ctx, http.MethodGet, "/api/v1/extension/raffles/"+raffleID+"/result", nil)
+	env.router.ServeHTTP(w, req)
+
+	if w.Code != http.StatusOK {
+		t.Fatalf("want 200, got %d: %s", w.Code, w.Body.String())
+	}
+	if seen() == 0 {
+		t.Fatal("expected raffle result DB query to use request context")
 	}
 }
 
