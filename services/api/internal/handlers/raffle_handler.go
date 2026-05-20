@@ -111,7 +111,7 @@ func (h *RaffleHandler) Get(c *gin.Context) {
 		return
 	}
 
-	raffle, err := h.raffleSvc.GetByID(raffleID, userID)
+	raffle, err := h.raffleSvc.GetByIDContext(c.Request.Context(), raffleID, userID)
 	if err != nil {
 		if errors.Is(err, services.ErrRaffleNotFound) {
 			notFound(c, "raffle not found")

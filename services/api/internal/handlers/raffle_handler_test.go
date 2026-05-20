@@ -326,6 +326,28 @@ func TestRaffle_ListDraws_UsesRequestContext(t *testing.T) {
 	}
 }
 
+func TestRaffle_Get_UsesRequestContext(t *testing.T) {
+	env := newRaffleTestEnv(t)
+	token := env.registerStreamer(t, "getctx", "getctx@test.com", "pass1234")
+	raffleID := env.createRaffle(t, token, "Get Context Raffle")
+
+	key := raffleHandlerContextKey{}
+	seen := installRaffleHandlerDBContextProbeForTables(t, env.db, key, "raffle-get", "raffles")
+	ctx := context.WithValue(context.Background(), key, "raffle-get")
+
+	w := httptest.NewRecorder()
+	req, _ := http.NewRequestWithContext(ctx, http.MethodGet, "/api/v1/dashboard/raffles/"+raffleID, nil)
+	req.Header.Set("Authorization", bearer(token))
+	env.router.ServeHTTP(w, req)
+
+	if w.Code != http.StatusOK {
+		t.Fatalf("want 200, got %d: %s", w.Code, w.Body.String())
+	}
+	if seen() == 0 {
+		t.Fatal("expected raffle detail DB query to use request context")
+	}
+}
+
 func TestRaffle_Get_Forbidden(t *testing.T) {
 	env := newRaffleTestEnv(t)
 	ownerToken := env.registerStreamer(t, "owner", "owner@test.com", "pass1234")
