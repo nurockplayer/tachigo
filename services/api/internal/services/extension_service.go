@@ -1,6 +1,7 @@
 package services
 
 import (
+	"context"
 	"encoding/base64"
 	"errors"
 	"fmt"
@@ -116,11 +117,20 @@ func (s *ExtensionService) VerifyReceiptJWT(receiptStr string) (*ReceiptClaims, 
 // lookupExtensionUser resolves a Twitch identity to a tachigo User.
 // It does not issue tokens; call issueTokenPair separately.
 func (s *ExtensionService) lookupExtensionUser(claims *ExtensionClaims) (*models.User, error) {
+	return s.lookupExtensionUserContext(context.Background(), claims)
+}
+
+func (s *ExtensionService) lookupExtensionUserContext(ctx context.Context, claims *ExtensionClaims) (*models.User, error) {
+	if ctx == nil {
+		ctx = context.Background()
+	}
 	if claims.UserID == "" {
 		return nil, ErrInvalidExtJWT
 	}
+	db := s.db.WithContext(ctx)
+
 	var provider models.AuthProvider
-	err := s.db.Where("provider = ? AND provider_id = ?", models.ProviderTwitch, claims.UserID).
+	err := db.Where("provider = ? AND provider_id = ?", models.ProviderTwitch, claims.UserID).
 		First(&provider).Error
 	if errors.Is(err, gorm.ErrRecordNotFound) {
 		return nil, ErrUserNotFound
@@ -129,7 +139,7 @@ func (s *ExtensionService) lookupExtensionUser(claims *ExtensionClaims) (*models
 		return nil, err
 	}
 	var user models.User
-	if err := s.db.First(&user, provider.UserID).Error; err != nil {
+	if err := db.First(&user, provider.UserID).Error; err != nil {
 		return nil, err
 	}
 	return &user, nil
@@ -155,6 +165,14 @@ func (s *ExtensionService) LoginWithExtension(extJWT string) (*models.User, *Tok
 // CompleteTPointTransaction verifies the Extension JWT + receipt, then issues a
 // tachigo token pair for the already-linked viewer.
 func (s *ExtensionService) CompleteTPointTransaction(extJWT, receipt, sku string) (*models.User, *TokenPair, error) {
+	return s.CompleteTPointTransactionContext(context.Background(), extJWT, receipt, sku)
+}
+
+func (s *ExtensionService) CompleteTPointTransactionContext(ctx context.Context, extJWT, receipt, sku string) (*models.User, *TokenPair, error) {
+	if ctx == nil {
+		ctx = context.Background()
+	}
+
 	extClaims, err := s.VerifyExtJWT(extJWT)
 	if err != nil {
 		return nil, nil, err
@@ -185,7 +203,7 @@ func (s *ExtensionService) CompleteTPointTransaction(extJWT, receipt, sku string
 	}
 
 	// Resolve user before touching any write path.
-	user, err := s.lookupExtensionUser(extClaims)
+	user, err := s.lookupExtensionUserContext(ctx, extClaims)
 	if err != nil {
 		return nil, nil, err
 	}

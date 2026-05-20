@@ -1,6 +1,7 @@
 package services
 
 import (
+	"context"
 	"encoding/base64"
 	"errors"
 	"testing"
@@ -17,6 +18,8 @@ import (
 const testExtSecretRaw = "test-extension-secret-32chars!!!"
 
 var testExtSecretB64 = base64.StdEncoding.EncodeToString([]byte(testExtSecretRaw))
+
+type extensionServiceContextKey struct{}
 
 func extTestConfig() *config.Config {
 	cfg := testConfig()
@@ -139,6 +142,26 @@ func TestCompleteTPointTransaction_Success(t *testing.T) {
 	var tx models.PointsTransaction
 	if err := svc.db.Where("external_transaction_id = ?", "tx-success-001").First(&tx).Error; err != nil {
 		t.Errorf("points_transaction not found by external_transaction_id: %v", err)
+	}
+}
+
+func TestCompleteTPointTransactionContext_UsesRequestContextForUserLookup(t *testing.T) {
+	svc, _ := newExtSvc(t)
+	_, twitchID := seedTwitchUser(t, svc.db)
+	channelID := "channel-context"
+
+	extJWT := makeExtJWT(t, twitchID, channelID)
+	receipt := makeReceiptJWT(t, "tx-context-001", twitchID, "TPOINT100", 100, "bits")
+
+	key := extensionServiceContextKey{}
+	seen := installDBContextProbe(t, svc.db, key, "extension-tpoint")
+	ctx := context.WithValue(context.Background(), key, "extension-tpoint")
+
+	if _, _, err := svc.CompleteTPointTransactionContext(ctx, extJWT, receipt, "TPOINT100"); err != nil {
+		t.Fatalf("CompleteTPointTransactionContext: %v", err)
+	}
+	if seen() == 0 {
+		t.Fatal("expected CompleteTPointTransactionContext user lookup to carry request context")
 	}
 }
 
