@@ -582,6 +582,179 @@ func (h *RaffleHandler) Snapshot(c *gin.Context) {
 	ok(c, gin.H{"result": result})
 }
 
+// ── Prize Tier endpoints ──────────────────────────────────────────────────────
+
+func (h *RaffleHandler) CreatePrizeTier(c *gin.Context) {
+	claims := middleware.MustClaims(c)
+	userID, err := uuid.Parse(claims.UserID)
+	if err != nil {
+		badRequest(c, "invalid user id")
+		return
+	}
+	raffleID, err := uuid.Parse(c.Param("id"))
+	if err != nil {
+		badRequest(c, "invalid raffle id")
+		return
+	}
+	var body services.CreatePrizeTierInput
+	if err := c.ShouldBindJSON(&body); err != nil {
+		badRequest(c, err.Error())
+		return
+	}
+	tier, err := h.raffleSvc.CreatePrizeTier(raffleID, userID, body)
+	if err != nil {
+		switch {
+		case errors.Is(err, services.ErrRaffleNotFound):
+			notFound(c, "raffle not found")
+		case errors.Is(err, services.ErrRaffleForbidden):
+			c.JSON(http.StatusForbidden, Response{Success: false, Error: "forbidden"})
+		case errors.Is(err, services.ErrPrizeTierInvalidCount):
+			badRequest(c, "winner_count must be at least 1")
+		default:
+			log.Printf("CreatePrizeTier: %v", err)
+			internal(c)
+		}
+		return
+	}
+	created(c, gin.H{"tier": tier})
+}
+
+func (h *RaffleHandler) ListPrizeTiers(c *gin.Context) {
+	claims := middleware.MustClaims(c)
+	userID, err := uuid.Parse(claims.UserID)
+	if err != nil {
+		badRequest(c, "invalid user id")
+		return
+	}
+	raffleID, err := uuid.Parse(c.Param("id"))
+	if err != nil {
+		badRequest(c, "invalid raffle id")
+		return
+	}
+	tiers, err := h.raffleSvc.ListPrizeTiers(raffleID, userID)
+	if err != nil {
+		if errors.Is(err, services.ErrRaffleNotFound) {
+			notFound(c, "raffle not found")
+			return
+		}
+		log.Printf("ListPrizeTiers: %v", err)
+		internal(c)
+		return
+	}
+	ok(c, gin.H{"tiers": tiers})
+}
+
+func (h *RaffleHandler) UpdatePrizeTier(c *gin.Context) {
+	claims := middleware.MustClaims(c)
+	userID, err := uuid.Parse(claims.UserID)
+	if err != nil {
+		badRequest(c, "invalid user id")
+		return
+	}
+	raffleID, err := uuid.Parse(c.Param("id"))
+	if err != nil {
+		badRequest(c, "invalid raffle id")
+		return
+	}
+	tierID, err := uuid.Parse(c.Param("tier_id"))
+	if err != nil {
+		badRequest(c, "invalid tier id")
+		return
+	}
+	var body services.UpdatePrizeTierInput
+	if err := c.ShouldBindJSON(&body); err != nil {
+		badRequest(c, err.Error())
+		return
+	}
+	tier, err := h.raffleSvc.UpdatePrizeTier(raffleID, tierID, userID, body)
+	if err != nil {
+		switch {
+		case errors.Is(err, services.ErrRaffleNotFound), errors.Is(err, services.ErrPrizeTierNotFound):
+			notFound(c, "not found")
+		case errors.Is(err, services.ErrRaffleForbidden):
+			c.JSON(http.StatusForbidden, Response{Success: false, Error: "forbidden"})
+		case errors.Is(err, services.ErrPrizeTierInvalidCount):
+			badRequest(c, "invalid winner_count")
+		default:
+			log.Printf("UpdatePrizeTier: %v", err)
+			internal(c)
+		}
+		return
+	}
+	ok(c, gin.H{"tier": tier})
+}
+
+func (h *RaffleHandler) DeletePrizeTier(c *gin.Context) {
+	claims := middleware.MustClaims(c)
+	userID, err := uuid.Parse(claims.UserID)
+	if err != nil {
+		badRequest(c, "invalid user id")
+		return
+	}
+	raffleID, err := uuid.Parse(c.Param("id"))
+	if err != nil {
+		badRequest(c, "invalid raffle id")
+		return
+	}
+	tierID, err := uuid.Parse(c.Param("tier_id"))
+	if err != nil {
+		badRequest(c, "invalid tier id")
+		return
+	}
+	if err := h.raffleSvc.DeletePrizeTier(raffleID, tierID, userID); err != nil {
+		switch {
+		case errors.Is(err, services.ErrRaffleNotFound), errors.Is(err, services.ErrPrizeTierNotFound):
+			notFound(c, "not found")
+		case errors.Is(err, services.ErrRaffleForbidden):
+			c.JSON(http.StatusForbidden, Response{Success: false, Error: "forbidden"})
+		case errors.Is(err, services.ErrPrizeTierHasDraws):
+			conflict(c, "cannot delete a tier with existing draws")
+		default:
+			log.Printf("DeletePrizeTier: %v", err)
+			internal(c)
+		}
+		return
+	}
+	ok(c, gin.H{})
+}
+
+func (h *RaffleHandler) DrawFromTier(c *gin.Context) {
+	claims := middleware.MustClaims(c)
+	userID, err := uuid.Parse(claims.UserID)
+	if err != nil {
+		badRequest(c, "invalid user id")
+		return
+	}
+	raffleID, err := uuid.Parse(c.Param("id"))
+	if err != nil {
+		badRequest(c, "invalid raffle id")
+		return
+	}
+	tierID, err := uuid.Parse(c.Param("tier_id"))
+	if err != nil {
+		badRequest(c, "invalid tier id")
+		return
+	}
+	draw, err := h.raffleSvc.DrawFromTier(raffleID, tierID, userID)
+	if err != nil {
+		switch {
+		case errors.Is(err, services.ErrRaffleNotFound), errors.Is(err, services.ErrPrizeTierNotFound):
+			notFound(c, "not found")
+		case errors.Is(err, services.ErrRaffleForbidden):
+			c.JSON(http.StatusForbidden, Response{Success: false, Error: "forbidden"})
+		case errors.Is(err, services.ErrRaffleNotActive):
+			conflict(c, "raffle is not active")
+		case errors.Is(err, services.ErrPrizeTierExhausted), errors.Is(err, services.ErrRaffleExhausted):
+			conflict(c, "no more entries available")
+		default:
+			log.Printf("DrawFromTier: %v", err)
+			internal(c)
+		}
+		return
+	}
+	created(c, gin.H{"draw": draw})
+}
+
 // GetResult godoc
 // @Summary      Get drawn winners for a raffle (Extension)
 // @Tags         raffles
