@@ -277,6 +277,18 @@ func migrateTestDB(db *gorm.DB) error {
 			UNIQUE (id, raffle_id)
 		)`,
 		`CREATE INDEX IF NOT EXISTS idx_raffle_entries_raffle_id ON raffle_entries (raffle_id)`,
+		`CREATE TABLE IF NOT EXISTS raffle_prize_tiers (
+			id TEXT PRIMARY KEY,
+			raffle_id TEXT NOT NULL REFERENCES raffles(id),
+			name TEXT NOT NULL,
+			prize_description TEXT NOT NULL DEFAULT '',
+			winner_count INTEGER NOT NULL,
+			drawn_count INTEGER NOT NULL DEFAULT 0,
+			position INTEGER NOT NULL DEFAULT 0,
+			created_at DATETIME NOT NULL DEFAULT CURRENT_TIMESTAMP,
+			updated_at DATETIME NOT NULL DEFAULT CURRENT_TIMESTAMP
+		)`,
+		`CREATE INDEX IF NOT EXISTS idx_raffle_prize_tiers_raffle_id ON raffle_prize_tiers (raffle_id, position)`,
 		`CREATE TABLE IF NOT EXISTS raffle_draws (
 			id TEXT PRIMARY KEY,
 			raffle_id TEXT NOT NULL REFERENCES raffles(id),
@@ -284,6 +296,7 @@ func migrateTestDB(db *gorm.DB) error {
 			claim_token TEXT NOT NULL UNIQUE,
 			claim_expires_at DATETIME NOT NULL,
 			drawn_at DATETIME NOT NULL,
+			prize_tier_id TEXT REFERENCES raffle_prize_tiers(id),
 			UNIQUE (raffle_id, entry_id),
 			FOREIGN KEY (entry_id, raffle_id) REFERENCES raffle_entries(id, raffle_id)
 		)`,
