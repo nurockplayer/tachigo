@@ -47,6 +47,7 @@ jobs:
               develop: [
                 { context: 'Scope gate', appId: 15368 },
                 { context: 'Supply-chain guardrails', appId: 15368 },
+                { context: 'TypeScript-only guardrail', appId: 15368 },
                 { context: 'Dependency Review', appId: 15368 },
                 { context: 'API contract drift', appId: 15368 },
                 { context: 'Frontend build', appId: 15368 },
