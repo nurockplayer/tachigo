@@ -2,8 +2,8 @@ import { useOne } from '@refinedev/core'
 import { useCallback, useEffect, useRef, useState } from 'react'
 import { useNavigate, useParams } from 'react-router'
 import { Skeleton } from '@/components/ui/skeleton'
-import { activateRaffle, completeRaffle, drawNext, importCSV, listDraws, setDiscordWebhook } from '@/services/raffles'
-import type { Raffle, RaffleDraw, RaffleStatus } from '@/services/raffles'
+import { activateRaffle, completeRaffle, createPrizeTier, deletePrizeTier, drawFromTier, drawNext, importCSV, listDraws, listPrizeTiers, setDiscordWebhook } from '@/services/raffles'
+import type { Raffle, RaffleDraw, RafflePrizeTier, RaffleStatus } from '@/services/raffles'
 import gachaBg from '../assets/raffle-bg.jpg.png'
 
 const OCEAN_KEYFRAMES = `
@@ -132,6 +132,17 @@ function WinnerList({ draws }: { draws: RaffleDraw[] }) {
             #{draws.length - index}
           </span>
           <span className="flex-1 text-sm font-medium">
+            {draw.prize_tier && (
+              <span style={{
+                background: '#e8f0fe',
+                borderRadius: 4,
+                padding: '0 6px',
+                fontSize: '0.8rem',
+                marginRight: '0.5rem',
+              }}>
+                {draw.prize_tier.name}
+              </span>
+            )}
             {draw.entry.display_name || draw.entry.twitch_login}
           </span>
           <span className="text-[10px] text-white/30">{formatRelativeTime(draw.drawn_at)}</span>
@@ -558,6 +569,12 @@ export default function RaffleDetailPage() {
   const [shaking, setShaking] = useState(false)
   const [popBallColor, setPopBallColor] = useState<string | null>(null)
   const [modalWinner, setModalWinner] = useState<string | null>(null)
+  const [tiers, setTiers] = useState<RafflePrizeTier[]>([])
+  const [tierDrawing, setTierDrawing] = useState<Record<string, boolean>>({})
+  const [tierExhausted, setTierExhausted] = useState<Record<string, boolean>>({})
+  const [showAddTier, setShowAddTier] = useState(false)
+  const [newTier, setNewTier] = useState({ name: '', prize_description: '', winner_count: 1 })
+  const [addingTier, setAddingTier] = useState(false)
 
   const pendingTimers = useRef<number[]>([])
 
@@ -579,10 +596,21 @@ export default function RaffleDetailPage() {
     }
   }, [raffleId])
 
+  const fetchTiers = useCallback(async () => {
+    if (!raffleId) return
+    try {
+      const result = await listPrizeTiers(raffleId)
+      setTiers(result)
+    } catch {
+      setTiers([])
+    }
+  }, [raffleId])
+
   useEffect(() => {
     if (!raffleId) return
     const initialLoadId = window.setTimeout(() => {
       void fetchDraws()
+      void fetchTiers()
     }, 0)
 
     if (effectiveStatus === 'completed') {
@@ -597,7 +625,7 @@ export default function RaffleDetailPage() {
       window.clearTimeout(initialLoadId)
       window.clearInterval(timerId)
     }
-  }, [effectiveStatus, fetchDraws, raffleId])
+  }, [effectiveStatus, fetchDraws, fetchTiers, raffleId])
 
   async function handleDraw() {
     if (!raffleId || drawing) return
@@ -662,6 +690,49 @@ export default function RaffleDetailPage() {
       setConfirmEnd(false)
     } finally {
       setEnding(false)
+    }
+  }
+
+  async function handleAddTier() {
+    if (!raffleId || addingTier) return
+    if (!newTier.name.trim() || newTier.winner_count < 1) return
+    setAddingTier(true)
+    try {
+      await createPrizeTier(raffleId, newTier)
+      await fetchTiers()
+      setNewTier({ name: '', prize_description: '', winner_count: 1 })
+      setShowAddTier(false)
+    } finally {
+      setAddingTier(false)
+    }
+  }
+
+  async function handleDrawFromTier(tierId: string) {
+    if (!raffleId || tierDrawing[tierId]) return
+    setTierDrawing(prev => ({ ...prev, [tierId]: true }))
+    try {
+      await drawFromTier(raffleId, tierId)
+      await Promise.all([fetchTiers(), fetchDraws()])
+      setTierExhausted(prev => ({ ...prev, [tierId]: false }))
+    } catch (error: unknown) {
+      if (error && typeof error === 'object' && 'response' in error) {
+        const res = (error as { response?: { status?: number } }).response
+        if (res?.status === 409) {
+          setTierExhausted(prev => ({ ...prev, [tierId]: true }))
+        }
+      }
+    } finally {
+      setTierDrawing(prev => ({ ...prev, [tierId]: false }))
+    }
+  }
+
+  async function handleDeleteTier(tierId: string) {
+    if (!raffleId) return
+    try {
+      await deletePrizeTier(raffleId, tierId)
+      await fetchTiers()
+    } catch {
+      // tier has draws — silently ignore, UI hides delete button for drawn tiers
     }
   }
 
@@ -808,6 +879,112 @@ export default function RaffleDetailPage() {
           </div>
         </div>
       </div>
+
+      {/* Prize Tiers Section */}
+      {effectiveStatus !== 'draft' && (
+        <section style={{ marginBottom: '2rem', maxWidth: 1300, margin: '0 auto 2rem', padding: '0 16px' }}>
+          <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', marginBottom: '0.75rem' }}>
+            <h3 style={{ margin: 0 }}>獎項</h3>
+            {effectiveStatus === 'active' && (
+              <button onClick={() => setShowAddTier(v => !v)}>+ 新增獎項</button>
+            )}
+          </div>
+
+          {showAddTier && (
+            <div style={{ border: '1px solid #ccc', padding: '1rem', borderRadius: 8, marginBottom: '1rem' }}>
+              <div style={{ display: 'flex', gap: '0.5rem', flexWrap: 'wrap', alignItems: 'flex-end' }}>
+                <div>
+                  <label>獎項名稱</label>
+                  <input
+                    value={newTier.name}
+                    onChange={e => setNewTier(p => ({ ...p, name: e.target.value }))}
+                    placeholder="例：一等獎"
+                  />
+                </div>
+                <div>
+                  <label>獎品描述</label>
+                  <input
+                    value={newTier.prize_description}
+                    onChange={e => setNewTier(p => ({ ...p, prize_description: e.target.value }))}
+                    placeholder="例：Switch 主機"
+                  />
+                </div>
+                <div>
+                  <label>抽幾人</label>
+                  <input
+                    type="number"
+                    min={1}
+                    value={newTier.winner_count}
+                    onChange={e => setNewTier(p => ({ ...p, winner_count: Number(e.target.value) }))}
+                  />
+                </div>
+                <button onClick={() => { void handleAddTier() }} disabled={addingTier}>
+                  {addingTier ? '新增中...' : '確認新增'}
+                </button>
+                <button onClick={() => setShowAddTier(false)}>取消</button>
+              </div>
+            </div>
+          )}
+
+          {tiers.length === 0 && !showAddTier && (
+            <p style={{ color: '#888', fontSize: '0.9rem' }}>尚未設定獎項。</p>
+          )}
+
+          {tiers.map(tier => {
+            const isDone = tier.drawn_count >= tier.winner_count
+            const isDrawing = tierDrawing[tier.id] ?? false
+            const isExhausted = tierExhausted[tier.id] ?? false
+            return (
+              <div
+                key={tier.id}
+                style={{
+                  display: 'flex',
+                  justifyContent: 'space-between',
+                  alignItems: 'center',
+                  padding: '0.75rem 1rem',
+                  border: '1px solid #eee',
+                  borderRadius: 8,
+                  marginBottom: '0.5rem',
+                  background: isDone ? '#f5f5f5' : '#fff',
+                }}
+              >
+                <div>
+                  <strong>{tier.name}</strong>
+                  {tier.prize_description && (
+                    <span style={{ color: '#666', marginLeft: '0.5rem' }}>｜{tier.prize_description}</span>
+                  )}
+                  <span style={{ marginLeft: '1rem', color: isDone ? '#888' : '#333' }}>
+                    已抽 {tier.drawn_count} / {tier.winner_count} 人
+                  </span>
+                  {isExhausted && (
+                    <span style={{ color: '#c00', marginLeft: '0.5rem', fontSize: '0.85rem' }}>名單已耗盡</span>
+                  )}
+                </div>
+                <div style={{ display: 'flex', gap: '0.5rem' }}>
+                  {effectiveStatus === 'active' && (
+                    <>
+                      <button
+                        onClick={() => void handleDrawFromTier(tier.id)}
+                        disabled={isDone || isDrawing}
+                      >
+                        {isDrawing ? '抽取中...' : isDone ? '已完成' : '抽一人'}
+                      </button>
+                      {tier.drawn_count === 0 && (
+                        <button
+                          onClick={() => void handleDeleteTier(tier.id)}
+                          style={{ color: '#c00' }}
+                        >
+                          刪除
+                        </button>
+                      )}
+                    </>
+                  )}
+                </div>
+              </div>
+            )
+          })}
+        </section>
+      )}
 
       <WinnerModal name={modalWinner} onClose={() => setModalWinner(null)} />
     </div>
