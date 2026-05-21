@@ -633,12 +633,15 @@ func (h *RaffleHandler) ListPrizeTiers(c *gin.Context) {
 	}
 	tiers, err := h.raffleSvc.ListPrizeTiers(raffleID, userID)
 	if err != nil {
-		if errors.Is(err, services.ErrRaffleNotFound) {
+		switch {
+		case errors.Is(err, services.ErrRaffleNotFound):
 			notFound(c, "raffle not found")
-			return
+		case errors.Is(err, services.ErrRaffleForbidden):
+			c.JSON(http.StatusForbidden, Response{Success: false, Error: "forbidden"})
+		default:
+			log.Printf("ListPrizeTiers: %v", err)
+			internal(c)
 		}
-		log.Printf("ListPrizeTiers: %v", err)
-		internal(c)
 		return
 	}
 	ok(c, gin.H{"tiers": tiers})

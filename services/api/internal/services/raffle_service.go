@@ -919,10 +919,12 @@ func (s *RaffleService) CreatePrizeTier(raffleID, userID uuid.UUID, input Create
 	}
 
 	var maxPos int
-	s.db.Model(&models.RafflePrizeTier{}).
+	if err := s.db.Model(&models.RafflePrizeTier{}).
 		Where("raffle_id = ?", raffleID).
 		Select("COALESCE(MAX(position), 0)").
-		Scan(&maxPos)
+		Scan(&maxPos).Error; err != nil {
+		return nil, err
+	}
 
 	tier := &models.RafflePrizeTier{
 		RaffleID:         raffleID,
@@ -1039,9 +1041,11 @@ func (s *RaffleService) DrawFromTier(raffleID, tierID, userID uuid.UUID) (*model
 
 				// Exclude ALL winners across ALL tiers of this raffle.
 				var wonIDs []uuid.UUID
-				tx.Model(&models.RaffleDraw{}).
+				if err := tx.Model(&models.RaffleDraw{}).
 					Where("raffle_id = ?", raffleID).
-					Pluck("entry_id", &wonIDs)
+					Pluck("entry_id", &wonIDs).Error; err != nil {
+					return err
+				}
 
 				var entry models.RaffleEntry
 				q := tx.Where("raffle_id = ?", raffleID)

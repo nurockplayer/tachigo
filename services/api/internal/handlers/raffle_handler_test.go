@@ -1577,7 +1577,10 @@ func TestPrizeTierHandler_DeleteTier_WithDrawsFails(t *testing.T) {
 	env.activateRaffle(t, token, raffleID)
 
 	tierID := env.createPrizeTier(t, token, raffleID, "一等獎", "Prize", 1)
-	env.drawFromTier(t, token, raffleID, tierID)
+	drawW := env.drawFromTier(t, token, raffleID, tierID)
+	if drawW.Code != http.StatusCreated {
+		t.Fatalf("seed draw: want 201, got %d — %s", drawW.Code, drawW.Body.String())
+	}
 
 	// Try to delete — should fail with 409
 	w := httptest.NewRecorder()
