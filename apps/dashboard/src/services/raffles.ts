@@ -29,6 +29,32 @@ export interface RaffleDraw {
   claim_expires_at: string
   drawn_at: string
   entry: RaffleEntry
+  prize_tier_id?: string
+  prize_tier?: RafflePrizeTier
+}
+
+export interface RafflePrizeTier {
+  id: string
+  raffle_id: string
+  name: string
+  prize_description: string
+  winner_count: number
+  drawn_count: number
+  position: number
+  created_at: string
+  updated_at: string
+}
+
+export interface CreatePrizeTierInput {
+  name: string
+  prize_description: string
+  winner_count: number
+}
+
+export interface UpdatePrizeTierInput {
+  name?: string
+  prize_description?: string
+  winner_count?: number
 }
 
 export async function listRaffles(): Promise<Raffle[]> {
@@ -98,4 +124,46 @@ export async function setDiscordWebhook(
     { discord_webhook_url: webhookUrl },
   )
   return data.data.discord_webhook_configured
+}
+
+export async function listPrizeTiers(raffleId: string): Promise<RafflePrizeTier[]> {
+  const { data } = await client.get<ApiResponse<{ tiers: RafflePrizeTier[] }>>(
+    `/api/v1/dashboard/raffles/${raffleId}/prize-tiers`,
+  )
+  return data.data.tiers
+}
+
+export async function createPrizeTier(
+  raffleId: string,
+  input: CreatePrizeTierInput,
+): Promise<RafflePrizeTier> {
+  const { data } = await client.post<ApiResponse<{ tier: RafflePrizeTier }>>(
+    `/api/v1/dashboard/raffles/${raffleId}/prize-tiers`,
+    input,
+  )
+  return data.data.tier
+}
+
+export async function updatePrizeTier(
+  raffleId: string,
+  tierId: string,
+  input: UpdatePrizeTierInput,
+): Promise<RafflePrizeTier> {
+  const { data } = await client.patch<ApiResponse<{ tier: RafflePrizeTier }>>(
+    `/api/v1/dashboard/raffles/${raffleId}/prize-tiers/${tierId}`,
+    input,
+  )
+  return data.data.tier
+}
+
+export async function deletePrizeTier(raffleId: string, tierId: string): Promise<void> {
+  await client.delete(`/api/v1/dashboard/raffles/${raffleId}/prize-tiers/${tierId}`)
+}
+
+export async function drawFromTier(raffleId: string, tierId: string): Promise<RaffleDraw> {
+  const { data } = await client.post<ApiResponse<{ draw: RaffleDraw }>>(
+    `/api/v1/dashboard/raffles/${raffleId}/prize-tiers/${tierId}/draws`,
+    undefined,
+  )
+  return data.data.draw
 }
