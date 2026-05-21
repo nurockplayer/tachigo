@@ -144,7 +144,7 @@ func (s *ClaimService) Claim(ctx context.Context, userID uuid.UUID, amount int64
 	}
 
 	var reservation claimReservation
-	if err := s.db.Transaction(func(tx *gorm.DB) error {
+	if err := s.db.WithContext(ctx).Transaction(func(tx *gorm.DB) error {
 		var err error
 		reservation, err = s.reserveClaim(tx, userID, amount)
 		return err
