@@ -96,6 +96,9 @@ importers:
       globals:
         specifier: ^17.4.0
         version: 17.4.0
+      jiti:
+        specifier: ^2.6.1
+        version: 2.6.1
       jsdom:
         specifier: ^29.0.1
         version: 29.0.2
