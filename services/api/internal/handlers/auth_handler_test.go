@@ -67,6 +67,26 @@ func TestRegisterHandler_Success(t *testing.T) {
 	assertTokenPayloadHasBrowserTokens(t, resp)
 }
 
+func TestRegisterHandler_UsesRequestContext(t *testing.T) {
+	env := newTestEnv(t)
+	key := authHandlerContextKey{}
+	seen := installAuthHandlerDBContextProbe(t, env.db, key, "register")
+
+	body := `{"username":"registerctx","email":"registerctx@example.com","password":"password123"}`
+	req := httptest.NewRequest(http.MethodPost, "/api/v1/auth/register", bytes.NewBufferString(body)).
+		WithContext(context.WithValue(context.Background(), key, "register"))
+	req.Header.Set("Content-Type", "application/json")
+	w := httptest.NewRecorder()
+	env.router.ServeHTTP(w, req)
+
+	if w.Code != http.StatusCreated {
+		t.Fatalf("want 201, got %d: %s", w.Code, w.Body.String())
+	}
+	if seen() == 0 {
+		t.Fatal("expected Register DB query/create to use request context")
+	}
+}
+
 func TestRegisterHandler_DuplicateEmail(t *testing.T) {
 	env := newTestEnv(t)
 	env.registerUser(t, "existing", "dup@example.com", "password123")

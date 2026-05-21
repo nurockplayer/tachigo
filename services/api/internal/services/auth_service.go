@@ -84,13 +84,26 @@ type RegisterInput struct {
 }
 
 func (s *AuthService) Register(input RegisterInput) (*models.User, *TokenPair, error) {
+	return s.RegisterContext(context.Background(), input)
+}
+
+func (s *AuthService) RegisterContext(ctx context.Context, input RegisterInput) (*models.User, *TokenPair, error) {
+	if ctx == nil {
+		ctx = context.Background()
+	}
+	db := s.db.WithContext(ctx)
+
 	// Check uniqueness
 	var count int64
-	s.db.Model(&models.User{}).Where("email = ?", input.Email).Count(&count)
+	if err := db.Model(&models.User{}).Where("email = ?", input.Email).Count(&count).Error; err != nil {
+		return nil, nil, err
+	}
 	if count > 0 {
 		return nil, nil, ErrEmailExists
 	}
-	s.db.Model(&models.User{}).Where("username = ?", input.Username).Count(&count)
+	if err := db.Model(&models.User{}).Where("username = ?", input.Username).Count(&count).Error; err != nil {
+		return nil, nil, err
+	}
 	if count > 0 {
 		return nil, nil, ErrUsernameExists
 	}
@@ -112,7 +125,7 @@ func (s *AuthService) Register(input RegisterInput) (*models.User, *TokenPair, e
 	}
 
 	var tokens *TokenPair
-	if err := s.db.Transaction(func(tx *gorm.DB) error {
+	if err := db.Transaction(func(tx *gorm.DB) error {
 		if err := tx.Create(user).Error; err != nil {
 			return err
 		}

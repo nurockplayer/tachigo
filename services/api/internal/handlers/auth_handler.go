@@ -66,7 +66,7 @@ func (h *AuthHandler) Register(c *gin.Context) {
 		return
 	}
 
-	user, tokens, err := h.auth.Register(input)
+	user, tokens, err := h.auth.RegisterContext(c.Request.Context(), input)
 	if err != nil {
 		switch err {
 		case services.ErrEmailExists:

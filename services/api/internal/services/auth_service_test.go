@@ -46,6 +46,32 @@ func TestRegister_Success(t *testing.T) {
 	}
 }
 
+func TestAuthService_RegisterContext_UsesRequestContext(t *testing.T) {
+	db := newTestDB(t)
+	svc := NewAuthService(db, testConfig())
+
+	type registerContextKey struct{}
+	key := registerContextKey{}
+	seen := installDBContextProbe(t, db, key, "register")
+	ctx := context.WithValue(context.Background(), key, "register")
+
+	user, tokens, err := svc.RegisterContext(ctx, RegisterInput{
+		Username: "registerctx",
+		Email:    "registerctx@example.com",
+		Password: "password123",
+	})
+
+	if err != nil {
+		t.Fatalf("register context: %v", err)
+	}
+	if user == nil || tokens == nil {
+		t.Fatal("expected user and tokens, got nil")
+	}
+	if seen() == 0 {
+		t.Fatal("expected Register DB query/create to use request context")
+	}
+}
+
 func TestOAuthUser_PersistsOnlyEncryptedTwitchAccessToken(t *testing.T) {
 	db := newTestDB(t)
 	cfg := testConfig()
