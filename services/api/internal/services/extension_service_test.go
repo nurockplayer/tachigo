@@ -4,6 +4,7 @@ import (
 	"context"
 	"encoding/base64"
 	"errors"
+	"fmt"
 	"testing"
 	"time"
 
@@ -162,6 +163,58 @@ func TestCompleteTPointTransactionContext_UsesRequestContextForUserLookup(t *tes
 	}
 	if seen() == 0 {
 		t.Fatal("expected CompleteTPointTransactionContext user lookup to carry request context")
+	}
+}
+
+func TestCompleteTPointTransactionContext_UsesRequestContextForPointsWriteAndTokenIssue(t *testing.T) {
+	svc, _ := newExtSvc(t)
+	_, twitchID := seedTwitchUser(t, svc.db)
+	channelID := "channel-context-write"
+
+	extJWT := makeExtJWT(t, twitchID, channelID)
+	receipt := makeReceiptJWT(t, "tx-context-write-001", twitchID, "TPOINT100", 100, "bits")
+
+	key := extensionServiceContextKey{}
+	ctx := context.WithValue(context.Background(), key, "extension-tpoint-write")
+	var seenPointsWrite bool
+	var seenRefreshTokenWrite bool
+
+	callbackName := "test:extension_tpoint_write_context"
+	probe := func(tx *gorm.DB) {
+		if tx.Statement == nil || tx.Statement.Schema == nil {
+			return
+		}
+		if tx.Statement.Schema.Table != "points_transactions" && tx.Statement.Schema.Table != "refresh_tokens" {
+			return
+		}
+		if tx.Statement.Context.Value(key) != "extension-tpoint-write" {
+			tx.AddError(fmt.Errorf("missing request context for %s", tx.Statement.Schema.Table))
+			return
+		}
+		switch tx.Statement.Schema.Table {
+		case "points_transactions":
+			seenPointsWrite = true
+		case "refresh_tokens":
+			seenRefreshTokenWrite = true
+		}
+	}
+	if err := svc.db.Callback().Create().Before("gorm:create").Register(callbackName, probe); err != nil {
+		t.Fatalf("register context probe: %v", err)
+	}
+	t.Cleanup(func() {
+		if err := svc.db.Callback().Create().Remove(callbackName); err != nil {
+			t.Fatalf("remove context probe: %v", err)
+		}
+	})
+
+	if _, _, err := svc.CompleteTPointTransactionContext(ctx, extJWT, receipt, "TPOINT100"); err != nil {
+		t.Fatalf("CompleteTPointTransactionContext: %v", err)
+	}
+	if !seenPointsWrite {
+		t.Fatal("expected points transaction write to carry request context")
+	}
+	if !seenRefreshTokenWrite {
+		t.Fatal("expected refresh token write to carry request context")
 	}
 }
 

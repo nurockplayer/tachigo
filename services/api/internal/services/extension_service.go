@@ -211,7 +211,8 @@ func (s *ExtensionService) CompleteTPointTransactionContext(ctx context.Context,
 	// Write points first; tokens are issued only on success to avoid orphan
 	// refresh token records when the points write fails.
 	txID := receiptClaims.Data.TransactionID
-	err = s.pointsSvc.AddPointsWithMeta(
+	err = s.pointsSvc.AddPointsWithMetaContext(
+		ctx,
 		user.ID,
 		extClaims.ChannelID,
 		models.TxSourceTPoint,
@@ -234,7 +235,7 @@ func (s *ExtensionService) CompleteTPointTransactionContext(ctx context.Context,
 	// Points are now committed. If issueTokenPair fails here, points remain credited
 	// and the client will receive an error. On retry, AddPointsWithMeta returns
 	// ErrDuplicateTransaction — the client should call LoginWithExtension to get tokens.
-	tokens, err := s.authSvc.issueTokenPair(user)
+	tokens, err := s.authSvc.issueTokenPairContext(ctx, user)
 	if err != nil {
 		return nil, nil, err
 	}
