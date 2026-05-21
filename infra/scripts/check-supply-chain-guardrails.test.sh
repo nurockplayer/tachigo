@@ -6,7 +6,7 @@ root_dir="$(cd "$(dirname "$0")/../.." && pwd)"
 tmp_dir="$(mktemp -d)"
 trap 'rm -rf "$tmp_dir"' EXIT
 
-script="$root_dir/infra/scripts/check-supply-chain-guardrails.mjs"
+script="$root_dir/infra/scripts/check-supply-chain-guardrails.ts"
 
 write_package() {
   local repo="$1"
@@ -50,7 +50,7 @@ run_case() {
   "$@" "$repo"
 
   set +e
-  node "$script" --root "$repo" > "$tmp_dir/$name.out" 2> "$tmp_dir/$name.err"
+  node --experimental-strip-types --no-warnings "$script" --root "$repo" > "$tmp_dir/$name.out" 2> "$tmp_dir/$name.err"
   local exit_code=$?
   set -e
 

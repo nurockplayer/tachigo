@@ -19,7 +19,7 @@ AI agent 不得自行執行下列動作：
 
 ## Repo Guardrails
 
-- `make supply-chain-check` 跑 `infra/scripts/check-supply-chain-guardrails.mjs`。
+- `make supply-chain-check` 跑 `infra/scripts/check-supply-chain-guardrails.ts`。
 - CI 的 `Supply-chain guardrails` job 會拒絕新的 `preinstall`、`install`、`postinstall`、`prepare` scripts。
 - 同一個 guardrail 會拒絕 package scripts 內的 `npx`、`pnpm dlx`、`npm exec`、`curl | bash`、`wget | sh`。
 - 同一個 guardrail 會要求 Dockerfile 中的 `pnpm install` 同時使用 `--frozen-lockfile` 與 `--ignore-scripts`。

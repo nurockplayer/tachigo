@@ -308,7 +308,7 @@ spawn 前若已知 worker 額度或 thread limit 不足，先選低成本替代 
 ## PR Template 與 Policy-test Hardening
 
 - PR template 的示例不得是可被 workflow parser 誤判為正式欄位的可執行指令；示例若可能觸發 gate，必須放在 HTML comment 或改成非 executable wording。
-- `.github/workflows/ci.test.mjs` 必須覆蓋 template、autonomous detection、placeholder、worker closeout、scope budget 與 `scope-exception` 不 bypass autonomous gate 的 regression。
+- `.github/workflows/ci.test.ts` 必須覆蓋 template、autonomous detection、placeholder、worker closeout、scope budget 與 `scope-exception` 不 bypass autonomous gate 的 regression。
 - policy test 只鎖住可機器檢查的契約；更大範圍的 router / daemon / CLI profile 自動化必須另開 issue，不放進同一張 governance PR。
 - PR diff 接近 600 行時應優先壓縮或拆分；超過 1000 行時不得靠 `scope-exception` 當常態解法。
 
@@ -347,7 +347,7 @@ spawn 前若已知 worker 額度或 thread limit 不足，先選低成本替代 
 
 - Backend Go 變更至少跑相關 `go test`；必要時跑 `docker compose run --no-deps --rm app go test ./...`。
 - Frontend 變更至少跑相關 lint/test/build；依 scope 選 extension 或 dashboard。
-- Workflow / policy 變更需跑 `node --test .github/workflows/ci.test.mjs`，並做 PR metadata preflight。
+- Workflow / policy 變更需跑 `node --experimental-strip-types --no-warnings --test .github/workflows/ci.test.ts`，並做 PR metadata preflight。
 - Docs-only 變更至少跑 `git diff --check`；若文件描述 repo command，需確認命令仍存在或明確標示限制。
 - 若任何驗證無法執行，PR body 與最終回報都必須寫明原因與剩餘風險。
 

@@ -8,20 +8,20 @@
   },
   "files": [
     "src/index.d.ts",
-    "src/index.mjs"
+    "src/index.ts"
   ],
   "types": "./src/index.d.ts",
   "exports": {
     ".": {
       "types": "./src/index.d.ts",
-      "import": "./src/index.mjs",
-      "default": "./src/index.mjs"
+      "import": "./src/index.ts",
+      "default": "./src/index.ts"
     }
   },
   "dependencies": {
     "@tachigo/shared-types": "workspace:*"
   },
   "scripts": {
-    "test": "node --test src/*.test.mjs"
+    "test": "node --experimental-strip-types --no-warnings --test src/*.test.ts"
   }
 }

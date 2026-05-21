@@ -50,7 +50,7 @@
 - Spawn directive(s)：
   - <!-- 例：profile=ops_spark model=gpt-5.3-codex-spark reasoning=medium controller_fallback=denied fallback_reason=n/a -->
 - Verification evidence：
-  - <!-- 例：git diff --check；node --test .github/workflows/ci.test.mjs -->
+  - <!-- 例：git diff --check；node --experimental-strip-types --no-warnings --test .github/workflows/ci.test.ts -->
 - Self-review / exception reason：
   - <!-- 例：已完成 self-review；或 trivial/self-only exception reason -->
 - Worker session closeout：

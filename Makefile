@@ -46,7 +46,7 @@ session-index-test:
 
 # ── Supply-chain guardrails ──────────────────────────────────────────────────
 supply-chain-check:
-	@node infra/scripts/check-supply-chain-guardrails.mjs
+	@node --experimental-strip-types --no-warnings infra/scripts/check-supply-chain-guardrails.ts
 
 developer-persistence-check:
 	@bash infra/scripts/check-developer-persistence.sh

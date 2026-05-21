@@ -1,8 +1,8 @@
 #!/usr/bin/env node
 
-import { readdir, readFile, stat } from 'node:fs/promises'
-import path from 'node:path'
-import process from 'node:process'
+const { readdir, readFile, stat } = require('node:fs/promises')
+const path = require('node:path')
+const process = require('node:process')
 
 const ignoredDirs = new Set([
   '.git',

@@ -1,6 +1,6 @@
 #!/usr/bin/env node
-import assert from 'node:assert/strict'
-import { readFileSync } from 'node:fs'
+const assert = require('node:assert/strict')
+const { readFileSync } = require('node:fs')
 
 const files = {
   router: readFile('services/api/internal/router/router.go'),

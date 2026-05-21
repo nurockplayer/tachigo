@@ -1,7 +1,7 @@
 import assert from "node:assert/strict";
 import { describe, it } from "node:test";
 
-import { ApiClientError, createApiClient } from "./index.mjs";
+import { ApiClientError, createApiClient } from "./index.ts";
 
 function createFetchRecorder(response) {
   const calls = [];
@@ -149,6 +149,24 @@ describe("createApiClient", () => {
     });
 
     assert.equal(await client.request("POST /auth/verify-email/send"), undefined);
+  });
+
+  it("throws a TypeError when no fetch implementation is available", () => {
+    const originalFetch = globalThis.fetch;
+    delete (globalThis as { fetch?: typeof fetch }).fetch;
+
+    try {
+      assert.throws(
+        () => createApiClient(),
+        (error) => {
+          assert.ok(error instanceof TypeError);
+          assert.match(error.message, /requires a fetch implementation/);
+          return true;
+        },
+      );
+    } finally {
+      globalThis.fetch = originalFetch;
+    }
   });
 
   it("wraps invalid JSON responses in ApiClientError with raw response details", async () => {

@@ -244,7 +244,7 @@ jobs:
             ]
             const ciWorkflowPaths = [
               /^\.github\/workflows\/ci\.yml$/,
-              /^\.github\/workflows\/ci\.test\.mjs$/,
+              /^\.github\/workflows\/ci\.test\.ts$/,
             ]
             const dockerComposePaths = [/^docker-compose(?:\..+)?\.ya?ml$/]
             const frontendWorkspacePaths = [
@@ -264,7 +264,7 @@ jobs:
             const apiContractPaths = [
               /^apps\/dashboard\/src\/(?:providers\/dataProvider\.ts|services\/)/,
               /^apps\/extension\/src\/services\/api\.ts$/,
-              /^infra\/scripts\/check-frontend-api-contracts\.mjs$/,
+              /^infra\/scripts\/check-frontend-api-contracts\.ts$/,
               /^packages\/(?:shared-types|api-client)\//,
               /^services\/api\/internal\/router\/router\.go$/,
               /^services\/api\/docs\/(?:docs\.go|swagger\.json|swagger\.ya?ml)$/,
@@ -350,7 +350,7 @@ jobs:
           node-version: 24.15.0
 
       - name: Verify CI workflow assertions
-        run: node --test .github/workflows/ci.test.mjs
+        run: node --experimental-strip-types --no-warnings --test .github/workflows/ci.test.ts
 
       - name: Verify supply-chain guardrail assertions
         run: bash infra/scripts/check-supply-chain-guardrails.test.sh
@@ -370,7 +370,7 @@ jobs:
           node-version: 24.15.0
 
       - name: Verify dependency install guardrails
-        run: node infra/scripts/check-supply-chain-guardrails.mjs
+        run: node --experimental-strip-types --no-warnings infra/scripts/check-supply-chain-guardrails.ts
 
   commit-message-regression:
     timeout-minutes: 5
