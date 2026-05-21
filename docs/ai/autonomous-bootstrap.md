@@ -33,7 +33,7 @@
 若要修改 workflow / Scope Police / PR template，還要讀：
 
 - `.github/workflows/pr-scope-police.yml`
-- `.github/workflows/ci.test.mjs`
+- `.github/workflows/ci.test.ts`
 
 若 spec-injector tool behavior 本身不符合預期，先回報工具版本落差；不要在 tachigo PR 裡實作 spec-injector runtime。
 

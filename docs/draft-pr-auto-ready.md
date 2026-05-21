@@ -164,7 +164,7 @@ review queue automatically should not use the `auto-ready` label.
 
 ## Maintenance notes
 
-- Keep the workflow regression tests in `.github/workflows/ci.test.mjs` aligned
+- Keep the workflow regression tests in `.github/workflows/ci.test.ts` aligned
   with both `.github/workflows/auto-ready-pr.yml` and the
   `auto-ready-after-ci` job in `.github/workflows/ci.yml`.
 - If required checks are renamed, split, moved to another app, or added to

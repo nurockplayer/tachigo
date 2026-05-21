@@ -1,12 +1,11 @@
-import assert from 'node:assert/strict'
-import { execFileSync } from 'node:child_process'
-import { mkdir, mkdtemp, readFile, rm, writeFile } from 'node:fs/promises'
-import { tmpdir } from 'node:os'
-import path from 'node:path'
-import test from 'node:test'
-import { fileURLToPath } from 'node:url'
+const assert = require('node:assert/strict')
+const { execFileSync } = require('node:child_process')
+const { mkdir, mkdtemp, readFile, rm, writeFile } = require('node:fs/promises')
+const { tmpdir } = require('node:os')
+const path = require('node:path')
+const test = require('node:test')
 
-const currentDir = path.dirname(fileURLToPath(import.meta.url))
+const currentDir = __dirname
 const repoRoot = path.join(currentDir, '..', '..')
 const workflowPath = path.join(currentDir, 'ci.yml')
 const dockerComposePath = path.join(repoRoot, 'docker-compose.yml')
@@ -787,7 +786,7 @@ test('frontend CI job runs the frontend test command', async () => {
 
   assert.match(
     workflow,
-    /workflow-regression:\n[\s\S]*?- name: Verify CI workflow assertions\n\s+run: node --test \.github\/workflows\/ci\.test\.mjs/,
+    /workflow-regression:\n[\s\S]*?- name: Verify CI workflow assertions\n\s+run: node --experimental-strip-types --no-warnings --test \.github\/workflows\/ci\.test\.ts/,
   )
 })
 
@@ -822,7 +821,10 @@ test('supply-chain guardrail CI job runs the repository guardrail script', async
   assert.match(jobBlock, pinnedActionRef('actions/checkout', 'v4'))
   assert.match(jobBlock, pinnedActionRef('actions/setup-node', 'v4'))
   assert.match(jobBlock, /node-version: 24\.15\.0/)
-  assert.match(jobBlock, /run: node infra\/scripts\/check-supply-chain-guardrails\.mjs/)
+  assert.match(
+    jobBlock,
+    /run: node --experimental-strip-types --no-warnings infra\/scripts\/check-supply-chain-guardrails\.ts/,
+  )
 })
 
 test('CI workflow pins action references to full commit SHAs', async () => {
@@ -1321,7 +1323,7 @@ test('PR scope police enforces risk classification and blocks R4 auto-ready', as
 - Actual worker profile(s)：controller / test_worker
 - Model strength：controller = high；test_worker = medium
 - Spawn directive(s)：profile=test_worker model=gpt-5.4 reasoning=medium controller_fallback=denied
-- Verification evidence：node --test .github/workflows/ci.test.mjs
+- Verification evidence：node --experimental-strip-types --no-warnings --test .github/workflows/ci.test.ts
 - Self-review / exception reason：controller reviewed the risk gate
 - Worker session closeout：worker results read back and closed
 
@@ -1433,7 +1435,7 @@ test('PR scope police only treats a delegation log as autonomous when it has rea
 - Actual worker profile(s)：controller / test_worker
 - Model strength：controller = high；test_worker = medium
 - Spawn directive(s)：profile=test_worker model=gpt-5.4 reasoning=medium controller_fallback=denied
-- Verification evidence：git diff --check；node --test .github/workflows/ci.test.mjs
+- Verification evidence：git diff --check；node --experimental-strip-types --no-warnings --test .github/workflows/ci.test.ts
 - Self-review / exception reason：已完成 self-review
 - Worker session closeout：已讀回 worker 結果並 close
 
@@ -1483,7 +1485,7 @@ test('PR scope police only treats a delegation log as autonomous when it has rea
 ## Delegation Execution Log
 - Verification evidence：
   - git diff --check
-  - node --test .github/workflows/ci.test.mjs
+  - node --experimental-strip-types --no-warnings --test .github/workflows/ci.test.ts
 `
   const multilineVerificationEvidenceRun = await runScopePoliceWorkflow({
     body: multilineVerificationEvidenceBody,
@@ -1786,7 +1788,7 @@ Depends on PR: none
 - Spawn directive(s)：
   - profile=ops_spark model=gpt-5.3-codex-spark reasoning=medium controller_fallback=not-needed
   - profile=docs_worker model=gpt-5.3-codex-spark reasoning=medium controller_fallback=allowed fallback_reason=sticky comment snapshot wording
-- Verification evidence：node --test .github/workflows/ci.test.mjs；git diff --check
+- Verification evidence：node --experimental-strip-types --no-warnings --test .github/workflows/ci.test.ts；git diff --check
 - Self-review / exception reason：controller reviewed the workflow diff before handoff
 - Worker session closeout：all worker sessions read back and closed
 

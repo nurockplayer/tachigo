@@ -79,7 +79,7 @@ body:
 
         Evidence / validation:
         - git diff --check
-        - node --test .github/workflows/ci.test.mjs
+        - node --experimental-strip-types --no-warnings --test .github/workflows/ci.test.ts
 
         Trivial/self-only exception reason:
         - n/a
