@@ -770,7 +770,12 @@ func (s *RaffleService) RunScheduledSnapshots(ctx context.Context, now time.Time
 			)
 		}
 	}
-	if failed > 0 {
+	switch {
+	case failed == 0:
+		result = "success"
+	case failed == len(raffles):
+		result = "failure"
+	default:
 		result = "partial_failure"
 	}
 	log.Printf(
