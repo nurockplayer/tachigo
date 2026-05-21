@@ -1,4 +1,4 @@
-.PHONY: setup dev up down logs pr-meta-check pr-open session-index session-find session-index-test supply-chain-check developer-persistence-check
+.PHONY: setup dev up down logs pr-meta-check pr-open session-index session-find session-index-test supply-chain-check typescript-only-check developer-persistence-check
 
 # ── Setup (run once after cloning) ────────────────────────────────────────────
 setup:
@@ -47,6 +47,9 @@ session-index-test:
 # ── Supply-chain guardrails ──────────────────────────────────────────────────
 supply-chain-check:
 	@node --experimental-strip-types --no-warnings infra/scripts/check-supply-chain-guardrails.ts
+
+typescript-only-check:
+	@bash infra/scripts/check-typescript-only.sh
 
 developer-persistence-check:
 	@bash infra/scripts/check-developer-persistence.sh

@@ -42,6 +42,7 @@ const AsyncFunction = Object.getPrototypeOf(async function () {}).constructor
 const developRequiredCheckRuns = [
   'Scope gate',
   'Supply-chain guardrails',
+  'TypeScript-only guardrail',
   'Dependency Review',
   'API contract drift',
   'Frontend build',
@@ -55,7 +56,7 @@ const developRequiredCheckRuns = [
   status: 'completed',
   conclusion: 'success',
   app: { id: 15368 },
-  completed_at: `2026-05-02T00:00:0${index}Z`,
+  completed_at: `2026-05-02T00:00:${String(index).padStart(2, '0')}Z`,
 }))
 
 function successfulDevelopRequiredCheckRuns(...overrides) {
@@ -268,6 +269,7 @@ async function runCiAutoReadyAfterCiWorkflow({
     env: {
       SCOPE_GATE_RESULT: 'success',
       SUPPLY_CHAIN_GUARDRAILS_RESULT: 'success',
+      TYPESCRIPT_ONLY_GUARDRAIL_RESULT: 'success',
       BACKEND_CI_RESULT: 'success',
       DEPENDENCY_REVIEW_RESULT: 'success',
       API_CONTRACTS_RESULT: 'success',
@@ -795,6 +797,8 @@ test('CI workflow uses infra script entrypoints', async () => {
 
   assert.match(workflow, /run: bash infra\/scripts\/check-backend-ci-cache\.sh/)
   assert.match(workflow, /run: bash infra\/scripts\/check-supply-chain-guardrails\.test\.sh/)
+  assert.match(workflow, /run: bash infra\/scripts\/check-typescript-only\.test\.sh/)
+  assert.match(workflow, /run: bash infra\/scripts\/check-typescript-only\.sh/)
   assert.match(workflow, /run: bash infra\/scripts\/check-developer-persistence\.test\.sh/)
   assert.match(workflow, /run: bash infra\/scripts\/commit-message-check\.test\.sh/)
   assert.match(workflow, /run: bash infra\/scripts\/pr-open\.test\.sh/)
@@ -824,6 +828,21 @@ test('supply-chain guardrail CI job runs the repository guardrail script', async
   assert.match(
     jobBlock,
     /run: node --experimental-strip-types --no-warnings infra\/scripts\/check-supply-chain-guardrails\.ts/,
+  )
+})
+
+test('TypeScript-only guardrail CI job runs the repository guardrail script', async () => {
+  const workflow = await readFile(workflowPath, 'utf8')
+  const parsedWorkflow = parseYaml(workflowPath)
+  const job = parsedWorkflow.jobs['typescript-only-guardrail']
+  const jobBlock = workflowJobBlock(workflow, 'typescript-only-guardrail')
+
+  assert.equal(job.name, 'TypeScript-only guardrail')
+  assert.equal(job['timeout-minutes'], 5)
+  assert.match(jobBlock, pinnedActionRef('actions/checkout', 'v4'))
+  assert.equal(
+    workflowJobStep(parsedWorkflow, 'typescript-only-guardrail', 'Reject tracked JavaScript source files').run,
+    'bash infra/scripts/check-typescript-only.sh',
   )
 })
 
@@ -2815,6 +2834,8 @@ test('auto-ready workflow checks required contexts and excludes its own run', as
   assert.match(workflow, /const requiredCheckSnapshots = \{/)
   assert.match(workflow, /develop: \[/)
   assert.match(workflow, /\{ context: 'Scope gate', appId: 15368 \}/)
+  assert.match(workflow, /\{ context: 'Supply-chain guardrails', appId: 15368 \}/)
+  assert.match(workflow, /\{ context: 'TypeScript-only guardrail', appId: 15368 \}/)
   assert.match(workflow, /\{ context: 'Dependency Review', appId: 15368 \}/)
   assert.match(workflow, /\{ context: 'API contract drift', appId: 15368 \}/)
   assert.match(workflow, /\{ context: 'Frontend build', appId: 15368 \}/)
@@ -2872,7 +2893,7 @@ test('CI workflow wakes auto-ready draft PRs after required CI jobs finish', asy
 
   assert.equal(job.name, 'Auto-ready draft PR after CI')
   assert.equal(job.if, "always() && github.event_name == 'pull_request'")
-  assert.deepEqual(job.needs, ['scope-gate', 'supply-chain-guardrails', 'backend-ci', 'dependency-review', 'api-contracts', 'frontend', 'dashboard', 'contracts', 'contracts-slither', 'contracts-gas-snapshot'])
+  assert.deepEqual(job.needs, ['scope-gate', 'supply-chain-guardrails', 'typescript-only-guardrail', 'backend-ci', 'dependency-review', 'api-contracts', 'frontend', 'dashboard', 'contracts', 'contracts-slither', 'contracts-gas-snapshot'])
   assert.equal(job.permissions['pull-requests'], 'write')
   assert.equal(job.permissions.contents, 'write')
   assert.equal(job.permissions.issues, 'write')
@@ -2886,6 +2907,7 @@ test('CI workflow wakes auto-ready draft PRs after required CI jobs finish', asy
   assert.match(jobBlock, /const successConclusions = new Set\(\['success', 'neutral', 'skipped'\]\)/)
   assert.match(jobBlock, /SCOPE_GATE_RESULT/)
   assert.match(jobBlock, /SUPPLY_CHAIN_GUARDRAILS_RESULT/)
+  assert.match(jobBlock, /TYPESCRIPT_ONLY_GUARDRAIL_RESULT/)
   assert.match(jobBlock, /BACKEND_CI_RESULT/)
   assert.match(jobBlock, /DEPENDENCY_REVIEW_RESULT/)
   assert.match(jobBlock, /API_CONTRACTS_RESULT/)
@@ -2909,6 +2931,7 @@ test('CI workflow wakes auto-ready draft PRs after required CI jobs finish', asy
   assert.match(jobBlock, /const requiredCheckSnapshots = \{/)
   assert.match(jobBlock, /\{ context: 'Scope gate', appId: 15368 \}/)
   assert.match(jobBlock, /\{ context: 'Supply-chain guardrails', appId: 15368 \}/)
+  assert.match(jobBlock, /\{ context: 'TypeScript-only guardrail', appId: 15368 \}/)
   assert.match(jobBlock, /\{ context: 'Dependency Review', appId: 15368 \}/)
   assert.match(jobBlock, /\{ context: 'API contract drift', appId: 15368 \}/)
   assert.match(jobBlock, /\{ context: 'Frontend build', appId: 15368 \}/)
@@ -2989,9 +3012,34 @@ test('standalone auto-ready workflow waits when dependency review check fails', 
   assert.deepEqual(result.labelsAdded, [])
 })
 
+test('standalone auto-ready workflow waits when TypeScript-only guardrail check fails', async () => {
+  const result = await runAutoReadyWorkflow({
+    checkRuns: successfulDevelopRequiredCheckRuns({
+      name: 'TypeScript-only guardrail',
+      status: 'completed',
+      conclusion: 'failure',
+      app: { id: 15368 },
+      completed_at: '2026-05-03T00:01:00Z',
+    }),
+  })
+
+  assert.deepEqual(result.graphqlCalls, [])
+  assert.deepEqual(result.labelsAdded, [])
+})
+
 test('CI auto-ready job waits when supply-chain guardrails fail', async () => {
   const result = await runCiAutoReadyAfterCiWorkflow({
     env: { SUPPLY_CHAIN_GUARDRAILS_RESULT: 'failure' },
+    checkRuns: successfulDevelopRequiredCheckRuns(),
+  })
+
+  assert.deepEqual(result.graphqlCalls, [])
+  assert.deepEqual(result.labelsAdded, [])
+})
+
+test('CI auto-ready job waits when TypeScript-only guardrail fails', async () => {
+  const result = await runCiAutoReadyAfterCiWorkflow({
+    env: { TYPESCRIPT_ONLY_GUARDRAIL_RESULT: 'failure' },
     checkRuns: successfulDevelopRequiredCheckRuns(),
   })
 

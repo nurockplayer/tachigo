@@ -149,6 +149,8 @@ PR Diff 大小規則詳見 [CLAUDE.md](CLAUDE.md)（conventions.md 的 PR Diff �
 - 不得把 docs / research draft 直接當成 implementation source of truth
 - 不得未經驗證就宣稱「已完成」；至少回報實際執行過的測試、未驗證部分、已知風險
 - 供應鏈安全規則見 [docs/ai/supply-chain-security.md](docs/ai/supply-chain-security.md)：AI agent 不得自行新增依賴，不得執行 `npx` / `pnpm dlx` / `npm exec` / `curl | bash` / `wget | sh`，`package.json` 與 lockfile 改動必須在 PR 中說明並接受人工 review
+- TypeScript migration 後，source / config / tooling / test scripts 一律使用 TypeScript（`.ts` / `.tsx`），不得新增 `.js` / `.jsx` / `.mjs` / `.cjs`。需要直接執行 Node TypeScript script 時，依情境使用 `node --experimental-strip-types --no-warnings path/to/script.ts`。
+- 例外只限高層次既有類型：lockfiles、generated build output、archived historical docs、以及明確標示的 test fixtures。
 
 ### Autonomous Worker Profiles
 
