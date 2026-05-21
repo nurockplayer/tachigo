@@ -13,9 +13,37 @@ import (
 	"testing"
 	"time"
 
+	"github.com/google/uuid"
 	"github.com/tachigo/tachigo/internal/models"
 	"golang.org/x/oauth2"
+	"gorm.io/gorm"
 )
+
+type authHandlerContextKey struct{}
+
+func installAuthHandlerDBContextProbe(t *testing.T, db *gorm.DB, key, want any) func() int {
+	t.Helper()
+
+	var seen int
+	name := "test:auth_handler_db_context:" + uuid.NewString()
+	probe := func(tx *gorm.DB) {
+		if tx.Statement != nil && tx.Statement.Context != nil && tx.Statement.Context.Value(key) == want {
+			seen++
+		}
+	}
+
+	if err := db.Callback().Query().Before("gorm:query").Register(name+":query", probe); err != nil {
+		t.Fatalf("register query context probe: %v", err)
+	}
+
+	t.Cleanup(func() {
+		_ = db.Callback().Query().Remove(name + ":query")
+	})
+
+	return func() int {
+		return seen
+	}
+}
 
 // ─── Register ────────────────────────────────────────────────────────────────
 
@@ -966,6 +994,29 @@ func TestWeb3VerifyHandler_InvalidSignatureReturns401AndKeepsNonce(t *testing.T)
 	env.db.Model(&models.Web3Nonce{}).Where("nonce = ?", nonce).Count(&nonceCount)
 	if nonceCount != 1 {
 		t.Fatalf("invalid signature should keep nonce for retry, got %d rows", nonceCount)
+	}
+}
+
+// ─── UnlinkProvider ──────────────────────────────────────────────────────────
+
+func TestUnlinkProviderHandler_UsesRequestContext(t *testing.T) {
+	env := newTestEnv(t)
+	accessToken, _ := env.registerUser(t, "unlinkctx", "unlinkctx@example.com", "password123")
+
+	key := authHandlerContextKey{}
+	seen := installAuthHandlerDBContextProbe(t, env.db, key, "unlink-provider")
+	ctx := context.WithValue(context.Background(), key, "unlink-provider")
+
+	req := httptest.NewRequest(http.MethodDelete, "/api/v1/auth/providers/email", nil).WithContext(ctx)
+	req.Header.Set("Authorization", "Bearer "+accessToken)
+	w := httptest.NewRecorder()
+	env.router.ServeHTTP(w, req)
+
+	if w.Code != http.StatusOK {
+		t.Fatalf("want 200, got %d: %s", w.Code, w.Body.String())
+	}
+	if seen() == 0 {
+		t.Fatal("expected UnlinkProvider DB query to use request context")
 	}
 }
 

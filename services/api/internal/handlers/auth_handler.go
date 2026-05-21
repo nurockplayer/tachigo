@@ -359,7 +359,7 @@ func (h *AuthHandler) UnlinkProvider(c *gin.Context) {
 	userID, _ := uuid.Parse(claims.UserID)
 	provider := models.ProviderType(c.Param("provider"))
 
-	if err := h.auth.UnlinkProvider(userID, provider); err != nil {
+	if err := h.auth.UnlinkProviderContext(c.Request.Context(), userID, provider); err != nil {
 		switch err {
 		case services.ErrLastProvider:
 			badRequest(c, "cannot unlink the only login method")

@@ -338,19 +338,32 @@ func (s *AuthService) Web3Verify(input Web3VerifyInput) (*models.User, *TokenPai
 }
 
 func (s *AuthService) UnlinkProvider(userID uuid.UUID, provider models.ProviderType) error {
+	return s.UnlinkProviderContext(context.Background(), userID, provider)
+}
+
+func (s *AuthService) UnlinkProviderContext(ctx context.Context, userID uuid.UUID, provider models.ProviderType) error {
+	if ctx == nil {
+		ctx = context.Background()
+	}
+	db := s.db.WithContext(ctx)
+
 	// Ensure the user still has at least one other way to log in
 	var count int64
-	s.db.Model(&models.AuthProvider{}).Where("user_id = ?", userID).Count(&count)
+	if err := db.Model(&models.AuthProvider{}).Where("user_id = ?", userID).Count(&count).Error; err != nil {
+		return err
+	}
 
 	var user models.User
-	s.db.First(&user, "id = ?", userID)
+	if err := db.First(&user, "id = ?", userID).Error; err != nil {
+		return err
+	}
 	hasPassword := user.PasswordHash != nil
 
 	if count <= 1 && !hasPassword {
 		return ErrLastProvider
 	}
 
-	return s.db.Where("user_id = ? AND provider = ?", userID, provider).Delete(&models.AuthProvider{}).Error
+	return db.Where("user_id = ? AND provider = ?", userID, provider).Delete(&models.AuthProvider{}).Error
 }
 
 // ─── JWT helpers ─────────────────────────────────────────────────────────────
