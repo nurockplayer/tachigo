@@ -76,7 +76,7 @@ func (s *SpendService) Redeem(ctx context.Context, userID uuid.UUID, couponID st
 	}
 
 	var reservation spendReservation
-	if err := s.db.Transaction(func(tx *gorm.DB) error {
+	if err := s.db.WithContext(ctx).Transaction(func(tx *gorm.DB) error {
 		var err error
 		reservation, err = s.reserveSpend(tx, userID, amount)
 		return err

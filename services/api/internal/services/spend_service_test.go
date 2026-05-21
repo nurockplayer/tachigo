@@ -131,6 +131,33 @@ func TestRedeem_Success(t *testing.T) {
 	}
 }
 
+func TestRedeem_CanceledRequestContextStopsReservationBeforeBurn(t *testing.T) {
+	db := newTestDB(t)
+	burnCaller := &mockBurnCaller{txHash: "0xburn123"}
+	svc := &SpendService{db: db, burnCaller: burnCaller}
+
+	userID := userIDForClaim(t, db)
+	seedWeb3Provider(t, db, userID, "0xd8dA6BF26964aF9D7eEd9e03E53415D37aA96045")
+	seedTachiBalance(t, db, userID, 500)
+
+	ctx, cancel := context.WithCancel(context.Background())
+	cancel()
+
+	_, _, err := svc.Redeem(ctx, userID, "coupon-123", 100)
+	if !errors.Is(err, context.Canceled) {
+		t.Fatalf("expected context.Canceled, got %v", err)
+	}
+	if len(burnCaller.calls) != 0 {
+		t.Fatalf("burn should not run after canceled reservation context, got %d calls", len(burnCaller.calls))
+	}
+
+	var dbBal int64
+	db.Raw("SELECT balance FROM tachi_balances WHERE user_id = ?", userID).Scan(&dbBal)
+	if dbBal != 500 {
+		t.Fatalf("expected balance unchanged at 500, got %d", dbBal)
+	}
+}
+
 func TestRedeem_TachiyaIssuedVoucherButPersistFailureReturnsErrorAndLeavesPending(t *testing.T) {
 	db := newTestDB(t)
 	updateErr := errors.New("forced redeemed voucher update failure")
