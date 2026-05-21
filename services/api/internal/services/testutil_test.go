@@ -279,6 +279,17 @@ func migrateTestDB(db *gorm.DB) error {
 			UNIQUE (raffle_id, twitch_login),
 			UNIQUE (id, raffle_id)
 		)`,
+		`CREATE TABLE IF NOT EXISTS raffle_prize_tiers (
+			id TEXT PRIMARY KEY,
+			raffle_id TEXT NOT NULL REFERENCES raffles(id) ON DELETE CASCADE,
+			name TEXT NOT NULL,
+			prize_description TEXT NOT NULL DEFAULT '',
+			winner_count INTEGER NOT NULL CHECK (winner_count > 0),
+			drawn_count INTEGER NOT NULL DEFAULT 0,
+			position INTEGER NOT NULL DEFAULT 0,
+			created_at DATETIME,
+			updated_at DATETIME
+		)`,
 		`CREATE TABLE IF NOT EXISTS raffle_draws (
 			id TEXT PRIMARY KEY,
 			raffle_id TEXT NOT NULL REFERENCES raffles(id),
@@ -286,6 +297,7 @@ func migrateTestDB(db *gorm.DB) error {
 			claim_token TEXT NOT NULL UNIQUE,
 			claim_expires_at DATETIME NOT NULL,
 			drawn_at DATETIME NOT NULL,
+			prize_tier_id TEXT REFERENCES raffle_prize_tiers(id) ON DELETE SET NULL,
 			UNIQUE (raffle_id, entry_id)
 		)`,
 		`CREATE TABLE IF NOT EXISTS raffle_claims (

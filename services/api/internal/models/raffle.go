@@ -141,3 +141,14 @@ type RafflePrizeTier struct {
 }
 
 func (RafflePrizeTier) TableName() string { return "raffle_prize_tiers" }
+
+func (t *RafflePrizeTier) BeforeCreate(tx *gorm.DB) error {
+	if t.ID == uuid.Nil {
+		id, err := uuid.NewV7()
+		if err != nil {
+			return err
+		}
+		t.ID = id
+	}
+	return nil
+}
