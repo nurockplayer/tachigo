@@ -163,6 +163,17 @@ func (s *PointsService) AddPointsWithMeta(
 	amount int64,
 	meta PointsCreditMeta,
 ) error {
+	return s.AddPointsWithMetaContext(context.Background(), userID, channelID, source, amount, meta)
+}
+
+func (s *PointsService) AddPointsWithMetaContext(
+	ctx context.Context,
+	userID uuid.UUID,
+	channelID string,
+	source models.TxSource,
+	amount int64,
+	meta PointsCreditMeta,
+) error {
 	if err := validatePositivePointsAmount(amount); err != nil {
 		return err
 	}
@@ -172,7 +183,7 @@ func (s *PointsService) AddPointsWithMeta(
 	if meta.ExternalTransactionID != nil && utf8.RuneCountInString(*meta.ExternalTransactionID) > 255 {
 		return ErrInvalidExternalTransactionID
 	}
-	return s.db.Transaction(func(tx *gorm.DB) error {
+	return s.dbWithContext(ctx).Transaction(func(tx *gorm.DB) error {
 		return s.addPointsWithMeta(tx, userID, channelID, source, amount, meta)
 	})
 }

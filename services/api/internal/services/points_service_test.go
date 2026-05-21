@@ -285,6 +285,29 @@ func TestAddPointsWithMeta_ExternalTransactionID_Persisted(t *testing.T) {
 	}
 }
 
+func TestPointsService_AddPointsWithMetaContext_UsesRequestContext(t *testing.T) {
+	svc, _ := newPointsSvc(t)
+	userID := seedViewer(t, svc)
+	key := pointsContextKey("points-add-context")
+	seen := installDBContextProbe(t, svc.db, key, "points-add")
+	sku := "bits_100"
+
+	err := svc.AddPointsWithMetaContext(
+		context.WithValue(context.Background(), key, "points-add"),
+		userID,
+		"ch_context",
+		models.TxSourceTPoint,
+		100,
+		PointsCreditMeta{SKU: &sku},
+	)
+	if err != nil {
+		t.Fatalf("add points with context: %v", err)
+	}
+	if seen() == 0 {
+		t.Fatal("expected AddPointsWithMetaContext DB operations to carry request context")
+	}
+}
+
 func TestAddPointsWithMeta_DuplicateExternalTransactionID_Fails(t *testing.T) {
 	svc, _ := newPointsSvc(t)
 	userID := seedViewer(t, svc)
