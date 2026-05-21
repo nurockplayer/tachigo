@@ -119,3 +119,102 @@ func TestUpdatePrizeTier_CannotSetCountBelowDrawn(t *testing.T) {
 		t.Fatalf("expected ErrPrizeTierInvalidCount, got %v", err)
 	}
 }
+
+func seedRaffleEntry(t *testing.T, db *gorm.DB, raffleID uuid.UUID, twitchLogin string) {
+	t.Helper()
+	entry := models.RaffleEntry{
+		RaffleID:    raffleID,
+		TwitchLogin: twitchLogin,
+		DisplayName: twitchLogin,
+	}
+	if err := db.Create(&entry).Error; err != nil {
+		t.Fatalf("seedRaffleEntry %s: %v", twitchLogin, err)
+	}
+}
+
+func TestDrawFromTier_ExcludesWinnersFromOtherTiers(t *testing.T) {
+	db := newTestDB(t)
+	svc := NewRaffleService(db, "", "", nil)
+	streamer := createTestStreamer(t, db)
+
+	raffle, _ := svc.Create(streamer, "Multi-tier Raffle")
+	seedRaffleEntry(t, db, raffle.ID, "user_a")
+	seedRaffleEntry(t, db, raffle.ID, "user_b")
+	db.Model(raffle).Update("status", "active")
+
+	tier1, _ := svc.CreatePrizeTier(raffle.ID, streamer, CreatePrizeTierInput{Name: "一等獎", WinnerCount: 1})
+	tier2, _ := svc.CreatePrizeTier(raffle.ID, streamer, CreatePrizeTierInput{Name: "二等獎", WinnerCount: 1})
+
+	draw1, err := svc.DrawFromTier(raffle.ID, tier1.ID, streamer)
+	if err != nil {
+		t.Fatalf("DrawFromTier tier1: %v", err)
+	}
+
+	draw2, err := svc.DrawFromTier(raffle.ID, tier2.ID, streamer)
+	if err != nil {
+		t.Fatalf("DrawFromTier tier2: %v", err)
+	}
+
+	if draw1.EntryID == draw2.EntryID {
+		t.Fatal("tier2 must not pick the same entry as tier1")
+	}
+
+	// drawn_count should be incremented
+	var updated models.RafflePrizeTier
+	db.First(&updated, "id = ?", tier1.ID)
+	if updated.DrawnCount != 1 {
+		t.Fatalf("expected drawn_count=1, got %d", updated.DrawnCount)
+	}
+}
+
+func TestDrawFromTier_ExhaustedWhenTierFull(t *testing.T) {
+	db := newTestDB(t)
+	svc := NewRaffleService(db, "", "", nil)
+	streamer := createTestStreamer(t, db)
+
+	raffle, _ := svc.Create(streamer, "Single winner raffle")
+	seedRaffleEntry(t, db, raffle.ID, "only_one")
+	db.Model(raffle).Update("status", "active")
+	tier, _ := svc.CreatePrizeTier(raffle.ID, streamer, CreatePrizeTierInput{Name: "一等獎", WinnerCount: 1})
+
+	svc.DrawFromTier(raffle.ID, tier.ID, streamer)
+
+	_, err := svc.DrawFromTier(raffle.ID, tier.ID, streamer)
+	if !errors.Is(err, ErrPrizeTierExhausted) {
+		t.Fatalf("expected ErrPrizeTierExhausted, got %v", err)
+	}
+}
+
+func TestDrawFromTier_PrizeTierIDSetOnDraw(t *testing.T) {
+	db := newTestDB(t)
+	svc := NewRaffleService(db, "", "", nil)
+	streamer := createTestStreamer(t, db)
+
+	raffle, _ := svc.Create(streamer, "Tier ID Test")
+	seedRaffleEntry(t, db, raffle.ID, "winner")
+	db.Model(raffle).Update("status", "active")
+	tier, _ := svc.CreatePrizeTier(raffle.ID, streamer, CreatePrizeTierInput{Name: "一等獎", WinnerCount: 1})
+
+	draw, err := svc.DrawFromTier(raffle.ID, tier.ID, streamer)
+	if err != nil {
+		t.Fatalf("DrawFromTier: %v", err)
+	}
+	if draw.PrizeTierID == nil || *draw.PrizeTierID != tier.ID {
+		t.Fatalf("expected PrizeTierID=%s, got %v", tier.ID, draw.PrizeTierID)
+	}
+}
+
+func TestDrawFromTier_FailsWhenRaffleNotActive(t *testing.T) {
+	db := newTestDB(t)
+	svc := NewRaffleService(db, "", "", nil)
+	streamer := createTestStreamer(t, db)
+
+	raffle, _ := svc.Create(streamer, "Draft Raffle")
+	// raffle is in draft status
+	tier, _ := svc.CreatePrizeTier(raffle.ID, streamer, CreatePrizeTierInput{Name: "一等獎", WinnerCount: 1})
+
+	_, err := svc.DrawFromTier(raffle.ID, tier.ID, streamer)
+	if !errors.Is(err, ErrRaffleNotActive) {
+		t.Fatalf("expected ErrRaffleNotActive, got %v", err)
+	}
+}

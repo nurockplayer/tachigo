@@ -367,12 +367,22 @@ func (s *RaffleService) sendDiscordNotification(ctx context.Context, draw *model
 	// Discord channel (which may be public) would allow any viewer to submit
 	// the claim on behalf of the winner. The claim link is delivered privately
 	// via email (issue #230) to the winner's registered address instead.
-	expiry := draw.ClaimExpiresAt.Format("2006-01-02 15:04 MST")
 	twitchLogin := draw.Entry.TwitchLogin
-	payload := map[string]interface{}{
-		"content": fmt.Sprintf("🎉 抽獎結果揭曉！中獎者：**%s**\n\n請中獎者留意 Tachigo 系統通知或聯繫實況主確認領獎方式。\n領獎資格保留至：%s。", twitchLogin, expiry),
+	expiry := draw.ClaimExpiresAt.Format("2006-01-02 15:04 MST")
+
+	var content string
+	if draw.PrizeTier != nil {
+		content = fmt.Sprintf(
+			"🎉 [%s] 抽獎結果揭曉！中獎者：**%s**\n獎品：%s\n\n請中獎者留意 Tachigo 系統通知，或聯繫實況主確認領獎方式。\n領獎資格保留至：%s。",
+			draw.PrizeTier.Name, twitchLogin, draw.PrizeTier.PrizeDescription, expiry,
+		)
+	} else {
+		content = fmt.Sprintf(
+			"🎉 抽獎結果揭曉！中獎者：**%s**\n\n請中獎者留意 Tachigo 系統通知，或聯繫實況主確認領獎方式。\n領獎資格保留至：%s。",
+			twitchLogin, expiry,
+		)
 	}
-	payload["content"] = fmt.Sprintf("🎉 抽獎結果揭曉！中獎者：**%s**\n\n請中獎者留意 Tachigo 系統通知，或聯繫實況主確認領獎方式。\n領獎資格保留至：%s。", twitchLogin, expiry)
+	payload := map[string]interface{}{"content": content}
 	body, err := json.Marshal(payload)
 	if err != nil {
 		log.Printf("raffle draw %s: discord marshal failed: %v", draw.ID, err)
@@ -943,6 +953,128 @@ func (s *RaffleService) DeletePrizeTier(raffleID, tierID, userID uuid.UUID) erro
 		return ErrPrizeTierHasDraws
 	}
 	return s.db.Delete(&tier).Error
+}
+
+// DrawFromTier picks a random un-drawn entry for the specified prize tier.
+// Winners drawn for any tier of this raffle are excluded from the pool,
+// ensuring each participant can only win once across all tiers.
+// drawn_count on the tier is incremented atomically within the transaction.
+func (s *RaffleService) DrawFromTier(raffleID, tierID, userID uuid.UUID) (*models.RaffleDraw, error) {
+	raffle, err := s.GetByID(raffleID, userID)
+	if err != nil {
+		return nil, err
+	}
+	if raffle.Status != models.RaffleStatusActive {
+		return nil, ErrRaffleNotActive
+	}
+
+	var tier models.RafflePrizeTier
+	if err := s.db.Where("id = ? AND raffle_id = ?", tierID, raffleID).First(&tier).Error; err != nil {
+		if errors.Is(err, gorm.ErrRecordNotFound) {
+			return nil, ErrPrizeTierNotFound
+		}
+		return nil, err
+	}
+	if tier.DrawnCount >= tier.WinnerCount {
+		return nil, ErrPrizeTierExhausted
+	}
+
+	const drawMaxRetries = 5
+	var result *models.RaffleDraw
+
+	err = func() error {
+		for attempt := 0; attempt < drawMaxRetries; attempt++ {
+			var draw *models.RaffleDraw
+			txErr := s.db.Transaction(func(tx *gorm.DB) error {
+				// Exclude ALL winners across ALL tiers of this raffle.
+				var wonIDs []uuid.UUID
+				tx.Model(&models.RaffleDraw{}).
+					Where("raffle_id = ?", raffleID).
+					Pluck("entry_id", &wonIDs)
+
+				var entry models.RaffleEntry
+				q := tx.Where("raffle_id = ?", raffleID)
+				if len(wonIDs) > 0 {
+					q = q.Where("id NOT IN ?", wonIDs)
+				}
+				if err := q.Order("RANDOM()").First(&entry).Error; err != nil {
+					if errors.Is(err, gorm.ErrRecordNotFound) {
+						return ErrRaffleExhausted
+					}
+					return err
+				}
+
+				rawToken, err := uuid.NewV7()
+				if err != nil {
+					return err
+				}
+				tierIDCopy := tierID
+				d := &models.RaffleDraw{
+					RaffleID:       raffleID,
+					EntryID:        entry.ID,
+					ClaimToken:     hashClaimToken(rawToken.String()),
+					ClaimExpiresAt: time.Now().Add(claimTokenTTL),
+					DrawnAt:        time.Now(),
+					PrizeTierID:    &tierIDCopy,
+				}
+				if err := tx.Create(d).Error; err != nil {
+					return err
+				}
+				if err := tx.Model(&models.RafflePrizeTier{}).
+					Where("id = ?", tierID).
+					UpdateColumn("drawn_count", gorm.Expr("drawn_count + 1")).Error; err != nil {
+					return err
+				}
+				d.ClaimTokenRaw = rawToken.String()
+				d.Entry = entry
+				d.PrizeTier = &tier
+				draw = d
+				return nil
+			})
+			if txErr == nil {
+				result = draw
+				return nil
+			}
+			if errors.Is(txErr, ErrRaffleExhausted) {
+				return txErr
+			}
+			if errors.Is(txErr, gorm.ErrDuplicatedKey) {
+				continue
+			}
+			return txErr
+		}
+		return ErrRaffleExhausted
+	}()
+
+	if err != nil {
+		return nil, err
+	}
+
+	if s.mailer != nil {
+		go func(d *models.RaffleDraw) {
+			defer func() {
+				if r := recover(); r != nil {
+					log.Printf("raffle sendWinnerEmail panic (draw %s): %v", d.ID, r)
+				}
+			}()
+			ctx, cancel := context.WithTimeout(context.Background(), 30*time.Second)
+			defer cancel()
+			s.sendWinnerEmail(ctx, d)
+		}(result)
+	}
+	if raffle.DiscordWebhookURL != nil {
+		go func(d *models.RaffleDraw, webhookURL string) {
+			defer func() {
+				if r := recover(); r != nil {
+					log.Printf("raffle sendDiscordNotification panic (draw %s): %v", d.ID, r)
+				}
+			}()
+			ctx, cancel := context.WithTimeout(context.Background(), 30*time.Second)
+			defer cancel()
+			s.sendDiscordNotification(ctx, d, webhookURL)
+		}(result, *raffle.DiscordWebhookURL)
+	}
+	return result, nil
 }
 
 func raffleWinnerEmailBody(expiresAt time.Time, claimLink string) string {
