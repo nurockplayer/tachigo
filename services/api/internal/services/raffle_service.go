@@ -37,6 +37,12 @@ var (
 	ErrTwitchInsufficientScope  = errors.New("twitch token lacks channel:read:subscriptions scope")
 	ErrUnsupportedRaffleSource  = errors.New("raffle source does not support twitch sync")
 	ErrInvalidDiscordWebhookURL = errors.New("invalid Discord webhook URL: must start with https://discord.com/api/webhooks/")
+
+	ErrPrizeTierNotFound     = errors.New("prize tier not found")
+	ErrPrizeTierHasDraws     = errors.New("prize tier already has draws, cannot delete")
+	ErrPrizeTierExhausted    = errors.New("prize tier winner count reached")
+	ErrPrizeTierInvalidCount = errors.New("winner_count must be at least 1")
+	ErrRaffleNotActive       = errors.New("raffle is not active")
 )
 
 const claimTokenTTL = 7 * 24 * time.Hour
@@ -836,6 +842,107 @@ func (s *RaffleService) sendWinnerEmail(ctx context.Context, draw *models.Raffle
 	if err := s.mailer.Send(ctx, *user.Email, "恭喜中獎！領取你的 Tachigo 抽獎獎品", body); err != nil {
 		log.Printf("raffle draw %s: failed to send winner email to %s: %v", draw.ID, *user.Email, err)
 	}
+}
+
+// ── Prize Tier CRUD ───────────────────────────────────────────────────────────
+
+type CreatePrizeTierInput struct {
+	Name             string `json:"name"`
+	PrizeDescription string `json:"prize_description"`
+	WinnerCount      int    `json:"winner_count"`
+}
+
+type UpdatePrizeTierInput struct {
+	Name             *string `json:"name,omitempty"`
+	PrizeDescription *string `json:"prize_description,omitempty"`
+	WinnerCount      *int    `json:"winner_count,omitempty"`
+}
+
+func (s *RaffleService) CreatePrizeTier(raffleID, userID uuid.UUID, input CreatePrizeTierInput) (*models.RafflePrizeTier, error) {
+	if input.WinnerCount < 1 {
+		return nil, ErrPrizeTierInvalidCount
+	}
+	if _, err := s.GetByID(raffleID, userID); err != nil {
+		return nil, err
+	}
+
+	var maxPos int
+	s.db.Model(&models.RafflePrizeTier{}).
+		Where("raffle_id = ?", raffleID).
+		Select("COALESCE(MAX(position), 0)").
+		Scan(&maxPos)
+
+	tier := &models.RafflePrizeTier{
+		RaffleID:         raffleID,
+		Name:             input.Name,
+		PrizeDescription: input.PrizeDescription,
+		WinnerCount:      input.WinnerCount,
+		Position:         maxPos + 1,
+	}
+	if err := s.db.Create(tier).Error; err != nil {
+		return nil, err
+	}
+	return tier, nil
+}
+
+func (s *RaffleService) ListPrizeTiers(raffleID, userID uuid.UUID) ([]models.RafflePrizeTier, error) {
+	if _, err := s.GetByID(raffleID, userID); err != nil {
+		return nil, err
+	}
+	var tiers []models.RafflePrizeTier
+	if err := s.db.
+		Where("raffle_id = ?", raffleID).
+		Order("position ASC").
+		Find(&tiers).Error; err != nil {
+		return nil, err
+	}
+	return tiers, nil
+}
+
+func (s *RaffleService) UpdatePrizeTier(raffleID, tierID, userID uuid.UUID, input UpdatePrizeTierInput) (*models.RafflePrizeTier, error) {
+	if _, err := s.GetByID(raffleID, userID); err != nil {
+		return nil, err
+	}
+	var tier models.RafflePrizeTier
+	if err := s.db.Where("id = ? AND raffle_id = ?", tierID, raffleID).First(&tier).Error; err != nil {
+		if errors.Is(err, gorm.ErrRecordNotFound) {
+			return nil, ErrPrizeTierNotFound
+		}
+		return nil, err
+	}
+	if input.WinnerCount != nil {
+		if *input.WinnerCount < 1 || *input.WinnerCount < tier.DrawnCount {
+			return nil, ErrPrizeTierInvalidCount
+		}
+		tier.WinnerCount = *input.WinnerCount
+	}
+	if input.Name != nil {
+		tier.Name = *input.Name
+	}
+	if input.PrizeDescription != nil {
+		tier.PrizeDescription = *input.PrizeDescription
+	}
+	if err := s.db.Save(&tier).Error; err != nil {
+		return nil, err
+	}
+	return &tier, nil
+}
+
+func (s *RaffleService) DeletePrizeTier(raffleID, tierID, userID uuid.UUID) error {
+	if _, err := s.GetByID(raffleID, userID); err != nil {
+		return err
+	}
+	var tier models.RafflePrizeTier
+	if err := s.db.Where("id = ? AND raffle_id = ?", tierID, raffleID).First(&tier).Error; err != nil {
+		if errors.Is(err, gorm.ErrRecordNotFound) {
+			return ErrPrizeTierNotFound
+		}
+		return err
+	}
+	if tier.DrawnCount > 0 {
+		return ErrPrizeTierHasDraws
+	}
+	return s.db.Delete(&tier).Error
 }
 
 func raffleWinnerEmailBody(expiresAt time.Time, claimLink string) string {
