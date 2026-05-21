@@ -986,6 +986,15 @@ func (s *RaffleService) DrawFromTier(raffleID, tierID, userID uuid.UUID) (*model
 		for attempt := 0; attempt < drawMaxRetries; attempt++ {
 			var draw *models.RaffleDraw
 			txErr := s.db.Transaction(func(tx *gorm.DB) error {
+				// Re-read tier inside transaction to close TOCTOU race on drawn_count.
+				var freshTier models.RafflePrizeTier
+				if err := tx.Where("id = ?", tierID).First(&freshTier).Error; err != nil {
+					return err
+				}
+				if freshTier.DrawnCount >= freshTier.WinnerCount {
+					return ErrPrizeTierExhausted
+				}
+
 				// Exclude ALL winners across ALL tiers of this raffle.
 				var wonIDs []uuid.UUID
 				tx.Model(&models.RaffleDraw{}).
@@ -1028,6 +1037,7 @@ func (s *RaffleService) DrawFromTier(raffleID, tierID, userID uuid.UUID) (*model
 				d.ClaimTokenRaw = rawToken.String()
 				d.Entry = entry
 				d.PrizeTier = &tier
+				d.PrizeTier.DrawnCount = freshTier.DrawnCount + 1 // reflect the increment
 				draw = d
 				return nil
 			})
@@ -1035,7 +1045,7 @@ func (s *RaffleService) DrawFromTier(raffleID, tierID, userID uuid.UUID) (*model
 				result = draw
 				return nil
 			}
-			if errors.Is(txErr, ErrRaffleExhausted) {
+			if errors.Is(txErr, ErrRaffleExhausted) || errors.Is(txErr, ErrPrizeTierExhausted) {
 				return txErr
 			}
 			if errors.Is(txErr, gorm.ErrDuplicatedKey) {
