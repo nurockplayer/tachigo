@@ -51,4 +51,7 @@ func TestCollectorRendersRaffleSchedulerMetricsByResult(t *testing.T) {
 			t.Fatalf("expected rendered metrics to contain %q, got:\n%s", want, text)
 		}
 	}
+	if strings.Contains(text, `tachigo_raffle_scheduler_failures_total{result="partial_failure"}`) {
+		t.Fatalf("partial_failure must not increment raffle scheduler failure counter, got:\n%s", text)
+	}
 }

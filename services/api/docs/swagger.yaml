@@ -1332,12 +1332,12 @@ paths:
   /metrics:
     get:
       description: 'Operational endpoint exposed at root /metrics when ENABLE_METRICS=true.
-        Requires Authorization: Bearer <METRICS_BEARER_TOKEN>.'
+        Requires Authorization: Bearer <METRICS_BEARER_TOKEN> when METRICS_BEARER_TOKEN
+        is set.'
       parameters:
-      - description: Bearer metrics token
+      - description: Bearer metrics token when METRICS_BEARER_TOKEN is set
         in: header
         name: Authorization
-        required: true
         type: string
       produces:
       - text/plain

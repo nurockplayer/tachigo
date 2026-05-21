@@ -1631,7 +1631,7 @@ const docTemplate = `{
         },
         "/metrics": {
             "get": {
-                "description": "Operational endpoint exposed at root /metrics when ENABLE_METRICS=true. Requires Authorization: Bearer \u003cMETRICS_BEARER_TOKEN\u003e.",
+                "description": "Operational endpoint exposed at root /metrics when ENABLE_METRICS=true. Requires Authorization: Bearer \u003cMETRICS_BEARER_TOKEN\u003e when METRICS_BEARER_TOKEN is set.",
                 "produces": [
                     "text/plain"
                 ],
@@ -1642,10 +1642,9 @@ const docTemplate = `{
                 "parameters": [
                     {
                         "type": "string",
-                        "description": "Bearer metrics token",
+                        "description": "Bearer metrics token when METRICS_BEARER_TOKEN is set",
                         "name": "Authorization",
-                        "in": "header",
-                        "required": true
+                        "in": "header"
                     }
                 ],
                 "responses": {
