@@ -163,6 +163,27 @@ func TestLoginHandler_Success(t *testing.T) {
 	assertTokenPayloadHasBrowserTokens(t, parseBody(t, w.Body.Bytes()))
 }
 
+func TestLoginHandler_UsesRequestContext(t *testing.T) {
+	env := newTestEnv(t)
+	env.registerUser(t, "loginctx", "loginctx@example.com", "mypassword")
+	key := authHandlerContextKey{}
+	seen := installAuthHandlerDBContextProbe(t, env.db, key, "login")
+
+	body := `{"email":"loginctx@example.com","password":"mypassword"}`
+	req := httptest.NewRequest(http.MethodPost, "/api/v1/auth/login", bytes.NewBufferString(body)).
+		WithContext(context.WithValue(context.Background(), key, "login"))
+	req.Header.Set("Content-Type", "application/json")
+	w := httptest.NewRecorder()
+	env.router.ServeHTTP(w, req)
+
+	if w.Code != http.StatusOK {
+		t.Fatalf("want 200, got %d: %s", w.Code, w.Body.String())
+	}
+	if seen() == 0 {
+		t.Fatal("expected Login DB query to use request context")
+	}
+}
+
 func TestLoginHandler_SetsSecureRefreshCookieInProduction(t *testing.T) {
 	env := newTestEnvWithServerEnv(t, "production")
 	env.registerUser(t, "prodlogin", "prodlogin@example.com", "mypassword")
