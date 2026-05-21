@@ -10,6 +10,7 @@ import (
 	"github.com/gin-gonic/gin"
 	swaggerFiles "github.com/swaggo/files"
 	ginSwagger "github.com/swaggo/gin-swagger"
+	"go.opentelemetry.io/otel"
 	"gorm.io/gorm"
 
 	"github.com/tachigo/tachigo/internal/config"
@@ -57,7 +58,11 @@ func New(
 	}
 
 	r := gin.New()
-	r.Use(middleware.RequestID(), middleware.StructuredRequestLogger(log.Default()), gin.Recovery())
+	r.Use(middleware.RequestID())
+	if cfg != nil && cfg.Tracing.Enabled {
+		r.Use(middleware.Tracing(otel.Tracer("github.com/tachigo/tachigo/services/api")))
+	}
+	r.Use(middleware.StructuredRequestLogger(log.Default()), gin.Recovery())
 	if cfg != nil {
 		r.Use(middleware.RequestTimeout(cfg.Server.RequestTimeout))
 	}

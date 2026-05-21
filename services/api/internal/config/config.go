@@ -2,6 +2,7 @@ package config
 
 import (
 	"fmt"
+	"math"
 	"os"
 	"strconv"
 	"strings"
@@ -25,6 +26,7 @@ type Config struct {
 	App      AppConfig
 	Contract ContractConfig
 	Internal InternalConfig
+	Tracing  TracingConfig
 }
 
 type ContractConfig struct {
@@ -36,6 +38,16 @@ type ContractConfig struct {
 type InternalConfig struct {
 	TachiyaSharedSecret string // TACHIYA_INTERNAL_SHARED_SECRET
 	TachiyaBaseURL      string // TACHIYA_BASE_URL
+}
+
+type TracingConfig struct {
+	Enabled            bool
+	ServiceName        string
+	Environment        string
+	SampleRatio        float64
+	OTLPTracesEndpoint string
+	OTLPInsecure       bool
+	OTLPHeaders        map[string]string
 }
 
 type SMTPConfig struct {
@@ -101,6 +113,7 @@ func Load() *Config {
 	smtpPort, _ := strconv.Atoi(getEnv("SMTP_PORT", "587"))
 	requestTimeoutSeconds := getPositiveIntEnv("REQUEST_TIMEOUT_SECONDS", defaultRequestTimeoutSec)
 	appEnv, appEnvSet := getEnvWithPresence("APP_ENV", "development")
+	tracingEnv := getEnv("OTEL_ENVIRONMENT", appEnv)
 	isProduction := appEnvSet && appEnv == "production"
 
 	defaultEnableSwagger := !isProduction
@@ -167,6 +180,15 @@ func Load() *Config {
 		Internal: InternalConfig{
 			TachiyaSharedSecret: getEnv("TACHIYA_INTERNAL_SHARED_SECRET", ""),
 			TachiyaBaseURL:      getEnv("TACHIYA_BASE_URL", "http://localhost:8001"),
+		},
+		Tracing: TracingConfig{
+			Enabled:            getBoolEnv("TRACING_ENABLED", false),
+			ServiceName:        getEnv("OTEL_SERVICE_NAME", "tachigo-api"),
+			Environment:        tracingEnv,
+			SampleRatio:        getFloatEnv("OTEL_TRACES_SAMPLE_RATIO", 0.05),
+			OTLPTracesEndpoint: getEnv("OTEL_EXPORTER_OTLP_TRACES_ENDPOINT", ""),
+			OTLPInsecure:       getBoolEnv("OTEL_EXPORTER_OTLP_TRACES_INSECURE", false),
+			OTLPHeaders:        getMapEnv("OTEL_EXPORTER_OTLP_HEADERS"),
 		},
 	}
 }
@@ -235,6 +257,9 @@ func ValidateProductionSecrets(cfg *Config) error {
 	if cfg.SMTP.Host == "" {
 		return fmt.Errorf("SMTP_HOST must be configured when email-dependent production flows are enabled")
 	}
+	if err := ValidateTracing(cfg.Tracing); err != nil {
+		return err
+	}
 
 	// These launch flows are mounted unconditionally in production, so fail fast
 	// before starting with OAuth, extension, or server-to-server credentials missing.
@@ -263,6 +288,22 @@ func ValidateProductionSecrets(cfg *Config) error {
 func validateRequiredProductionValue(name, value, flow string) error {
 	if strings.TrimSpace(value) == "" {
 		return fmt.Errorf("%s must be configured when %s in production", name, flow)
+	}
+	return nil
+}
+
+func ValidateTracing(cfg TracingConfig) error {
+	if !cfg.Enabled {
+		return nil
+	}
+	if math.IsNaN(cfg.SampleRatio) || math.IsInf(cfg.SampleRatio, 0) || cfg.SampleRatio < 0 || cfg.SampleRatio > 1 {
+		return fmt.Errorf("OTEL_TRACES_SAMPLE_RATIO must be a finite value between 0 and 1 when tracing is enabled")
+	}
+	if strings.TrimSpace(cfg.OTLPTracesEndpoint) == "" {
+		return fmt.Errorf("OTEL_EXPORTER_OTLP_TRACES_ENDPOINT must be configured when tracing is enabled")
+	}
+	if strings.TrimSpace(cfg.ServiceName) == "" {
+		return fmt.Errorf("OTEL_SERVICE_NAME must be configured when tracing is enabled")
 	}
 	return nil
 }
@@ -304,6 +345,18 @@ func getPositiveIntEnv(key string, fallback int) int {
 	return value
 }
 
+func getFloatEnv(key string, fallback float64) float64 {
+	raw := os.Getenv(key)
+	if raw == "" {
+		return fallback
+	}
+	value, err := strconv.ParseFloat(raw, 64)
+	if err != nil {
+		return fallback
+	}
+	return value
+}
+
 func getCommaEnv(key string, fallback []string) []string {
 	v := os.Getenv(key)
 	if v == "" {
@@ -314,4 +367,26 @@ func getCommaEnv(key string, fallback []string) []string {
 		parts[i] = strings.TrimSpace(p)
 	}
 	return parts
+}
+
+func getMapEnv(key string) map[string]string {
+	raw := strings.TrimSpace(os.Getenv(key))
+	if raw == "" {
+		return nil
+	}
+
+	values := make(map[string]string)
+	for _, part := range strings.Split(raw, ",") {
+		name, value, ok := strings.Cut(part, "=")
+		if !ok {
+			continue
+		}
+		name = strings.TrimSpace(name)
+		value = strings.TrimSpace(value)
+		if name == "" || value == "" {
+			continue
+		}
+		values[name] = value
+	}
+	return values
 }
