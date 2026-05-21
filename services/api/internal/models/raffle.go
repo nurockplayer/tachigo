@@ -83,9 +83,11 @@ type RaffleDraw struct {
 	ClaimToken     string      `gorm:"type:varchar(255);not null;uniqueIndex"                json:"-"`
 	ClaimTokenRaw  string      `gorm:"-"                                                     json:"claim_token,omitempty"`
 	ClaimExpiresAt time.Time   `                                                             json:"claim_expires_at"`
-	DrawnAt        time.Time   `                                                             json:"drawn_at"`
-	Raffle         Raffle      `gorm:"foreignKey:RaffleID;constraint:OnUpdate:CASCADE,OnDelete:CASCADE" json:"-"`
-	Entry          RaffleEntry `gorm:"foreignKey:EntryID,RaffleID;references:ID,RaffleID;constraint:OnUpdate:CASCADE,OnDelete:CASCADE" json:"entry,omitempty"`
+	DrawnAt        time.Time        `                                                             json:"drawn_at"`
+	PrizeTierID    *uuid.UUID       `gorm:"type:uuid"              json:"prize_tier_id,omitempty"`
+	PrizeTier      *RafflePrizeTier `gorm:"foreignKey:PrizeTierID" json:"prize_tier,omitempty"`
+	Raffle         Raffle           `gorm:"foreignKey:RaffleID;constraint:OnUpdate:CASCADE,OnDelete:CASCADE" json:"-"`
+	Entry          RaffleEntry      `gorm:"foreignKey:EntryID,RaffleID;references:ID,RaffleID;constraint:OnUpdate:CASCADE,OnDelete:CASCADE" json:"entry,omitempty"`
 }
 
 func (d *RaffleDraw) BeforeCreate(tx *gorm.DB) error {
@@ -124,3 +126,18 @@ func (c *RaffleClaim) BeforeCreate(tx *gorm.DB) error {
 	}
 	return nil
 }
+
+// RafflePrizeTier represents one prize layer within a Raffle.
+type RafflePrizeTier struct {
+	ID               uuid.UUID `gorm:"type:uuid;primaryKey;default:gen_random_uuid()" json:"id"`
+	RaffleID         uuid.UUID `gorm:"type:uuid;not null;index"                       json:"raffle_id"`
+	Name             string    `gorm:"type:varchar(255);not null"                     json:"name"`
+	PrizeDescription string    `gorm:"type:text;not null;default:''"                  json:"prize_description"`
+	WinnerCount      int       `gorm:"not null"                                       json:"winner_count"`
+	DrawnCount       int       `gorm:"not null;default:0"                             json:"drawn_count"`
+	Position         int       `gorm:"not null;default:0"                             json:"position"`
+	CreatedAt        time.Time `                                                       json:"created_at"`
+	UpdatedAt        time.Time `                                                       json:"updated_at"`
+}
+
+func (RafflePrizeTier) TableName() string { return "raffle_prize_tiers" }
