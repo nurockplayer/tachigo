@@ -268,6 +268,21 @@ func New(
 		dashboard.POST("/raffles/:id/snapshot",
 			middleware.RequireRole(models.RoleStreamer),
 			raffleH.Snapshot)
+		dashboard.POST("/raffles/:id/prize-tiers",
+			middleware.RequireRole(models.RoleStreamer),
+			raffleH.CreatePrizeTier)
+		dashboard.GET("/raffles/:id/prize-tiers",
+			middleware.RequireRole(models.RoleStreamer),
+			raffleH.ListPrizeTiers)
+		dashboard.PATCH("/raffles/:id/prize-tiers/:tier_id",
+			middleware.RequireRole(models.RoleStreamer),
+			raffleH.UpdatePrizeTier)
+		dashboard.DELETE("/raffles/:id/prize-tiers/:tier_id",
+			middleware.RequireRole(models.RoleStreamer),
+			raffleH.DeletePrizeTier)
+		dashboard.POST("/raffles/:id/prize-tiers/:tier_id/draws",
+			middleware.RequireRole(models.RoleStreamer),
+			raffleH.DrawFromTier)
 	}
 
 	dashboardAirdrop := v1.Group("/dashboard/channels/:channel_id")
