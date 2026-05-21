@@ -111,7 +111,7 @@ func (h *AuthHandler) Login(c *gin.Context) {
 		return
 	}
 
-	user, tokens, err := h.auth.Login(input)
+	user, tokens, err := h.auth.LoginContext(c.Request.Context(), input)
 	if err != nil {
 		if errors.Is(err, services.ErrInvalidCredentials) {
 			unauthorized(c, "invalid email or password")

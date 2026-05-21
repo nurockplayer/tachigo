@@ -156,8 +156,16 @@ type LoginInput struct {
 }
 
 func (s *AuthService) Login(input LoginInput) (*models.User, *TokenPair, error) {
+	return s.LoginContext(context.Background(), input)
+}
+
+func (s *AuthService) LoginContext(ctx context.Context, input LoginInput) (*models.User, *TokenPair, error) {
+	if ctx == nil {
+		ctx = context.Background()
+	}
+
 	var user models.User
-	if err := s.db.Where("email = ?", input.Email).First(&user).Error; err != nil {
+	if err := s.db.WithContext(ctx).Where("email = ?", input.Email).First(&user).Error; err != nil {
 		return nil, nil, ErrInvalidCredentials
 	}
 	if user.PasswordHash == nil {
@@ -167,7 +175,7 @@ func (s *AuthService) Login(input LoginInput) (*models.User, *TokenPair, error) 
 		return nil, nil, ErrInvalidCredentials
 	}
 
-	tokens, err := s.issueTokenPair(&user)
+	tokens, err := s.issueTokenPairContext(ctx, &user)
 	return &user, tokens, err
 }
 

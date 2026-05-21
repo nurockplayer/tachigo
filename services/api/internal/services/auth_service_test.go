@@ -356,6 +356,29 @@ func TestLogin_Success(t *testing.T) {
 	}
 }
 
+func TestAuthService_LoginContext_UsesRequestContext(t *testing.T) {
+	db := newTestDB(t)
+	svc := NewAuthService(db, testConfig())
+	svc.Register(RegisterInput{Username: "loginctx", Email: "loginctx@example.com", Password: "mypassword"})
+
+	type loginContextKey struct{}
+	key := loginContextKey{}
+	seen := installDBContextProbe(t, db, key, "login")
+	ctx := context.WithValue(context.Background(), key, "login")
+
+	user, tokens, err := svc.LoginContext(ctx, LoginInput{Email: "loginctx@example.com", Password: "mypassword"})
+
+	if err != nil {
+		t.Fatalf("login context: %v", err)
+	}
+	if user == nil || tokens == nil {
+		t.Fatal("expected user and tokens")
+	}
+	if seen() == 0 {
+		t.Fatal("expected Login DB query/create to use request context")
+	}
+}
+
 func TestLogin_WrongPassword(t *testing.T) {
 	svc := NewAuthService(newTestDB(t), testConfig())
 	svc.Register(RegisterInput{Username: "user", Email: "user@example.com", Password: "correctpass"})
