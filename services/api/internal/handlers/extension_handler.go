@@ -74,7 +74,7 @@ func (h *ExtensionHandler) TPointComplete(c *gin.Context) {
 		return
 	}
 
-	user, tokens, err := h.ext.CompleteTPointTransaction(body.ExtensionJWT, body.TransactionReceipt, body.SKU)
+	user, tokens, err := h.ext.CompleteTPointTransactionContext(c.Request.Context(), body.ExtensionJWT, body.TransactionReceipt, body.SKU)
 	if err != nil {
 		switch err {
 		case services.ErrInvalidExtJWT:

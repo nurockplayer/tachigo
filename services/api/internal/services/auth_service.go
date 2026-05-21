@@ -412,6 +412,13 @@ func (s *AuthService) issueTokenPair(user *models.User) (*TokenPair, error) {
 	return s.issueTokenPairTx(s.db, user)
 }
 
+func (s *AuthService) issueTokenPairContext(ctx context.Context, user *models.User) (*TokenPair, error) {
+	if ctx == nil {
+		ctx = context.Background()
+	}
+	return s.issueTokenPairTx(s.db.WithContext(ctx), user)
+}
+
 // ─── OAuth upsert helper ─────────────────────────────────────────────────────
 
 type googleUserInfo struct {
