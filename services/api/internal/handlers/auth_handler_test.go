@@ -1052,10 +1052,6 @@ func assertTokenPayloadHasBrowserTokens(t *testing.T, resp map[string]interface{
 	}
 }
 
-func assertTokenPayloadHasAccessOnly(t *testing.T, resp map[string]interface{}) {
-	t.Helper()
-	assertTokenPayloadHasBrowserTokens(t, resp)
-}
 
 func TestWeb3VerifyHandler_InvalidSignatureReturns401AndKeepsNonce(t *testing.T) {
 	env := newTestEnv(t)

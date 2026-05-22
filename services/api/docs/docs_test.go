@@ -48,9 +48,6 @@ func TestSwaggerDoc_NoGlobalSecurity_ProtectedOpsRequireBearerAuth(t *testing.T)
 		{path: "/auth/verify-email/confirm", method: "post"},
 		{path: "/auth/forgot-password", method: "post"},
 		{path: "/auth/reset-password", method: "post"},
-		{path: "/extension/auth/login", method: "post"},
-		{path: "/extension/bits/complete", method: "post"},
-		{path: "/extension/t-point/complete", method: "post"},
 	} {
 		tc := tc
 		t.Run(fmt.Sprintf("%s %s", tc.method, tc.path), func(t *testing.T) {
@@ -205,63 +202,5 @@ func TestSwaggerDoc_ClaimSubmitDocumentsBadRequest(t *testing.T) {
 	}
 	if _, ok := responses["400"]; !ok {
 		t.Fatalf("post /claim/{token}: missing 400 response, got %#v", responses)
-	}
-}
-
-func TestSwaggerDoc_TPointCompleteDocumentsConflict(t *testing.T) {
-	raw := SwaggerInfo.ReadDoc()
-
-	var doc map[string]any
-	if err := json.Unmarshal([]byte(raw), &doc); err != nil {
-		t.Fatalf("unmarshal doc: %v", err)
-	}
-
-	paths, ok := doc["paths"].(map[string]any)
-	if !ok {
-		t.Fatalf("paths: got %#v", doc["paths"])
-	}
-	pathItem, ok := paths["/extension/t-point/complete"].(map[string]any)
-	if !ok {
-		t.Fatalf("/extension/t-point/complete: path item missing, got %#v", paths["/extension/t-point/complete"])
-	}
-	op, ok := pathItem["post"].(map[string]any)
-	if !ok {
-		t.Fatalf("post /extension/t-point/complete: operation missing, got %#v", pathItem["post"])
-	}
-	responses, ok := op["responses"].(map[string]any)
-	if !ok {
-		t.Fatalf("post /extension/t-point/complete: responses invalid, got %#v", op["responses"])
-	}
-	if _, ok := responses["409"]; !ok {
-		t.Fatalf("post /extension/t-point/complete: missing 409 response, got %#v", responses)
-	}
-}
-
-func TestSwaggerDoc_BitsCompleteAliasDocumentsConflict(t *testing.T) {
-	raw := SwaggerInfo.ReadDoc()
-
-	var doc map[string]any
-	if err := json.Unmarshal([]byte(raw), &doc); err != nil {
-		t.Fatalf("unmarshal doc: %v", err)
-	}
-
-	paths, ok := doc["paths"].(map[string]any)
-	if !ok {
-		t.Fatalf("paths: got %#v", doc["paths"])
-	}
-	pathItem, ok := paths["/extension/bits/complete"].(map[string]any)
-	if !ok {
-		t.Fatalf("/extension/bits/complete: path item missing, got %#v", paths["/extension/bits/complete"])
-	}
-	op, ok := pathItem["post"].(map[string]any)
-	if !ok {
-		t.Fatalf("post /extension/bits/complete: operation missing, got %#v", pathItem["post"])
-	}
-	responses, ok := op["responses"].(map[string]any)
-	if !ok {
-		t.Fatalf("post /extension/bits/complete: responses invalid, got %#v", op["responses"])
-	}
-	if _, ok := responses["409"]; !ok {
-		t.Fatalf("post /extension/bits/complete: missing 409 response, got %#v", responses)
 	}
 }

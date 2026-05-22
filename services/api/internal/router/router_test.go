@@ -86,7 +86,6 @@ func newRouterTestEnv(t *testing.T, routerConfigs ...*config.Config) *routerTest
 	watchSvc := services.NewWatchService(db)
 	channelConfigSvc := services.NewChannelConfigService(db)
 	pointsSvc := services.NewPointsService(db, watchSvc)
-	extSvc := services.NewExtensionService(db, cfg, authSvc, pointsSvc)
 	airdropSvc := services.NewAirdropService(db, pointsSvc, channelConfigSvc)
 	streamerSvc := services.NewStreamerService(db, pointsSvc)
 	agencySvc := services.NewAgencyService(db)
@@ -104,7 +103,6 @@ func newRouterTestEnv(t *testing.T, routerConfigs ...*config.Config) *routerTest
 		authSvc,
 		userSvc,
 		addrSvc,
-		extSvc,
 		emailAuthSvc,
 		watchSvc,
 		channelConfigSvc,
@@ -703,16 +701,6 @@ func TestPublicEndpointRateLimits(t *testing.T) {
 			path: "/api/v1/auth/web3/verify",
 			body: `{}`,
 		},
-		{
-			name: "receipt completion",
-			path: "/api/v1/extension/t-point/complete",
-			body: `{}`,
-		},
-		{
-			name: "bits receipt completion",
-			path: "/api/v1/extension/bits/complete",
-			body: `{}`,
-		},
 	}
 
 	for _, tt := range tests {
@@ -873,7 +861,6 @@ func TestInternalRouter_SkipsRouteWhenSharedSecretMissing(t *testing.T) {
 	watchSvc := services.NewWatchService(db)
 	channelConfigSvc := services.NewChannelConfigService(db)
 	pointsSvc := services.NewPointsService(db, watchSvc)
-	extSvc := services.NewExtensionService(db, cfg, authSvc, pointsSvc)
 	airdropSvc := services.NewAirdropService(db, pointsSvc, channelConfigSvc)
 	streamerSvc := services.NewStreamerService(db, pointsSvc)
 	agencySvc := services.NewAgencyService(db)
@@ -886,7 +873,6 @@ func TestInternalRouter_SkipsRouteWhenSharedSecretMissing(t *testing.T) {
 		authSvc,
 		userSvc,
 		addrSvc,
-		extSvc,
 		emailAuthSvc,
 		watchSvc,
 		channelConfigSvc,
@@ -954,7 +940,6 @@ func TestInternalRouter_WithSecretSet_MiddlewareRejectsAndRouteRegistered(t *tes
 	watchSvc := services.NewWatchService(db)
 	channelConfigSvc := services.NewChannelConfigService(db)
 	pointsSvc := services.NewPointsService(db, watchSvc)
-	extSvc := services.NewExtensionService(db, cfg, authSvc, pointsSvc)
 	airdropSvc := services.NewAirdropService(db, pointsSvc, channelConfigSvc)
 	streamerSvc := services.NewStreamerService(db, pointsSvc)
 	agencySvc := services.NewAgencyService(db)
@@ -967,7 +952,6 @@ func TestInternalRouter_WithSecretSet_MiddlewareRejectsAndRouteRegistered(t *tes
 		authSvc,
 		userSvc,
 		addrSvc,
-		extSvc,
 		emailAuthSvc,
 		watchSvc,
 		channelConfigSvc,

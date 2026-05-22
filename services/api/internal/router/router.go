@@ -32,7 +32,6 @@ func New(
 	authSvc *services.AuthService,
 	userSvc *services.UserService,
 	addrSvc *services.AddressService,
-	extSvc *services.ExtensionService,
 	emailAuthSvc *services.EmailAuthService,
 	watchSvc *services.WatchService,
 	channelConfigSvc *services.ChannelConfigService,
@@ -95,7 +94,6 @@ func New(
 	authH := handlers.NewAuthHandler(authSvc, cfg).WithEmailAuth(emailAuthSvc)
 	userH := handlers.NewUserHandler(userSvc)
 	addrH := handlers.NewAddressHandler(addrSvc)
-	extH := handlers.NewExtensionHandler(extSvc)
 	emailH := handlers.NewEmailAuthHandler(emailAuthSvc)
 	watchH := handlers.NewWatchHandler(watchSvc, pointsSvc)
 	channelConfigH := handlers.NewChannelConfigHandler(channelConfigSvc, streamerSvc)
@@ -157,10 +155,6 @@ func New(
 	// ── Twitch Extension endpoints ────────────────────────────────────────
 	ext := v1.Group("/extension")
 	{
-		ext.POST("/auth/login", extH.Login)
-		ext.POST("/t-point/complete", publicRateLimit("extension_t_point_complete"), extH.TPointComplete)
-		ext.POST("/bits/complete", publicRateLimit("extension_bits_complete"), extH.BitsComplete) // deprecated alias
-
 		// Raffle result — public read (no auth required)
 		ext.GET("/raffles/:id/result", raffleH.GetResult)
 

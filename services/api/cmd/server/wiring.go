@@ -23,7 +23,6 @@ func wire(db *gorm.DB, cfg *config.Config, ctx context.Context) *gin.Engine {
 	watchSvc := services.NewWatchService(db)
 	channelConfigSvc := services.NewChannelConfigService(db)
 	pointsSvc := services.NewPointsService(db, watchSvc)
-	extSvc := services.NewExtensionService(db, cfg, authSvc, pointsSvc)
 	streamerSvc := services.NewStreamerService(db, pointsSvc)
 	agencySvc := services.NewAgencyService(db)
 	airdropSvc := services.NewAirdropService(db, pointsSvc, channelConfigSvc)
@@ -56,7 +55,6 @@ func wire(db *gorm.DB, cfg *config.Config, ctx context.Context) *gin.Engine {
 		authSvc,
 		userSvc,
 		addrSvc,
-		extSvc,
 		emailAuthSvc,
 		watchSvc,
 		channelConfigSvc,
