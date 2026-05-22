@@ -1017,6 +1017,7 @@ func (s *RaffleService) DeletePrizeTierContext(ctx context.Context, raffleID, ti
 		return err
 	}
 	db := s.db.WithContext(ctx)
+	// Verify tier exists first (to distinguish not-found from has-draws).
 	var tier models.RafflePrizeTier
 	if err := db.Where("id = ? AND raffle_id = ?", tierID, raffleID).First(&tier).Error; err != nil {
 		if errors.Is(err, gorm.ErrRecordNotFound) {
@@ -1024,10 +1025,17 @@ func (s *RaffleService) DeletePrizeTierContext(ctx context.Context, raffleID, ti
 		}
 		return err
 	}
-	if tier.DrawnCount > 0 {
+	// Conditional atomic delete: only removes if drawn_count = 0, closing the TOCTOU
+	// between a drawn_count check and the delete.
+	res := db.Where("id = ? AND raffle_id = ? AND drawn_count = 0", tierID, raffleID).
+		Delete(&models.RafflePrizeTier{})
+	if res.Error != nil {
+		return res.Error
+	}
+	if res.RowsAffected == 0 {
 		return ErrPrizeTierHasDraws
 	}
-	return db.Delete(&tier).Error
+	return nil
 }
 
 func (s *RaffleService) DrawFromTier(raffleID, tierID, userID uuid.UUID) (*models.RaffleDraw, error) {
