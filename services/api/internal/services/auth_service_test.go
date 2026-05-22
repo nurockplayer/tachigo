@@ -642,7 +642,9 @@ func TestWeb3NonceContext_CanceledRequestStopsDBWrite(t *testing.T) {
 	}
 
 	var count int64
-	db.Model(&models.Web3Nonce{}).Where("address = ?", strings.ToLower(address)).Count(&count)
+	if err := db.Model(&models.Web3Nonce{}).Where("address = ?", strings.ToLower(address)).Count(&count).Error; err != nil {
+		t.Fatalf("count web3 nonce rows: %v", err)
+	}
 	if count != 0 {
 		t.Fatalf("canceled request should not create nonce rows, got %d", count)
 	}
