@@ -46,12 +46,6 @@ const checks = [
     swagger: '/users/me/points/history',
   },
   {
-    label: 'extension login',
-    frontend: [files.extensionApi, '/api/v1/extension/auth/login'],
-    router: 'ext.POST("/auth/login"',
-    swagger: '/extension/auth/login',
-  },
-  {
     label: 'extension heartbeat',
     frontend: [files.extensionApi, '/api/v1/extension/watch/heartbeat'],
     router: 'watch.POST("/heartbeat"',
