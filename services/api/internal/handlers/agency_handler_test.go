@@ -741,7 +741,10 @@ func runAgencyOwnershipMatrix(t *testing.T, endpoints []agencyOwnershipMatrixEnd
 				}
 
 				w := httptest.NewRecorder()
-				req, _ := http.NewRequest(endpoint.method, endpoint.path(agencyID), bytes.NewBuffer(body))
+				req, err := http.NewRequest(endpoint.method, endpoint.path(agencyID), bytes.NewBuffer(body))
+				if err != nil {
+					t.Fatalf("%s: create request: %v", name, err)
+				}
 				if body != nil {
 					req.Header.Set("Content-Type", "application/json")
 				}
