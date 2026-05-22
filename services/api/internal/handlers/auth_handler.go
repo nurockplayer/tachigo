@@ -298,7 +298,7 @@ func (h *AuthHandler) Web3Nonce(c *gin.Context) {
 		return
 	}
 
-	nonce, issuedAt, err := h.auth.Web3Nonce(body.Address)
+	nonce, issuedAt, err := h.auth.Web3NonceContext(c.Request.Context(), body.Address)
 	if err != nil {
 		internal(c)
 		return

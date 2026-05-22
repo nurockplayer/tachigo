@@ -302,6 +302,13 @@ func (s *AuthService) GoogleCallback(ctx context.Context, code string) (*models.
 // ─── Web3 / SIWE ─────────────────────────────────────────────────────────────
 
 func (s *AuthService) Web3Nonce(address string) (string, time.Time, error) {
+	return s.Web3NonceContext(context.Background(), address)
+}
+
+func (s *AuthService) Web3NonceContext(ctx context.Context, address string) (string, time.Time, error) {
+	if ctx == nil {
+		ctx = context.Background()
+	}
 	address = strings.ToLower(common.HexToAddress(address).Hex())
 	nonce, err := generateNonce()
 	if err != nil {
@@ -313,7 +320,7 @@ func (s *AuthService) Web3Nonce(address string) (string, time.Time, error) {
 		Address:   address,
 		ExpiresAt: time.Now().Add(5 * time.Minute),
 	}
-	if err := s.db.Transaction(func(tx *gorm.DB) error {
+	if err := s.db.WithContext(ctx).Transaction(func(tx *gorm.DB) error {
 		// Delete any existing nonces for this address.
 		if err := tx.Where("address = ?", address).Delete(&models.Web3Nonce{}).Error; err != nil {
 			return err
