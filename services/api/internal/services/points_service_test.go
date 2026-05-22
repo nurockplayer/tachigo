@@ -544,6 +544,21 @@ func TestPointsService_AddWatchTime_Accumulates(t *testing.T) {
 	}
 }
 
+func TestPointsService_AddWatchTimeContext_UsesRequestContext(t *testing.T) {
+	svc, _ := newPointsSvc(t)
+	userID := seedViewer(t, svc)
+	key := pointsContextKey("add-watch-time-context")
+	seen := installDBContextProbe(t, svc.db, key, "points-watch-time")
+
+	err := svc.AddWatchTimeContext(context.WithValue(context.Background(), key, "points-watch-time"), userID, "ch_context", 30)
+	if err != nil {
+		t.Fatalf("add watch time with context: %v", err)
+	}
+	if seen() == 0 {
+		t.Fatal("expected AddWatchTimeContext DB operations to carry request context")
+	}
+}
+
 func TestPointsService_GetWatchStats_ZeroWhenNone(t *testing.T) {
 	svc, _ := newPointsSvc(t)
 	userID := seedViewer(t, svc)
@@ -554,6 +569,21 @@ func TestPointsService_GetWatchStats_ZeroWhenNone(t *testing.T) {
 	}
 	if stats.TotalWatchSeconds != 0 {
 		t.Errorf("want 0 s, got %d", stats.TotalWatchSeconds)
+	}
+}
+
+func TestPointsService_GetWatchStatsContext_UsesRequestContext(t *testing.T) {
+	svc, _ := newPointsSvc(t)
+	userID := seedViewer(t, svc)
+	key := pointsContextKey("get-watch-stats-context")
+	seen := installDBContextProbe(t, svc.db, key, "points-watch-stats")
+
+	_, err := svc.GetWatchStatsContext(context.WithValue(context.Background(), key, "points-watch-stats"), userID, "ch_context")
+	if err != nil {
+		t.Fatalf("get watch stats with context: %v", err)
+	}
+	if seen() == 0 {
+		t.Fatal("expected GetWatchStatsContext DB operations to carry request context")
 	}
 }
 
@@ -633,6 +663,22 @@ func TestPointsService_AddBroadcastTime_WritesLogAndStat(t *testing.T) {
 	svc.db.Raw("SELECT COUNT(*) FROM broadcast_time_logs WHERE streamer_id = ?", streamerID).Scan(&count)
 	if count != 2 {
 		t.Errorf("broadcast_time_logs: want 2 entries, got %d", count)
+	}
+}
+
+func TestPointsService_AddBroadcastTimeContext_UsesRequestContext(t *testing.T) {
+	svc, _ := newPointsSvc(t)
+	channelID := "ch_broadcast_context"
+	seedStreamer(t, svc, channelID)
+	key := pointsContextKey("add-broadcast-time-context")
+	seen := installDBContextProbe(t, svc.db, key, "points-broadcast-time")
+
+	err := svc.AddBroadcastTimeContext(context.WithValue(context.Background(), key, "points-broadcast-time"), channelID, 30)
+	if err != nil {
+		t.Fatalf("add broadcast time with context: %v", err)
+	}
+	if seen() == 0 {
+		t.Fatal("expected AddBroadcastTimeContext DB operations to carry request context")
 	}
 }
 

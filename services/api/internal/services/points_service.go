@@ -253,7 +253,11 @@ func validatePositivePointsAmount(amount int64) error {
 // AddWatchTime accumulates observed seconds for a viewer in a channel.
 // Called after each successful Heartbeat.
 func (s *PointsService) AddWatchTime(userID uuid.UUID, channelID string, seconds int64) error {
-	return s.addWatchTime(s.db, userID, channelID, seconds)
+	return s.AddWatchTimeContext(context.Background(), userID, channelID, seconds)
+}
+
+func (s *PointsService) AddWatchTimeContext(ctx context.Context, userID uuid.UUID, channelID string, seconds int64) error {
+	return s.addWatchTime(s.dbWithContext(ctx), userID, channelID, seconds)
 }
 
 func (s *PointsService) addWatchTime(db *gorm.DB, userID uuid.UUID, channelID string, seconds int64) error {
@@ -269,10 +273,14 @@ func (s *PointsService) addWatchTime(db *gorm.DB, userID uuid.UUID, channelID st
 
 // GetWatchStats returns the total accumulated watch seconds for a viewer in a channel.
 func (s *PointsService) GetWatchStats(userID uuid.UUID, channelID string) (*WatchStats, error) {
+	return s.GetWatchStatsContext(context.Background(), userID, channelID)
+}
+
+func (s *PointsService) GetWatchStatsContext(ctx context.Context, userID uuid.UUID, channelID string) (*WatchStats, error) {
 	var result struct {
 		TotalWatchSeconds int64
 	}
-	err := s.db.Raw(`
+	err := s.dbWithContext(ctx).Raw(`
 		SELECT COALESCE(total_watch_seconds, 0) AS total_watch_seconds
 		FROM watch_time_stats
 		WHERE user_id = ? AND channel_id = ?
@@ -288,7 +296,11 @@ func (s *PointsService) GetWatchStats(userID uuid.UUID, channelID string) (*Watc
 // streamerID is resolved internally from channelID via auth_providers (Twitch provider_id = channelID).
 // If the channelID has no registered streamer, the call is a no-op.
 func (s *PointsService) AddBroadcastTime(channelID string, seconds int64) error {
-	return s.addBroadcastTime(s.db, channelID, seconds)
+	return s.AddBroadcastTimeContext(context.Background(), channelID, seconds)
+}
+
+func (s *PointsService) AddBroadcastTimeContext(ctx context.Context, channelID string, seconds int64) error {
+	return s.addBroadcastTime(s.dbWithContext(ctx), channelID, seconds)
 }
 
 func (s *PointsService) addBroadcastTime(db *gorm.DB, channelID string, seconds int64) error {
