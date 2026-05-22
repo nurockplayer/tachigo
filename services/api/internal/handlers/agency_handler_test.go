@@ -702,6 +702,154 @@ func seedAgencyUser(t *testing.T, db *gorm.DB, name, email string) uuid.UUID {
 	return id
 }
 
+type agencyOwnershipMatrixWant struct {
+	noToken     int
+	viewer      int
+	streamer    int
+	agencyOwn   int
+	agencyOther int
+	admin       int
+}
+
+type agencyOwnershipMatrixEndpoint struct {
+	name   string
+	method string
+	path   func(uuid.UUID) string
+	body   func() []byte
+	setup  func(t *testing.T, env *testEnv, agencyID uuid.UUID)
+	want   agencyOwnershipMatrixWant
+}
+
+func runAgencyOwnershipMatrix(t *testing.T, endpoints []agencyOwnershipMatrixEndpoint) {
+	t.Helper()
+
+	for _, endpoint := range endpoints {
+		endpoint := endpoint
+		t.Run(endpoint.name, func(t *testing.T) {
+			runAgencyOwnershipCase := func(t *testing.T, name string, token func(uuid.UUID) string, want int) {
+				t.Helper()
+
+				env, r := newFullAgencyTestEnv(t)
+				agencyID := seedAgencyUser(t, env.db, "agency-matrix-"+name, "agency-matrix-"+name+"@example.com")
+				if endpoint.setup != nil {
+					endpoint.setup(t, env, agencyID)
+				}
+
+				var body []byte
+				if endpoint.body != nil {
+					body = endpoint.body()
+				}
+
+				w := httptest.NewRecorder()
+				req, _ := http.NewRequest(endpoint.method, endpoint.path(agencyID), bytes.NewBuffer(body))
+				if body != nil {
+					req.Header.Set("Content-Type", "application/json")
+				}
+				if token != nil {
+					req.Header.Set("Authorization", "Bearer "+token(agencyID))
+				}
+
+				r.ServeHTTP(w, req)
+				if w.Code != want {
+					t.Fatalf("%s: expected %d, got %d: %s", name, want, w.Code, w.Body.String())
+				}
+			}
+
+			cases := []struct {
+				name  string
+				token func(uuid.UUID) string
+				want  int
+			}{
+				{name: "no_token", want: endpoint.want.noToken},
+				{
+					name:  "viewer",
+					token: func(uuid.UUID) string { return makeAccessToken(t, models.RoleViewer) },
+					want:  endpoint.want.viewer,
+				},
+				{
+					name:  "streamer",
+					token: func(uuid.UUID) string { return makeAccessToken(t, models.RoleStreamer) },
+					want:  endpoint.want.streamer,
+				},
+				{
+					name:  "agency_own",
+					token: func(agencyID uuid.UUID) string { return makeAccessTokenForUser(t, agencyID, models.RoleAgency) },
+					want:  endpoint.want.agencyOwn,
+				},
+				{
+					name:  "agency_other",
+					token: func(uuid.UUID) string { return makeAccessTokenForUser(t, uuid.New(), models.RoleAgency) },
+					want:  endpoint.want.agencyOther,
+				},
+				{
+					name:  "admin",
+					token: func(uuid.UUID) string { return makeAccessToken(t, models.RoleAdmin) },
+					want:  endpoint.want.admin,
+				},
+			}
+
+			for _, tc := range cases {
+				tc := tc
+				t.Run(tc.name, func(t *testing.T) {
+					runAgencyOwnershipCase(t, tc.name, tc.token, tc.want)
+				})
+			}
+		})
+	}
+}
+
+func TestAgencyOwnershipMatrix(t *testing.T) {
+	runAgencyOwnershipMatrix(t, []agencyOwnershipMatrixEndpoint{
+		{
+			name:   "get agency profile",
+			method: http.MethodGet,
+			path:   func(agencyID uuid.UUID) string { return "/api/v1/agencies/" + agencyID.String() },
+			want: agencyOwnershipMatrixWant{
+				noToken:     http.StatusUnauthorized,
+				viewer:      http.StatusForbidden,
+				streamer:    http.StatusForbidden,
+				agencyOwn:   http.StatusOK,
+				agencyOther: http.StatusForbidden,
+				admin:       http.StatusOK,
+			},
+		},
+		{
+			name:   "update agency settings",
+			method: http.MethodPut,
+			path:   func(agencyID uuid.UUID) string { return "/api/v1/agencies/" + agencyID.String() + "/settings" },
+			body: func() []byte {
+				body, _ := json.Marshal(map[string]string{"name": "agency-matrix-renamed"})
+				return body
+			},
+			want: agencyOwnershipMatrixWant{
+				noToken:     http.StatusUnauthorized,
+				viewer:      http.StatusForbidden,
+				streamer:    http.StatusForbidden,
+				agencyOwn:   http.StatusOK,
+				agencyOther: http.StatusForbidden,
+				admin:       http.StatusOK,
+			},
+		},
+		{
+			name:   "list agency streamers",
+			method: http.MethodGet,
+			path:   func(agencyID uuid.UUID) string { return "/api/v1/agencies/" + agencyID.String() + "/streamers" },
+			setup: func(t *testing.T, env *testEnv, agencyID uuid.UUID) {
+				t.Helper()
+				seedAgencyStreamerListData(t, env.db, agencyID)
+			},
+			want: agencyOwnershipMatrixWant{
+				noToken:     http.StatusUnauthorized,
+				viewer:      http.StatusForbidden,
+				streamer:    http.StatusForbidden,
+				agencyOwn:   http.StatusOK,
+				agencyOther: http.StatusForbidden,
+				admin:       http.StatusOK,
+			},
+		},
+	})
+}
+
 func TestAgencyHandler_UpdateSettings_AdminSuccess(t *testing.T) {
 	env, r := newAgencyTestEnv(t)
 	agencyID := seedAgencyUser(t, env.db, "agency-orig", "agency-orig@example.com")
