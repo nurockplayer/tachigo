@@ -464,8 +464,16 @@ func (s *RaffleService) Complete(raffleID, userID uuid.UUID) (*models.Raffle, er
 
 // GetDrawByToken fetches a draw by its claim token. Returns ErrClaimTokenExpired if past expiry.
 func (s *RaffleService) GetDrawByToken(token string) (*models.RaffleDraw, error) {
+	return s.GetDrawByTokenContext(context.Background(), token)
+}
+
+func (s *RaffleService) GetDrawByTokenContext(ctx context.Context, token string) (*models.RaffleDraw, error) {
+	if ctx == nil {
+		ctx = context.Background()
+	}
+
 	var draw models.RaffleDraw
-	if err := s.db.
+	if err := s.db.WithContext(ctx).
 		Preload("Entry").
 		Where("claim_token = ?", hashClaimToken(token)).
 		First(&draw).Error; err != nil {
@@ -495,7 +503,15 @@ type ClaimInput struct {
 // Duplicate submissions are caught by the unique constraint on draw_id.
 // userID must match the linked user on the winning entry; otherwise ErrClaimForbidden is returned.
 func (s *RaffleService) SubmitClaim(token string, userID uuid.UUID, input ClaimInput) (*models.RaffleClaim, error) {
-	draw, err := s.GetDrawByToken(token)
+	return s.SubmitClaimContext(context.Background(), token, userID, input)
+}
+
+func (s *RaffleService) SubmitClaimContext(ctx context.Context, token string, userID uuid.UUID, input ClaimInput) (*models.RaffleClaim, error) {
+	if ctx == nil {
+		ctx = context.Background()
+	}
+
+	draw, err := s.GetDrawByTokenContext(ctx, token)
 	if err != nil {
 		return nil, err
 	}
@@ -520,7 +536,7 @@ func (s *RaffleService) SubmitClaim(token string, userID uuid.UUID, input ClaimI
 		Country:       country,
 		SubmittedAt:   time.Now(),
 	}
-	if err := s.db.Create(claim).Error; err != nil {
+	if err := s.db.WithContext(ctx).Create(claim).Error; err != nil {
 		if errors.Is(err, gorm.ErrDuplicatedKey) {
 			return nil, ErrClaimAlreadyDone
 		}

@@ -437,7 +437,7 @@ func (h *RaffleHandler) SetDiscordWebhook(c *gin.Context) {
 func (h *RaffleHandler) GetClaim(c *gin.Context) {
 	token := c.Param("token")
 
-	draw, err := h.raffleSvc.GetDrawByToken(token)
+	draw, err := h.raffleSvc.GetDrawByTokenContext(c.Request.Context(), token)
 	if err != nil {
 		if errors.Is(err, services.ErrClaimNotFound) {
 			notFound(c, "claim not found")
@@ -485,7 +485,7 @@ func (h *RaffleHandler) SubmitClaim(c *gin.Context) {
 		return
 	}
 
-	claim, err := h.raffleSvc.SubmitClaim(token, userID, input)
+	claim, err := h.raffleSvc.SubmitClaimContext(c.Request.Context(), token, userID, input)
 	if err != nil {
 		if errors.Is(err, services.ErrClaimNotFound) {
 			notFound(c, "claim not found")
