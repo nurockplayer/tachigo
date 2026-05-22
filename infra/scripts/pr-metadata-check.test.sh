@@ -10,13 +10,13 @@ trap 'git branch -D "$head_branch" >/dev/null 2>&1 || true; rm -rf "$tmpdir"' EX
 
 resolve_base_ref() {
   if git show-ref --verify --quiet refs/remotes/origin/develop; then
-    printf '%s\n' "origin/develop"
+    printf '%s\n' "refs/remotes/origin/develop"
     return 0
   fi
 
   if git show-ref --verify --quiet refs/heads/develop; then
     echo "warning: refs/remotes/origin/develop not found; falling back to local develop" >&2
-    printf '%s\n' "develop"
+    printf '%s\n' "refs/heads/develop"
     return 0
   fi
 
