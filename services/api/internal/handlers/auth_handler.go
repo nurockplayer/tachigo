@@ -142,7 +142,7 @@ func (h *AuthHandler) Refresh(c *gin.Context) {
 		return
 	}
 
-	tokens, err := h.auth.Refresh(refreshToken)
+	tokens, err := h.auth.RefreshContext(c.Request.Context(), refreshToken)
 	if err != nil {
 		if errors.Is(err, services.ErrInvalidToken) || errors.Is(err, services.ErrUserNotFound) {
 			unauthorized(c, "invalid or expired refresh token")
@@ -172,7 +172,7 @@ func (h *AuthHandler) Logout(c *gin.Context) {
 		return
 	}
 
-	h.auth.Logout(refreshToken)
+	h.auth.LogoutContext(c.Request.Context(), refreshToken)
 	h.clearRefreshCookie(c)
 	ok(c, gin.H{"message": "logged out"})
 }

@@ -27,6 +27,9 @@ func installDBContextProbe(t *testing.T, db *gorm.DB, key, want any) func() int 
 	if err := db.Callback().Update().Before("gorm:update").Register(name+":update", probe); err != nil {
 		t.Fatalf("register update context probe: %v", err)
 	}
+	if err := db.Callback().Delete().Before("gorm:delete").Register(name+":delete", probe); err != nil {
+		t.Fatalf("register delete context probe: %v", err)
+	}
 	if err := db.Callback().Raw().Before("gorm:raw").Register(name+":raw", probe); err != nil {
 		t.Fatalf("register raw context probe: %v", err)
 	}
@@ -38,6 +41,7 @@ func installDBContextProbe(t *testing.T, db *gorm.DB, key, want any) func() int 
 		_ = db.Callback().Create().Remove(name + ":create")
 		_ = db.Callback().Query().Remove(name + ":query")
 		_ = db.Callback().Update().Remove(name + ":update")
+		_ = db.Callback().Delete().Remove(name + ":delete")
 		_ = db.Callback().Raw().Remove(name + ":raw")
 		_ = db.Callback().Row().Remove(name + ":row")
 	})

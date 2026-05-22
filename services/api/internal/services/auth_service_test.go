@@ -413,6 +413,32 @@ func TestRefresh_Success(t *testing.T) {
 	}
 }
 
+func TestAuthService_RefreshContext_UsesRequestContext(t *testing.T) {
+	db := newTestDB(t)
+	svc := NewAuthService(db, testConfig())
+	_, tokens, _ := svc.Register(RegisterInput{
+		Username: "refreshctx",
+		Email:    "refreshctx@example.com",
+		Password: "password123",
+	})
+
+	type refreshContextKey struct{}
+	key := refreshContextKey{}
+	seen := installDBContextProbe(t, db, key, "refresh")
+	ctx := context.WithValue(context.Background(), key, "refresh")
+
+	newTokens, err := svc.RefreshContext(ctx, tokens.RefreshToken)
+	if err != nil {
+		t.Fatalf("refresh context: %v", err)
+	}
+	if newTokens == nil || newTokens.RefreshToken == "" {
+		t.Fatal("expected rotated refresh token")
+	}
+	if seen() == 0 {
+		t.Fatal("expected Refresh DB query/delete/create to use request context")
+	}
+}
+
 func TestRefresh_RotatesToken(t *testing.T) {
 	svc := NewAuthService(newTestDB(t), testConfig())
 	_, tokens, _ := svc.Register(RegisterInput{Username: "rotuser", Email: "rot@example.com", Password: "password123"})
@@ -518,6 +544,28 @@ func TestLogout_InvalidatesRefreshToken(t *testing.T) {
 	_, err := svc.Refresh(tokens.RefreshToken)
 	if err != ErrInvalidToken {
 		t.Errorf("want ErrInvalidToken after logout, got %v", err)
+	}
+}
+
+func TestAuthService_LogoutContext_UsesRequestContext(t *testing.T) {
+	db := newTestDB(t)
+	svc := NewAuthService(db, testConfig())
+	_, tokens, _ := svc.Register(RegisterInput{
+		Username: "logoutctx",
+		Email:    "logoutctx@example.com",
+		Password: "password123",
+	})
+
+	type logoutContextKey struct{}
+	key := logoutContextKey{}
+	seen := installDBContextProbe(t, db, key, "logout")
+	ctx := context.WithValue(context.Background(), key, "logout")
+
+	if err := svc.LogoutContext(ctx, tokens.RefreshToken); err != nil {
+		t.Fatalf("logout context: %v", err)
+	}
+	if seen() == 0 {
+		t.Fatal("expected Logout DB delete to use request context")
 	}
 }
 
