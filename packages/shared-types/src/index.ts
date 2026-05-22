@@ -363,39 +363,11 @@ export interface ApiOperations {
     };
     response: HandlersResponse;
   };
-  "POST /extension/auth/login": {
-    requestBody: {
-      extension_jwt?: string;
-    };
-    response: HandlersResponse & {
-      data?: HandlersAuthResponse;
-    };
-  };
-  "POST /extension/bits/complete": {
-    requestBody: {
-      extension_jwt?: string;
-      sku?: string;
-      transaction_receipt?: string;
-    };
-    response: HandlersResponse & {
-      data?: HandlersAuthResponse;
-    };
-  };
   "GET /extension/raffles/{id}/result": {
     pathParams: {
       id: string;
     };
     response: HandlersResponse;
-  };
-  "POST /extension/t-point/complete": {
-    requestBody: {
-      extension_jwt?: string;
-      sku?: string;
-      transaction_receipt?: string;
-    };
-    response: HandlersResponse & {
-      data?: HandlersAuthResponse;
-    };
   };
   "GET /metrics": {
     response: string;

@@ -13,7 +13,6 @@ func TestSwaggerAnnotations_NoEmptySecurityDirective(t *testing.T) {
 	for _, rel := range []string{
 		"auth_handler.go",
 		"email_auth_handler.go",
-		"extension_handler.go",
 	} {
 		path := filepath.Join(rel)
 		b, err := os.ReadFile(path)
