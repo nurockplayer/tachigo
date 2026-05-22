@@ -3,6 +3,7 @@ package router_test
 import (
 	"context"
 	"encoding/json"
+	"errors"
 	"fmt"
 	"net/http"
 	"net/http/httptest"
@@ -237,6 +238,38 @@ func TestMetricsRoute_RecordsTimeoutStatusAfterRequestTimeout(t *testing.T) {
 	}
 	if !strings.Contains(text, `tachigo_http_request_errors_total{route="/test-metrics-timeout",status_family="5xx"} 1`) {
 		t.Fatalf("expected timeout request to be recorded as error, got:\n%s", text)
+	}
+}
+
+func TestRouter_RequestTimeoutCancelsDBWorkUsingRequestContext(t *testing.T) {
+	cfg := routerTestConfig("development", false, false)
+	cfg.Server.RequestTimeout = time.Millisecond
+	env := newRouterTestEnv(t, cfg)
+
+	dbDone := make(chan error, 1)
+	env.router.GET("/test-timeout-db-work", func(c *gin.Context) {
+		<-c.Request.Context().Done()
+
+		var one int
+		err := env.db.WithContext(c.Request.Context()).Raw("SELECT 1").Scan(&one).Error
+		dbDone <- err
+	})
+
+	req := httptest.NewRequest(http.MethodGet, "/test-timeout-db-work", nil)
+	rec := httptest.NewRecorder()
+	env.router.ServeHTTP(rec, req)
+
+	if rec.Code != http.StatusGatewayTimeout {
+		t.Fatalf("expected timeout request to return 504, got %d: %s", rec.Code, rec.Body.String())
+	}
+
+	select {
+	case err := <-dbDone:
+		if !errors.Is(err, context.DeadlineExceeded) && !errors.Is(err, context.Canceled) {
+			t.Fatalf("expected DB work to stop with request context error, got %v", err)
+		}
+	case <-time.After(time.Second):
+		t.Fatal("timed out waiting for DB work to observe canceled request context")
 	}
 }
 
