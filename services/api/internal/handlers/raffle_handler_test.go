@@ -658,6 +658,63 @@ func TestRaffle_ClaimFlow(t *testing.T) {
 	}
 }
 
+func TestRaffle_SubmitClaim_UsesRequestContext(t *testing.T) {
+	env := newRaffleTestEnv(t)
+	hostToken := env.registerStreamer(t, "claimctxhost", "claimctxhost@test.com", "pass1234")
+
+	body, _ := json.Marshal(map[string]string{"title": "claim context flow"})
+	w := httptest.NewRecorder()
+	req, _ := http.NewRequest(http.MethodPost, "/api/v1/dashboard/raffles", bytes.NewReader(body))
+	req.Header.Set("Content-Type", "application/json")
+	req.Header.Set("Authorization", bearer(hostToken))
+	env.router.ServeHTTP(w, req)
+	resp := parseBody(t, w.Body.Bytes())
+	raffleID := resp["data"].(map[string]interface{})["raffle"].(map[string]interface{})["id"].(string)
+
+	env.createTwitchLinkedUser(t, "claimctxwinner")
+	winnerJWT := env.loginUser(t, "claimctxwinner")
+
+	var buf bytes.Buffer
+	mw := multipart.NewWriter(&buf)
+	fw, _ := mw.CreateFormFile("file", "entries.csv")
+	fmt.Fprintln(fw, "claimctxwinner")
+	mw.Close()
+	w2 := httptest.NewRecorder()
+	req2, _ := http.NewRequest(http.MethodPost, "/api/v1/dashboard/raffles/"+raffleID+"/entries/import-csv", &buf)
+	req2.Header.Set("Content-Type", mw.FormDataContentType())
+	req2.Header.Set("Authorization", bearer(hostToken))
+	env.router.ServeHTTP(w2, req2)
+
+	w3 := httptest.NewRecorder()
+	req3, _ := http.NewRequest(http.MethodPost, "/api/v1/dashboard/raffles/"+raffleID+"/draws", nil)
+	req3.Header.Set("Authorization", bearer(hostToken))
+	env.router.ServeHTTP(w3, req3)
+	drawResp := parseBody(t, w3.Body.Bytes())
+	claimToken := drawResp["data"].(map[string]interface{})["draw"].(map[string]interface{})["claim_token"].(string)
+
+	key := raffleHandlerContextKey{}
+	seen := installRaffleHandlerDBContextProbeForTables(t, env.db, key, "raffle-submit-claim", "raffle_draws", "raffle_claims")
+	ctx := context.WithValue(context.Background(), key, "raffle-submit-claim")
+
+	claimBody, _ := json.Marshal(map[string]string{
+		"recipient_name": "Context Winner",
+		"address_line1":  "Context Address",
+		"city":           "Taipei",
+		"country":        "TW",
+	})
+	w4 := httptest.NewRecorder()
+	req4, _ := http.NewRequestWithContext(ctx, http.MethodPost, "/api/v1/claim/"+claimToken, bytes.NewReader(claimBody))
+	req4.Header.Set("Content-Type", "application/json")
+	req4.Header.Set("Authorization", bearer(winnerJWT))
+	env.router.ServeHTTP(w4, req4)
+	if w4.Code != http.StatusOK {
+		t.Fatalf("submit claim: want 200, got %d: %s", w4.Code, w4.Body.String())
+	}
+	if seen() < 2 {
+		t.Fatal("expected claim token query and claim create operations to use request context")
+	}
+}
+
 func TestRaffle_ClaimExpired(t *testing.T) {
 	env := newRaffleTestEnv(t)
 
