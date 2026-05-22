@@ -143,6 +143,21 @@ func newRaffleTestEnv(t *testing.T) *raffleTestEnv {
 	dash.POST("/raffles/:id/complete", raffleH.Complete)
 	dash.PATCH("/raffles/:id/discord-webhook", raffleH.SetDiscordWebhook)
 	dash.POST("/raffles/:id/snapshot", raffleH.Snapshot)
+	dash.POST("/raffles/:id/prize-tiers",
+		middleware.RequireRole(models.RoleStreamer),
+		raffleH.CreatePrizeTier)
+	dash.GET("/raffles/:id/prize-tiers",
+		middleware.RequireRole(models.RoleStreamer),
+		raffleH.ListPrizeTiers)
+	dash.PATCH("/raffles/:id/prize-tiers/:tier_id",
+		middleware.RequireRole(models.RoleStreamer),
+		raffleH.UpdatePrizeTier)
+	dash.DELETE("/raffles/:id/prize-tiers/:tier_id",
+		middleware.RequireRole(models.RoleStreamer),
+		raffleH.DeletePrizeTier)
+	dash.POST("/raffles/:id/prize-tiers/:tier_id/draws",
+		middleware.RequireRole(models.RoleStreamer),
+		raffleH.DrawFromTier)
 
 	return &raffleTestEnv{db: db, authSvc: authSvc, raffleSvc: raffleSvc, router: r}
 }
@@ -1419,6 +1434,167 @@ func TestRaffle_Activate_Conflict_WhenAlreadyActive(t *testing.T) {
 	env.router.ServeHTTP(w, req)
 	if w.Code != http.StatusConflict {
 		t.Errorf("second activate: want 409, got %d: %s", w.Code, w.Body.String())
+	}
+}
+
+// ── Prize Tier helper methods ─────────────────────────────────────────────────
+
+func (e *raffleTestEnv) activateRaffle(t *testing.T, token, raffleID string) {
+	t.Helper()
+	w := httptest.NewRecorder()
+	req, _ := http.NewRequest(http.MethodPost, "/api/v1/dashboard/raffles/"+raffleID+"/activate", nil)
+	req.Header.Set("Authorization", "Bearer "+token)
+	e.router.ServeHTTP(w, req)
+	if w.Code != http.StatusOK {
+		t.Fatalf("activateRaffle: want 200, got %d — %s", w.Code, w.Body.String())
+	}
+}
+
+func (e *raffleTestEnv) createPrizeTier(t *testing.T, token, raffleID, name, prize string, count int) string {
+	t.Helper()
+	body, _ := json.Marshal(map[string]interface{}{
+		"name": name, "prize_description": prize, "winner_count": count,
+	})
+	w := httptest.NewRecorder()
+	req, _ := http.NewRequest(http.MethodPost, "/api/v1/dashboard/raffles/"+raffleID+"/prize-tiers", bytes.NewReader(body))
+	req.Header.Set("Content-Type", "application/json")
+	req.Header.Set("Authorization", "Bearer "+token)
+	e.router.ServeHTTP(w, req)
+	if w.Code != http.StatusCreated {
+		t.Fatalf("createPrizeTier: want 201, got %d — %s", w.Code, w.Body.String())
+	}
+	var resp struct {
+		Data struct {
+			Tier struct {
+				ID string `json:"id"`
+			} `json:"tier"`
+		} `json:"data"`
+	}
+	if err := json.NewDecoder(w.Body).Decode(&resp); err != nil {
+		t.Fatalf("createPrizeTier: decode response: %v", err)
+	}
+	if resp.Data.Tier.ID == "" {
+		t.Fatal("createPrizeTier: returned empty tier id")
+	}
+	return resp.Data.Tier.ID
+}
+
+func (e *raffleTestEnv) drawFromTier(t *testing.T, token, raffleID, tierID string) *httptest.ResponseRecorder {
+	t.Helper()
+	w := httptest.NewRecorder()
+	req, _ := http.NewRequest(http.MethodPost,
+		"/api/v1/dashboard/raffles/"+raffleID+"/prize-tiers/"+tierID+"/draws", nil)
+	req.Header.Set("Authorization", "Bearer "+token)
+	e.router.ServeHTTP(w, req)
+	return w
+}
+
+// ── Prize Tier tests ──────────────────────────────────────────────────────────
+
+func TestPrizeTierHandler_CreateAndList(t *testing.T) {
+	env := newRaffleTestEnv(t)
+	token := env.registerStreamer(t, "host", "host@test.com", "pass1234")
+	raffleID := env.createRaffle(t, token, "Tier Test Raffle")
+
+	// Create tier
+	body, _ := json.Marshal(map[string]interface{}{
+		"name":              "一等獎",
+		"prize_description": "Switch 主機",
+		"winner_count":      1,
+	})
+	w := httptest.NewRecorder()
+	req, _ := http.NewRequest(http.MethodPost,
+		"/api/v1/dashboard/raffles/"+raffleID+"/prize-tiers",
+		bytes.NewReader(body))
+	req.Header.Set("Content-Type", "application/json")
+	req.Header.Set("Authorization", "Bearer "+token)
+	env.router.ServeHTTP(w, req)
+	if w.Code != http.StatusCreated {
+		t.Fatalf("create tier: want 201, got %d — %s", w.Code, w.Body.String())
+	}
+
+	// List tiers
+	w2 := httptest.NewRecorder()
+	req2, _ := http.NewRequest(http.MethodGet,
+		"/api/v1/dashboard/raffles/"+raffleID+"/prize-tiers", nil)
+	req2.Header.Set("Authorization", "Bearer "+token)
+	env.router.ServeHTTP(w2, req2)
+	if w2.Code != http.StatusOK {
+		t.Fatalf("list tiers: want 200, got %d", w2.Code)
+	}
+	var listResp struct {
+		Data struct {
+			Tiers []map[string]interface{} `json:"tiers"`
+		} `json:"data"`
+	}
+	json.NewDecoder(w2.Body).Decode(&listResp)
+	if len(listResp.Data.Tiers) != 1 {
+		t.Fatalf("want 1 tier, got %d", len(listResp.Data.Tiers))
+	}
+}
+
+func TestPrizeTierHandler_DrawFromTier_ExcludesWinners(t *testing.T) {
+	env := newRaffleTestEnv(t)
+	token := env.registerStreamer(t, "host2", "host2@test.com", "pass1234")
+	raffleID := env.createRaffle(t, token, "Draw Tier Test")
+
+	// Create tachigo users linked to Twitch logins before importing.
+	env.createTwitchLinkedUser(t, "user_a")
+	env.createTwitchLinkedUser(t, "user_b")
+
+	// Seed 2 entries via CSV
+	env.uploadCSV(t, token, raffleID, "user_a,UserA\nuser_b,UserB\n")
+	env.activateRaffle(t, token, raffleID)
+
+	tier1ID := env.createPrizeTier(t, token, raffleID, "一等獎", "Switch", 1)
+	tier2ID := env.createPrizeTier(t, token, raffleID, "二等獎", "貼圖包", 1)
+
+	w1 := env.drawFromTier(t, token, raffleID, tier1ID)
+	if w1.Code != http.StatusCreated {
+		t.Fatalf("draw tier1: want 201, got %d — %s", w1.Code, w1.Body.String())
+	}
+
+	w2 := env.drawFromTier(t, token, raffleID, tier2ID)
+	if w2.Code != http.StatusCreated {
+		t.Fatalf("draw tier2: want 201, got %d — %s", w2.Code, w2.Body.String())
+	}
+
+	var r1, r2 struct {
+		Data struct {
+			Draw struct {
+				EntryID string `json:"entry_id"`
+			} `json:"draw"`
+		} `json:"data"`
+	}
+	json.NewDecoder(w1.Body).Decode(&r1)
+	json.NewDecoder(w2.Body).Decode(&r2)
+	if r1.Data.Draw.EntryID == r2.Data.Draw.EntryID {
+		t.Fatal("tier2 must not draw the same winner as tier1")
+	}
+}
+
+func TestPrizeTierHandler_DeleteTier_WithDrawsFails(t *testing.T) {
+	env := newRaffleTestEnv(t)
+	token := env.registerStreamer(t, "host3", "host3@test.com", "pass1234")
+	raffleID := env.createRaffle(t, token, "Delete Tier Test")
+	env.createTwitchLinkedUser(t, "user_x")
+	env.uploadCSV(t, token, raffleID, "user_x,UserX\n")
+	env.activateRaffle(t, token, raffleID)
+
+	tierID := env.createPrizeTier(t, token, raffleID, "一等獎", "Prize", 1)
+	drawW := env.drawFromTier(t, token, raffleID, tierID)
+	if drawW.Code != http.StatusCreated {
+		t.Fatalf("seed draw: want 201, got %d — %s", drawW.Code, drawW.Body.String())
+	}
+
+	// Try to delete — should fail with 409
+	w := httptest.NewRecorder()
+	req, _ := http.NewRequest(http.MethodDelete,
+		"/api/v1/dashboard/raffles/"+raffleID+"/prize-tiers/"+tierID, nil)
+	req.Header.Set("Authorization", "Bearer "+token)
+	env.router.ServeHTTP(w, req)
+	if w.Code != http.StatusConflict {
+		t.Fatalf("delete with draws: want 409, got %d — %s", w.Code, w.Body.String())
 	}
 }
 
