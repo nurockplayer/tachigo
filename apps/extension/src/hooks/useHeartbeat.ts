@@ -23,18 +23,23 @@ export function useHeartbeat(channelId: string | undefined, options: UseHeartbea
     }
   }, [])
 
-  const resetSession = useCallback(() => {
+  const resetSessionBaseline = useCallback(() => {
     clearAnimationTimer()
     lastBalanceRef.current = null
+  }, [clearAnimationTimer])
+
+  const resetSession = useCallback(() => {
+    resetSessionBaseline()
     setBalance(null)
     setCumulativeTotal(null)
     setGain(null)
     setIsAnimating(false)
     setError(null)
-  }, [clearAnimationTimer])
+  }, [resetSessionBaseline])
 
   useEffect(() => {
     if (previousChannelIdRef.current !== channelId) {
+      resetSessionBaseline()
       const resetTimer = window.setTimeout(() => {
         resetSession()
       }, 0)
@@ -43,19 +48,20 @@ export function useHeartbeat(channelId: string | undefined, options: UseHeartbea
         window.clearTimeout(resetTimer)
       }
     }
-  }, [channelId, resetSession])
+  }, [channelId, resetSession, resetSessionBaseline])
 
   useEffect(() => {
     if (enabled && channelId) {
       return
     }
+    resetSessionBaseline()
     const resetTimer = window.setTimeout(() => {
       resetSession()
     }, 0)
     return () => {
       window.clearTimeout(resetTimer)
     }
-  }, [channelId, enabled, resetSession])
+  }, [channelId, enabled, resetSession, resetSessionBaseline])
 
   useEffect(() => {
     if (!enabled || !channelId) return
