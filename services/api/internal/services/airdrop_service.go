@@ -72,7 +72,14 @@ func NewAirdropService(db *gorm.DB, pointsSvc *PointsService, configSvc *Channel
 }
 
 func (s *AirdropService) TodayTotal(channelID string) (int64, error) {
-	return s.todayTotal(s.db, channelID, time.Now().UTC())
+	return s.TodayTotalContext(context.Background(), channelID)
+}
+
+func (s *AirdropService) TodayTotalContext(ctx context.Context, channelID string) (int64, error) {
+	if ctx == nil {
+		ctx = context.Background()
+	}
+	return s.todayTotal(s.db.WithContext(ctx), channelID, time.Now().UTC())
 }
 
 func (s *AirdropService) Execute(req AirdropRequest) (*AirdropResult, error) {
