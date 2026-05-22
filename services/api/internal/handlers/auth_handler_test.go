@@ -35,9 +35,17 @@ func installAuthHandlerDBContextProbe(t *testing.T, db *gorm.DB, key, want any) 
 	if err := db.Callback().Query().Before("gorm:query").Register(name+":query", probe); err != nil {
 		t.Fatalf("register query context probe: %v", err)
 	}
+	if err := db.Callback().Create().Before("gorm:create").Register(name+":create", probe); err != nil {
+		t.Fatalf("register create context probe: %v", err)
+	}
+	if err := db.Callback().Delete().Before("gorm:delete").Register(name+":delete", probe); err != nil {
+		t.Fatalf("register delete context probe: %v", err)
+	}
 
 	t.Cleanup(func() {
 		_ = db.Callback().Query().Remove(name + ":query")
+		_ = db.Callback().Create().Remove(name + ":create")
+		_ = db.Callback().Delete().Remove(name + ":delete")
 	})
 
 	return func() int {
@@ -279,6 +287,27 @@ func TestRefreshHandler_Success(t *testing.T) {
 	assertTokenPayloadHasBrowserTokens(t, parseBody(t, w.Body.Bytes()))
 }
 
+func TestRefreshHandler_UsesRequestContext(t *testing.T) {
+	env := newTestEnv(t)
+	_, refreshToken := env.registerUser(t, "refreshctx", "refreshctx@example.com", "password123")
+	key := authHandlerContextKey{}
+	seen := installAuthHandlerDBContextProbe(t, env.db, key, "refresh")
+
+	body := fmt.Sprintf(`{"refresh_token":"%s"}`, refreshToken)
+	req := httptest.NewRequest(http.MethodPost, "/api/v1/auth/refresh", bytes.NewBufferString(body)).
+		WithContext(context.WithValue(context.Background(), key, "refresh"))
+	req.Header.Set("Content-Type", "application/json")
+	w := httptest.NewRecorder()
+	env.router.ServeHTTP(w, req)
+
+	if w.Code != http.StatusOK {
+		t.Fatalf("want 200, got %d: %s", w.Code, w.Body.String())
+	}
+	if seen() == 0 {
+		t.Fatal("expected Refresh handler DB query/delete/create to use request context")
+	}
+}
+
 func TestRefreshHandler_SuccessWithCookie(t *testing.T) {
 	env := newTestEnv(t)
 	_, refreshToken := env.registerUser(t, "cookieuser", "cookie@example.com", "password123")
@@ -358,6 +387,27 @@ func TestLogoutHandler_Success(t *testing.T) {
 		t.Errorf("want 200, got %d", w.Code)
 	}
 	assertRefreshCookieCleared(t, w, http.SameSiteLaxMode, false)
+}
+
+func TestLogoutHandler_UsesRequestContext(t *testing.T) {
+	env := newTestEnv(t)
+	_, refreshToken := env.registerUser(t, "logoutctx", "logoutctx@example.com", "password123")
+	key := authHandlerContextKey{}
+	seen := installAuthHandlerDBContextProbe(t, env.db, key, "logout")
+
+	body := fmt.Sprintf(`{"refresh_token":"%s"}`, refreshToken)
+	req := httptest.NewRequest(http.MethodPost, "/api/v1/auth/logout", bytes.NewBufferString(body)).
+		WithContext(context.WithValue(context.Background(), key, "logout"))
+	req.Header.Set("Content-Type", "application/json")
+	w := httptest.NewRecorder()
+	env.router.ServeHTTP(w, req)
+
+	if w.Code != http.StatusOK {
+		t.Fatalf("want 200, got %d: %s", w.Code, w.Body.String())
+	}
+	if seen() == 0 {
+		t.Fatal("expected Logout handler DB delete to use request context")
+	}
 }
 
 func TestLogoutHandler_SuccessWithCookie(t *testing.T) {

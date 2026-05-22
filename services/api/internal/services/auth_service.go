@@ -182,10 +182,18 @@ func (s *AuthService) LoginContext(ctx context.Context, input LoginInput) (*mode
 // ─── Token Refresh / Logout ──────────────────────────────────────────────────
 
 func (s *AuthService) Refresh(rawRefreshToken string) (*TokenPair, error) {
+	return s.RefreshContext(context.Background(), rawRefreshToken)
+}
+
+func (s *AuthService) RefreshContext(ctx context.Context, rawRefreshToken string) (*TokenPair, error) {
+	if ctx == nil {
+		ctx = context.Background()
+	}
+	db := s.db.WithContext(ctx)
 	hash := hashToken(rawRefreshToken)
 
 	var tokenPair *TokenPair
-	err := s.db.Transaction(func(tx *gorm.DB) error {
+	err := db.Transaction(func(tx *gorm.DB) error {
 		var stored models.RefreshToken
 		if err := tx.Where("token_hash = ?", hash).First(&stored).Error; err != nil {
 			return ErrInvalidToken
@@ -213,7 +221,7 @@ func (s *AuthService) Refresh(rawRefreshToken string) (*TokenPair, error) {
 		return err
 	})
 	if errors.Is(err, errRefreshTokenExpired) {
-		if err := s.db.Where("token_hash = ?", hash).Delete(&models.RefreshToken{}).Error; err != nil {
+		if err := db.Where("token_hash = ?", hash).Delete(&models.RefreshToken{}).Error; err != nil {
 			return nil, err
 		}
 		return nil, ErrInvalidToken
@@ -225,8 +233,15 @@ func (s *AuthService) Refresh(rawRefreshToken string) (*TokenPair, error) {
 }
 
 func (s *AuthService) Logout(rawRefreshToken string) error {
+	return s.LogoutContext(context.Background(), rawRefreshToken)
+}
+
+func (s *AuthService) LogoutContext(ctx context.Context, rawRefreshToken string) error {
+	if ctx == nil {
+		ctx = context.Background()
+	}
 	hash := hashToken(rawRefreshToken)
-	return s.db.Where("token_hash = ?", hash).Delete(&models.RefreshToken{}).Error
+	return s.db.WithContext(ctx).Where("token_hash = ?", hash).Delete(&models.RefreshToken{}).Error
 }
 
 // DeleteExpiredRefreshTokens removes all expired refresh token records.
