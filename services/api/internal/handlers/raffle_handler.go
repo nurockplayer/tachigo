@@ -601,7 +601,7 @@ func (h *RaffleHandler) CreatePrizeTier(c *gin.Context) {
 		badRequest(c, err.Error())
 		return
 	}
-	tier, err := h.raffleSvc.CreatePrizeTier(raffleID, userID, body)
+	tier, err := h.raffleSvc.CreatePrizeTierContext(c.Request.Context(), raffleID, userID, body)
 	if err != nil {
 		switch {
 		case errors.Is(err, services.ErrRaffleNotFound):
@@ -631,7 +631,7 @@ func (h *RaffleHandler) ListPrizeTiers(c *gin.Context) {
 		badRequest(c, "invalid raffle id")
 		return
 	}
-	tiers, err := h.raffleSvc.ListPrizeTiers(raffleID, userID)
+	tiers, err := h.raffleSvc.ListPrizeTiersContext(c.Request.Context(), raffleID, userID)
 	if err != nil {
 		switch {
 		case errors.Is(err, services.ErrRaffleNotFound):
@@ -669,7 +669,7 @@ func (h *RaffleHandler) UpdatePrizeTier(c *gin.Context) {
 		badRequest(c, err.Error())
 		return
 	}
-	tier, err := h.raffleSvc.UpdatePrizeTier(raffleID, tierID, userID, body)
+	tier, err := h.raffleSvc.UpdatePrizeTierContext(c.Request.Context(), raffleID, tierID, userID, body)
 	if err != nil {
 		switch {
 		case errors.Is(err, services.ErrRaffleNotFound), errors.Is(err, services.ErrPrizeTierNotFound):
@@ -704,7 +704,7 @@ func (h *RaffleHandler) DeletePrizeTier(c *gin.Context) {
 		badRequest(c, "invalid tier id")
 		return
 	}
-	if err := h.raffleSvc.DeletePrizeTier(raffleID, tierID, userID); err != nil {
+	if err := h.raffleSvc.DeletePrizeTierContext(c.Request.Context(), raffleID, tierID, userID); err != nil {
 		switch {
 		case errors.Is(err, services.ErrRaffleNotFound), errors.Is(err, services.ErrPrizeTierNotFound):
 			notFound(c, "not found")
@@ -738,7 +738,7 @@ func (h *RaffleHandler) DrawFromTier(c *gin.Context) {
 		badRequest(c, "invalid tier id")
 		return
 	}
-	draw, err := h.raffleSvc.DrawFromTier(raffleID, tierID, userID)
+	draw, err := h.raffleSvc.DrawFromTierContext(c.Request.Context(), raffleID, tierID, userID)
 	if err != nil {
 		switch {
 		case errors.Is(err, services.ErrRaffleNotFound), errors.Is(err, services.ErrPrizeTierNotFound):

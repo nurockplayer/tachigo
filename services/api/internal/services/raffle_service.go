@@ -911,15 +911,23 @@ type UpdatePrizeTierInput struct {
 }
 
 func (s *RaffleService) CreatePrizeTier(raffleID, userID uuid.UUID, input CreatePrizeTierInput) (*models.RafflePrizeTier, error) {
+	return s.CreatePrizeTierContext(context.Background(), raffleID, userID, input)
+}
+
+func (s *RaffleService) CreatePrizeTierContext(ctx context.Context, raffleID, userID uuid.UUID, input CreatePrizeTierInput) (*models.RafflePrizeTier, error) {
+	if ctx == nil {
+		ctx = context.Background()
+	}
 	if input.WinnerCount < 1 {
 		return nil, ErrPrizeTierInvalidCount
 	}
-	if _, err := s.GetByID(raffleID, userID); err != nil {
+	if _, err := s.GetByIDContext(ctx, raffleID, userID); err != nil {
 		return nil, err
 	}
 
+	db := s.db.WithContext(ctx)
 	var maxPos int
-	if err := s.db.Model(&models.RafflePrizeTier{}).
+	if err := db.Model(&models.RafflePrizeTier{}).
 		Where("raffle_id = ?", raffleID).
 		Select("COALESCE(MAX(position), 0)").
 		Scan(&maxPos).Error; err != nil {
@@ -933,18 +941,25 @@ func (s *RaffleService) CreatePrizeTier(raffleID, userID uuid.UUID, input Create
 		WinnerCount:      input.WinnerCount,
 		Position:         maxPos + 1,
 	}
-	if err := s.db.Create(tier).Error; err != nil {
+	if err := db.Create(tier).Error; err != nil {
 		return nil, err
 	}
 	return tier, nil
 }
 
 func (s *RaffleService) ListPrizeTiers(raffleID, userID uuid.UUID) ([]models.RafflePrizeTier, error) {
-	if _, err := s.GetByID(raffleID, userID); err != nil {
+	return s.ListPrizeTiersContext(context.Background(), raffleID, userID)
+}
+
+func (s *RaffleService) ListPrizeTiersContext(ctx context.Context, raffleID, userID uuid.UUID) ([]models.RafflePrizeTier, error) {
+	if ctx == nil {
+		ctx = context.Background()
+	}
+	if _, err := s.GetByIDContext(ctx, raffleID, userID); err != nil {
 		return nil, err
 	}
 	var tiers []models.RafflePrizeTier
-	if err := s.db.
+	if err := s.db.WithContext(ctx).
 		Where("raffle_id = ?", raffleID).
 		Order("position ASC").
 		Find(&tiers).Error; err != nil {
@@ -954,11 +969,19 @@ func (s *RaffleService) ListPrizeTiers(raffleID, userID uuid.UUID) ([]models.Raf
 }
 
 func (s *RaffleService) UpdatePrizeTier(raffleID, tierID, userID uuid.UUID, input UpdatePrizeTierInput) (*models.RafflePrizeTier, error) {
-	if _, err := s.GetByID(raffleID, userID); err != nil {
+	return s.UpdatePrizeTierContext(context.Background(), raffleID, tierID, userID, input)
+}
+
+func (s *RaffleService) UpdatePrizeTierContext(ctx context.Context, raffleID, tierID, userID uuid.UUID, input UpdatePrizeTierInput) (*models.RafflePrizeTier, error) {
+	if ctx == nil {
+		ctx = context.Background()
+	}
+	if _, err := s.GetByIDContext(ctx, raffleID, userID); err != nil {
 		return nil, err
 	}
+	db := s.db.WithContext(ctx)
 	var tier models.RafflePrizeTier
-	if err := s.db.Where("id = ? AND raffle_id = ?", tierID, raffleID).First(&tier).Error; err != nil {
+	if err := db.Where("id = ? AND raffle_id = ?", tierID, raffleID).First(&tier).Error; err != nil {
 		if errors.Is(err, gorm.ErrRecordNotFound) {
 			return nil, ErrPrizeTierNotFound
 		}
@@ -976,18 +999,26 @@ func (s *RaffleService) UpdatePrizeTier(raffleID, tierID, userID uuid.UUID, inpu
 	if input.PrizeDescription != nil {
 		tier.PrizeDescription = *input.PrizeDescription
 	}
-	if err := s.db.Save(&tier).Error; err != nil {
+	if err := db.Save(&tier).Error; err != nil {
 		return nil, err
 	}
 	return &tier, nil
 }
 
 func (s *RaffleService) DeletePrizeTier(raffleID, tierID, userID uuid.UUID) error {
-	if _, err := s.GetByID(raffleID, userID); err != nil {
+	return s.DeletePrizeTierContext(context.Background(), raffleID, tierID, userID)
+}
+
+func (s *RaffleService) DeletePrizeTierContext(ctx context.Context, raffleID, tierID, userID uuid.UUID) error {
+	if ctx == nil {
+		ctx = context.Background()
+	}
+	if _, err := s.GetByIDContext(ctx, raffleID, userID); err != nil {
 		return err
 	}
+	db := s.db.WithContext(ctx)
 	var tier models.RafflePrizeTier
-	if err := s.db.Where("id = ? AND raffle_id = ?", tierID, raffleID).First(&tier).Error; err != nil {
+	if err := db.Where("id = ? AND raffle_id = ?", tierID, raffleID).First(&tier).Error; err != nil {
 		if errors.Is(err, gorm.ErrRecordNotFound) {
 			return ErrPrizeTierNotFound
 		}
@@ -996,15 +1027,22 @@ func (s *RaffleService) DeletePrizeTier(raffleID, tierID, userID uuid.UUID) erro
 	if tier.DrawnCount > 0 {
 		return ErrPrizeTierHasDraws
 	}
-	return s.db.Delete(&tier).Error
+	return db.Delete(&tier).Error
 }
 
-// DrawFromTier picks a random un-drawn entry for the specified prize tier.
-// Winners drawn for any tier of this raffle are excluded from the pool,
-// ensuring each participant can only win once across all tiers.
-// drawn_count on the tier is incremented atomically within the transaction.
 func (s *RaffleService) DrawFromTier(raffleID, tierID, userID uuid.UUID) (*models.RaffleDraw, error) {
-	raffle, err := s.GetByID(raffleID, userID)
+	return s.DrawFromTierContext(context.Background(), raffleID, tierID, userID)
+}
+
+// DrawFromTierContext picks a random un-drawn entry for the specified prize tier.
+// Winners drawn for any tier of this raffle are excluded from the pool.
+// drawn_count is incremented via a conditional atomic UPDATE (WHERE drawn_count < winner_count)
+// so that concurrent calls cannot exceed the quota.
+func (s *RaffleService) DrawFromTierContext(ctx context.Context, raffleID, tierID, userID uuid.UUID) (*models.RaffleDraw, error) {
+	if ctx == nil {
+		ctx = context.Background()
+	}
+	raffle, err := s.GetByIDContext(ctx, raffleID, userID)
 	if err != nil {
 		return nil, err
 	}
@@ -1012,8 +1050,9 @@ func (s *RaffleService) DrawFromTier(raffleID, tierID, userID uuid.UUID) (*model
 		return nil, ErrRaffleNotActive
 	}
 
+	db := s.db.WithContext(ctx)
 	var tier models.RafflePrizeTier
-	if err := s.db.Where("id = ? AND raffle_id = ?", tierID, raffleID).First(&tier).Error; err != nil {
+	if err := db.Where("id = ? AND raffle_id = ?", tierID, raffleID).First(&tier).Error; err != nil {
 		if errors.Is(err, gorm.ErrRecordNotFound) {
 			return nil, ErrPrizeTierNotFound
 		}
@@ -1029,16 +1068,7 @@ func (s *RaffleService) DrawFromTier(raffleID, tierID, userID uuid.UUID) (*model
 	err = func() error {
 		for attempt := 0; attempt < drawMaxRetries; attempt++ {
 			var draw *models.RaffleDraw
-			txErr := s.db.Transaction(func(tx *gorm.DB) error {
-				// Re-read tier inside transaction to close TOCTOU race on drawn_count.
-				var freshTier models.RafflePrizeTier
-				if err := tx.Where("id = ?", tierID).First(&freshTier).Error; err != nil {
-					return err
-				}
-				if freshTier.DrawnCount >= freshTier.WinnerCount {
-					return ErrPrizeTierExhausted
-				}
-
+			txErr := db.Transaction(func(tx *gorm.DB) error {
 				// Exclude ALL winners across ALL tiers of this raffle.
 				var wonIDs []uuid.UUID
 				if err := tx.Model(&models.RaffleDraw{}).
@@ -1075,15 +1105,21 @@ func (s *RaffleService) DrawFromTier(raffleID, tierID, userID uuid.UUID) (*model
 				if err := tx.Create(d).Error; err != nil {
 					return err
 				}
-				if err := tx.Model(&models.RafflePrizeTier{}).
-					Where("id = ?", tierID).
-					UpdateColumn("drawn_count", gorm.Expr("drawn_count + 1")).Error; err != nil {
-					return err
+				// Atomic conditional increment: only succeeds if drawn_count < winner_count,
+				// preventing concurrent draws from exceeding the quota without a row lock.
+				res := tx.Model(&models.RafflePrizeTier{}).
+					Where("id = ? AND drawn_count < winner_count", tierID).
+					UpdateColumn("drawn_count", gorm.Expr("drawn_count + 1"))
+				if res.Error != nil {
+					return res.Error
+				}
+				if res.RowsAffected == 0 {
+					return ErrPrizeTierExhausted
 				}
 				d.ClaimTokenRaw = rawToken.String()
 				d.Entry = entry
 				d.PrizeTier = &tier
-				d.PrizeTier.DrawnCount = freshTier.DrawnCount + 1 // reflect the increment
+				d.PrizeTier.DrawnCount = tier.DrawnCount + 1
 				draw = d
 				return nil
 			})
