@@ -102,6 +102,22 @@ func TestAirdrop_ExecuteContextUsesRequestContext(t *testing.T) {
 	}
 }
 
+func TestAirdrop_TodayTotalContextReturnsCanceledContextError(t *testing.T) {
+	db := newTestDB(t)
+	watchSvc := NewWatchService(db)
+	pointsSvc := NewPointsService(db, watchSvc)
+	configSvc := NewChannelConfigService(db)
+	svc := NewAirdropService(db, pointsSvc, configSvc)
+
+	ctx, cancel := context.WithCancel(context.Background())
+	cancel()
+
+	total, err := svc.TodayTotalContext(ctx, "ch_canceled_total")
+	if !errors.Is(err, context.Canceled) {
+		t.Fatalf("want context.Canceled, got total=%d err=%v", total, err)
+	}
+}
+
 func TestAirdrop_NoActiveSessions(t *testing.T) {
 	db := newTestDB(t)
 	watchSvc := NewWatchService(db)
