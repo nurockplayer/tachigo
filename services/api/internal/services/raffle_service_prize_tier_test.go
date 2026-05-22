@@ -72,10 +72,17 @@ func TestListPrizeTiers_OrderedByPosition(t *testing.T) {
 	db := newTestDB(t)
 	svc := NewRaffleService(db, "", "", nil)
 	streamer := createTestStreamer(t, db)
-	raffle, _ := svc.Create(streamer, "Test Raffle")
+	raffle, err := svc.Create(streamer, "Test Raffle")
+	if err != nil {
+		t.Fatalf("create raffle: %v", err)
+	}
 
-	svc.CreatePrizeTier(raffle.ID, streamer, CreatePrizeTierInput{Name: "二等獎", WinnerCount: 3})
-	svc.CreatePrizeTier(raffle.ID, streamer, CreatePrizeTierInput{Name: "一等獎", WinnerCount: 1})
+	if _, err := svc.CreatePrizeTier(raffle.ID, streamer, CreatePrizeTierInput{Name: "二等獎", WinnerCount: 3}); err != nil {
+		t.Fatalf("create tier 1: %v", err)
+	}
+	if _, err := svc.CreatePrizeTier(raffle.ID, streamer, CreatePrizeTierInput{Name: "一等獎", WinnerCount: 1}); err != nil {
+		t.Fatalf("create tier 2: %v", err)
+	}
 
 	tiers, err := svc.ListPrizeTiers(raffle.ID, streamer)
 	if err != nil {

@@ -1470,7 +1470,12 @@ func (e *raffleTestEnv) createPrizeTier(t *testing.T, token, raffleID, name, pri
 			} `json:"tier"`
 		} `json:"data"`
 	}
-	json.NewDecoder(w.Body).Decode(&resp)
+	if err := json.NewDecoder(w.Body).Decode(&resp); err != nil {
+		t.Fatalf("createPrizeTier: decode response: %v", err)
+	}
+	if resp.Data.Tier.ID == "" {
+		t.Fatal("createPrizeTier: returned empty tier id")
+	}
 	return resp.Data.Tier.ID
 }
 
