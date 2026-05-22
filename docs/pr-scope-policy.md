@@ -212,6 +212,31 @@ repo 的 CI 目前改成：
 - 若 PR 是正式 `[release]` 的 `develop -> main` promotion，重型 CI 會照常執行，不因 diff 過大而被 scope gate 跳過
 - 若 PR 是 docs / template / metadata-only，重型 product CI 會直接跳過，避免 inherited product failures 造成無限循環
 
+### #764 CI execution strategy
+
+#764 的目標是讓 CI 成本跟 PR 風險成比例，但第一階段只先同步文件與 reviewer 判斷邊界，不在同一個 PR 修改 workflow runtime。任何實際調整 `.github/workflows/**`、required check snapshot、label mutation 或 auto-merge 行為的 PR，都應視為 workflow/policy 變更，獨立成 R4 或至少高風險 tooling PR，並搭配 workflow regression 測試。
+
+目前的 lightweight lanes 定義如下：
+
+- docs / template / metadata-only lane：只修改 `docs/`、`docs/ai/`、`plans/`、`.github/ISSUE_TEMPLATE/`、`.github/PULL_REQUEST_TEMPLATE.md`、repo root Markdown、`infra/`、`.gitignore` 或 `.gitattributes`。這類 PR 保留 metadata/policy checks，但 `Scope gate` 會略過 backend / frontend / dashboard / contracts heavy CI。
+- workflow lane：任何 `.github/workflows/**` 變更都不算 metadata-only。即使內容只是註解或 policy 調整，也要跑 workflow regression，並重新檢查 required check / auto-ready / Scope Police 語義。
+- frontend / style-only lane：目前尚未有獨立 workflow lane。只要修改 `apps/extension/`、`apps/dashboard/`、`tachimint/` 或 `dashboard/`，就仍屬 frontend surface，至少需要對應 frontend/dashboard checks；若未來要新增 style-only lane，必須先在 `.github/workflows/ci.yml` 與 `.github/workflows/ci.test.ts` 定義路徑規則與 regression case。
+- package / API contract lane：`packages/`、OpenAPI generated docs、frontend API client 或 workspace dependency 變更不可混入 docs-only lane；是否跑 API contract / dependency review 由 `Scope gate` path rules 決定。
+
+第一階段的非目標：
+
+- 不改 `.github/workflows/ci.yml` 的 `scope-gate` outputs 或 job `if` 條件。
+- 不改 `.github/workflows/pr-scope-police.yml` 的 sticky comment、label、自動 close 或 dependency gate。
+- 不改 `auto-ready` / auto-merge workflow，也不調整 branch protection required checks。
+- 不用 docs PR 修 inherited backend / frontend / dashboard 紅燈。
+
+後續若要實作 #764 的 runtime 變更，建議依序拆 PR：
+
+1. workflow regression 先行：為預期 lane 行為新增 `ci.test.ts` case，證明 workflow file 仍不會被誤判為 metadata-only。
+2. path-aware CI runtime：只改 `ci.yml` scope gate 與對應 regression，避免混入 Scope Police 或 auto-merge 行為。
+3. frontend / style-only lane：在有明確路徑定義與可接受 skipped required check 語義後再新增。
+4. autonomous review loop 節流：只改 review flag / rerequest / notification workflow，避免和 CI path gate 同 PR。
+
 ## Conflict / Restack 規則
 
 對 docs / template / metadata-only PR，或任何單一小 scope PR：
