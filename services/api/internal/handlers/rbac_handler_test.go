@@ -55,6 +55,24 @@ func newRBACTestEnv(t *testing.T) *rbacEnv {
 		admin.GET("/users", func(c *gin.Context) { c.JSON(501, gin.H{"error": "not implemented"}) })
 	}
 
+	dashboard := v1.Group("/dashboard")
+	dashboard.Use(middleware.JWTAuth(base.authSvc))
+	dashboard.Use(middleware.RequireRole(models.RoleAdmin, models.RoleStreamer, models.RoleAgency))
+	{
+		dashboard.POST("/streamers",
+			middleware.RequireRole(models.RoleAdmin),
+			func(c *gin.Context) { c.JSON(501, gin.H{"error": "not implemented"}) },
+		)
+		dashboard.GET("/streamers",
+			middleware.RequireRole(models.RoleAgency, models.RoleAdmin),
+			func(c *gin.Context) { c.JSON(501, gin.H{"error": "not implemented"}) },
+		)
+		dashboard.GET("/channels/:channel_id/config",
+			middleware.RequireRole(models.RoleAdmin, models.RoleStreamer, models.RoleAgency),
+			func(c *gin.Context) { c.JSON(501, gin.H{"error": "not implemented"}) },
+		)
+	}
+
 	return &rbacEnv{base}
 }
 
@@ -99,6 +117,84 @@ func doRequest(router *gin.Engine, method, path, token string) int {
 	}
 	router.ServeHTTP(w, req)
 	return w.Code
+}
+
+type rbacMatrixCase struct {
+	name string
+	role models.UserRole
+	want int
+}
+
+func assertRBACMatrix(t *testing.T, env *rbacEnv, method, path string, cases []rbacMatrixCase) {
+	t.Helper()
+
+	t.Run("no token", func(t *testing.T) {
+		if got := doRequest(env.router, method, path, ""); got != http.StatusUnauthorized {
+			t.Fatalf("no token: want %d, got %d", http.StatusUnauthorized, got)
+		}
+	})
+
+	tokens := map[models.UserRole]string{}
+	for _, tc := range cases {
+		if _, ok := tokens[tc.role]; !ok {
+			tokens[tc.role] = env.tokenForRole(t, tc.role)
+		}
+		t.Run(tc.name, func(t *testing.T) {
+			if got := doRequest(env.router, method, path, tokens[tc.role]); got != tc.want {
+				t.Fatalf("%s: want %d, got %d", tc.role, tc.want, got)
+			}
+		})
+	}
+}
+
+func TestRBACMatrix_DashboardRoutes(t *testing.T) {
+	tests := []struct {
+		name   string
+		method string
+		path   string
+		cases  []rbacMatrixCase
+	}{
+		{
+			name:   "create streamer is admin only",
+			method: http.MethodPost,
+			path:   "/api/v1/dashboard/streamers",
+			cases: []rbacMatrixCase{
+				{name: "viewer forbidden", role: models.RoleViewer, want: http.StatusForbidden},
+				{name: "streamer forbidden", role: models.RoleStreamer, want: http.StatusForbidden},
+				{name: "agency forbidden", role: models.RoleAgency, want: http.StatusForbidden},
+				{name: "admin allowed", role: models.RoleAdmin, want: http.StatusNotImplemented},
+			},
+		},
+		{
+			name:   "list streamers is agency or admin only",
+			method: http.MethodGet,
+			path:   "/api/v1/dashboard/streamers",
+			cases: []rbacMatrixCase{
+				{name: "viewer forbidden", role: models.RoleViewer, want: http.StatusForbidden},
+				{name: "streamer forbidden", role: models.RoleStreamer, want: http.StatusForbidden},
+				{name: "agency allowed", role: models.RoleAgency, want: http.StatusNotImplemented},
+				{name: "admin allowed", role: models.RoleAdmin, want: http.StatusNotImplemented},
+			},
+		},
+		{
+			name:   "channel config read allows dashboard operators",
+			method: http.MethodGet,
+			path:   "/api/v1/dashboard/channels/ch_ctx/config",
+			cases: []rbacMatrixCase{
+				{name: "viewer forbidden", role: models.RoleViewer, want: http.StatusForbidden},
+				{name: "streamer allowed", role: models.RoleStreamer, want: http.StatusNotImplemented},
+				{name: "agency allowed", role: models.RoleAgency, want: http.StatusNotImplemented},
+				{name: "admin allowed", role: models.RoleAdmin, want: http.StatusNotImplemented},
+			},
+		},
+	}
+
+	for _, tt := range tests {
+		t.Run(tt.name, func(t *testing.T) {
+			env := newRBACTestEnv(t)
+			assertRBACMatrix(t, env, tt.method, tt.path, tt.cases)
+		})
+	}
 }
 
 // ── GET /admin/users ──────────────────────────────────────────────────────────
