@@ -682,7 +682,12 @@ func (s *RaffleService) fetchTwitchSubsPage(ctx context.Context, accessToken, br
 // and inserts them as RaffleEntry rows (idempotent; duplicates are skipped).
 // Only subscribers who already have a tachigo account are imported.
 func (s *RaffleService) SyncFromTwitchAPI(ctx context.Context, raffleID, userID uuid.UUID) (*SyncFromTwitchResult, error) {
-	raffle, err := s.GetByID(raffleID, userID)
+	if ctx == nil {
+		ctx = context.Background()
+	}
+
+	db := s.db.WithContext(ctx)
+	raffle, err := s.GetByIDContext(ctx, raffleID, userID)
 	if err != nil {
 		return nil, err
 	}
@@ -691,7 +696,7 @@ func (s *RaffleService) SyncFromTwitchAPI(ctx context.Context, raffleID, userID 
 	}
 
 	var ap models.AuthProvider
-	if err := s.db.Where("user_id = ? AND provider = ?", userID, models.ProviderTwitch).First(&ap).Error; err != nil {
+	if err := db.Where("user_id = ? AND provider = ?", userID, models.ProviderTwitch).First(&ap).Error; err != nil {
 		if errors.Is(err, gorm.ErrRecordNotFound) {
 			return nil, ErrTwitchTokenMissing
 		}
@@ -705,7 +710,7 @@ func (s *RaffleService) SyncFromTwitchAPI(ctx context.Context, raffleID, userID 
 		return nil, ErrTwitchTokenMissing
 	}
 	if ap.TokenExpiresAt != nil && time.Now().After(*ap.TokenExpiresAt) {
-		s.clearProviderTokens(ap.ID)
+		s.clearProviderTokensContext(ctx, ap.ID)
 		return nil, ErrTwitchTokenMissing
 	}
 
@@ -715,14 +720,14 @@ func (s *RaffleService) SyncFromTwitchAPI(ctx context.Context, raffleID, userID 
 		subs, nextCursor, err := s.fetchTwitchSubsPage(ctx, accessToken, ap.ProviderID, cursor)
 		if err != nil {
 			if errors.Is(err, ErrTwitchInsufficientScope) {
-				s.clearProviderTokens(ap.ID)
+				s.clearProviderTokensContext(ctx, ap.ID)
 			}
 			return nil, err
 		}
 
 		for _, sub := range subs {
 			var provider models.AuthProvider
-			if err := s.db.
+			if err := db.
 				Joins("JOIN users ON users.id = auth_providers.user_id AND users.deleted_at IS NULL").
 				Where("auth_providers.provider = ? AND auth_providers.provider_id = ?", models.ProviderTwitch, sub.UserID).
 				First(&provider).Error; err != nil {
@@ -740,7 +745,7 @@ func (s *RaffleService) SyncFromTwitchAPI(ctx context.Context, raffleID, userID 
 				TwitchLogin: sub.UserLogin,
 				DisplayName: sub.UserName,
 			}
-			res := s.db.Clauses(clause.OnConflict{
+			res := db.Clauses(clause.OnConflict{
 				Columns:   []clause.Column{{Name: "raffle_id"}, {Name: "twitch_login"}},
 				DoNothing: true,
 			}).Create(entry)
@@ -774,11 +779,15 @@ func (s *RaffleService) decryptedProviderAccessToken(ap *models.AuthProvider) (s
 	return cipher.decrypt(*ap.AccessToken)
 }
 
-func (s *RaffleService) clearProviderTokens(providerID uuid.UUID) {
+func (s *RaffleService) clearProviderTokensContext(ctx context.Context, providerID uuid.UUID) {
 	if s == nil || s.db == nil || providerID == uuid.Nil {
 		return
 	}
-	_ = s.db.Model(&models.AuthProvider{}).
+	if ctx == nil {
+		ctx = context.Background()
+	}
+	cleanupCtx := context.WithoutCancel(ctx)
+	_ = s.db.WithContext(cleanupCtx).Model(&models.AuthProvider{}).
 		Where("id = ?", providerID).
 		Updates(map[string]interface{}{
 			"access_token":     nil,
