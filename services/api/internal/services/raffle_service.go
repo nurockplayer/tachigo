@@ -360,7 +360,15 @@ func (s *RaffleService) DrawNext(raffleID, userID uuid.UUID) (*models.RaffleDraw
 // SetDiscordWebhook sets or clears the Discord webhook URL for a raffle.
 // An empty webhookURL clears the setting.
 func (s *RaffleService) SetDiscordWebhook(raffleID, userID uuid.UUID, webhookURL string) (*models.Raffle, error) {
-	raffle, err := s.GetByID(raffleID, userID)
+	return s.SetDiscordWebhookContext(context.Background(), raffleID, userID, webhookURL)
+}
+
+func (s *RaffleService) SetDiscordWebhookContext(ctx context.Context, raffleID, userID uuid.UUID, webhookURL string) (*models.Raffle, error) {
+	if ctx == nil {
+		ctx = context.Background()
+	}
+
+	raffle, err := s.GetByIDContext(ctx, raffleID, userID)
 	if err != nil {
 		return nil, err
 	}
@@ -372,7 +380,7 @@ func (s *RaffleService) SetDiscordWebhook(raffleID, userID uuid.UUID, webhookURL
 		}
 		val = &webhookURL
 	}
-	if err := s.db.Model(raffle).Update("discord_webhook_url", val).Error; err != nil {
+	if err := s.db.WithContext(ctx).Model(raffle).Update("discord_webhook_url", val).Error; err != nil {
 		return nil, err
 	}
 	raffle.DiscordWebhookURL = val

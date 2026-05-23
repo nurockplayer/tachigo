@@ -405,7 +405,7 @@ func (h *RaffleHandler) SetDiscordWebhook(c *gin.Context) {
 		return
 	}
 
-	raffle, err := h.raffleSvc.SetDiscordWebhook(raffleID, userID, *body.DiscordWebhookURL)
+	raffle, err := h.raffleSvc.SetDiscordWebhookContext(c.Request.Context(), raffleID, userID, *body.DiscordWebhookURL)
 	if err != nil {
 		switch {
 		case errors.Is(err, services.ErrRaffleNotFound):
