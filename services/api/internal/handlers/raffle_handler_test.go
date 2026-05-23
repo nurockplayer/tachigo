@@ -525,6 +525,29 @@ func TestRaffle_Complete(t *testing.T) {
 	}
 }
 
+func TestRaffle_Complete_UsesRequestContext(t *testing.T) {
+	env := newRaffleTestEnv(t)
+	token := env.registerStreamer(t, "completectx", "completectx@test.com", "pass1234")
+	raffleID := env.createRaffle(t, token, "Complete Context Raffle")
+
+	key := raffleHandlerContextKey{}
+	seen := installRaffleHandlerDBContextProbeForTables(t, env.db, key, "raffle-complete", "raffles")
+	ctx := context.WithValue(context.Background(), key, "raffle-complete")
+
+	w := httptest.NewRecorder()
+	req, _ := http.NewRequestWithContext(ctx, http.MethodPost,
+		"/api/v1/dashboard/raffles/"+raffleID+"/complete", nil)
+	req.Header.Set("Authorization", bearer(token))
+	env.router.ServeHTTP(w, req)
+
+	if w.Code != http.StatusOK {
+		t.Fatalf("complete: want 200, got %d: %s", w.Code, w.Body.String())
+	}
+	if seen() < 2 {
+		t.Fatal("expected raffle complete lookup and update DB operations to use request context")
+	}
+}
+
 func TestRaffle_SetDiscordWebhook_RequiresField(t *testing.T) {
 	env := newRaffleTestEnv(t)
 	token := env.registerStreamer(t, "webhookhost", "webhookhost@test.com", "pass1234")

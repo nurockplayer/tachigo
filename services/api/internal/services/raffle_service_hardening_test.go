@@ -133,6 +133,28 @@ func TestRaffleService_GetDrawByTokenContext_UsesRequestContext(t *testing.T) {
 	}
 }
 
+func TestRaffleService_CompleteContext_UsesRequestContext(t *testing.T) {
+	db := newTestDB(t)
+	ownerID := seedUserWithEmail(t, db, "complete_context_owner@example.com")
+	raffleID := seedDraftRaffle(t, db, ownerID)
+
+	key := raffleServiceContextKey{}
+	seen := installDBContextProbe(t, db, key, "raffle-complete")
+	ctx := context.WithValue(context.Background(), key, "raffle-complete")
+
+	svc := &RaffleService{db: db}
+	raffle, err := svc.CompleteContext(ctx, raffleID, ownerID)
+	if err != nil {
+		t.Fatalf("CompleteContext: %v", err)
+	}
+	if raffle.Status != models.RaffleStatusCompleted {
+		t.Fatalf("want status completed, got %q", raffle.Status)
+	}
+	if seen() < 2 {
+		t.Fatal("expected CompleteContext lookup and update operations to use request context")
+	}
+}
+
 func TestRaffleService_SubmitClaimContext_UsesRequestContext(t *testing.T) {
 	db := newTestDB(t)
 	ownerID := seedUserWithEmail(t, db, "submit_claim_ctx_owner@example.com")
