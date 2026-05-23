@@ -242,15 +242,20 @@ export async function redeemCoupon(
   token: string,
 ): Promise<RedeemCouponResponse> {
   try {
-    const { data } = await client.post<{ success: boolean; data: RedeemCouponResponse }>(
-      '/spend/redeem',
-      { coupon_id: couponId, amount },
-      {
-        headers: {
-          Authorization: `Bearer ${token}`,
-          'Content-Type': 'application/json',
+    const { data } = await runWithAuthRecovery((config) =>
+      client.post<{ success: boolean; data: RedeemCouponResponse }>(
+        '/spend/redeem',
+        { coupon_id: couponId, amount },
+        {
+          ...config,
+          headers: client.defaults.headers.common.Authorization
+            ? config?.headers
+            : {
+                ...config?.headers,
+                Authorization: `Bearer ${token}`,
+              },
         },
-      },
+      ),
     )
     return data.data
   } catch (error) {
