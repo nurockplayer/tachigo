@@ -349,7 +349,7 @@ func (h *RaffleHandler) Activate(c *gin.Context) {
 		return
 	}
 
-	raffle, err := h.raffleSvc.Activate(raffleID, userID)
+	raffle, err := h.raffleSvc.ActivateContext(c.Request.Context(), raffleID, userID)
 	if err != nil {
 		switch {
 		case errors.Is(err, services.ErrRaffleNotFound):

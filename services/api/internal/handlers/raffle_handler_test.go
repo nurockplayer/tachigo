@@ -65,10 +65,14 @@ func installRaffleHandlerDBContextProbeForTables(t *testing.T, db *gorm.DB, key,
 	if err := db.Callback().Create().Before("gorm:create").Register(name+":create", probe); err != nil {
 		t.Fatalf("register create context probe: %v", err)
 	}
+	if err := db.Callback().Update().Before("gorm:update").Register(name+":update", probe); err != nil {
+		t.Fatalf("register update context probe: %v", err)
+	}
 
 	t.Cleanup(func() {
 		_ = db.Callback().Query().Remove(name + ":query")
 		_ = db.Callback().Create().Remove(name + ":create")
+		_ = db.Callback().Update().Remove(name + ":update")
 	})
 
 	return func() int {
@@ -1426,6 +1430,28 @@ func TestRaffle_Activate_Success(t *testing.T) {
 	raffle := parseBody(t, w.Body.Bytes())["data"].(map[string]interface{})["raffle"].(map[string]interface{})
 	if raffle["status"] != "active" {
 		t.Errorf("expected status active, got %v", raffle["status"])
+	}
+}
+
+func TestRaffle_Activate_UsesRequestContext(t *testing.T) {
+	env := newRaffleTestEnv(t)
+	token := env.registerStreamer(t, "activatectx", "activatectx@test.com", "pass1234")
+	raffleID := env.createRaffle(t, token, "Activate Context Raffle")
+
+	key := raffleHandlerContextKey{}
+	seen := installRaffleHandlerDBContextProbeForTables(t, env.db, key, "raffle-activate", "raffles")
+	ctx := context.WithValue(context.Background(), key, "raffle-activate")
+
+	w := httptest.NewRecorder()
+	req, _ := http.NewRequestWithContext(ctx, http.MethodPost, "/api/v1/dashboard/raffles/"+raffleID+"/activate", nil)
+	req.Header.Set("Authorization", bearer(token))
+	env.router.ServeHTTP(w, req)
+
+	if w.Code != http.StatusOK {
+		t.Fatalf("want 200, got %d: %s", w.Code, w.Body.String())
+	}
+	if seen() < 2 {
+		t.Fatal("expected raffle activate lookup and update DB operations to use request context")
 	}
 }
 

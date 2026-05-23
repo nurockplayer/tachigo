@@ -463,11 +463,19 @@ func (s *RaffleService) ListDrawsContext(ctx context.Context, raffleID, userID u
 // After activation, ImportCSV will reject further uploads.
 // The update is conditional on status = draft to avoid a read-then-write race.
 func (s *RaffleService) Activate(raffleID, userID uuid.UUID) (*models.Raffle, error) {
-	raffle, err := s.GetByID(raffleID, userID)
+	return s.ActivateContext(context.Background(), raffleID, userID)
+}
+
+func (s *RaffleService) ActivateContext(ctx context.Context, raffleID, userID uuid.UUID) (*models.Raffle, error) {
+	if ctx == nil {
+		ctx = context.Background()
+	}
+
+	raffle, err := s.GetByIDContext(ctx, raffleID, userID)
 	if err != nil {
 		return nil, err
 	}
-	res := s.db.Model(&models.Raffle{}).
+	res := s.db.WithContext(ctx).Model(&models.Raffle{}).
 		Where("id = ? AND status = ?", raffle.ID, models.RaffleStatusDraft).
 		Update("status", models.RaffleStatusActive)
 	if res.Error != nil {
