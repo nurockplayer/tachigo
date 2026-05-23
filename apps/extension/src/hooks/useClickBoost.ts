@@ -46,6 +46,25 @@ export function useClickBoost(
     [stopCooldown],
   )
 
+  const stopAnimation = useCallback(() => {
+    if (animTimerRef.current !== null) {
+      clearTimeout(animTimerRef.current)
+      animTimerRef.current = null
+    }
+    setIsAnimating(false)
+    setGain(null)
+  }, [])
+
+  useEffect(() => {
+    const resetTimer = window.setTimeout(() => {
+      stopCooldown()
+      stopAnimation()
+    }, 0)
+    return () => {
+      window.clearTimeout(resetTimer)
+    }
+  }, [channelId, enabled, stopAnimation, stopCooldown])
+
   const handleClick = useCallback(async () => {
     if (!channelId || !enabled || onCooldownRef.current) return
 
@@ -62,6 +81,7 @@ export function useClickBoost(
       animTimerRef.current = window.setTimeout(() => {
         setIsAnimating(false)
         setGain(null)
+        animTimerRef.current = null
       }, ANIM_DURATION_MS)
     } catch (err: unknown) {
       if (!mountedRef.current) return
