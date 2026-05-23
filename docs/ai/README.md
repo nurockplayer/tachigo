@@ -16,6 +16,7 @@ AI-facing collaboration guidance lives here unless a tool requires a specific pa
 - `token-budget.md` — token budget guidance for AI-assisted work.
 - `workflow-metrics-baseline.md` — baseline GitHub metadata metrics for AI-native repo workflow friction and gate-weight audits.
 - `workflow-gate-weight-audit.md` — #881-based audit of PR governance gate weight and Track A exit criteria.
+- `workflow-scope-threshold-sample.md` — #898 sample of recent `scope-violation` / `scope-exception` PRs and threshold calibration recommendations.
 
 ## Root-Level Exceptions
 
