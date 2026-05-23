@@ -308,7 +308,7 @@ func (h *RaffleHandler) Complete(c *gin.Context) {
 		return
 	}
 
-	raffle, err := h.raffleSvc.Complete(raffleID, userID)
+	raffle, err := h.raffleSvc.CompleteContext(c.Request.Context(), raffleID, userID)
 	if err != nil {
 		if errors.Is(err, services.ErrRaffleNotFound) {
 			notFound(c, "raffle not found")

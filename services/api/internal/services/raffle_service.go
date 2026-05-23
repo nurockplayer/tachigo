@@ -490,14 +490,22 @@ func (s *RaffleService) ActivateContext(ctx context.Context, raffleID, userID uu
 
 // Complete marks a raffle as completed.
 func (s *RaffleService) Complete(raffleID, userID uuid.UUID) (*models.Raffle, error) {
-	raffle, err := s.GetByID(raffleID, userID)
+	return s.CompleteContext(context.Background(), raffleID, userID)
+}
+
+func (s *RaffleService) CompleteContext(ctx context.Context, raffleID, userID uuid.UUID) (*models.Raffle, error) {
+	if ctx == nil {
+		ctx = context.Background()
+	}
+
+	raffle, err := s.GetByIDContext(ctx, raffleID, userID)
 	if err != nil {
 		return nil, err
 	}
 	if raffle.Status == models.RaffleStatusCompleted {
 		return raffle, nil
 	}
-	if err := s.db.Model(raffle).Update("status", models.RaffleStatusCompleted).Error; err != nil {
+	if err := s.db.WithContext(ctx).Model(raffle).Update("status", models.RaffleStatusCompleted).Error; err != nil {
 		return nil, err
 	}
 	return raffle, nil
