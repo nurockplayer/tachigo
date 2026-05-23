@@ -628,6 +628,28 @@ func TestWeb3Nonce_Success(t *testing.T) {
 	}
 }
 
+func TestWeb3NonceContext_CanceledRequestStopsDBWrite(t *testing.T) {
+	db := newTestDB(t)
+	svc := NewAuthService(db, testConfig())
+	address := "0xd8dA6BF26964aF9D7eEd9e03E53415D37aA96045"
+
+	ctx, cancel := context.WithCancel(context.Background())
+	cancel()
+
+	nonce, _, err := svc.Web3NonceContext(ctx, address)
+	if !errors.Is(err, context.Canceled) {
+		t.Fatalf("want context.Canceled, got nonce=%q err=%v", nonce, err)
+	}
+
+	var count int64
+	if err := db.Model(&models.Web3Nonce{}).Where("address = ?", strings.ToLower(address)).Count(&count).Error; err != nil {
+		t.Fatalf("count web3 nonce rows: %v", err)
+	}
+	if count != 0 {
+		t.Fatalf("canceled request should not create nonce rows, got %d", count)
+	}
+}
+
 func TestWeb3Nonce_ReplacesExisting(t *testing.T) {
 	db := newTestDB(t)
 	svc := NewAuthService(db, testConfig())
