@@ -12,11 +12,11 @@ vi.mock('../services/api', () => ({
 
 const mockedCompleteTPointTransaction = vi.mocked(completeTPointTransaction)
 
-function makeTransaction(initiator: TPointTransaction['initiator']): TPointTransaction {
+function makeTransaction(initiator: TPointTransaction['initiator'], sku = 'TPOINT100'): TPointTransaction {
   return {
     transactionId: 'tx-1',
     product: {
-      sku: 'TPOINT100',
+      sku,
       displayName: '100 T-Points',
       cost: { amount: 100, type: 'bits' },
       inDevelopment: false,
@@ -95,17 +95,44 @@ describe('useTPoint', () => {
   })
 
   it('submits receipt when the transaction completes after unmount', async () => {
-    const { result, unmount } = renderHook(() => useTPoint('extension-jwt'))
+    const { result, rerender, unmount } = renderHook(({ jwt }) => useTPoint(jwt), {
+      initialProps: { jwt: 'extension-jwt' },
+    })
 
     act(() => {
       result.current.buyWithTPoint('TPOINT100')
     })
+    rerender({ jwt: 'extension-jwt-2' })
     unmount()
 
     await act(async () => {
       onTransactionComplete?.(makeTransaction('current_user'))
     })
 
+    expect(mockedCompleteTPointTransaction).toHaveBeenCalledWith('extension-jwt-2', 'receipt-jwt', 'TPOINT100')
+  })
+
+  it('ignores delayed completions for a different pending SKU', async () => {
+    const { result } = renderHook(() => useTPoint('extension-jwt'))
+
+    act(() => {
+      result.current.buyWithTPoint('TPOINT100')
+    })
+
+    await act(async () => {
+      onTransactionComplete?.(makeTransaction('current_user', 'TPOINT200'))
+    })
+
+    expect(mockedCompleteTPointTransaction).not.toHaveBeenCalled()
+    expect(result.current.status).toBe('pending')
+
+    await act(async () => {
+      onTransactionComplete?.(makeTransaction('current_user', 'TPOINT100'))
+    })
+
+    await waitFor(() => {
+      expect(result.current.status).toBe('success')
+    })
     expect(mockedCompleteTPointTransaction).toHaveBeenCalledWith('extension-jwt', 'receipt-jwt', 'TPOINT100')
   })
 

@@ -30,12 +30,13 @@ export function useTPoint(jwt: string) {
 
     if (!callbacksRegisteredRef.current) {
       ext.bits.onTransactionComplete(async (tx: TPointTransaction) => {
-        if (tx.initiator !== 'current_user' || pendingSkuRef.current === null) {
+        const pendingSku = pendingSkuRef.current
+        if (tx.initiator !== 'current_user' || pendingSku === null || tx.product.sku !== pendingSku) {
           return
         }
 
         try {
-          await completeTPointTransaction(jwtRef.current, tx.transactionReceipt, tx.product.sku)
+          await completeTPointTransaction(jwtRef.current, tx.transactionReceipt, pendingSku)
           pendingSkuRef.current = null
           if (!mountedRef.current) {
             return
