@@ -172,7 +172,16 @@ type ImportCSVResult struct {
 // First column must be twitch_login; an optional second column is display_name.
 // Rows whose twitch_login is already in the raffle are skipped (idempotent).
 func (s *RaffleService) ImportCSV(raffleID, userID uuid.UUID, r io.Reader) (*ImportCSVResult, error) {
-	raffle, err := s.GetByID(raffleID, userID)
+	return s.ImportCSVContext(context.Background(), raffleID, userID, r)
+}
+
+func (s *RaffleService) ImportCSVContext(ctx context.Context, raffleID, userID uuid.UUID, r io.Reader) (*ImportCSVResult, error) {
+	if ctx == nil {
+		ctx = context.Background()
+	}
+	db := s.db.WithContext(ctx)
+
+	raffle, err := s.GetByIDContext(ctx, raffleID, userID)
 	if err != nil {
 		return nil, err
 	}
@@ -210,7 +219,7 @@ func (s *RaffleService) ImportCSV(raffleID, userID uuid.UUID, r io.Reader) (*Imp
 
 		// Check for duplicate within this raffle
 		var count int64
-		if err := s.db.Model(&models.RaffleEntry{}).
+		if err := db.Model(&models.RaffleEntry{}).
 			Where("raffle_id = ? AND twitch_login = ?", raffleID, twitchLogin).
 			Count(&count).Error; err != nil {
 			return nil, err
@@ -222,7 +231,7 @@ func (s *RaffleService) ImportCSV(raffleID, userID uuid.UUID, r io.Reader) (*Imp
 
 		// Only import users who have a tachigo account linked to this Twitch login.
 		var provider models.AuthProvider
-		if err := s.db.
+		if err := db.
 			Joins("JOIN users ON users.id = auth_providers.user_id AND users.deleted_at IS NULL").
 			Where("auth_providers.provider = ? AND users.username = ?", models.ProviderTwitch, twitchLogin).
 			First(&provider).Error; err != nil {
@@ -240,7 +249,7 @@ func (s *RaffleService) ImportCSV(raffleID, userID uuid.UUID, r io.Reader) (*Imp
 			TwitchLogin: twitchLogin,
 			DisplayName: displayName,
 		}
-		if err := s.db.Create(entry).Error; err != nil {
+		if err := db.Create(entry).Error; err != nil {
 			return nil, err
 		}
 		result.Imported++

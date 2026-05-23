@@ -1002,6 +1002,27 @@ func TestRaffle_ImportCSV_ValidUploadStillWorks(t *testing.T) {
 	}
 }
 
+func TestRaffle_ImportCSV_UsesRequestContext(t *testing.T) {
+	env := newRaffleTestEnv(t)
+	token := env.registerStreamer(t, "csvctx", "csvctx@test.com", "pass1234")
+	raffleID := env.createRaffle(t, token, "context csv")
+	env.createTwitchLinkedUser(t, "csv_context_user")
+
+	key := raffleHandlerContextKey{}
+	seen := installRaffleHandlerDBContextProbeForTables(t, env.db, key, "raffle-import-csv",
+		"raffles", "auth_providers", "raffle_entries")
+	ctx := context.WithValue(context.Background(), key, "raffle-import-csv")
+
+	w := env.uploadCSVWithContext(t, ctx, token, raffleID, "csv_context_user,CSV Context User\n")
+
+	if w.Code != http.StatusOK {
+		t.Fatalf("want 200, got %d: %s", w.Code, w.Body.String())
+	}
+	if seen() == 0 {
+		t.Fatal("expected ImportCSV DB work to use request context")
+	}
+}
+
 func TestRaffle_ImportCSV_OversizedUploadReturns413(t *testing.T) {
 	env := newRaffleTestEnv(t)
 	token := env.registerStreamer(t, "csvlarge", "csvlarge@test.com", "pass1234")
@@ -1037,6 +1058,11 @@ func (e *raffleTestEnv) createRaffle(t *testing.T, token, title string) string {
 
 func (e *raffleTestEnv) uploadCSV(t *testing.T, token, raffleID, csvBody string) *httptest.ResponseRecorder {
 	t.Helper()
+	return e.uploadCSVWithContext(t, context.Background(), token, raffleID, csvBody)
+}
+
+func (e *raffleTestEnv) uploadCSVWithContext(t *testing.T, ctx context.Context, token, raffleID, csvBody string) *httptest.ResponseRecorder {
+	t.Helper()
 
 	var buf bytes.Buffer
 	mw := multipart.NewWriter(&buf)
@@ -1052,7 +1078,7 @@ func (e *raffleTestEnv) uploadCSV(t *testing.T, token, raffleID, csvBody string)
 	}
 
 	w := httptest.NewRecorder()
-	req, _ := http.NewRequest(http.MethodPost, "/api/v1/dashboard/raffles/"+raffleID+"/entries/import-csv", &buf)
+	req, _ := http.NewRequestWithContext(ctx, http.MethodPost, "/api/v1/dashboard/raffles/"+raffleID+"/entries/import-csv", &buf)
 	req.Header.Set("Content-Type", mw.FormDataContentType())
 	req.Header.Set("Authorization", bearer(token))
 	e.router.ServeHTTP(w, req)

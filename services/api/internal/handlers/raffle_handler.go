@@ -170,7 +170,7 @@ func (h *RaffleHandler) ImportCSV(c *gin.Context) {
 		return
 	}
 
-	result, err := h.raffleSvc.ImportCSV(raffleID, userID, file)
+	result, err := h.raffleSvc.ImportCSVContext(c.Request.Context(), raffleID, userID, file)
 	if err != nil {
 		if errors.Is(err, services.ErrRaffleNotFound) {
 			notFound(c, "raffle not found")
