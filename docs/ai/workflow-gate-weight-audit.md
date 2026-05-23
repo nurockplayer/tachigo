@@ -78,6 +78,7 @@ These should not become new mandatory fields or checks without more evidence.
 | Adding `spawn_count`, CI rerun count, or review-thread count to the PR template | #664 already stores threshold data. Duplicating it in every PR adds weight without improving merge safety. |
 | Automated gates based on elapsed time from issue creation | The #881 sample is noisy because umbrella issues stay open across many small cuts. |
 | Parsing full review triage schema inside tachigo Scope Police | The source of truth is spec-injector. tachigo should keep thin evidence refs instead of duplicating parser logic. |
+| `blocked-by-dependency` label side-effect | `gh label list --search blocked-by-dependency` and `gh pr list --label blocked-by-dependency` both return no active label/PR signal. Keep the dependency failure and sticky comment, but remove the unused label management. |
 | Making CodeRabbit / connector timing a hard initial-review blocker for all R0/R1 PRs | Useful as review input, but rate limits and skipped contexts should not freeze low-risk docs/tooling work when human review is available. |
 | New product-AI planning fields in the PR template | Track B product docs are planning references, not implementation contracts. Product AI features still need their own issues and specs. |
 
@@ -133,4 +134,3 @@ Do not weaken high-risk protection. Instead:
 - consolidate autonomous evidence into short refs;
 - stop adding template fields unless the #881 baseline shows a concrete missed
   risk that existing fields cannot catch.
-

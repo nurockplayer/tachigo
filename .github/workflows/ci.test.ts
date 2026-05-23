@@ -341,6 +341,7 @@ async function runScopePoliceWorkflow({
   existingComments = [],
   prOverrides = {},
   includeDefaultRiskClass = true,
+  dependencyPrState = 'open',
 } = {}) {
   const parsedWorkflow = parseYaml(scopePolicePath)
   const script = parsedWorkflow.jobs['scope-police'].steps[0].with.script
@@ -373,6 +374,7 @@ async function runScopePoliceWorkflow({
     rest: {
       pulls: {
         listFiles: async () => ({ data: files }),
+        get: async () => ({ data: { state: dependencyPrState } }),
         update: async () => ({ data: { state: 'closed' } }),
       },
       issues: {
@@ -1434,6 +1436,38 @@ ${validAutonomousEvidence}`,
   })
   assert.equal(extraCheckedRiskOutsideSectionRun.failures.length, 0)
   assert.match(extraCheckedRiskOutsideSectionRun.comments[0].body, /- PR risk class: R2/)
+})
+
+test('PR scope police keeps dependency protection but does not manage blocked-by-dependency label', async () => {
+  const body = `
+## Scope 對齊
+- Source of truth：#897
+- Depends on PR：#123
+- Backend contract already in develop:
+  - [ ] yes
+  - [x] no
+- If no, this PR is:
+  - [ ] stacked on dependency branch
+  - [x] intentionally blocked until dependency merges
+- 本 PR 明確不做：
+  - 不繞過 dependency gate
+`
+
+  const run = await runScopePoliceWorkflow({
+    title: '[frontend] Use pending backend contract',
+    body,
+    files: [{ filename: 'apps/extension/src/app/App.tsx', status: 'modified', additions: 3, deletions: 1 }],
+    dependencyPrState: 'open',
+  })
+
+  assert.equal(run.failures.length, 1)
+  assert.match(run.comments[0].body, /### Dependency blocks/)
+  assert.match(run.comments[0].body, /This frontend PR depends on #123/)
+  assert.match(run.comments[0].body, /- Dependency blocked: yes/)
+  assert.doesNotMatch(run.comments[0].body, /Dependency block label/)
+  assert.deepEqual(run.labelsCreated, [])
+  assert.deepEqual(run.labelsAdded, [])
+  assert.deepEqual(run.labelsRemoved, [])
 })
 
 test('PR scope police only treats a delegation log as autonomous when it has real content', async () => {

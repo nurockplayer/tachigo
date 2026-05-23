@@ -147,7 +147,7 @@ Dependabot maintenance PR 目前不會套用 frontend/backend 依賴關係用的
 - `PR Scope Police` check 會 fail
 - PR 會收到一則可更新的 sticky comment
 - 嚴重 scope 違規會自動加上 `scope-violation` label
-- 依賴未落地的前端 PR 會自動加上 `blocked-by-dependency` label
+- 依賴未落地的前端 PR 會 fail 並在 sticky comment 顯示 dependency block；不再另加 `blocked-by-dependency` label
 - 若屬於嚴重違規，PR 會被自動關閉
 
 目前視為嚴重違規的情況：
