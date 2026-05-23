@@ -339,14 +339,25 @@ type Web3VerifyInput struct {
 }
 
 func (s *AuthService) Web3Verify(input Web3VerifyInput) (*models.User, *TokenPair, error) {
+	return s.Web3VerifyContext(context.Background(), input)
+}
+
+func (s *AuthService) Web3VerifyContext(ctx context.Context, input Web3VerifyInput) (*models.User, *TokenPair, error) {
+	if ctx == nil {
+		ctx = context.Background()
+	}
 	address := strings.ToLower(input.Address)
+	db := s.db.WithContext(ctx)
 
 	var nonceRecord models.Web3Nonce
-	if err := s.db.Where("nonce = ? AND address = ?", input.Nonce, address).First(&nonceRecord).Error; err != nil {
+	if err := db.Where("nonce = ? AND address = ?", input.Nonce, address).First(&nonceRecord).Error; err != nil {
+		if errors.Is(err, context.Canceled) || errors.Is(err, context.DeadlineExceeded) {
+			return nil, nil, err
+		}
 		return nil, nil, ErrInvalidNonce
 	}
 	if nonceRecord.IsExpired() {
-		s.db.Delete(&nonceRecord)
+		db.Delete(&nonceRecord)
 		return nil, nil, ErrInvalidNonce
 	}
 
@@ -360,7 +371,7 @@ func (s *AuthService) Web3Verify(input Web3VerifyInput) (*models.User, *TokenPai
 	checksumAddr := common.HexToAddress(input.Address).Hex()
 	var user *models.User
 	var tokens *TokenPair
-	if err := s.db.Transaction(func(tx *gorm.DB) error {
+	if err := db.Transaction(func(tx *gorm.DB) error {
 		result := tx.Delete(&nonceRecord)
 		if result.Error != nil {
 			return result.Error
@@ -372,7 +383,7 @@ func (s *AuthService) Web3Verify(input Web3VerifyInput) (*models.User, *TokenPai
 		txSvc := *s
 		txSvc.db = tx
 		var err error
-		user, tokens, err = txSvc.upsertOAuthUser(context.Background(), models.ProviderWeb3, checksumAddr, "", "", nil, nil)
+		user, tokens, err = txSvc.upsertOAuthUser(ctx, models.ProviderWeb3, checksumAddr, "", "", nil, nil)
 		return err
 	}); err != nil {
 		return nil, nil, err
