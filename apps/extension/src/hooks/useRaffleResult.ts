@@ -6,6 +6,7 @@ const POLL_INTERVAL_MS = 5_000
 
 export function useRaffleResult(raffleId: string | null) {
   const [draws, setDraws] = useState<RaffleResultDraw[]>([])
+  const [loadedRaffleId, setLoadedRaffleId] = useState<string | null>(null)
   const [loading, setLoading] = useState(false)
   const [error, setError] = useState<string | null>(null)
 
@@ -20,11 +21,14 @@ export function useRaffleResult(raffleId: string | null) {
         const result = await getRaffleResult(raffleId)
         if (!isDisposed) {
           setDraws(result)
+          setLoadedRaffleId(raffleId)
           setError(null)
           setLoading(false)
         }
       } catch {
         if (!isDisposed) {
+          setDraws([])
+          setLoadedRaffleId(raffleId)
           setError('load_failed')
           setLoading(false)
         }
@@ -44,14 +48,10 @@ export function useRaffleResult(raffleId: string | null) {
       }
     }
 
-    const loadingTimer = window.setTimeout(() => {
-      if (!isDisposed) setLoading(true)
-    }, 0)
     void pollLoop()
 
     return () => {
       isDisposed = true
-      window.clearTimeout(loadingTimer)
       if (timer !== null) {
         window.clearTimeout(timer)
       }
@@ -62,5 +62,10 @@ export function useRaffleResult(raffleId: string | null) {
     return { draws: [], loading: false, error: null }
   }
 
-  return { draws, loading, error }
+  const isCurrentRaffle = loadedRaffleId === raffleId
+  return {
+    draws: isCurrentRaffle ? draws : [],
+    loading: isCurrentRaffle ? loading : true,
+    error: isCurrentRaffle ? error : null,
+  }
 }
