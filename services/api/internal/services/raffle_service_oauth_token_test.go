@@ -161,3 +161,30 @@ func TestSyncFromTwitchAPI_ClearsExpiredStoredAccessToken(t *testing.T) {
 		t.Fatalf("expected expired token material to be cleared, got access=%v refresh=%v expiry=%v", ap.AccessToken, ap.RefreshToken, ap.TokenExpiresAt)
 	}
 }
+
+func TestRaffleService_ClearProviderTokensContext_IgnoresCanceledRequestContext(t *testing.T) {
+	db := newTestDB(t)
+	ownerID := seedUserWithEmail(t, db, "cleanup-cancelled-streamer@example.com")
+	providerID := uuid.New()
+	expiresAt := time.Now().Add(-time.Minute)
+	if err := db.Exec(`
+		INSERT INTO auth_providers (id, user_id, provider, provider_id, access_token, refresh_token, token_expires_at, created_at, updated_at)
+		VALUES (?, ?, 'twitch', 'cleanup-cancelled-provider', 'stale-access-token', 'stale-refresh-token', ?, CURRENT_TIMESTAMP, CURRENT_TIMESTAMP)
+	`, providerID.String(), ownerID.String(), expiresAt).Error; err != nil {
+		t.Fatalf("insert provider: %v", err)
+	}
+
+	ctx, cancel := context.WithCancel(context.Background())
+	cancel()
+
+	svc := NewRaffleService(db, "client-id", "", nil)
+	svc.clearProviderTokensContext(ctx, providerID)
+
+	var ap models.AuthProvider
+	if err := db.First(&ap, "id = ?", providerID).Error; err != nil {
+		t.Fatalf("load provider: %v", err)
+	}
+	if ap.AccessToken != nil || ap.RefreshToken != nil || ap.TokenExpiresAt != nil {
+		t.Fatalf("expected token cleanup to ignore canceled request context, got access=%v refresh=%v expiry=%v", ap.AccessToken, ap.RefreshToken, ap.TokenExpiresAt)
+	}
+}

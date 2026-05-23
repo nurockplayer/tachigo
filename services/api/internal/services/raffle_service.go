@@ -786,7 +786,8 @@ func (s *RaffleService) clearProviderTokensContext(ctx context.Context, provider
 	if ctx == nil {
 		ctx = context.Background()
 	}
-	_ = s.db.WithContext(ctx).Model(&models.AuthProvider{}).
+	cleanupCtx := context.WithoutCancel(ctx)
+	_ = s.db.WithContext(cleanupCtx).Model(&models.AuthProvider{}).
 		Where("id = ?", providerID).
 		Updates(map[string]interface{}{
 			"access_token":     nil,
