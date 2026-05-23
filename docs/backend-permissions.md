@@ -124,6 +124,48 @@ dashboard traffic.
 | Valid token and route role passes, but handler ownership check fails | 403 or 404 depending on enumeration risk for that handler |
 | Authorized caller reaches not-yet-implemented event/admin stub | 501 |
 
+## Regression Matrix Source Of Truth
+
+RBAC regression tests should treat this document as the expected-behavior
+reference and `internal/router/router.go` plus the relevant handler ownership
+checks as the implementation source of truth.
+
+Every protected admin, streamer, or agency endpoint should have regression
+coverage for the route-level gate:
+
+| Case | Expected assertion |
+|---|---|
+| No bearer token | 401 before the handler runs. |
+| Authenticated `viewer` where the route does not list `viewer` | 403 before the handler runs. |
+| Authenticated wrong dashboard/admin role | 403 before the handler runs. |
+| Authenticated allowed role | The request reaches the handler: normal handler status for implemented routes, or 501 for event/admin stubs. |
+
+Routes that are scoped to channel, streamer, agency, raffle, user, or tenant
+data also need ownership coverage after the route-level role gate passes:
+
+| Case | Expected assertion |
+|---|---|
+| Caller owns the target resource | The request reaches the handler behavior for that route. |
+| Caller does not own the target resource | 403, or 404 where the handler intentionally avoids existence enumeration. |
+| Agency caller manages the target streamer/channel | The request reaches the handler behavior for that route. |
+| Agency caller does not manage the target streamer/channel | 403 or the documented 404 enumeration-safe response for that handler. |
+| Admin caller | Admin can access cross-account resources unless a route explicitly documents a narrower admin behavior. |
+
+`services/api/internal/handlers/rbac_handler_test.go` is the centralized home
+for route-level role matrices that can be expressed with lightweight stubs.
+Handler-specific tests remain the right place for ownership, tenant isolation,
+and implemented behavior that needs real database fixtures.
+
+Current #646 coverage status:
+
+| Surface | Regression status |
+|---|---|
+| Dashboard role gates | Centralized matrix rows exist for streamer creation, streamer listing, and channel config read. Additional dashboard routes still need route-level or ownership rows. |
+| Agency management | Legacy RBAC tests cover parts of the create, detail, settings, streamer listing, and setup resend behavior. The centralized matrix target is all route-level agency role gates, with ownership checks staying in handler-specific tests. |
+| Event and admin stubs | Legacy RBAC tests cover current 501-after-authorization behavior. They should move into centralized matrix rows as the #646 harness expands. |
+| Ownership and cross-tenant behavior | Covered in focused handler tests for some handlers. #646 remains open until all protected surfaces have explicit own-resource, other-resource, managed, and unmanaged cases where applicable. |
+| Coverage gate for newly protected routes | Not yet enforced. Future route additions should fail CI when they lack a corresponding matrix or handler-specific ownership test. |
+
 ## Change Guardrails
 
 Permission changes should be handled in dedicated PRs when they do any of the
