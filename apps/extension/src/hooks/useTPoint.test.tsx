@@ -94,6 +94,21 @@ describe('useTPoint', () => {
     expect(mockedCompleteTPointTransaction).toHaveBeenCalledWith('extension-jwt', 'receipt-jwt', 'TPOINT100')
   })
 
+  it('submits receipt when the transaction completes after unmount', async () => {
+    const { result, unmount } = renderHook(() => useTPoint('extension-jwt'))
+
+    act(() => {
+      result.current.buyWithTPoint('TPOINT100')
+    })
+    unmount()
+
+    await act(async () => {
+      onTransactionComplete?.(makeTransaction('current_user'))
+    })
+
+    expect(mockedCompleteTPointTransaction).toHaveBeenCalledWith('extension-jwt', 'receipt-jwt', 'TPOINT100')
+  })
+
   it('returns to idle when the transaction is cancelled', () => {
     const { result } = renderHook(() => useTPoint('extension-jwt'))
 

@@ -19,7 +19,6 @@ export function useTPoint(jwt: string) {
   useEffect(() => {
     return () => {
       mountedRef.current = false
-      pendingSkuRef.current = null
     }
   }, [])
 
@@ -36,35 +35,31 @@ export function useTPoint(jwt: string) {
         }
 
         try {
-          if (!mountedRef.current) {
-            return
-          }
-
           await completeTPointTransaction(jwtRef.current, tx.transactionReceipt, tx.product.sku)
+          pendingSkuRef.current = null
           if (!mountedRef.current) {
             return
           }
 
-          pendingSkuRef.current = null
           setStatus('success')
         // eslint-disable-next-line @typescript-eslint/no-explicit-any
         } catch (err: any) {
+          pendingSkuRef.current = null
           if (!mountedRef.current) {
             return
           }
 
-          pendingSkuRef.current = null
           setError(err?.response?.data?.message ?? 'Transaction failed')
           setStatus('error')
         }
       })
 
       ext.bits.onTransactionCancelled(() => {
+        pendingSkuRef.current = null
         if (!mountedRef.current) {
           return
         }
 
-        pendingSkuRef.current = null
         setStatus('idle')
       })
 
