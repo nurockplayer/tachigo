@@ -1754,7 +1754,7 @@ test('PR scope police only treats a delegation log as autonomous when it has rea
     /Autonomous PR must include a meaningful `Worker session closeout` value/,
   )
 
-  const labelsToTrigger = ['codex', 'codex-automation', 'auto-ready']
+  const labelsToTrigger = ['codex', 'codex-automation']
   for (const label of labelsToTrigger) {
     const labelTriggeredRun = await runScopePoliceWorkflow({
       body: prTemplateBody,
@@ -1767,6 +1767,54 @@ test('PR scope police only treats a delegation log as autonomous when it has rea
       /Autonomous PR must include a `Delegation Execution Log` section\./,
     )
   }
+
+  const r0AutoReadyOnlyRun = await runScopePoliceWorkflow({
+    body: selectRiskClass(prTemplateBody, 'R0'),
+    labels: [{ name: 'auto-ready' }],
+    includeDefaultRiskClass: false,
+  })
+  assert.equal(r0AutoReadyOnlyRun.failures.length, 0)
+  assert.match(r0AutoReadyOnlyRun.comments[0].body, /- Autonomous PR: no/)
+  assert.doesNotMatch(
+    r0AutoReadyOnlyRun.comments[0].body,
+    /Autonomous PR must include a `Delegation Execution Log` section\./,
+  )
+
+  const r1AutoReadyOnlyRun = await runScopePoliceWorkflow({
+    body: selectRiskClass(prTemplateBody, 'R1'),
+    labels: [{ name: 'auto-ready' }],
+    includeDefaultRiskClass: false,
+  })
+  assert.equal(r1AutoReadyOnlyRun.failures.length, 0)
+  assert.match(r1AutoReadyOnlyRun.comments[0].body, /- Autonomous PR: no/)
+  assert.doesNotMatch(
+    r1AutoReadyOnlyRun.comments[0].body,
+    /Autonomous PR must include a `Delegation Execution Log` section\./,
+  )
+
+  const r2AutoReadyOnlyRun = await runScopePoliceWorkflow({
+    body: selectRiskClass(prTemplateBody, 'R2'),
+    labels: [{ name: 'auto-ready' }],
+    includeDefaultRiskClass: false,
+  })
+  assert.equal(r2AutoReadyOnlyRun.failures.length, 1)
+  assert.match(r2AutoReadyOnlyRun.comments[0].body, /- Autonomous PR: yes/)
+  assert.match(
+    r2AutoReadyOnlyRun.comments[0].body,
+    /Autonomous PR must include a `Delegation Execution Log` section\./,
+  )
+
+  const r3AutoReadyOnlyRun = await runScopePoliceWorkflow({
+    body: selectRiskClass(prTemplateBody, 'R3'),
+    labels: [{ name: 'auto-ready' }],
+    includeDefaultRiskClass: false,
+  })
+  assert.equal(r3AutoReadyOnlyRun.failures.length, 1)
+  assert.match(r3AutoReadyOnlyRun.comments[0].body, /- Autonomous PR: yes/)
+  assert.match(
+    r3AutoReadyOnlyRun.comments[0].body,
+    /Autonomous PR must include a `Delegation Execution Log` section\./,
+  )
 
   const autonomousLabelRun = await runScopePoliceWorkflow({
     body: prTemplateBody,

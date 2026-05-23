@@ -33,7 +33,7 @@
 | R3 | backend / API behavior | 可用，但若涉及 auth、permission、schema、migration、security、payment、wallet、workflow 或 release，必須升級為 R4 |
 | R4 | auth / permissions / security / schema / migration / secrets / payments / wallet / workflow / release | 不可用，必須 human review |
 
-`R4` 是 auto-ready / automation 的硬邊界。PR 若勾選 `R4` 且帶有 `auto-ready` label，`PR Scope Police` 會 fail，要求移除 `auto-ready` 並由 human reviewer 明確 review / approve。
+`auto-ready` 可用只代表 PR 可進入 draft-to-ready 自動化路徑，不代表一律要啟動完整 autonomous evidence gate。`R0` / `R1` PR 只有 `auto-ready` label 時走輕量路徑；`R2` / `R3` 若使用 `auto-ready`，仍會被視為 autonomous PR 並要求 delegation / closeout evidence。`R4` 是 auto-ready / automation 的硬邊界。PR 若勾選 `R4` 且帶有 `auto-ready` label，`PR Scope Police` 會 fail，要求移除 `auto-ready` 並由 human reviewer 明確 review / approve。
 
 目前 `PR Risk Class` 是作者自我宣告的治理欄位，`PR Scope Police` 只驗證「剛好勾選一項」與「R4 不可搭配 auto-ready」。它尚未實作 diff-based floor 或路徑自動升級；也就是說，若 PR 修改 `.github/workflows/**`、migration、auth、wallet、security、payment 或 release 相關檔案，系統目前不會自動把 R1/R2/R3 升級為 R4。Reviewer 仍需依 diff 判斷風險，必要時要求作者改填 R4、移除 `auto-ready`，或拆 follow-up issue/PR。
 
@@ -170,7 +170,8 @@ Dependabot maintenance PR 目前不會套用 frontend/backend 依賴關係用的
 
 關於 autonomous PR 的判定與觸發條件：
 
-- `codex` / `codex-automation` / `auto-ready` label 或 `Delegation Execution Log` 在正式欄位（`Source issue delegation plan`、`Actual worker profile(s)`、`Model strength`、`Verification evidence`、`Self-review / exception reason`）有實質內容時，視為 autonomous PR。
+- `codex` / `codex-automation` label、`R2`-`R4` PR 的 `auto-ready` label，或 `Delegation Execution Log` 在正式欄位（`Source issue delegation plan`、`Actual worker profile(s)`、`Model strength`、`Verification evidence`、`Self-review / exception reason`）有實質內容時，視為 autonomous PR。
+- `R0` / `R1` PR 只有 `auto-ready` label 時不會單獨觸發完整 autonomous evidence gate；若另有 `codex` / `codex-automation` label、autonomous branch/body signal，或 delegation 欄位有實質內容，仍會照 autonomous PR 檢查。
 - autonomous PR 仍必須勾選 `PR Risk Class`；若屬 `R4`，不得使用 `auto-ready`，也不得讓 automation 自行完成 ready / merge path。
 - 自動化 PR 還須在同區塊填寫 `Worker session closeout`，且內容不可空白、`n/a`、`none`、`無`、`不適用`。
 - 自動化 PR 必須至少有一條 spawn directive，且同時包含 `profile=`、`model=`、`reasoning=`、`controller_fallback=`；若 `controller_fallback=allowed`，同一行必須有非空 `fallback_reason=`。
