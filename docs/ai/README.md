@@ -14,6 +14,7 @@ AI-facing collaboration guidance lives here unless a tool requires a specific pa
 - `github-actions-debugging.md` — playbook for PR, CI, scope gate, and auto-ready debugging.
 - `supply-chain-security.md` — dependency install, AI-agent package use, and developer-machine persistence guardrails.
 - `token-budget.md` — token budget guidance for AI-assisted work.
+- `workflow-metrics-baseline.md` — baseline GitHub metadata metrics for AI-native repo workflow friction and gate-weight audits.
 
 ## Root-Level Exceptions
 
