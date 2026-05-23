@@ -218,6 +218,69 @@ func TestCompleteTPointTransactionContext_UsesRequestContextForPointsWriteAndTok
 	}
 }
 
+func TestLoginWithExtensionContext_UsesRequestContextForUserLookupAndTokenIssue(t *testing.T) {
+	svc, _ := newExtSvc(t)
+	_, twitchID := seedTwitchUser(t, svc.db)
+	extJWT := makeExtJWT(t, twitchID, "channel-login-context")
+
+	key := extensionServiceContextKey{}
+	ctx := context.WithValue(context.Background(), key, "extension-login")
+	var seenUserLookup bool
+	var seenRefreshTokenWrite bool
+
+	callbackName := "test:extension_login_context:" + uuid.NewString()
+	probe := func(tx *gorm.DB) {
+		if tx.Statement == nil || tx.Statement.Schema == nil {
+			return
+		}
+		table := tx.Statement.Schema.Table
+		if table != "auth_providers" && table != "users" && table != "refresh_tokens" {
+			return
+		}
+		if tx.Statement.Context.Value(key) != "extension-login" {
+			tx.AddError(fmt.Errorf("missing request context for %s", table))
+			return
+		}
+		switch table {
+		case "auth_providers", "users":
+			seenUserLookup = true
+		case "refresh_tokens":
+			seenRefreshTokenWrite = true
+		}
+	}
+	if err := svc.db.Callback().Query().Before("gorm:query").Register(callbackName+":query", probe); err != nil {
+		t.Fatalf("register login query context probe: %v", err)
+	}
+	if err := svc.db.Callback().Create().Before("gorm:create").Register(callbackName+":create", probe); err != nil {
+		t.Fatalf("register login create context probe: %v", err)
+	}
+	t.Cleanup(func() {
+		if err := svc.db.Callback().Query().Remove(callbackName + ":query"); err != nil {
+			t.Fatalf("remove login query context probe: %v", err)
+		}
+		if err := svc.db.Callback().Create().Remove(callbackName + ":create"); err != nil {
+			t.Fatalf("remove login create context probe: %v", err)
+		}
+	})
+
+	user, tokens, err := svc.LoginWithExtensionContext(ctx, extJWT)
+	if err != nil {
+		t.Fatalf("LoginWithExtensionContext: %v", err)
+	}
+	if user == nil {
+		t.Fatal("expected user")
+	}
+	if tokens == nil {
+		t.Fatal("expected tokens")
+	}
+	if !seenUserLookup {
+		t.Fatal("expected extension login user lookup to carry request context")
+	}
+	if !seenRefreshTokenWrite {
+		t.Fatal("expected extension login refresh token write to carry request context")
+	}
+}
+
 func TestCompleteTPointTransaction_DuplicateTransactionID_ReturnsErrDuplicate(t *testing.T) {
 	svc, pointsSvc := newExtSvc(t)
 	userID, twitchID := seedTwitchUser(t, svc.db)

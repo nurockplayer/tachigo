@@ -146,16 +146,24 @@ func (s *ExtensionService) lookupExtensionUserContext(ctx context.Context, claim
 }
 
 func (s *ExtensionService) LoginWithExtension(extJWT string) (*models.User, *TokenPair, error) {
+	return s.LoginWithExtensionContext(context.Background(), extJWT)
+}
+
+func (s *ExtensionService) LoginWithExtensionContext(ctx context.Context, extJWT string) (*models.User, *TokenPair, error) {
+	if ctx == nil {
+		ctx = context.Background()
+	}
+
 	claims, err := s.VerifyExtJWT(extJWT)
 	if err != nil {
 		return nil, nil, err
 	}
-	user, err := s.lookupExtensionUser(claims)
+	user, err := s.lookupExtensionUserContext(ctx, claims)
 	if err != nil {
 		return nil, nil, err
 	}
 
-	tokens, err := s.authSvc.issueTokenPair(user)
+	tokens, err := s.authSvc.issueTokenPairContext(ctx, user)
 	if err != nil {
 		return nil, nil, err
 	}
