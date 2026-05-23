@@ -225,6 +225,7 @@ func TestLoginWithExtensionContext_UsesRequestContextForUserLookupAndTokenIssue(
 
 	key := extensionServiceContextKey{}
 	ctx := context.WithValue(context.Background(), key, "extension-login")
+	var seenAuthProviderLookup bool
 	var seenUserLookup bool
 	var seenRefreshTokenWrite bool
 
@@ -242,7 +243,9 @@ func TestLoginWithExtensionContext_UsesRequestContextForUserLookupAndTokenIssue(
 			return
 		}
 		switch table {
-		case "auth_providers", "users":
+		case "auth_providers":
+			seenAuthProviderLookup = true
+		case "users":
 			seenUserLookup = true
 		case "refresh_tokens":
 			seenRefreshTokenWrite = true
@@ -272,6 +275,9 @@ func TestLoginWithExtensionContext_UsesRequestContextForUserLookupAndTokenIssue(
 	}
 	if tokens == nil {
 		t.Fatal("expected tokens")
+	}
+	if !seenAuthProviderLookup {
+		t.Fatal("expected extension login auth provider lookup to carry request context")
 	}
 	if !seenUserLookup {
 		t.Fatal("expected extension login user lookup to carry request context")
