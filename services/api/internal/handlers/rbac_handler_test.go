@@ -30,12 +30,20 @@ func newRBACTestEnv(t *testing.T) *rbacEnv {
 		agencies.POST("", middleware.RequireRole(models.RoleAdmin), func(c *gin.Context) {
 			c.JSON(501, gin.H{"error": "not implemented"})
 		})
+		agencies.GET("/:id",
+			middleware.RequireRole(models.RoleAgency, models.RoleAdmin),
+			func(c *gin.Context) { c.JSON(501, gin.H{"error": "not implemented"}) },
+		)
 		agencies.PUT("/:id/settings",
 			middleware.RequireRole(models.RoleAgency, models.RoleAdmin),
 			func(c *gin.Context) { c.JSON(501, gin.H{"error": "not implemented"}) },
 		)
 		agencies.GET("/:id/streamers",
 			middleware.RequireRole(models.RoleAgency, models.RoleAdmin),
+			func(c *gin.Context) { c.JSON(501, gin.H{"error": "not implemented"}) },
+		)
+		agencies.POST("/:id/resend-setup",
+			middleware.RequireRole(models.RoleAdmin),
 			func(c *gin.Context) { c.JSON(501, gin.H{"error": "not implemented"}) },
 		)
 	}
@@ -184,6 +192,45 @@ func TestRBACMatrix_DashboardRoutes(t *testing.T) {
 				{name: "viewer forbidden", role: models.RoleViewer, want: http.StatusForbidden},
 				{name: "streamer allowed", role: models.RoleStreamer, want: http.StatusNotImplemented},
 				{name: "agency allowed", role: models.RoleAgency, want: http.StatusNotImplemented},
+				{name: "admin allowed", role: models.RoleAdmin, want: http.StatusNotImplemented},
+			},
+		},
+	}
+
+	for _, tt := range tests {
+		t.Run(tt.name, func(t *testing.T) {
+			env := newRBACTestEnv(t)
+			assertRBACMatrix(t, env, tt.method, tt.path, tt.cases)
+		})
+	}
+}
+
+func TestRBACMatrix_AgencyReadAndSetupRoutes(t *testing.T) {
+	tests := []struct {
+		name   string
+		method string
+		path   string
+		cases  []rbacMatrixCase
+	}{
+		{
+			name:   "agency detail allows agency or admin only",
+			method: http.MethodGet,
+			path:   "/api/v1/agencies/agency_1",
+			cases: []rbacMatrixCase{
+				{name: "viewer forbidden", role: models.RoleViewer, want: http.StatusForbidden},
+				{name: "streamer forbidden", role: models.RoleStreamer, want: http.StatusForbidden},
+				{name: "agency allowed", role: models.RoleAgency, want: http.StatusNotImplemented},
+				{name: "admin allowed", role: models.RoleAdmin, want: http.StatusNotImplemented},
+			},
+		},
+		{
+			name:   "resend setup is admin only",
+			method: http.MethodPost,
+			path:   "/api/v1/agencies/agency_1/resend-setup",
+			cases: []rbacMatrixCase{
+				{name: "viewer forbidden", role: models.RoleViewer, want: http.StatusForbidden},
+				{name: "streamer forbidden", role: models.RoleStreamer, want: http.StatusForbidden},
+				{name: "agency forbidden", role: models.RoleAgency, want: http.StatusForbidden},
 				{name: "admin allowed", role: models.RoleAdmin, want: http.StatusNotImplemented},
 			},
 		},
