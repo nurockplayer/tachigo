@@ -197,54 +197,51 @@ func TestRBACMatrix_DashboardRoutes(t *testing.T) {
 	}
 }
 
-// ── GET /admin/users ──────────────────────────────────────────────────────────
-
-// viewer token → 403
-func TestRBAC_AdminUsers_ViewerForbidden(t *testing.T) {
-	env := newRBACTestEnv(t)
-	token := env.tokenForRole(t, models.RoleViewer)
-
-	if got := doRequest(env.router, http.MethodGet, "/api/v1/admin/users", token); got != http.StatusForbidden {
-		t.Errorf("viewer: want 403, got %d", got)
+func TestRBACMatrix_EventAndAdminStubRoutes(t *testing.T) {
+	eventOperatorCases := []rbacMatrixCase{
+		{name: "viewer forbidden", role: models.RoleViewer, want: http.StatusForbidden},
+		{name: "streamer allowed", role: models.RoleStreamer, want: http.StatusNotImplemented},
+		{name: "agency allowed", role: models.RoleAgency, want: http.StatusNotImplemented},
+		{name: "admin allowed", role: models.RoleAdmin, want: http.StatusNotImplemented},
 	}
-}
-
-// streamer token → 403
-func TestRBAC_AdminUsers_StreamerForbidden(t *testing.T) {
-	env := newRBACTestEnv(t)
-	token := env.tokenForRole(t, models.RoleStreamer)
-
-	if got := doRequest(env.router, http.MethodGet, "/api/v1/admin/users", token); got != http.StatusForbidden {
-		t.Errorf("streamer: want 403, got %d", got)
+	adminOnlyCases := []rbacMatrixCase{
+		{name: "viewer forbidden", role: models.RoleViewer, want: http.StatusForbidden},
+		{name: "streamer forbidden", role: models.RoleStreamer, want: http.StatusForbidden},
+		{name: "agency forbidden", role: models.RoleAgency, want: http.StatusForbidden},
+		{name: "admin allowed", role: models.RoleAdmin, want: http.StatusNotImplemented},
 	}
-}
 
-// agency token → 403
-func TestRBAC_AdminUsers_AgencyForbidden(t *testing.T) {
-	env := newRBACTestEnv(t)
-	token := env.tokenForRole(t, models.RoleAgency)
-
-	if got := doRequest(env.router, http.MethodGet, "/api/v1/admin/users", token); got != http.StatusForbidden {
-		t.Errorf("agency: want 403, got %d", got)
+	tests := []struct {
+		name   string
+		method string
+		path   string
+		cases  []rbacMatrixCase
+	}{
+		{
+			name:   "create event allows event operators",
+			method: http.MethodPost,
+			path:   "/api/v1/events/create",
+			cases:  eventOperatorCases,
+		},
+		{
+			name:   "settle event allows event operators",
+			method: http.MethodPost,
+			path:   "/api/v1/events/1/settle",
+			cases:  eventOperatorCases,
+		},
+		{
+			name:   "admin users is admin only",
+			method: http.MethodGet,
+			path:   "/api/v1/admin/users",
+			cases:  adminOnlyCases,
+		},
 	}
-}
 
-// admin token → 501（handler 尚未實作，但通過授權）
-func TestRBAC_AdminUsers_AdminAllowed(t *testing.T) {
-	env := newRBACTestEnv(t)
-	token := env.tokenForRole(t, models.RoleAdmin)
-
-	if got := doRequest(env.router, http.MethodGet, "/api/v1/admin/users", token); got != http.StatusNotImplemented {
-		t.Errorf("admin: want 501, got %d", got)
-	}
-}
-
-// 無 token → 401
-func TestRBAC_AdminUsers_NoToken(t *testing.T) {
-	env := newRBACTestEnv(t)
-
-	if got := doRequest(env.router, http.MethodGet, "/api/v1/admin/users", ""); got != http.StatusUnauthorized {
-		t.Errorf("no token: want 401, got %d", got)
+	for _, tt := range tests {
+		t.Run(tt.name, func(t *testing.T) {
+			env := newRBACTestEnv(t)
+			assertRBACMatrix(t, env, tt.method, tt.path, tt.cases)
+		})
 	}
 }
 
@@ -275,57 +272,6 @@ func TestRBAC_CreateAgency_AdminAllowed(t *testing.T) {
 	token := env.tokenForRole(t, models.RoleAdmin)
 
 	if got := doRequest(env.router, http.MethodPost, "/api/v1/agencies", token); got != http.StatusNotImplemented {
-		t.Errorf("admin: want 501, got %d", got)
-	}
-}
-
-// ── POST /events/create ───────────────────────────────────────────────────────
-
-// 無 token → 401
-func TestRBAC_CreateEvent_NoToken(t *testing.T) {
-	env := newRBACTestEnv(t)
-
-	if got := doRequest(env.router, http.MethodPost, "/api/v1/events/create", ""); got != http.StatusUnauthorized {
-		t.Errorf("no token: want 401, got %d", got)
-	}
-}
-
-// viewer → 403
-func TestRBAC_CreateEvent_ViewerForbidden(t *testing.T) {
-	env := newRBACTestEnv(t)
-	token := env.tokenForRole(t, models.RoleViewer)
-
-	if got := doRequest(env.router, http.MethodPost, "/api/v1/events/create", token); got != http.StatusForbidden {
-		t.Errorf("viewer: want 403, got %d", got)
-	}
-}
-
-// streamer → 501（通過授權）
-func TestRBAC_CreateEvent_StreamerAllowed(t *testing.T) {
-	env := newRBACTestEnv(t)
-	token := env.tokenForRole(t, models.RoleStreamer)
-
-	if got := doRequest(env.router, http.MethodPost, "/api/v1/events/create", token); got != http.StatusNotImplemented {
-		t.Errorf("streamer: want 501, got %d", got)
-	}
-}
-
-// agency → 501（通過授權）
-func TestRBAC_CreateEvent_AgencyAllowed(t *testing.T) {
-	env := newRBACTestEnv(t)
-	token := env.tokenForRole(t, models.RoleAgency)
-
-	if got := doRequest(env.router, http.MethodPost, "/api/v1/events/create", token); got != http.StatusNotImplemented {
-		t.Errorf("agency: want 501, got %d", got)
-	}
-}
-
-// admin → 501（通過授權）
-func TestRBAC_CreateEvent_AdminAllowed(t *testing.T) {
-	env := newRBACTestEnv(t)
-	token := env.tokenForRole(t, models.RoleAdmin)
-
-	if got := doRequest(env.router, http.MethodPost, "/api/v1/events/create", token); got != http.StatusNotImplemented {
 		t.Errorf("admin: want 501, got %d", got)
 	}
 }
@@ -450,57 +396,6 @@ func TestRBAC_ListAgencyStreamers_AdminAllowed(t *testing.T) {
 	token := env.tokenForRole(t, models.RoleAdmin)
 
 	if got := doRequest(env.router, http.MethodGet, "/api/v1/agencies/1/streamers", token); got != http.StatusNotImplemented {
-		t.Errorf("admin: want 501, got %d", got)
-	}
-}
-
-// ── POST /events/:id/settle ───────────────────────────────────────────────────
-
-// 無 token → 401
-func TestRBAC_SettleEvent_NoToken(t *testing.T) {
-	env := newRBACTestEnv(t)
-
-	if got := doRequest(env.router, http.MethodPost, "/api/v1/events/1/settle", ""); got != http.StatusUnauthorized {
-		t.Errorf("no token: want 401, got %d", got)
-	}
-}
-
-// viewer → 403（有 token 但角色不符，應回 403 而非 401）
-func TestRBAC_SettleEvent_ViewerForbidden(t *testing.T) {
-	env := newRBACTestEnv(t)
-	token := env.tokenForRole(t, models.RoleViewer)
-
-	if got := doRequest(env.router, http.MethodPost, "/api/v1/events/1/settle", token); got != http.StatusForbidden {
-		t.Errorf("viewer: want 403, got %d", got)
-	}
-}
-
-// streamer → 501（通過授權）
-func TestRBAC_SettleEvent_StreamerAllowed(t *testing.T) {
-	env := newRBACTestEnv(t)
-	token := env.tokenForRole(t, models.RoleStreamer)
-
-	if got := doRequest(env.router, http.MethodPost, "/api/v1/events/1/settle", token); got != http.StatusNotImplemented {
-		t.Errorf("streamer: want 501, got %d", got)
-	}
-}
-
-// agency → 501（通過授權）
-func TestRBAC_SettleEvent_AgencyAllowed(t *testing.T) {
-	env := newRBACTestEnv(t)
-	token := env.tokenForRole(t, models.RoleAgency)
-
-	if got := doRequest(env.router, http.MethodPost, "/api/v1/events/1/settle", token); got != http.StatusNotImplemented {
-		t.Errorf("agency: want 501, got %d", got)
-	}
-}
-
-// admin → 501（通過授權）
-func TestRBAC_SettleEvent_AdminAllowed(t *testing.T) {
-	env := newRBACTestEnv(t)
-	token := env.tokenForRole(t, models.RoleAdmin)
-
-	if got := doRequest(env.router, http.MethodPost, "/api/v1/events/1/settle", token); got != http.StatusNotImplemented {
 		t.Errorf("admin: want 501, got %d", got)
 	}
 }
