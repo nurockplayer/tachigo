@@ -15,6 +15,7 @@ AI-facing collaboration guidance lives here unless a tool requires a specific pa
 - `supply-chain-security.md` — dependency install, AI-agent package use, and developer-machine persistence guardrails.
 - `token-budget.md` — token budget guidance for AI-assisted work.
 - `workflow-metrics-baseline.md` — baseline GitHub metadata metrics for AI-native repo workflow friction and gate-weight audits.
+- `workflow-gate-weight-audit.md` — #881-based audit of PR governance gate weight and Track A exit criteria.
 
 ## Root-Level Exceptions
 
