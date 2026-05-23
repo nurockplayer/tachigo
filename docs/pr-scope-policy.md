@@ -116,7 +116,7 @@ Dependabot maintenance PR 目前不會套用 frontend/backend 依賴關係用的
 
 另外，這類 PR 不應再被 product surface 的 inherited 紅燈拖住 review 流程，因此：
 
-- `Scope gate` 會直接略過 backend / frontend / dashboard 的 heavy CI
+- `CI scope router` 會直接略過 backend / frontend / dashboard 的 heavy CI
 - 仍保留 `PR Scope Police`、workflow regression 與其他 metadata / policy 檢查
 - 若 docs/template PR 因為 restack 需求碰到 `develop` 上的產品線紅燈，應拆成獨立 product fix PR，不可把 inherited 修補留在 docs PR
 
@@ -207,10 +207,10 @@ Autonomous Worker Profiles v2 的完整 evidence discipline 與 `spec workflow-c
 repo 的 CI 目前改成：
 
 - PR 先跑 `PR Scope Police`
-- `.github/workflows/ci.yml` 也會直接跑在 PR 上，但會先經過一個輕量 `Scope gate`
+- `.github/workflows/ci.yml` 也會直接跑在 PR 上，但會先經過一個輕量 `CI scope router`
 - 只有目前符合同一套 scope 規則、且沒有被 dependency gate 擋住的 PR，才會繼續跑 backend / frontend / dashboard 的 docker build 與測試
 - 若 `[frontend]` PR 依賴尚未 merge 的 backend contract，重型 CI 會直接跳過
-- 若 PR 是正式 `[release]` 的 `develop -> main` promotion，重型 CI 會照常執行，不因 diff 過大而被 scope gate 跳過
+- 若 PR 是正式 `[release]` 的 `develop -> main` promotion，重型 CI 會照常執行，不因 diff 過大而被 CI scope router 跳過
 - 若 PR 是 docs / template / metadata-only，重型 product CI 會直接跳過，避免 inherited product failures 造成無限循環
 
 ### #764 CI execution strategy
@@ -219,10 +219,10 @@ repo 的 CI 目前改成：
 
 目前的 lightweight lanes 定義如下：
 
-- docs / template / metadata-only lane：只修改 `docs/`、`docs/ai/`、`plans/`、`.github/ISSUE_TEMPLATE/`、`.github/PULL_REQUEST_TEMPLATE.md`、repo root Markdown、`infra/`、`.gitignore` 或 `.gitattributes`。這類 PR 保留 metadata/policy checks，但 `Scope gate` 會略過 backend / frontend / dashboard / contracts heavy CI。
+- docs / template / metadata-only lane：只修改 `docs/`、`docs/ai/`、`plans/`、`.github/ISSUE_TEMPLATE/`、`.github/PULL_REQUEST_TEMPLATE.md`、repo root Markdown、`infra/`、`.gitignore` 或 `.gitattributes`。這類 PR 保留 metadata/policy checks，但 `CI scope router` 會略過 backend / frontend / dashboard / contracts heavy CI。
 - workflow lane：任何 `.github/workflows/**` 變更都不算 metadata-only。即使內容只是註解或 policy 調整，也要跑 workflow regression，並重新檢查 required check / auto-ready / Scope Police 語義。
 - frontend / style-only lane：目前尚未有獨立 workflow lane。只要修改 `apps/extension/`、`apps/dashboard/`、`tachimint/` 或 `dashboard/`，就仍屬 frontend surface，至少需要對應 frontend/dashboard checks；若未來要新增 style-only lane，必須先在 `.github/workflows/ci.yml` 與 `.github/workflows/ci.test.ts` 定義路徑規則與 regression case。
-- package / API contract lane：`packages/`、OpenAPI generated docs、frontend API client 或 workspace dependency 變更不可混入 docs-only lane；是否跑 API contract / dependency review 由 `Scope gate` path rules 決定。
+- package / API contract lane：`packages/`、OpenAPI generated docs、frontend API client 或 workspace dependency 變更不可混入 docs-only lane；是否跑 API contract / dependency review 由 `CI scope router` path rules 決定。
 
 第一階段的非目標：
 
@@ -234,7 +234,7 @@ repo 的 CI 目前改成：
 後續若要實作 #764 的 runtime 變更，建議依序拆 PR：
 
 1. workflow regression 先行：為預期 lane 行為新增 `ci.test.ts` case，證明 workflow file 仍不會被誤判為 metadata-only。
-2. path-aware CI runtime：只改 `ci.yml` scope gate 與對應 regression，避免混入 Scope Police 或 auto-merge 行為。
+2. path-aware CI runtime：只改 `ci.yml` 的 `scope-gate` job（PR check 顯示為 `CI scope router`）與對應 regression，避免混入 Scope Police 或 auto-merge 行為。
 3. frontend / style-only lane：在有明確路徑定義與可接受 skipped required check 語義後再新增。
 4. autonomous review loop 節流：只改 review flag / rerequest / notification workflow，避免和 CI path gate 同 PR。
 
@@ -327,7 +327,7 @@ Codex task PR 應使用 `AUTO_READY=1`，讓 wrapper 一次建立 draft PR 並�
 注意：
 
 - `PR Scope Police` 應該是第一道 gate
-- 後面三個 CI checks 會直接出現在 PR 上；若 scope 不合格，job 會在 `Scope gate` 後被略過
+- 後面三個 CI checks 會直接出現在 PR 上；若 scope 不合格，job 會在 `CI scope router` 後被略過
 
 ## Reviewer 指南
 

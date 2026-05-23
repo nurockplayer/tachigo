@@ -31,7 +31,7 @@ docs / template / metadata-only PR 可以走 lightweight lane，但 Approve 的�
 因此 reviewer 在 lightweight lane 仍需確認：
 
 - `PR Scope Police` 通過，且 PR body 的 source of truth / dependency / scope 欄位完整。
-- `Scope gate` 的 skipped heavy CI 符合路徑規則；如果 PR 改到 `.github/workflows/**`，就不應被當成 metadata-only。
+- `CI scope router` 的 skipped heavy CI 符合路徑規則；如果 PR 改到 `.github/workflows/**`，就不應被當成 metadata-only。
 - workflow regression、PR metadata regression、supply-chain / TypeScript guardrail 等保留 checks 沒有失敗。
 - 沒有把 inherited backend / frontend / dashboard 紅燈修補混進 docs-only PR。
 
