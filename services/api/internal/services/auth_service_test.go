@@ -1303,6 +1303,21 @@ func TestDeleteExpiredRefreshTokens_RemovesExpiredOnly(t *testing.T) {
 	}
 }
 
+func TestDeleteExpiredRefreshTokensContext_CanceledContext(t *testing.T) {
+	svc := NewAuthService(newTestDB(t), testConfig())
+
+	ctx, cancel := context.WithCancel(context.Background())
+	cancel()
+
+	deleted, err := svc.DeleteExpiredRefreshTokensContext(ctx)
+	if !errors.Is(err, context.Canceled) {
+		t.Fatalf("want context.Canceled, got deleted=%d err=%v", deleted, err)
+	}
+	if deleted != 0 {
+		t.Errorf("canceled cleanup should not report deleted rows, got %d", deleted)
+	}
+}
+
 func TestRefresh_SecondUseOfSameToken_ReturnsErrInvalidToken(t *testing.T) {
 	svc := NewAuthService(newTestDB(t), testConfig())
 	_, tokens, err := svc.Register(RegisterInput{
