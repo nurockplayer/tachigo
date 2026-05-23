@@ -247,7 +247,14 @@ func (s *AuthService) LogoutContext(ctx context.Context, rawRefreshToken string)
 // DeleteExpiredRefreshTokens removes all expired refresh token records.
 // Returns the number of rows deleted.
 func (s *AuthService) DeleteExpiredRefreshTokens() (int64, error) {
-	result := s.db.Where("expires_at < ?", time.Now()).Delete(&models.RefreshToken{})
+	return s.DeleteExpiredRefreshTokensContext(context.Background())
+}
+
+func (s *AuthService) DeleteExpiredRefreshTokensContext(ctx context.Context) (int64, error) {
+	if ctx == nil {
+		ctx = context.Background()
+	}
+	result := s.db.WithContext(ctx).Where("expires_at < ?", time.Now()).Delete(&models.RefreshToken{})
 	return result.RowsAffected, result.Error
 }
 
