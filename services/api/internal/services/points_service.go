@@ -108,11 +108,15 @@ func (s *PointsService) ListTransactionsContext(ctx context.Context, userID uuid
 // cumulative_total is never modified by a deduction.
 // Returns ErrInsufficientBalance if the current spendable balance is too low.
 func (s *PointsService) DeductPoints(userID uuid.UUID, channelID string, amount int64, note string) error {
+	return s.DeductPointsContext(context.Background(), userID, channelID, amount, note)
+}
+
+func (s *PointsService) DeductPointsContext(ctx context.Context, userID uuid.UUID, channelID string, amount int64, note string) error {
 	if err := validatePositivePointsAmount(amount); err != nil {
 		return err
 	}
 
-	return s.db.Transaction(func(tx *gorm.DB) error {
+	return s.dbWithContext(ctx).Transaction(func(tx *gorm.DB) error {
 		var ledger models.PointsLedger
 		if err := tx.Clauses(clause.Locking{Strength: "UPDATE"}).
 			Where("user_id = ? AND channel_id = ?", userID, channelID).

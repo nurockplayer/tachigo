@@ -159,6 +159,31 @@ func TestPointsService_DeductPoints_Success(t *testing.T) {
 	}
 }
 
+func TestPointsService_DeductPointsContext_UsesRequestContext(t *testing.T) {
+	svc, _ := newPointsSvc(t)
+	userID := seedViewer(t, svc)
+	key := pointsContextKey("points-deduct-context")
+	seen := installDBContextProbe(t, svc.db, key, "points-deduct")
+
+	if err := svc.AddPoints(userID, "ch_abc", models.TxSourceTPoint, 100); err != nil {
+		t.Fatalf("seed points: %v", err)
+	}
+
+	err := svc.DeductPointsContext(
+		context.WithValue(context.Background(), key, "points-deduct"),
+		userID,
+		"ch_abc",
+		30,
+		"avatar",
+	)
+	if err != nil {
+		t.Fatalf("deduct points with context: %v", err)
+	}
+	if seen() == 0 {
+		t.Fatal("expected DeductPointsContext DB operations to carry request context")
+	}
+}
+
 // ─── AddPoints ───────────────────────────────────────────────────────────────
 
 func TestPointsService_AddPoints_IncreasesBothBalances(t *testing.T) {
