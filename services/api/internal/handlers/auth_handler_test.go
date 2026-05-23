@@ -1028,6 +1028,52 @@ func TestWeb3VerifyHandler_SuccessSetsRefreshCookieAndConsumesNonce(t *testing.T
 	}
 }
 
+func TestWeb3VerifyHandler_CanceledRequestStopsDBWrite(t *testing.T) {
+	env := newTestEnv(t)
+	key, addr := newHandlerTestWallet(t)
+	lookupAddr := strings.ToLower(addr)
+	nonce := "handler-web3-verify-canceled"
+	nonceRecord := seedHandlerWalletNonce(t, env, addr, nonce)
+	msg := handlerSIWEMessage(lookupAddr, nonce, nonceRecord.CreatedAt.UTC().Format(time.RFC3339))
+	sig := handlerSignSIWE(t, msg, key)
+	body := fmt.Sprintf(`{"address":%q,"nonce":%q,"signature":%q}`, addr, nonce, sig)
+
+	ctx, cancel := context.WithCancel(context.Background())
+	cancel()
+	req := httptest.NewRequest(http.MethodPost, "/api/v1/auth/web3/verify", bytes.NewBufferString(body)).WithContext(ctx)
+	req.Header.Set("Content-Type", "application/json")
+	w := httptest.NewRecorder()
+	env.router.ServeHTTP(w, req)
+
+	if w.Code != http.StatusInternalServerError {
+		t.Fatalf("want 500 for canceled request, got %d: %s", w.Code, w.Body.String())
+	}
+
+	var providerCount int64
+	if err := env.db.Model(&models.AuthProvider{}).Where("provider = ?", models.ProviderWeb3).Count(&providerCount).Error; err != nil {
+		t.Fatalf("count web3 providers: %v", err)
+	}
+	if providerCount != 0 {
+		t.Fatalf("canceled request should not create web3 provider rows, got %d", providerCount)
+	}
+
+	var tokenCount int64
+	if err := env.db.Model(&models.RefreshToken{}).Count(&tokenCount).Error; err != nil {
+		t.Fatalf("count refresh token rows: %v", err)
+	}
+	if tokenCount != 0 {
+		t.Fatalf("canceled request should not create refresh token rows, got %d", tokenCount)
+	}
+
+	var nonceCount int64
+	if err := env.db.Model(&models.Web3Nonce{}).Where("nonce = ?", nonce).Count(&nonceCount).Error; err != nil {
+		t.Fatalf("count web3 nonce rows: %v", err)
+	}
+	if nonceCount != 1 {
+		t.Fatalf("canceled request should keep nonce available, got %d rows", nonceCount)
+	}
+}
+
 func assertTokenPayloadHasBrowserTokens(t *testing.T, resp map[string]interface{}) {
 	t.Helper()
 

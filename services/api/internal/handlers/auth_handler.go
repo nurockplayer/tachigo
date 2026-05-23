@@ -327,7 +327,7 @@ func (h *AuthHandler) Web3Verify(c *gin.Context) {
 		return
 	}
 
-	user, tokens, err := h.auth.Web3Verify(input)
+	user, tokens, err := h.auth.Web3VerifyContext(c.Request.Context(), input)
 	if err != nil {
 		switch err {
 		case services.ErrInvalidNonce:
