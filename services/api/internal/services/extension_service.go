@@ -114,12 +114,6 @@ func (s *ExtensionService) VerifyReceiptJWT(receiptStr string) (*ReceiptClaims, 
 // Returns ErrInvalidExtJWT if the JWT is invalid or the viewer has not authorized
 // the Extension (UserID is empty). Returns ErrUserNotFound if no tachigo account
 // is linked to the Twitch identity.
-// lookupExtensionUser resolves a Twitch identity to a tachigo User.
-// It does not issue tokens; call issueTokenPair separately.
-func (s *ExtensionService) lookupExtensionUser(claims *ExtensionClaims) (*models.User, error) {
-	return s.lookupExtensionUserContext(context.Background(), claims)
-}
-
 func (s *ExtensionService) lookupExtensionUserContext(ctx context.Context, claims *ExtensionClaims) (*models.User, error) {
 	if ctx == nil {
 		ctx = context.Background()
