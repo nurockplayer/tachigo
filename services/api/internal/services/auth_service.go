@@ -354,6 +354,9 @@ func (s *AuthService) Web3VerifyContext(ctx context.Context, input Web3VerifyInp
 		if errors.Is(err, context.Canceled) || errors.Is(err, context.DeadlineExceeded) {
 			return nil, nil, err
 		}
+		if !errors.Is(err, gorm.ErrRecordNotFound) {
+			return nil, nil, err
+		}
 		return nil, nil, ErrInvalidNonce
 	}
 	if nonceRecord.IsExpired() {
