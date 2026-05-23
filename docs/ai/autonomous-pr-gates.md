@@ -24,7 +24,7 @@
 
 ## PR Initial Body And Final Closeout
 
-PR body 一開始就要完整合規，包含 Source of truth、Depends on PR、本 PR 明確不做、Delegation Execution Log、Review conversation closeout、Final merge gate。開 PR 時尚未穩定的欄位可填 `pending with reason` 或 `n/a`，但 ready-to-merge closeout 不可留下裸 `pending`。對 R0/R1 `auto-ready`-only PR，`Delegation Execution Log` 可維持 `n/a`，除非另有 autonomous / codex label、branch/body signal，或正式 delegation 欄位已有實質內容。
+PR body 一開始就要完整合規，包含 Source of truth、Depends on PR、本 PR 明確不做、Delegation Execution Log、Review conversation closeout、Final merge gate。開 PR 時尚未穩定的欄位可填 `pending with reason` 或 `n/a`，但 ready-to-merge closeout 不可留下裸 `pending`。對 R0/R1 `auto-ready`-only PR，`Delegation Execution Log` 可維持 `n/a`，除非另有 autonomous / codex / codex-automation label、branch/body signal，或正式 delegation 欄位已有實質內容。
 
 final closeout 只在 merge 前狀態穩定後更新一次，避免每個 CI tick 都修改 PR body。final closeout 至少讀回 latest head SHA、CI / Scope Police、review threads、CodeRabbit、chatgpt-codex-connector、每個 finding 的採納或不採納狀態。
 
@@ -113,6 +113,6 @@ Threshold 校正是暫時性的 autonomous workflow 分析資料，不是 tachig
 
 ## Scope Police Contract
 
-Autonomous evidence gate 只對 autonomous PR 嚴格啟用。判定方式包含 `Delegation Execution Log` 有正式欄位內容，或 label / branch / body 明確標示 autonomous / codex workflow。`auto-ready` label 會依 `PR Risk Class` 縮放：R0/R1 只有 `auto-ready` 不會單獨觸發完整 evidence gate；R2-R4 仍會觸發，其中 R4 仍不可搭配 `auto-ready`。
+Autonomous evidence gate 只對 autonomous PR 嚴格啟用。判定方式包含 `Delegation Execution Log` 有正式欄位內容，或 label / branch / body 明確標示 autonomous / codex / codex-automation workflow。`auto-ready` label 會依 `PR Risk Class` 縮放：R0/R1 只有 `auto-ready` 不會單獨觸發完整 evidence gate；R2-R4 仍會觸發，其中 R4 仍不可搭配 `auto-ready`。
 
 Scope Police sticky comment 應顯示 `Autonomous evidence snapshot`，讓 reviewer 快速看見 delegation log、spawn directives、controller fallback、review closeout、final merge gate 與 pending 是否清乾淨。

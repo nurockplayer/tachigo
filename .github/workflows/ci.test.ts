@@ -1309,6 +1309,7 @@ test('AWP v2 docs wire AGENTS and PR scope policy to autonomous evidence gates a
   assert.match(autonomousPrGates, /controller_fallback_reason|fallback_reason/)
   assert.match(autonomousPrGates, /Review conversation closeout/)
   assert.match(autonomousPrGates, /Final merge gate/)
+  assert.match(autonomousPrGates, /codex-automation/)
   assert.match(autonomousPrGates, /spec workflow-check/)
   assert.match(autonomousPrGates, /necessity assessment/)
   assert.match(autonomousPrGates, /25-30%/)
