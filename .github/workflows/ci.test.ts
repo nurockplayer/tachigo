@@ -2020,6 +2020,37 @@ test('docs/template-only PRs skip heavy product CI in scope gate', async () => {
   )
 })
 
+test('scope gate emits skipped product outputs for docs-only PRs', async () => {
+  const result = await runCiScopeGateWorkflow({
+    prOverrides: { title: '[discussion] Document CI execution strategy' },
+    files: [{ filename: 'docs/pr-scope-policy.md', additions: 12, deletions: 3, status: 'modified' }],
+  })
+
+  assert.deepEqual(result.outputs, {
+    run_ci: 'false',
+    run_backend: 'false',
+    run_backend_integration: 'false',
+    run_backend_scanners: 'false',
+    run_dependency_review: 'false',
+    run_api_contracts: 'false',
+    run_frontend: 'false',
+    run_dashboard: 'false',
+    run_contracts: 'false',
+    run_contracts_slither: 'false',
+    run_contracts_gas_report: 'false',
+  })
+  assert.equal(
+    result.notices.some((notice) =>
+      notice.includes('Skipping heavy product CI because this PR only changes docs/templates/metadata.'),
+    ),
+    true,
+  )
+  assert.equal(
+    result.notices.some((notice) => notice.includes('Skipping backend integration tests')),
+    false,
+  )
+})
+
 test('scope gate emits path-aware outputs for frontend-only PRs', async () => {
   const result = await runCiScopeGateWorkflow({
     files: [{ filename: 'apps/extension/src/App.tsx', additions: 12, deletions: 3, status: 'modified' }],
@@ -2038,6 +2069,35 @@ test('scope gate emits path-aware outputs for frontend-only PRs', async () => {
     run_contracts_slither: 'false',
     run_contracts_gas_report: 'false',
   })
+})
+
+test('scope gate emits full CI outputs for workflow file PRs', async () => {
+  const fullOutputs = {
+    run_ci: 'true',
+    run_backend: 'true',
+    run_backend_integration: 'true',
+    run_backend_scanners: 'true',
+    run_dependency_review: 'false',
+    run_api_contracts: 'true',
+    run_frontend: 'true',
+    run_dashboard: 'true',
+    run_contracts: 'true',
+    run_contracts_slither: 'true',
+    run_contracts_gas_report: 'true',
+  }
+  const ciRuntime = await runCiScopeGateWorkflow({
+    prOverrides: { title: '[infra] Update CI scope gate' },
+    files: [{ filename: '.github/workflows/ci.yml', additions: 8, deletions: 2, status: 'modified' }],
+  })
+  const ciRegression = await runCiScopeGateWorkflow({
+    prOverrides: { title: '[infra] Update CI regression coverage' },
+    files: [{ filename: '.github/workflows/ci.test.ts', additions: 8, deletions: 2, status: 'modified' }],
+  })
+
+  assert.deepEqual(ciRuntime.outputs, fullOutputs)
+  assert.deepEqual(ciRegression.outputs, fullOutputs)
+  assert.equal(ciRuntime.notices.some((notice) => notice.includes('Skipping heavy')), false)
+  assert.equal(ciRegression.notices.some((notice) => notice.includes('Skipping heavy')), false)
 })
 
 test('scope gate emits dependency review output only for dependency file PRs', async () => {
