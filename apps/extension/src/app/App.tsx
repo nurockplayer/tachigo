@@ -106,6 +106,10 @@ export default function App() {
   }, [currentLanguage, flags, hudState, isHydrated, redeemedCouponIds, tcgBalance])
 
   useEffect(() => {
+    if (!isHydrated) {
+      return
+    }
+
     const runtimeMessages = globalThis.chrome?.runtime?.onMessage
     if (!runtimeMessages) {
       return
@@ -117,7 +121,7 @@ export default function App() {
 
     runtimeMessages.addListener(handleRuntimeMessage)
     return () => runtimeMessages.removeListener(handleRuntimeMessage)
-  }, [])
+  }, [isHydrated])
 
   const handleClaim = (cpcAmount: number) => {
     setHudState((previousHudState) => {

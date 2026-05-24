@@ -65,7 +65,12 @@ export function installTwitchChatDetector(options: InstallOptions = {}) {
 
   const handleKeydown = (event: Event) => {
     const keyboardEvent = event as KeyboardEvent
-    if (keyboardEvent.key !== 'Enter' || keyboardEvent.shiftKey) {
+    if (
+      keyboardEvent.key !== 'Enter' ||
+      keyboardEvent.shiftKey ||
+      keyboardEvent.isComposing ||
+      keyboardEvent.repeat
+    ) {
       return
     }
 

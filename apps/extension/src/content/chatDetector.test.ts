@@ -73,8 +73,12 @@ class FakeDocument {
   }
 }
 
-function createKeyboardEvent(target: FakeElement, key: string, shiftKey = false): Event {
-  return { key, shiftKey, target } as unknown as Event
+function createKeyboardEvent(
+  target: FakeElement,
+  key: string,
+  options: { isComposing?: boolean; repeat?: boolean; shiftKey?: boolean } = {},
+): Event {
+  return { key, shiftKey: false, target, ...options } as unknown as Event
 }
 
 function createEvent(target: FakeElement): Event {
@@ -123,7 +127,31 @@ test('installTwitchChatDetector posts CHAT_SENT for Enter in chat input but igno
     },
   })
 
-  document.dispatch('keydown', createKeyboardEvent(chatInput, 'Enter', true))
+  document.dispatch('keydown', createKeyboardEvent(chatInput, 'Enter', { shiftKey: true }))
+  document.dispatch('keydown', createKeyboardEvent(chatInput, 'Enter'))
+
+  assert.deepEqual(sentMessages, [{ type: CHAT_SENT_MESSAGE_TYPE }])
+})
+
+test('installTwitchChatDetector ignores IME composition and repeated Enter keydown events', () => {
+  const document = new FakeDocument()
+  const sentMessages: unknown[] = []
+  const chatInput = new FakeElement('DIV', {
+    'data-a-target': 'chat-input',
+    contenteditable: 'true',
+  })
+
+  installTwitchChatDetector({
+    document,
+    runtime: {
+      sendMessage(message: unknown) {
+        sentMessages.push(message)
+      },
+    },
+  })
+
+  document.dispatch('keydown', createKeyboardEvent(chatInput, 'Enter', { isComposing: true }))
+  document.dispatch('keydown', createKeyboardEvent(chatInput, 'Enter', { repeat: true }))
   document.dispatch('keydown', createKeyboardEvent(chatInput, 'Enter'))
 
   assert.deepEqual(sentMessages, [{ type: CHAT_SENT_MESSAGE_TYPE }])
