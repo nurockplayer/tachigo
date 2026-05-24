@@ -1,5 +1,6 @@
 import type { Dispatch, SetStateAction } from 'react'
 
+import { EntryScene } from '../components/EntryScene'
 import { LoadingScreen } from '../components/LoadingScreen'
 import { LoginScreen } from '../components/LoginScreen'
 import { MarioHUD } from '../components/MarioHUD'
@@ -31,14 +32,7 @@ export function SceneRenderer({ hudState, onHudStateChange }: SceneRendererProps
 
   switch (state.scene) {
     case 'entry':
-      return (
-        <PlaceholderSurface
-          eyebrow="Tachigo"
-          title="Dive to Mine"
-          body="Press anywhere to enter the extension flow."
-          onClick={() => goScene('login')}
-        />
-      )
+      return <EntryScene onEnter={() => goScene('login')} />
     case 'login':
       return (
         <LoginScreen
