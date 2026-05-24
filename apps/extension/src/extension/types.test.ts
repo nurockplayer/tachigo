@@ -32,6 +32,7 @@ test('sanitizeDemoState returns fresh default objects instead of shared referenc
       countdown: 60,
       isWatching: true,
       clickCount: 0,
+      chatCount: 0,
     },
     tcgBalance: 0,
     redeemedCouponIds: [],
@@ -55,6 +56,7 @@ test('sanitizeHudDemoState rejects non-finite numeric values', async () => {
       countdown: 60,
       isWatching: false,
       clickCount: 0,
+      chatCount: 0,
     },
   )
 })
@@ -80,10 +82,12 @@ test('sanitizeHudDemoState normalizes negative zero to positive zero', async () 
     countdown: -0,
     isWatching: true,
     clickCount: -0,
+    chatCount: -0,
   })
 
   assert.equal(Object.is(sanitized.points, -0), false)
   assert.equal(Object.is(sanitized.totalPoints, -0), false)
   assert.equal(Object.is(sanitized.countdown, -0), false)
   assert.equal(Object.is(sanitized.clickCount, -0), false)
+  assert.equal(Object.is(sanitized.chatCount, -0), false)
 })

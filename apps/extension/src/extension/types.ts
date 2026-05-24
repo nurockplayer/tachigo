@@ -23,6 +23,7 @@ export interface HudDemoState {
   countdown: number
   isWatching: boolean
   clickCount: number
+  chatCount: number
 }
 
 export type CouponRedeemResult = 'success' | 'insufficient' | 'already_redeemed'
@@ -41,6 +42,7 @@ export const defaultHudDemoState: HudDemoState = {
   countdown: 60,
   isWatching: true,
   clickCount: 0,
+  chatCount: 0,
 }
 
 export const defaultDemoState: DemoState = {
@@ -93,6 +95,7 @@ export function sanitizeHudDemoState(value: unknown): HudDemoState {
     countdown: toNonNegativeFiniteNumber(candidate.countdown, defaultHudDemoState.countdown),
     isWatching: typeof candidate.isWatching === 'boolean' ? candidate.isWatching : defaultHudDemoState.isWatching,
     clickCount: toNonNegativeFiniteNumber(candidate.clickCount, defaultHudDemoState.clickCount),
+    chatCount: toNonNegativeFiniteNumber(candidate.chatCount, defaultHudDemoState.chatCount),
   }
 }
 

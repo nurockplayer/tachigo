@@ -3,14 +3,14 @@
   "name": "Tachimint Dev",
   "description": "Tachimint Chrome sidepanel extension for local development.",
   "version": "0.0.1",
-  "permissions": ["sidePanel", "storage", "activeTab"],
+  "permissions": ["sidePanel", "storage", "activeTab", "tabs"],
   "background": {
     "service_worker": "assets/background.js",
     "type": "module"
   },
   "content_scripts": [
     {
-      "matches": ["http://localhost:3000/*"],
+      "matches": ["http://localhost:3000/*", "*://*.twitch.tv/*"],
       "js": ["assets/content.js"]
     }
   ],
