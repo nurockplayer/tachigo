@@ -3,6 +3,7 @@ package handlers_test
 import (
 	"net/http"
 	"net/http/httptest"
+	"strings"
 	"testing"
 
 	"github.com/gin-gonic/gin"
@@ -133,6 +134,179 @@ type rbacMatrixCase struct {
 	want int
 }
 
+type rbacRouteKey struct {
+	method string
+	path   string
+}
+
+type rbacMatrixRoute struct {
+	name        string
+	method      string
+	routePath   string
+	requestPath string
+	cases       []rbacMatrixCase
+}
+
+func adminOnlyRBACCases() []rbacMatrixCase {
+	return []rbacMatrixCase{
+		{name: "viewer forbidden", role: models.RoleViewer, want: http.StatusForbidden},
+		{name: "streamer forbidden", role: models.RoleStreamer, want: http.StatusForbidden},
+		{name: "agency forbidden", role: models.RoleAgency, want: http.StatusForbidden},
+		{name: "admin allowed", role: models.RoleAdmin, want: http.StatusNotImplemented},
+	}
+}
+
+func agencyOperatorRBACCases() []rbacMatrixCase {
+	return []rbacMatrixCase{
+		{name: "viewer forbidden", role: models.RoleViewer, want: http.StatusForbidden},
+		{name: "streamer forbidden", role: models.RoleStreamer, want: http.StatusForbidden},
+		{name: "agency allowed", role: models.RoleAgency, want: http.StatusNotImplemented},
+		{name: "admin allowed", role: models.RoleAdmin, want: http.StatusNotImplemented},
+	}
+}
+
+func eventOperatorRBACCases() []rbacMatrixCase {
+	return []rbacMatrixCase{
+		{name: "viewer forbidden", role: models.RoleViewer, want: http.StatusForbidden},
+		{name: "streamer allowed", role: models.RoleStreamer, want: http.StatusNotImplemented},
+		{name: "agency allowed", role: models.RoleAgency, want: http.StatusNotImplemented},
+		{name: "admin allowed", role: models.RoleAdmin, want: http.StatusNotImplemented},
+	}
+}
+
+func dashboardOperatorRBACCases() []rbacMatrixCase {
+	return []rbacMatrixCase{
+		{name: "viewer forbidden", role: models.RoleViewer, want: http.StatusForbidden},
+		{name: "streamer allowed", role: models.RoleStreamer, want: http.StatusNotImplemented},
+		{name: "agency allowed", role: models.RoleAgency, want: http.StatusNotImplemented},
+		{name: "admin allowed", role: models.RoleAdmin, want: http.StatusNotImplemented},
+	}
+}
+
+func centralizedRBACMatrixRoutes() []rbacMatrixRoute {
+	return []rbacMatrixRoute{
+		{
+			name:        "create agency is admin only",
+			method:      http.MethodPost,
+			routePath:   "/api/v1/agencies",
+			requestPath: "/api/v1/agencies",
+			cases:       adminOnlyRBACCases(),
+		},
+		{
+			name:        "agency detail allows agency or admin only",
+			method:      http.MethodGet,
+			routePath:   "/api/v1/agencies/:id",
+			requestPath: "/api/v1/agencies/agency_1",
+			cases:       agencyOperatorRBACCases(),
+		},
+		{
+			name:        "update agency settings allows agency or admin only",
+			method:      http.MethodPut,
+			routePath:   "/api/v1/agencies/:id/settings",
+			requestPath: "/api/v1/agencies/agency_1/settings",
+			cases:       agencyOperatorRBACCases(),
+		},
+		{
+			name:        "list agency streamers allows agency or admin only",
+			method:      http.MethodGet,
+			routePath:   "/api/v1/agencies/:id/streamers",
+			requestPath: "/api/v1/agencies/agency_1/streamers",
+			cases:       agencyOperatorRBACCases(),
+		},
+		{
+			name:        "resend setup is admin only",
+			method:      http.MethodPost,
+			routePath:   "/api/v1/agencies/:id/resend-setup",
+			requestPath: "/api/v1/agencies/agency_1/resend-setup",
+			cases:       adminOnlyRBACCases(),
+		},
+		{
+			name:        "create streamer is admin only",
+			method:      http.MethodPost,
+			routePath:   "/api/v1/dashboard/streamers",
+			requestPath: "/api/v1/dashboard/streamers",
+			cases:       adminOnlyRBACCases(),
+		},
+		{
+			name:        "list streamers is agency or admin only",
+			method:      http.MethodGet,
+			routePath:   "/api/v1/dashboard/streamers",
+			requestPath: "/api/v1/dashboard/streamers",
+			cases:       agencyOperatorRBACCases(),
+		},
+		{
+			name:        "channel config read allows dashboard operators",
+			method:      http.MethodGet,
+			routePath:   "/api/v1/dashboard/channels/:channel_id/config",
+			requestPath: "/api/v1/dashboard/channels/ch_ctx/config",
+			cases:       dashboardOperatorRBACCases(),
+		},
+		{
+			name:        "create event allows event operators",
+			method:      http.MethodPost,
+			routePath:   "/api/v1/events/create",
+			requestPath: "/api/v1/events/create",
+			cases:       eventOperatorRBACCases(),
+		},
+		{
+			name:        "settle event allows event operators",
+			method:      http.MethodPost,
+			routePath:   "/api/v1/events/:id/settle",
+			requestPath: "/api/v1/events/1/settle",
+			cases:       eventOperatorRBACCases(),
+		},
+		{
+			name:        "admin users is admin only",
+			method:      http.MethodGet,
+			routePath:   "/api/v1/admin/users",
+			requestPath: "/api/v1/admin/users",
+			cases:       adminOnlyRBACCases(),
+		},
+	}
+}
+
+func isRBACStubRoute(path string) bool {
+	switch {
+	case path == "/api/v1/agencies" || strings.HasPrefix(path, "/api/v1/agencies/"):
+		return true
+	case strings.HasPrefix(path, "/api/v1/dashboard/"):
+		return true
+	case strings.HasPrefix(path, "/api/v1/events/"):
+		return true
+	case strings.HasPrefix(path, "/api/v1/admin/"):
+		return true
+	default:
+		return false
+	}
+}
+
+func TestRBACMatrix_CoversAllProtectedStubRoutes(t *testing.T) {
+	env := newRBACTestEnv(t)
+
+	actualRoutes := map[rbacRouteKey]bool{}
+	for _, route := range env.router.Routes() {
+		if isRBACStubRoute(route.Path) {
+			actualRoutes[rbacRouteKey{method: route.Method, path: route.Path}] = true
+		}
+	}
+
+	matrixRoutes := map[rbacRouteKey]bool{}
+	for _, route := range centralizedRBACMatrixRoutes() {
+		matrixRoutes[rbacRouteKey{method: route.method, path: route.routePath}] = true
+	}
+
+	for route := range actualRoutes {
+		if !matrixRoutes[route] {
+			t.Errorf("%s %s is missing centralized RBAC matrix coverage", route.method, route.path)
+		}
+	}
+	for route := range matrixRoutes {
+		if !actualRoutes[route] {
+			t.Errorf("%s %s has stale centralized RBAC matrix coverage", route.method, route.path)
+		}
+	}
+}
+
 func assertRBACMatrix(t *testing.T, env *rbacEnv, method, path string, cases []rbacMatrixCase) {
 	t.Helper()
 
@@ -155,139 +329,11 @@ func assertRBACMatrix(t *testing.T, env *rbacEnv, method, path string, cases []r
 	}
 }
 
-func TestRBACMatrix_DashboardRoutes(t *testing.T) {
-	tests := []struct {
-		name   string
-		method string
-		path   string
-		cases  []rbacMatrixCase
-	}{
-		{
-			name:   "create streamer is admin only",
-			method: http.MethodPost,
-			path:   "/api/v1/dashboard/streamers",
-			cases: []rbacMatrixCase{
-				{name: "viewer forbidden", role: models.RoleViewer, want: http.StatusForbidden},
-				{name: "streamer forbidden", role: models.RoleStreamer, want: http.StatusForbidden},
-				{name: "agency forbidden", role: models.RoleAgency, want: http.StatusForbidden},
-				{name: "admin allowed", role: models.RoleAdmin, want: http.StatusNotImplemented},
-			},
-		},
-		{
-			name:   "list streamers is agency or admin only",
-			method: http.MethodGet,
-			path:   "/api/v1/dashboard/streamers",
-			cases: []rbacMatrixCase{
-				{name: "viewer forbidden", role: models.RoleViewer, want: http.StatusForbidden},
-				{name: "streamer forbidden", role: models.RoleStreamer, want: http.StatusForbidden},
-				{name: "agency allowed", role: models.RoleAgency, want: http.StatusNotImplemented},
-				{name: "admin allowed", role: models.RoleAdmin, want: http.StatusNotImplemented},
-			},
-		},
-		{
-			name:   "channel config read allows dashboard operators",
-			method: http.MethodGet,
-			path:   "/api/v1/dashboard/channels/ch_ctx/config",
-			cases: []rbacMatrixCase{
-				{name: "viewer forbidden", role: models.RoleViewer, want: http.StatusForbidden},
-				{name: "streamer allowed", role: models.RoleStreamer, want: http.StatusNotImplemented},
-				{name: "agency allowed", role: models.RoleAgency, want: http.StatusNotImplemented},
-				{name: "admin allowed", role: models.RoleAdmin, want: http.StatusNotImplemented},
-			},
-		},
-	}
-
-	for _, tt := range tests {
-		t.Run(tt.name, func(t *testing.T) {
+func TestRBACMatrix_ProtectedStubRoutes(t *testing.T) {
+	for _, route := range centralizedRBACMatrixRoutes() {
+		t.Run(route.name, func(t *testing.T) {
 			env := newRBACTestEnv(t)
-			assertRBACMatrix(t, env, tt.method, tt.path, tt.cases)
-		})
-	}
-}
-
-func TestRBACMatrix_AgencyReadAndSetupRoutes(t *testing.T) {
-	tests := []struct {
-		name   string
-		method string
-		path   string
-		cases  []rbacMatrixCase
-	}{
-		{
-			name:   "agency detail allows agency or admin only",
-			method: http.MethodGet,
-			path:   "/api/v1/agencies/agency_1",
-			cases: []rbacMatrixCase{
-				{name: "viewer forbidden", role: models.RoleViewer, want: http.StatusForbidden},
-				{name: "streamer forbidden", role: models.RoleStreamer, want: http.StatusForbidden},
-				{name: "agency allowed", role: models.RoleAgency, want: http.StatusNotImplemented},
-				{name: "admin allowed", role: models.RoleAdmin, want: http.StatusNotImplemented},
-			},
-		},
-		{
-			name:   "resend setup is admin only",
-			method: http.MethodPost,
-			path:   "/api/v1/agencies/agency_1/resend-setup",
-			cases: []rbacMatrixCase{
-				{name: "viewer forbidden", role: models.RoleViewer, want: http.StatusForbidden},
-				{name: "streamer forbidden", role: models.RoleStreamer, want: http.StatusForbidden},
-				{name: "agency forbidden", role: models.RoleAgency, want: http.StatusForbidden},
-				{name: "admin allowed", role: models.RoleAdmin, want: http.StatusNotImplemented},
-			},
-		},
-	}
-
-	for _, tt := range tests {
-		t.Run(tt.name, func(t *testing.T) {
-			env := newRBACTestEnv(t)
-			assertRBACMatrix(t, env, tt.method, tt.path, tt.cases)
-		})
-	}
-}
-
-func TestRBACMatrix_EventAndAdminStubRoutes(t *testing.T) {
-	eventOperatorCases := []rbacMatrixCase{
-		{name: "viewer forbidden", role: models.RoleViewer, want: http.StatusForbidden},
-		{name: "streamer allowed", role: models.RoleStreamer, want: http.StatusNotImplemented},
-		{name: "agency allowed", role: models.RoleAgency, want: http.StatusNotImplemented},
-		{name: "admin allowed", role: models.RoleAdmin, want: http.StatusNotImplemented},
-	}
-	adminOnlyCases := []rbacMatrixCase{
-		{name: "viewer forbidden", role: models.RoleViewer, want: http.StatusForbidden},
-		{name: "streamer forbidden", role: models.RoleStreamer, want: http.StatusForbidden},
-		{name: "agency forbidden", role: models.RoleAgency, want: http.StatusForbidden},
-		{name: "admin allowed", role: models.RoleAdmin, want: http.StatusNotImplemented},
-	}
-
-	tests := []struct {
-		name   string
-		method string
-		path   string
-		cases  []rbacMatrixCase
-	}{
-		{
-			name:   "create event allows event operators",
-			method: http.MethodPost,
-			path:   "/api/v1/events/create",
-			cases:  eventOperatorCases,
-		},
-		{
-			name:   "settle event allows event operators",
-			method: http.MethodPost,
-			path:   "/api/v1/events/1/settle",
-			cases:  eventOperatorCases,
-		},
-		{
-			name:   "admin users is admin only",
-			method: http.MethodGet,
-			path:   "/api/v1/admin/users",
-			cases:  adminOnlyCases,
-		},
-	}
-
-	for _, tt := range tests {
-		t.Run(tt.name, func(t *testing.T) {
-			env := newRBACTestEnv(t)
-			assertRBACMatrix(t, env, tt.method, tt.path, tt.cases)
+			assertRBACMatrix(t, env, route.method, route.requestPath, route.cases)
 		})
 	}
 }
