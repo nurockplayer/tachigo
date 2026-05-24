@@ -49,6 +49,9 @@ test('renders entry scene and enters login on press', () => {
 
   expect(screen.getByRole('heading', { name: 'TACHIGO' })).toBeTruthy()
   expect(screen.getByText('PRESS ANYWHERE TO DIVE IN')).toBeTruthy()
+  expect(screen.getByTestId('entry-motion-layer')).toBeTruthy()
+  expect(screen.getAllByTestId('entry-motion-bubble')).toHaveLength(5)
+  expect(screen.getByTestId('entry-current-ribbon')).toBeTruthy()
 
   fireEvent.click(screen.getByRole('button', { name: /PRESS ANYWHERE TO DIVE IN/i }))
 
