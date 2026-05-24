@@ -447,7 +447,6 @@ jobs:
             const hardMaxDiffLines = 1000
             const warningDiffLines = 600
             const autoCloseLabel = 'scope-violation'
-            const dependencyLabel = 'blocked-by-dependency'
             const owner = context.repo.owner
             const repo = context.repo.repo
 
@@ -832,7 +831,6 @@ jobs:
               `- Auto-close triggered: ${severeFailures.length > 0 ? 'yes' : 'no'}`,
             )
             summaryLines.push(`- Auto-close label: \`${autoCloseLabel}\``)
-            summaryLines.push(`- Dependency block label: \`${dependencyLabel}\``)
             summaryLines.push('- Bypass label: `scope-exception`')
 
             const commentBody = summaryLines.join('\n')
@@ -921,31 +919,6 @@ jobs:
                   repo,
                   issue_number: pr.number,
                   name: autoCloseLabel,
-                })
-              } catch (error) {
-                if (error.status !== 404) throw error
-              }
-            }
-
-            if (dependencyFailures.length > 0) {
-              await ensureLabel(
-                dependencyLabel,
-                '1D76DB',
-                'PR is blocked by an unmerged dependency or undeployed backend contract',
-              )
-              await github.rest.issues.addLabels({
-                owner,
-                repo,
-                issue_number: pr.number,
-                labels: [dependencyLabel],
-              })
-            } else if (labels.includes(dependencyLabel)) {
-              try {
-                await github.rest.issues.removeLabel({
-                  owner,
-                  repo,
-                  issue_number: pr.number,
-                  name: dependencyLabel,
                 })
               } catch (error) {
                 if (error.status !== 404) throw error
