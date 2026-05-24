@@ -1,33 +1,30 @@
-import { useEffect, useRef, useState, type CSSProperties } from 'react';
+import { useEffect, useRef, useState, type CSSProperties, type Dispatch, type SetStateAction } from 'react'
 import { useTranslation } from 'react-i18next'
 
-import { loadDemoState, saveDemoState } from '../extension/storage';
+import { loadDemoState, saveDemoState } from '../extension/storage'
 import {
-  defaultDemoScreen,
   defaultDemoState,
   normalizeAppLanguage,
-  type DemoScreen,
   type HudDemoState,
-} from '../extension/types';
+} from '../extension/types'
 import type { NavigationFlags } from './navigation/types'
-import type { AppLanguage } from '../i18n';
-import { LoadingScreen } from './components/LoadingScreen';
-import { LoginScreen } from './components/LoginScreen';
-import { LanguageSwitcher } from './components/LanguageSwitcher';
-import { MarioHUD } from './components/MarioHUD';
-import { ClaimPanel } from './components/ClaimPanel';
-import { CouponShopPanel } from './components/CouponShopPanel';
-import { RaffleResultPanel } from './components/RaffleResultPanel';
-import { OnboardingOverlay } from './components/OnboardingOverlay';
-import { markOnboardingComplete, shouldShowOnboarding } from './onboarding';
-import { useTwitch } from '../hooks/useTwitch';
-import { executeCouponRedeem, type CouponRedeemOutcome } from './couponRedeem';
+import type { AppLanguage } from '../i18n'
+import { OnboardingOverlay } from './components/OnboardingOverlay'
+import { DevNavigationControls } from './navigation/DevNavigationControls'
+import { NavigationProvider } from './navigation/NavigationProvider'
+import { OverlayHost } from './navigation/OverlayHost'
+import { SceneRenderer } from './navigation/SceneRenderer'
+import { useNavigation } from './navigation/useNavigation'
+import { markOnboardingComplete, shouldShowOnboarding } from './onboarding'
+import { useTwitch } from '../hooks/useTwitch'
+import { claimFromHudState } from './claimState'
+import { executeCouponRedeem, type CouponRedeemOutcome } from './couponRedeem'
 
 export default function App() {
   const { i18n } = useTranslation()
   const { jwt } = useTwitch()
   const isPopupMode = typeof window !== 'undefined' && window.location.pathname.endsWith('/popup.html')
-  const [currentLanguage, setCurrentLanguage] = useState<AppLanguage>(defaultDemoState.language);
+  const [currentLanguage, setCurrentLanguage] = useState<AppLanguage>(defaultDemoState.language)
   const useZpixLanguage = currentLanguage === 'zh-TW' || currentLanguage === 'zh-CN'
   const fontVariables = {
     '--ui-font-family': useZpixLanguage
@@ -37,16 +34,15 @@ export default function App() {
       ? "'Press Start 2P', 'Zpix CJK', monospace"
       : "'Press Start 2P', monospace",
   } as CSSProperties
-  const [isHydrated, setIsHydrated] = useState(false);
-  const [screen, setScreen] = useState<DemoScreen>(defaultDemoScreen);
-  const [flags, setFlags] = useState<NavigationFlags>(() => ({ ...defaultDemoState.flags }));
-  const [hudState, setHudState] = useState<HudDemoState>(defaultDemoState.hud);
-  const [tcgBalance, setTcgBalance] = useState(defaultDemoState.tcgBalance);
-  const [redeemedCouponIds, setRedeemedCouponIds] = useState<string[]>(defaultDemoState.redeemedCouponIds);
-  const [voucherCodes, setVoucherCodes] = useState<Record<string, string>>({});
-  const [currentRaffleId, setCurrentRaffleId] = useState('');
-  const tcgBalanceRef = useRef(defaultDemoState.tcgBalance);
-  const redeemedCouponIdsRef = useRef<string[]>([...defaultDemoState.redeemedCouponIds]);
+  const [isHydrated, setIsHydrated] = useState(false)
+  const [flags, setFlags] = useState<NavigationFlags>(() => ({ ...defaultDemoState.flags }))
+  const [hudState, setHudState] = useState<HudDemoState>(defaultDemoState.hud)
+  const [tcgBalance, setTcgBalance] = useState(defaultDemoState.tcgBalance)
+  const [redeemedCouponIds, setRedeemedCouponIds] = useState<string[]>(defaultDemoState.redeemedCouponIds)
+  const [voucherCodes, setVoucherCodes] = useState<Record<string, string>>({})
+  const [currentRaffleId, setCurrentRaffleId] = useState('')
+  const tcgBalanceRef = useRef(defaultDemoState.tcgBalance)
+  const redeemedCouponIdsRef = useRef<string[]>([...defaultDemoState.redeemedCouponIds])
 
   useEffect(() => {
     let isActive = true
@@ -109,17 +105,20 @@ export default function App() {
   }, [currentLanguage, flags, hudState, isHydrated, redeemedCouponIds, tcgBalance])
 
   const handleClaim = (cpcAmount: number) => {
-    const claimable = Math.max(0, Math.min(cpcAmount, hudState.points))
-    if (claimable === 0) {
-      return
-    }
+    setHudState((previousHudState) => {
+      const { claimable, nextHudState } = claimFromHudState(previousHudState, cpcAmount)
+      if (claimable === 0) {
+        return previousHudState
+      }
 
-    const tcgGained = Number((claimable * 0.1).toFixed(2))
-    setHudState((s) => ({ ...s, points: s.points - claimable }))
-    setTcgBalance((t) => {
-      const next = Number((t + tcgGained).toFixed(2))
-      tcgBalanceRef.current = next
-      return next
+      const tcgGained = Number((claimable * 0.1).toFixed(2))
+      setTcgBalance((previousTcgBalance) => {
+        const nextTcgBalance = Number((previousTcgBalance + tcgGained).toFixed(2))
+        tcgBalanceRef.current = nextTcgBalance
+        return nextTcgBalance
+      })
+
+      return nextHudState
     })
   }
 
@@ -150,45 +149,78 @@ export default function App() {
     })
   }
 
-  const completeOnboarding = () => {
-    setFlags(markOnboardingComplete)
-  }
-  const showOnboarding = shouldShowOnboarding(screen, flags)
-
   if (!isHydrated) {
-    return (
-      <div
-        style={{
-          minHeight: '100vh',
-          background: '#06060f',
-          display: 'flex',
-          alignItems: 'center',
-          justifyContent: 'center',
-          padding: 24,
-          fontFamily: 'var(--pixel-font-family)',
-          ...fontVariables,
-        }}
-      >
-        <div
-          style={{
-            width: 320,
-            height: 600,
-            borderRadius: 12,
-            overflow: 'hidden',
-            border: '1px solid rgba(255,255,255,0.07)',
-            boxShadow: '0 0 0 1px rgba(0,0,0,0.9), 0 8px 48px rgba(0,0,0,0.9)',
-            display: 'flex',
-            alignItems: 'center',
-            justifyContent: 'center',
-            color: 'rgba(145,70,255,0.9)',
-            letterSpacing: '0.08em',
-            fontSize: 10,
-          }}
-        >
-          PREPARING PANEL...
-        </div>
-      </div>
-    )
+    return <HydrationShell fontVariables={fontVariables} />
+  }
+
+  return (
+    <NavigationProvider initialFlags={flags}>
+      <AppShell
+        currentLanguage={currentLanguage}
+        currentRaffleId={currentRaffleId}
+        fontVariables={fontVariables}
+        hudState={hudState}
+        isPopupMode={isPopupMode}
+        redeemedCouponIds={redeemedCouponIds}
+        tcgBalance={tcgBalance}
+        voucherCodes={voucherCodes}
+        onChangeLanguage={handleLanguageChange}
+        onChangeRaffleId={setCurrentRaffleId}
+        onClaim={handleClaim}
+        onCouponRedeem={handleCouponRedeem}
+        onFlagsChange={setFlags}
+        onHudStateChange={setHudState}
+        onOpenPopupMode={openPopupMode}
+      />
+    </NavigationProvider>
+  )
+}
+
+interface AppShellProps {
+  currentLanguage: AppLanguage
+  currentRaffleId: string
+  fontVariables: CSSProperties
+  hudState: HudDemoState
+  isPopupMode: boolean
+  redeemedCouponIds: string[]
+  tcgBalance: number
+  voucherCodes: Record<string, string>
+  onChangeLanguage: (language: AppLanguage) => void
+  onChangeRaffleId: (raffleId: string) => void
+  onClaim: (cpcAmount: number) => void
+  onCouponRedeem: (couponId: string, cost: number) => Promise<CouponRedeemOutcome>
+  onFlagsChange: Dispatch<SetStateAction<NavigationFlags>>
+  onHudStateChange: Dispatch<SetStateAction<HudDemoState>>
+  onOpenPopupMode: () => void
+}
+
+function AppShell({
+  currentLanguage,
+  currentRaffleId,
+  fontVariables,
+  hudState,
+  isPopupMode,
+  redeemedCouponIds,
+  tcgBalance,
+  voucherCodes,
+  onChangeLanguage,
+  onChangeRaffleId,
+  onClaim,
+  onCouponRedeem,
+  onFlagsChange,
+  onHudStateChange,
+  onOpenPopupMode,
+}: AppShellProps) {
+  const { state, setFlag } = useNavigation()
+  const showOnboarding = shouldShowOnboarding(state.scene, state.flags)
+
+  useEffect(() => {
+    onFlagsChange(state.flags)
+  }, [onFlagsChange, state.flags])
+
+  const completeOnboarding = () => {
+    const nextFlags = markOnboardingComplete(state.flags)
+    setFlag('onboardingVersion', nextFlags.onboardingVersion)
   }
 
   return (
@@ -207,7 +239,59 @@ export default function App() {
         ...fontVariables,
       }}
     >
-      {/* Extension frame */}
+      <div
+        style={{
+          width: 'min(100%, 430px)',
+          minWidth: 320,
+          minHeight: 600,
+          height: 'min(720px, calc(100vh - 104px))',
+          borderRadius: 12,
+          overflow: 'hidden',
+          border: '1px solid rgba(255,255,255,0.07)',
+          boxShadow: '0 0 0 1px rgba(0,0,0,0.9), 0 8px 48px rgba(0,0,0,0.9)',
+          flexShrink: 0,
+          position: 'relative',
+        }}
+      >
+        <SceneRenderer hudState={hudState} onHudStateChange={onHudStateChange} />
+        <OverlayHost
+          cpcBalance={hudState.points}
+          tcgBalance={tcgBalance}
+          redeemedCouponIds={redeemedCouponIds}
+          voucherCodes={voucherCodes}
+          onClaim={onClaim}
+          onCouponRedeem={onCouponRedeem}
+        />
+        {showOnboarding ? <OnboardingOverlay onComplete={completeOnboarding} /> : null}
+      </div>
+
+      <DevNavigationControls
+        isDev={import.meta.env.DEV}
+        isPopupMode={isPopupMode}
+        currentLanguage={currentLanguage}
+        raffleId={currentRaffleId}
+        onChangeLanguage={onChangeLanguage}
+        onChangeRaffleId={onChangeRaffleId}
+        onOpenPopupMode={onOpenPopupMode}
+      />
+    </div>
+  )
+}
+
+function HydrationShell({ fontVariables }: { fontVariables: CSSProperties }) {
+  return (
+    <div
+      style={{
+        minHeight: '100vh',
+        background: '#06060f',
+        display: 'flex',
+        alignItems: 'center',
+        justifyContent: 'center',
+        padding: 24,
+        fontFamily: 'var(--pixel-font-family)',
+        ...fontVariables,
+      }}
+    >
       <div
         style={{
           width: 320,
@@ -215,209 +299,17 @@ export default function App() {
           borderRadius: 12,
           overflow: 'hidden',
           border: '1px solid rgba(255,255,255,0.07)',
-          boxShadow:
-            '0 0 0 1px rgba(0,0,0,0.9), 0 8px 48px rgba(0,0,0,0.9)',
-          flexShrink: 0,
-          position: 'relative',
-        }}
-      >
-        {screen === 'login' ? (
-          <LoginScreen onLogin={() => setScreen('loading')} />
-        ) : screen === 'loading' ? (
-          <LoadingScreen onComplete={() => setScreen('hud')} />
-        ) : screen === 'claim' ? (
-          <ClaimPanel
-              onBack={() => setScreen('hud')}
-              cpcBalance={hudState.points}
-              tcgBalance={tcgBalance}
-              onClaim={handleClaim}
-            />
-        ) : screen === 'coupon' ? (
-          <CouponShopPanel
-            onBack={() => setScreen('hud')}
-            tcgBalance={tcgBalance}
-            redeemedCouponIds={redeemedCouponIds}
-            voucherCodes={voucherCodes}
-            onRedeem={handleCouponRedeem}
-          />
-        ) : screen === 'raffle' ? (
-          <RaffleResultPanel
-            raffleId={currentRaffleId}
-            onBack={() => setScreen('hud')}
-          />
-        ) : (
-          <MarioHUD state={hudState} onStateChange={setHudState} onNavigate={(s) => setScreen(s)} />
-        )}
-        {showOnboarding ? (
-          <OnboardingOverlay onComplete={completeOnboarding} />
-        ) : null}
-      </div>
-
-      {/* Demo controls */}
-      <div
-        style={{
+          boxShadow: '0 0 0 1px rgba(0,0,0,0.9), 0 8px 48px rgba(0,0,0,0.9)',
           display: 'flex',
-          flexDirection: 'column',
           alignItems: 'center',
           justifyContent: 'center',
-          gap: 8,
-          width: 320,
-          maxWidth: '100%',
-          position: 'relative',
-          zIndex: 2,
+          color: 'rgba(145,70,255,0.9)',
+          letterSpacing: '0.08em',
+          fontSize: 10,
         }}
       >
-        <div style={{ display: 'flex', alignItems: 'center', justifyContent: 'center', gap: 8, flexWrap: 'wrap' }}>
-          <button
-            onClick={() => setScreen('login')}
-            style={{
-              padding: '4px 12px',
-              borderRadius: 4,
-              border: '1px solid rgba(255,255,255,0.1)',
-              background: screen === 'login' ? 'rgba(200,168,73,0.15)' : 'transparent',
-              color: screen === 'login' ? 'rgba(200,168,73,0.8)' : 'rgba(100,100,140,0.4)',
-              fontSize: 9,
-              fontFamily: 'var(--pixel-font-family)',
-              cursor: 'pointer',
-              letterSpacing: '0.08em',
-            }}
-          >
-            LOGIN
-          </button>
-          <span style={{ fontSize: 10, color: 'rgba(100,100,140,0.3)', fontFamily: 'var(--pixel-font-family)' }}>·</span>
-          <button
-            onClick={() => setScreen('loading')}
-            style={{
-              padding: '4px 12px',
-              borderRadius: 4,
-              border: '1px solid rgba(255,255,255,0.1)',
-              background: screen === 'loading' ? 'rgba(200,168,73,0.15)' : 'transparent',
-              color: screen === 'loading' ? 'rgba(200,168,73,0.8)' : 'rgba(100,100,140,0.4)',
-              fontSize: 9,
-              fontFamily: 'var(--pixel-font-family)',
-              cursor: 'pointer',
-              letterSpacing: '0.08em',
-            }}
-          >
-            LOAD
-          </button>
-          <span style={{ fontSize: 10, color: 'rgba(100,100,140,0.3)', fontFamily: 'var(--pixel-font-family)' }}>·</span>
-          <button
-            onClick={() => setScreen('hud')}
-            style={{
-              padding: '4px 12px',
-              borderRadius: 4,
-              border: '1px solid rgba(255,255,255,0.1)',
-              background: screen === 'hud' ? 'rgba(200,168,73,0.15)' : 'transparent',
-              color: screen === 'hud' ? 'rgba(200,168,73,0.8)' : 'rgba(100,100,140,0.4)',
-              fontSize: 9,
-              fontFamily: 'var(--pixel-font-family)',
-              cursor: 'pointer',
-              letterSpacing: '0.08em',
-            }}
-          >
-            HUD
-          </button>
-          <span style={{ fontSize: 10, color: 'rgba(100,100,140,0.3)', fontFamily: 'var(--pixel-font-family)' }}>·</span>
-          <button
-            onClick={() => setScreen('coupon')}
-            style={{
-              padding: '4px 12px',
-              borderRadius: 4,
-              border: '1px solid rgba(255,255,255,0.1)',
-              background: screen === 'coupon' ? 'rgba(200,168,73,0.15)' : 'transparent',
-              color: screen === 'coupon' ? 'rgba(200,168,73,0.8)' : 'rgba(100,100,140,0.4)',
-              fontSize: 9,
-              fontFamily: 'var(--pixel-font-family)',
-              cursor: 'pointer',
-              letterSpacing: '0.08em',
-            }}
-          >
-            SHOP
-          </button>
-          <span style={{ fontSize: 10, color: 'rgba(100,100,140,0.3)', fontFamily: 'var(--pixel-font-family)' }}>·</span>
-          <button
-            onClick={() => setScreen('claim')}
-            style={{
-              padding: '4px 12px',
-              borderRadius: 4,
-              border: '1px solid rgba(255,255,255,0.1)',
-              background: screen === 'claim' ? 'rgba(200,168,73,0.15)' : 'transparent',
-              color: screen === 'claim' ? 'rgba(200,168,73,0.8)' : 'rgba(100,100,140,0.4)',
-              fontSize: 9,
-              fontFamily: 'var(--pixel-font-family)',
-              cursor: 'pointer',
-              letterSpacing: '0.08em',
-            }}
-          >
-            CLAIM
-          </button>
-          <span style={{ fontSize: 10, color: 'rgba(100,100,140,0.3)', fontFamily: 'var(--pixel-font-family)' }}>·</span>
-          <input
-            type="text"
-            placeholder="raffle id"
-            value={currentRaffleId}
-            onChange={(e) => setCurrentRaffleId(e.target.value)}
-            style={{
-              padding: '3px 6px',
-              borderRadius: 4,
-              border: '1px solid rgba(255,255,255,0.1)',
-              background: 'rgba(145,70,255,0.06)',
-              color: 'rgba(255,255,255,0.5)',
-              fontSize: 8,
-              fontFamily: 'var(--pixel-font-family)',
-              width: 72,
-              outline: 'none',
-            }}
-          />
-          <button
-            onClick={() => { const id = currentRaffleId.trim(); if (id) { setCurrentRaffleId(id); setScreen('raffle') } }}
-            style={{
-              padding: '4px 12px',
-              borderRadius: 4,
-              border: '1px solid rgba(255,255,255,0.1)',
-              background: screen === 'raffle' ? 'rgba(200,168,73,0.15)' : 'transparent',
-              color: screen === 'raffle' ? 'rgba(200,168,73,0.8)' : currentRaffleId.trim() ? 'rgba(145,70,255,0.6)' : 'rgba(100,100,140,0.4)',
-              fontSize: 9,
-              fontFamily: 'var(--pixel-font-family)',
-              cursor: currentRaffleId.trim() ? 'pointer' : 'default',
-              letterSpacing: '0.08em',
-            }}
-          >
-            RAFFLE
-          </button>
-          <span style={{ fontSize: 9, color: 'rgba(100,100,140,0.3)', fontFamily: 'var(--pixel-font-family)', marginLeft: 6 }}>
-            320 × 600
-          </span>
-        </div>
-        <div style={{ display: 'flex', alignItems: 'center', justifyContent: 'center', gap: 8, flexWrap: 'wrap' }}>
-          <LanguageSwitcher
-            currentLanguage={currentLanguage}
-            onChangeLanguage={handleLanguageChange}
-          />
-          {!isPopupMode && (
-            <>
-              <span style={{ fontSize: 10, color: 'rgba(100,100,140,0.3)', fontFamily: 'var(--pixel-font-family)' }}>·</span>
-              <button
-                onClick={openPopupMode}
-                style={{
-                  padding: '4px 10px',
-                  borderRadius: 4,
-                  border: '1px solid rgba(255,255,255,0.1)',
-                  background: 'transparent',
-                  color: 'rgba(145,70,255,0.85)',
-                  fontSize: 9,
-                  fontFamily: 'var(--pixel-font-family)',
-                  cursor: 'pointer',
-                  letterSpacing: '0.08em',
-                }}
-              >
-                POPUP
-              </button>
-            </>
-          )}
-        </div>
+        PREPARING PANEL...
       </div>
     </div>
-  );
+  )
 }
