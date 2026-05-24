@@ -286,6 +286,37 @@
   animation: capy-hud-big-mining-pickaxe 500ms ease-in-out;
 }
 
+/* ─── Entry Scene: lightweight ambient motion ─── */
+@keyframes entry-bubble-rise {
+  0%, 100% { opacity: 0.55; transform: translate3d(0, 4px, 0) scale(0.92); }
+  50%      { opacity: 1; transform: translate3d(6px, -16px, 0) scale(1.08); }
+}
+
+@keyframes entry-current-drift {
+  0%, 100% { opacity: 0.48; transform: translate3d(-3%, 0, 0); }
+  50%      { opacity: 0.86; transform: translate3d(3%, -3px, 0); }
+}
+
+@keyframes entry-whale-glide {
+  0%, 100% { transform: translate3d(-50%, 0, 0) rotate(-1deg); }
+  50%      { transform: translate3d(calc(-50% + 8px), -6px, 0) rotate(1.5deg); }
+}
+
+.entry-motion-bubble {
+  animation: entry-bubble-rise 5.8s ease-in-out infinite;
+  will-change: transform, opacity;
+}
+
+.entry-current-ribbon {
+  animation: entry-current-drift 7.2s ease-in-out infinite;
+  will-change: transform, opacity;
+}
+
+.entry-whale {
+  animation: entry-whale-glide 6.5s ease-in-out infinite;
+  will-change: transform;
+}
+
 @media (prefers-reduced-motion: reduce) {
   .capy-wrapper,
   .capy-idle,
@@ -307,7 +338,10 @@
   .passive-dot-error,
   .screen-enter,
   .loading-dot,
-  .btn-mine-ready {
+  .btn-mine-ready,
+  .entry-motion-bubble,
+  .entry-current-ribbon,
+  .entry-whale {
     animation: none !important;
     transition: none !important;
   }

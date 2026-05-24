@@ -13,6 +13,14 @@ const bubbleStyle: CSSProperties = {
   boxShadow: '0 0 16px rgba(125, 211, 252, 0.25)',
 }
 
+const motionBubbles: Array<CSSProperties> = [
+  { top: '16%', left: '18%', width: 11, height: 11, animationDelay: '0ms' },
+  { top: '23%', right: '22%', width: 17, height: 17, animationDelay: '480ms' },
+  { bottom: '33%', left: '12%', width: 8, height: 8, animationDelay: '960ms' },
+  { top: '42%', right: '11%', width: 10, height: 10, animationDelay: '1320ms' },
+  { bottom: '20%', left: '42%', width: 14, height: 14, animationDelay: '1740ms' },
+]
+
 export function EntryScene({ onEnter }: EntrySceneProps) {
   const { t } = useTranslation()
 
@@ -48,12 +56,44 @@ export function EntryScene({ onEnter }: EntrySceneProps) {
             'radial-gradient(circle at 20% 12%, rgba(224,242,254,0.28), transparent 20%), radial-gradient(circle at 75% 28%, rgba(45,212,191,0.28), transparent 24%), linear-gradient(180deg, transparent 55%, rgba(8,47,73,0.44) 100%)',
         }}
       />
-      <div style={{ ...bubbleStyle, top: '16%', left: '18%', width: 11, height: 11 }} />
-      <div style={{ ...bubbleStyle, top: '23%', right: '22%', width: 17, height: 17 }} />
-      <div style={{ ...bubbleStyle, bottom: '33%', left: '12%', width: 8, height: 8 }} />
+      <div
+        aria-hidden="true"
+        className="entry-motion-layer"
+        data-testid="entry-motion-layer"
+        style={{
+          position: 'absolute',
+          inset: 0,
+          pointerEvents: 'none',
+        }}
+      >
+        {motionBubbles.map((style, index) => (
+          <div
+            key={index}
+            className="entry-motion-bubble"
+            data-testid="entry-motion-bubble"
+            style={{ ...bubbleStyle, ...style }}
+          />
+        ))}
+        <div
+          className="entry-current-ribbon"
+          data-testid="entry-current-ribbon"
+          style={{
+            position: 'absolute',
+            top: '50%',
+            left: '-18%',
+            width: '136%',
+            height: 44,
+            borderRadius: 999,
+            background:
+              'linear-gradient(90deg, transparent 0%, rgba(186,230,253,0.12) 24%, rgba(45,212,191,0.22) 52%, rgba(14,165,233,0.12) 76%, transparent 100%)',
+            filter: 'blur(0.2px)',
+          }}
+        />
+      </div>
 
       <div
         aria-hidden="true"
+        className="entry-whale"
         style={{
           position: 'absolute',
           left: '50%',
