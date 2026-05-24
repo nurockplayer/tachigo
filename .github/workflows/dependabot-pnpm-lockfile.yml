@@ -55,12 +55,63 @@ jobs:
         working-directory: apps/extension
         run: pnpm install --lockfile-only --ignore-scripts --config.shared-workspace-lockfile=false
 
+      - name: Strip root-only overrides from app lockfiles
+        run: |
+          node <<'NODE'
+          const { existsSync, readFileSync, writeFileSync } = require('node:fs')
+
+          const appLockfiles = [
+            {
+              packagePath: 'apps/dashboard/package.json',
+              lockfilePath: 'apps/dashboard/pnpm-lock.yaml',
+            },
+            {
+              packagePath: 'apps/extension/package.json',
+              lockfilePath: 'apps/extension/pnpm-lock.yaml',
+            },
+          ]
+
+          const stripTopLevelOverrides = (lockfile) => {
+            const lines = lockfile.split(/\r?\n/)
+            const output = []
+
+            for (let index = 0; index < lines.length;) {
+              if (lines[index] === 'overrides:') {
+                index += 1
+                while (index < lines.length && (lines[index] === '' || lines[index].startsWith('  '))) {
+                  index += 1
+                }
+                continue
+              }
+
+              output.push(lines[index])
+              index += 1
+            }
+
+            return `${output.join('\n').replace(/\n*$/, '')}\n`
+          }
+
+          for (const { packagePath, lockfilePath } of appLockfiles) {
+            if (!existsSync(packagePath) || !existsSync(lockfilePath)) {
+              continue
+            }
+
+            const packageJson = JSON.parse(readFileSync(packagePath, 'utf8'))
+            if (packageJson.pnpm?.overrides) {
+              continue
+            }
+
+            const lockfile = readFileSync(lockfilePath, 'utf8')
+            writeFileSync(lockfilePath, stripTopLevelOverrides(lockfile))
+          }
+          NODE
+
       - name: Commit repaired lockfiles
         id: commit-repair
         run: |
           git config user.name "github-actions[bot]"
           git config user.email "41898282+github-actions[bot]@users.noreply.github.com"
-          git add pnpm-lock.yaml apps/dashboard/pnpm-lock.yaml apps/extension/pnpm-lock.yaml
+          git add apps/dashboard/pnpm-lock.yaml apps/extension/pnpm-lock.yaml
           if git diff --cached --quiet; then
             echo "No pnpm lockfile repair needed."
             echo "repaired=false" >> "$GITHUB_OUTPUT"
