@@ -11,6 +11,7 @@ interface ExtensionManifest {
     js?: string[]
   }>
   host_permissions?: string[]
+  permissions?: string[]
   side_panel?: {
     default_path?: string
   }
@@ -43,6 +44,7 @@ function manifestUrls(manifest: ExtensionManifest) {
 function assertManifestEntrypoints(manifest: ExtensionManifest) {
   assert.equal(manifest.background?.service_worker, 'assets/background.js')
   assert.equal(manifest.side_panel?.default_path, 'sidepanel.html')
+  assert.ok(manifest.permissions?.includes('tabs'))
   assert.ok(
     manifest.content_scripts?.some((script) => script.js?.includes('assets/content.js')),
     'manifest should include the content script bundle entry',
@@ -57,6 +59,7 @@ test('dev manifest allows requests to the default local API base url', async () 
   assert.equal(apiUrl, 'http://localhost:8080')
   assert.ok(manifest.host_permissions?.includes('http://localhost:8080/*'))
   assert.ok(manifest.content_scripts?.some((script) => script.matches?.includes('http://localhost:3000/*')))
+  assert.ok(manifest.content_scripts?.some((script) => script.matches?.includes('*://*.twitch.tv/*')))
   assertManifestEntrypoints(manifest)
 })
 
@@ -68,6 +71,7 @@ test('production manifest targets Twitch and tachigo API without localhost permi
   assert.equal(apiUrl, 'https://api.tachigo.io')
   assert.ok(manifest.host_permissions?.includes('https://api.tachigo.io/*'))
   assert.ok(manifest.content_scripts?.some((script) => script.matches?.includes('https://www.twitch.tv/*')))
+  assert.ok(manifest.content_scripts?.some((script) => script.matches?.includes('*://*.twitch.tv/*')))
   assertManifestEntrypoints(manifest)
 
   const urls = manifestUrls(manifest)
