@@ -2500,7 +2500,17 @@ test('Dependabot pnpm lockfile repair is scoped to same-repo Dependabot PRs', as
     jobBlock,
     /working-directory: apps\/extension\n\s+run: pnpm install --lockfile-only --ignore-scripts --config\.shared-workspace-lockfile=false/,
   )
-  assert.match(jobBlock, /git add pnpm-lock\.yaml apps\/dashboard\/pnpm-lock\.yaml apps\/extension\/pnpm-lock\.yaml/)
+  const stripOverridesStep = workflowJobStep(
+    parsedWorkflow,
+    'repair-lockfiles',
+    'Strip root-only overrides from app lockfiles',
+  )
+  assert.match(stripOverridesStep.run, /apps\/dashboard\/package\.json/)
+  assert.match(stripOverridesStep.run, /apps\/extension\/package\.json/)
+  assert.match(stripOverridesStep.run, /packageJson\.pnpm\?\.overrides/)
+  assert.match(stripOverridesStep.run, /overrides:/)
+  assert.doesNotMatch(jobBlock, /git add pnpm-lock\.yaml\b/)
+  assert.match(jobBlock, /git add apps\/dashboard\/pnpm-lock\.yaml apps\/extension\/pnpm-lock\.yaml/)
   assert.match(jobBlock, /git commit -m "chore\(deps\): repair pnpm lockfiles"/)
   assert.match(jobBlock, /git push/)
 })
