@@ -1,8 +1,9 @@
 // @vitest-environment jsdom
-import { afterEach, expect, test, vi } from 'vitest'
+import { afterEach, beforeAll, expect, test, vi } from 'vitest'
 import { cleanup, fireEvent, render, screen } from '@testing-library/react'
 
 import { defaultHudDemoState } from '../../extension/types'
+import '../../i18n'
 import { NavigationProvider } from './NavigationProvider'
 import { SceneRenderer } from './SceneRenderer'
 import { useNavigation } from './useNavigation'
@@ -32,6 +33,27 @@ function StateProbe() {
 
 afterEach(() => {
   cleanup()
+})
+
+beforeAll(() => {
+  window.localStorage.clear()
+})
+
+test('renders entry scene and enters login on press', () => {
+  render(
+    <NavigationProvider initialFlags={{ hasCompletedLogin: false }}>
+      <SceneRenderer hudState={defaultHudDemoState} onHudStateChange={() => undefined} />
+      <StateProbe />
+    </NavigationProvider>,
+  )
+
+  expect(screen.getByRole('heading', { name: 'TACHIGO' })).toBeTruthy()
+  expect(screen.getByText('PRESS ANYWHERE TO DIVE IN')).toBeTruthy()
+
+  fireEvent.click(screen.getByRole('button', { name: /PRESS ANYWHERE TO DIVE IN/i }))
+
+  expect(screen.getByLabelText('navigation state').textContent).toBe('login:false')
+  expect(screen.getByRole('button', { name: 'mock login' })).toBeTruthy()
 })
 
 test('marks login as complete before entering loading scene', () => {

@@ -1,4 +1,9 @@
 {
+  "entry": {
+    "eyebrow": "Undersea reward stream",
+    "subtitle": "Watch the stream, collect points, and dive into creator rewards.",
+    "cta": "PRESS ANYWHERE TO DIVE IN"
+  },
   "loading": {
     "text": "LOADING..."
   },
