@@ -106,7 +106,7 @@ Snapshot as of 2026-05-04:
 
 | Branch | Required check contexts |
 |---|---|
-| `develop` | `Scope gate` |
+| `develop` | `CI scope router` |
 | `develop` | `Backend CI (gate)` |
 | `develop` | `Frontend build` |
 | `develop` | `Dashboard build` |

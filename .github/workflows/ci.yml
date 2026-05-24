@@ -23,7 +23,7 @@ env:
 jobs:
   scope-gate:
     timeout-minutes: 5
-    name: Scope gate
+    name: CI scope router
     runs-on: ubuntu-latest
     outputs:
       run_ci: ${{ steps.evaluate.outputs.run_ci }}
@@ -114,7 +114,7 @@ jobs:
                 })
                 return
               }
-              core.notice('Non-PR event detected; running CI without scope gate restrictions.')
+              core.notice('Non-PR event detected; running CI without CI scope router restrictions.')
               setFullCiOutputs()
               return
             }
@@ -130,7 +130,7 @@ jobs:
             const bypassLabels = new Set(['scope-exception'])
             const labels = (pr.labels || []).map((label) => label.name)
             if (labels.some((label) => bypassLabels.has(label))) {
-              core.notice('Scope gate bypassed by scope-exception label.')
+              core.notice('CI scope router bypassed by scope-exception label.')
               setFullCiOutputs()
               return
             }
@@ -888,7 +888,7 @@ jobs:
             const currentHeadSha = context.payload.pull_request?.head?.sha
             const requiredCheckSnapshots = {
               develop: [
-                { context: 'Scope gate', appId: 15368 },
+                { context: 'CI scope router', appId: 15368 },
                 { context: 'Supply-chain guardrails', appId: 15368 },
                 { context: 'TypeScript-only guardrail', appId: 15368 },
                 { context: 'Dependency Review', appId: 15368 },

@@ -17,7 +17,7 @@
 | 層級 | 代表訊號 | 先看哪裡 |
 | --- | --- | --- |
 | PR metadata | title/body/template 欄位不合規 | `docs/pr-scope-policy.md`、`.github/PULL_REQUEST_TEMPLATE.md` |
-| Scope gate | 重型 CI 被跳過 | `.github/workflows/ci.yml` 的 `scope-gate` job |
+| CI scope router | 重型 CI 被跳過 | `.github/workflows/ci.yml` 的 `scope-gate` job |
 | Scope police | PR 被標記或擋下 | `.github/workflows/pr-scope-police.yml` |
 | Workflow regression | workflow script 本身壞掉 | `.github/workflows/ci.test.ts` |
 | Product CI | backend/frontend/dashboard/contract 測試失敗 | 對應 product surface 的 job log |
@@ -64,7 +64,7 @@ make pr-meta-check TITLE="[chore] Example title" BODY_FILE=/tmp/pr-body.md
 
 `develop` 的 required check snapshot 目前在 `.github/workflows/auto-ready-pr.yml`：
 
-- `Scope gate`
+- `CI scope router`
 - `Frontend build`
 - `Dashboard build`
 - `Contracts build`
