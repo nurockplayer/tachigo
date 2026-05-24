@@ -37,7 +37,7 @@ jobs:
             const labels = (pr.labels || []).map((label) => label.name)
             const bypassed = labels.some((label) => bypassLabels.has(label))
 
-            const autonomousLabels = new Set(['autonomous', 'codex', 'codex-automation', 'codex-workflow', 'auto-ready'])
+            const autonomousLabels = new Set(['autonomous', 'codex', 'codex-automation', 'codex-workflow'])
             const bodyForAutonomousGate = (pr.body || '').replace(/<!--[\s\S]*?-->/g, '')
             const riskClassDefinitions = [
               { id: 'R0', label: 'docs / template / metadata only' },
@@ -77,6 +77,8 @@ jobs:
             const hasAutoReadyLabel = labels.includes('auto-ready')
             const autoReadyAllowedByRiskClass =
               checkedRiskClassIds.length === 1 && selectedRiskClassId !== 'R4'
+            const autoReadyTriggersAutonomousGate =
+              hasAutoReadyLabel && !['R0', 'R1', 'unclassified', 'invalid'].includes(selectedRiskClassId)
             const delegationExecutionLogSection = extractMarkdownSection(
               bodyForAutonomousGate,
               'Delegation Execution Log',
@@ -379,6 +381,7 @@ jobs:
               /(?:^|\n)\s*-?\s*(?:Autonomous PR|Codex workflow)\s*[：:]\s*(?:yes|true|enabled)/i.test(bodyForAutonomousGate)
             const isAutonomousPr =
               labels.some((label) => autonomousLabels.has(label)) ||
+              autoReadyTriggersAutonomousGate ||
               hasAutonomousBranchSignal ||
               hasAutonomousBodySignal ||
               hasDelegationExecutionLog
