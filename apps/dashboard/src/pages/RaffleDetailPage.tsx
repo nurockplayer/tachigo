@@ -2,8 +2,8 @@ import { useOne } from '@refinedev/core'
 import { useCallback, useEffect, useRef, useState } from 'react'
 import { useNavigate, useParams } from 'react-router'
 import { Skeleton } from '@/components/ui/skeleton'
-import { activateRaffle, completeRaffle, drawNext, importCSV, listDraws, setDiscordWebhook } from '@/services/raffles'
-import type { Raffle, RaffleDraw, RaffleStatus } from '@/services/raffles'
+import { activateRaffle, completeRaffle, createPrizeTier, deletePrizeTier, drawFromTier, drawNext, importCSV, listDraws, listPrizeTiers, setDiscordWebhook } from '@/services/raffles'
+import type { Raffle, RaffleDraw, RafflePrizeTier, RaffleStatus } from '@/services/raffles'
 import gachaBg from '../assets/raffle-bg.jpg.png'
 
 const OCEAN_KEYFRAMES = `
@@ -132,6 +132,11 @@ function WinnerList({ draws }: { draws: RaffleDraw[] }) {
             #{draws.length - index}
           </span>
           <span className="flex-1 text-sm font-medium">
+            {draw.prize_tier && (
+              <span className="mr-1.5 rounded bg-blue-900/60 px-1.5 py-0.5 text-[10px] font-semibold text-blue-300">
+                {draw.prize_tier.name}
+              </span>
+            )}
             {draw.entry.display_name || draw.entry.twitch_login}
           </span>
           <span className="text-[10px] text-white/30">{formatRelativeTime(draw.drawn_at)}</span>
@@ -558,6 +563,13 @@ export default function RaffleDetailPage() {
   const [shaking, setShaking] = useState(false)
   const [popBallColor, setPopBallColor] = useState<string | null>(null)
   const [modalWinner, setModalWinner] = useState<string | null>(null)
+  const [tiers, setTiers] = useState<RafflePrizeTier[]>([])
+  const [tierDrawing, setTierDrawing] = useState<Record<string, boolean>>({})
+  const [tierExhausted, setTierExhausted] = useState<Record<string, boolean>>({})
+  const [showAddTier, setShowAddTier] = useState(false)
+  const [newTier, setNewTier] = useState({ name: '', prize_description: '', winner_count: 1 })
+  const [addingTier, setAddingTier] = useState(false)
+  const [addTierError, setAddTierError] = useState<string | null>(null)
 
   const pendingTimers = useRef<number[]>([])
 
@@ -566,6 +578,15 @@ export default function RaffleDetailPage() {
   }, [])
 
   const effectiveStatus = localCompleted ? 'completed' : localActivated ? 'active' : (raffle?.status ?? '')
+
+  const fetchTiers = useCallback(async () => {
+    if (!raffleId) return
+    try {
+      setTiers(await listPrizeTiers(raffleId))
+    } catch {
+      setTiers([])
+    }
+  }, [raffleId])
 
   const fetchDraws = useCallback(async (): Promise<RaffleDraw[]> => {
     if (!raffleId) return []
@@ -583,6 +604,7 @@ export default function RaffleDetailPage() {
     if (!raffleId) return
     const initialLoadId = window.setTimeout(() => {
       void fetchDraws()
+      void fetchTiers()
     }, 0)
 
     if (effectiveStatus === 'completed') {
@@ -597,7 +619,7 @@ export default function RaffleDetailPage() {
       window.clearTimeout(initialLoadId)
       window.clearInterval(timerId)
     }
-  }, [effectiveStatus, fetchDraws, raffleId])
+  }, [effectiveStatus, fetchDraws, fetchTiers, raffleId])
 
   async function handleDraw() {
     if (!raffleId || drawing) return
@@ -662,6 +684,48 @@ export default function RaffleDetailPage() {
       setConfirmEnd(false)
     } finally {
       setEnding(false)
+    }
+  }
+
+  async function handleAddTier() {
+    if (!raffleId || addingTier || !newTier.name.trim() || newTier.winner_count < 1) return
+    setAddingTier(true)
+    setAddTierError(null)
+    try {
+      await createPrizeTier(raffleId, newTier)
+      await fetchTiers()
+      setNewTier({ name: '', prize_description: '', winner_count: 1 })
+      setShowAddTier(false)
+    } catch (err: unknown) {
+      const e = err as { response?: { data?: { error?: string } } }
+      setAddTierError(e?.response?.data?.error ?? '新增失敗，請稍後再試')
+    } finally {
+      setAddingTier(false)
+    }
+  }
+
+  async function handleDrawFromTier(tierId: string) {
+    if (!raffleId || tierDrawing[tierId]) return
+    setTierDrawing(prev => ({ ...prev, [tierId]: true }))
+    try {
+      await drawFromTier(raffleId, tierId)
+      await Promise.all([fetchTiers(), fetchDraws()])
+      setTierExhausted(prev => ({ ...prev, [tierId]: false }))
+    } catch (error: unknown) {
+      const res = (error as { response?: { status?: number } }).response
+      if (res?.status === 409) setTierExhausted(prev => ({ ...prev, [tierId]: true }))
+    } finally {
+      setTierDrawing(prev => ({ ...prev, [tierId]: false }))
+    }
+  }
+
+  async function handleDeleteTier(tierId: string) {
+    if (!raffleId) return
+    try {
+      await deletePrizeTier(raffleId, tierId)
+      await fetchTiers()
+    } catch {
+      // tier has draws — ignore silently
     }
   }
 
@@ -808,6 +872,73 @@ export default function RaffleDetailPage() {
           </div>
         </div>
       </div>
+
+      {/* Prize Tiers */}
+      {effectiveStatus === 'active' && (
+        <div style={{ maxWidth: 1300, margin: '0 auto 2rem', padding: '0 16px' }}>
+          <div style={{ ...glassStyle, padding: '16px 20px' }}>
+            <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', marginBottom: 12 }}>
+              <span style={{ fontSize: 13, fontWeight: 700, color: '#e0f2fe', letterSpacing: '.04em' }}>🏆 獎項設定</span>
+              <button
+                onClick={() => setShowAddTier(v => !v)}
+                style={{ background: 'rgba(56,189,248,.12)', border: '1px solid rgba(56,189,248,.3)', color: '#7dd3fc', borderRadius: 6, padding: '4px 12px', fontSize: 12, cursor: 'pointer' }}
+              >
+                {showAddTier ? '取消' : '+ 新增獎項'}
+              </button>
+            </div>
+
+            {showAddTier && (
+              <div style={{ display: 'flex', gap: 8, flexWrap: 'wrap', alignItems: 'flex-end', marginBottom: 12, padding: '10px 12px', background: 'rgba(56,189,248,.06)', borderRadius: 8, border: '1px solid rgba(56,189,248,.15)' }}>
+                <div style={{ display: 'flex', flexDirection: 'column', gap: 3 }}>
+                  <label style={{ fontSize: 10, color: 'rgba(148,210,255,.6)' }}>獎項名稱</label>
+                  <input value={newTier.name} onChange={e => setNewTier(p => ({ ...p, name: e.target.value }))} placeholder="例：一等獎" style={{ background: 'rgba(255,255,255,.07)', border: '1px solid rgba(80,160,255,.25)', borderRadius: 5, color: '#e0f2fe', fontSize: 12, padding: '5px 8px' }} />
+                </div>
+                <div style={{ display: 'flex', flexDirection: 'column', gap: 3 }}>
+                  <label style={{ fontSize: 10, color: 'rgba(148,210,255,.6)' }}>獎品描述</label>
+                  <input value={newTier.prize_description} onChange={e => setNewTier(p => ({ ...p, prize_description: e.target.value }))} placeholder="例：Switch 主機" style={{ background: 'rgba(255,255,255,.07)', border: '1px solid rgba(80,160,255,.25)', borderRadius: 5, color: '#e0f2fe', fontSize: 12, padding: '5px 8px' }} />
+                </div>
+                <div style={{ display: 'flex', flexDirection: 'column', gap: 3 }}>
+                  <label style={{ fontSize: 10, color: 'rgba(148,210,255,.6)' }}>抽幾人</label>
+                  <input type="number" min={1} value={newTier.winner_count} onChange={e => setNewTier(p => ({ ...p, winner_count: Number(e.target.value) }))} style={{ width: 60, background: 'rgba(255,255,255,.07)', border: '1px solid rgba(80,160,255,.25)', borderRadius: 5, color: '#e0f2fe', fontSize: 12, padding: '5px 8px' }} />
+                </div>
+                <button onClick={() => { void handleAddTier() }} disabled={addingTier || !newTier.name.trim()} style={{ background: 'rgba(34,197,94,.15)', border: '1px solid rgba(34,197,94,.3)', color: '#4ade80', borderRadius: 6, padding: '6px 14px', fontSize: 12, cursor: 'pointer', opacity: (addingTier || !newTier.name.trim()) ? .5 : 1 }}>
+                  {addingTier ? '新增中...' : '確認新增'}
+                </button>
+                {addTierError && (
+                  <p style={{ fontSize: 11, color: '#f87171', marginTop: 6, width: '100%' }}>{addTierError}</p>
+                )}
+              </div>
+            )}
+
+            {tiers.length === 0 && !showAddTier && (
+              <p style={{ fontSize: 12, color: 'rgba(148,210,255,.4)', textAlign: 'center', padding: '8px 0' }}>尚未設定獎項</p>
+            )}
+
+            {tiers.map(tier => {
+              const isDone = tier.drawn_count >= tier.winner_count
+              const isDrawing = tierDrawing[tier.id] ?? false
+              const isExhausted = tierExhausted[tier.id] ?? false
+              return (
+                <div key={tier.id} style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', padding: '8px 12px', borderRadius: 8, marginBottom: 6, background: isDone ? 'rgba(255,255,255,.03)' : 'rgba(56,189,248,.05)', border: `1px solid ${isDone ? 'rgba(255,255,255,.08)' : 'rgba(56,189,248,.18)'}` }}>
+                  <div style={{ display: 'flex', flexDirection: 'column', gap: 2 }}>
+                    <span style={{ fontSize: 13, fontWeight: 600, color: isDone ? 'rgba(148,210,255,.5)' : '#e0f2fe' }}>{tier.name}</span>
+                    {tier.prize_description && <span style={{ fontSize: 11, color: 'rgba(148,210,255,.5)' }}>{tier.prize_description}</span>}
+                    <span style={{ fontSize: 10, color: isDone ? '#4ade80' : 'rgba(148,210,255,.4)' }}>{tier.drawn_count} / {tier.winner_count} 人已抽出</span>
+                  </div>
+                  <div style={{ display: 'flex', gap: 6, alignItems: 'center' }}>
+                    <button onClick={() => { void handleDrawFromTier(tier.id) }} disabled={isDone || isDrawing || isExhausted} style={{ background: 'rgba(14,165,233,.15)', border: '1px solid rgba(14,165,233,.3)', color: '#38bdf8', borderRadius: 6, padding: '5px 12px', fontSize: 11, cursor: 'pointer', opacity: (isDone || isDrawing || isExhausted) ? .4 : 1 }}>
+                      {isDrawing ? '抽中...' : isExhausted ? '已抽完' : '抽一人'}
+                    </button>
+                    {tier.drawn_count === 0 && (
+                      <button onClick={() => { void handleDeleteTier(tier.id) }} style={{ background: 'rgba(239,68,68,.1)', border: '1px solid rgba(239,68,68,.25)', color: '#f87171', borderRadius: 6, padding: '5px 10px', fontSize: 11, cursor: 'pointer' }}>✕</button>
+                    )}
+                  </div>
+                </div>
+              )
+            })}
+          </div>
+        </div>
+      )}
 
       <WinnerModal name={modalWinner} onClose={() => setModalWinner(null)} />
     </div>

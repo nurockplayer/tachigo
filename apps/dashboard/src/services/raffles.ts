@@ -21,6 +21,16 @@ export interface RaffleEntry {
   created_at: string
 }
 
+export interface RafflePrizeTier {
+  id: string
+  raffle_id: string
+  name: string
+  prize_description: string
+  winner_count: number
+  drawn_count: number
+  created_at: string
+}
+
 export interface RaffleDraw {
   id: string
   raffle_id: string
@@ -29,6 +39,8 @@ export interface RaffleDraw {
   claim_expires_at: string
   drawn_at: string
   entry: RaffleEntry
+  prize_tier_id?: string
+  prize_tier?: RafflePrizeTier
 }
 
 export async function listRaffles(): Promise<Raffle[]> {
@@ -87,6 +99,36 @@ export async function completeRaffle(raffleId: string): Promise<void> {
     `/api/v1/dashboard/raffles/${raffleId}/complete`,
     undefined,
   )
+}
+
+export async function listPrizeTiers(raffleId: string): Promise<RafflePrizeTier[]> {
+  const { data } = await client.get<ApiResponse<{ tiers: RafflePrizeTier[] }>>(
+    `/api/v1/dashboard/raffles/${raffleId}/prize-tiers`,
+  )
+  return data.data.tiers
+}
+
+export async function createPrizeTier(
+  raffleId: string,
+  payload: { name: string; prize_description: string; winner_count: number },
+): Promise<RafflePrizeTier> {
+  const { data } = await client.post<ApiResponse<{ tier: RafflePrizeTier }>>(
+    `/api/v1/dashboard/raffles/${raffleId}/prize-tiers`,
+    payload,
+  )
+  return data.data.tier
+}
+
+export async function deletePrizeTier(raffleId: string, tierId: string): Promise<void> {
+  await client.delete(`/api/v1/dashboard/raffles/${raffleId}/prize-tiers/${tierId}`)
+}
+
+export async function drawFromTier(raffleId: string, tierId: string): Promise<RaffleDraw> {
+  const { data } = await client.post<ApiResponse<{ draw: RaffleDraw }>>(
+    `/api/v1/dashboard/raffles/${raffleId}/prize-tiers/${tierId}/draws`,
+    undefined,
+  )
+  return data.data.draw
 }
 
 export async function setDiscordWebhook(
