@@ -269,14 +269,37 @@ func isRBACStubRoute(path string) bool {
 	switch {
 	case path == "/api/v1/agencies" || strings.HasPrefix(path, "/api/v1/agencies/"):
 		return true
-	case strings.HasPrefix(path, "/api/v1/dashboard/"):
+	case path == "/api/v1/dashboard" || strings.HasPrefix(path, "/api/v1/dashboard/"):
 		return true
-	case strings.HasPrefix(path, "/api/v1/events/"):
+	case path == "/api/v1/events" || strings.HasPrefix(path, "/api/v1/events/"):
 		return true
-	case strings.HasPrefix(path, "/api/v1/admin/"):
+	case path == "/api/v1/admin" || strings.HasPrefix(path, "/api/v1/admin/"):
 		return true
 	default:
 		return false
+	}
+}
+
+func TestRBACMatrix_StubRouteFilterIncludesTopLevelProtectedSegments(t *testing.T) {
+	tests := []struct {
+		name string
+		path string
+		want bool
+	}{
+		{name: "agencies root", path: "/api/v1/agencies", want: true},
+		{name: "dashboard root", path: "/api/v1/dashboard", want: true},
+		{name: "events root", path: "/api/v1/events", want: true},
+		{name: "admin root", path: "/api/v1/admin", want: true},
+		{name: "dashboard child", path: "/api/v1/dashboard/streamers", want: true},
+		{name: "public route", path: "/api/v1/health", want: false},
+	}
+
+	for _, tt := range tests {
+		t.Run(tt.name, func(t *testing.T) {
+			if got := isRBACStubRoute(tt.path); got != tt.want {
+				t.Fatalf("isRBACStubRoute(%q) = %v, want %v", tt.path, got, tt.want)
+			}
+		})
 	}
 }
 
