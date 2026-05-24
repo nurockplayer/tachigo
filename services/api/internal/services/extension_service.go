@@ -1,6 +1,7 @@
 package services
 
 import (
+	"context"
 	"encoding/base64"
 	"errors"
 	"fmt"
@@ -113,14 +114,17 @@ func (s *ExtensionService) VerifyReceiptJWT(receiptStr string) (*ReceiptClaims, 
 // Returns ErrInvalidExtJWT if the JWT is invalid or the viewer has not authorized
 // the Extension (UserID is empty). Returns ErrUserNotFound if no tachigo account
 // is linked to the Twitch identity.
-// lookupExtensionUser resolves a Twitch identity to a tachigo User.
-// It does not issue tokens; call issueTokenPair separately.
-func (s *ExtensionService) lookupExtensionUser(claims *ExtensionClaims) (*models.User, error) {
+func (s *ExtensionService) lookupExtensionUserContext(ctx context.Context, claims *ExtensionClaims) (*models.User, error) {
+	if ctx == nil {
+		ctx = context.Background()
+	}
 	if claims.UserID == "" {
 		return nil, ErrInvalidExtJWT
 	}
+	db := s.db.WithContext(ctx)
+
 	var provider models.AuthProvider
-	err := s.db.Where("provider = ? AND provider_id = ?", models.ProviderTwitch, claims.UserID).
+	err := db.Where("provider = ? AND provider_id = ?", models.ProviderTwitch, claims.UserID).
 		First(&provider).Error
 	if errors.Is(err, gorm.ErrRecordNotFound) {
 		return nil, ErrUserNotFound
@@ -129,23 +133,31 @@ func (s *ExtensionService) lookupExtensionUser(claims *ExtensionClaims) (*models
 		return nil, err
 	}
 	var user models.User
-	if err := s.db.First(&user, provider.UserID).Error; err != nil {
+	if err := db.First(&user, provider.UserID).Error; err != nil {
 		return nil, err
 	}
 	return &user, nil
 }
 
 func (s *ExtensionService) LoginWithExtension(extJWT string) (*models.User, *TokenPair, error) {
+	return s.LoginWithExtensionContext(context.Background(), extJWT)
+}
+
+func (s *ExtensionService) LoginWithExtensionContext(ctx context.Context, extJWT string) (*models.User, *TokenPair, error) {
+	if ctx == nil {
+		ctx = context.Background()
+	}
+
 	claims, err := s.VerifyExtJWT(extJWT)
 	if err != nil {
 		return nil, nil, err
 	}
-	user, err := s.lookupExtensionUser(claims)
+	user, err := s.lookupExtensionUserContext(ctx, claims)
 	if err != nil {
 		return nil, nil, err
 	}
 
-	tokens, err := s.authSvc.issueTokenPair(user)
+	tokens, err := s.authSvc.issueTokenPairContext(ctx, user)
 	if err != nil {
 		return nil, nil, err
 	}
@@ -155,6 +167,14 @@ func (s *ExtensionService) LoginWithExtension(extJWT string) (*models.User, *Tok
 // CompleteTPointTransaction verifies the Extension JWT + receipt, then issues a
 // tachigo token pair for the already-linked viewer.
 func (s *ExtensionService) CompleteTPointTransaction(extJWT, receipt, sku string) (*models.User, *TokenPair, error) {
+	return s.CompleteTPointTransactionContext(context.Background(), extJWT, receipt, sku)
+}
+
+func (s *ExtensionService) CompleteTPointTransactionContext(ctx context.Context, extJWT, receipt, sku string) (*models.User, *TokenPair, error) {
+	if ctx == nil {
+		ctx = context.Background()
+	}
+
 	extClaims, err := s.VerifyExtJWT(extJWT)
 	if err != nil {
 		return nil, nil, err
@@ -185,7 +205,7 @@ func (s *ExtensionService) CompleteTPointTransaction(extJWT, receipt, sku string
 	}
 
 	// Resolve user before touching any write path.
-	user, err := s.lookupExtensionUser(extClaims)
+	user, err := s.lookupExtensionUserContext(ctx, extClaims)
 	if err != nil {
 		return nil, nil, err
 	}
@@ -193,7 +213,8 @@ func (s *ExtensionService) CompleteTPointTransaction(extJWT, receipt, sku string
 	// Write points first; tokens are issued only on success to avoid orphan
 	// refresh token records when the points write fails.
 	txID := receiptClaims.Data.TransactionID
-	err = s.pointsSvc.AddPointsWithMeta(
+	err = s.pointsSvc.AddPointsWithMetaContext(
+		ctx,
 		user.ID,
 		extClaims.ChannelID,
 		models.TxSourceTPoint,
@@ -216,7 +237,7 @@ func (s *ExtensionService) CompleteTPointTransaction(extJWT, receipt, sku string
 	// Points are now committed. If issueTokenPair fails here, points remain credited
 	// and the client will receive an error. On retry, AddPointsWithMeta returns
 	// ErrDuplicateTransaction — the client should call LoginWithExtension to get tokens.
-	tokens, err := s.authSvc.issueTokenPair(user)
+	tokens, err := s.authSvc.issueTokenPairContext(ctx, user)
 	if err != nil {
 		return nil, nil, err
 	}

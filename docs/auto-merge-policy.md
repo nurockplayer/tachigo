@@ -24,6 +24,19 @@ Scope Police 強制分拆 PR，分拆後的 PR merge 回 develop 會造成其他
 
 Approve 前應確認：CI 全過、scope 正確、無 blocker。
 
+## Lightweight lane 下的 Approve
+
+docs / template / metadata-only PR 可以走 lightweight lane，但 Approve 的語義不變：按下 Approve 仍代表該 PR 可以進 `develop`。
+
+因此 reviewer 在 lightweight lane 仍需確認：
+
+- `PR Scope Police` 通過，且 PR body 的 source of truth / dependency / scope 欄位完整。
+- `CI scope router` 的 skipped heavy CI 符合路徑規則；如果 PR 改到 `.github/workflows/**`，就不應被當成 metadata-only。
+- workflow regression、PR metadata regression、supply-chain / TypeScript guardrail 等保留 checks 沒有失敗。
+- 沒有把 inherited backend / frontend / dashboard 紅燈修補混進 docs-only PR。
+
+若 lightweight lane 的 PR 只是文件化策略，Approve 不代表同意後續 workflow runtime 變更；runtime 調整必須另開 issue/PR，重新經過 Scope Police、workflow regression 與必要的人審。
+
 ## PR Risk Class
 
 Auto-merge 只會在 PR body 剛好勾選一個 `PR Risk Class` 且該 class 不是 `R4` 時被 workflow arm。

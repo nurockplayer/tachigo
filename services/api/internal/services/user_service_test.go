@@ -1,8 +1,10 @@
 package services
 
 import (
+	"context"
 	"crypto/ecdsa"
 	"encoding/hex"
+	"errors"
 	"fmt"
 	"strings"
 	"testing"
@@ -15,6 +17,8 @@ import (
 
 	"github.com/tachigo/tachigo/internal/models"
 )
+
+type userServiceContextKey struct{}
 
 func TestGetByID_Found(t *testing.T) {
 	db := newTestDB(t)
@@ -41,6 +45,17 @@ func TestGetByID_NotFound(t *testing.T) {
 	}
 }
 
+func TestGetByIDContext_CanceledContextReturnsCanceled(t *testing.T) {
+	svc := NewUserService(newTestDB(t))
+	ctx, cancel := context.WithCancel(context.Background())
+	cancel()
+
+	_, err := svc.GetByIDContext(ctx, uuid.New())
+	if !errors.Is(err, context.Canceled) {
+		t.Fatalf("want context.Canceled, got %v", err)
+	}
+}
+
 func TestUpdateProfile_Username(t *testing.T) {
 	db := newTestDB(t)
 	svc := NewUserService(db)
@@ -55,6 +70,47 @@ func TestUpdateProfile_Username(t *testing.T) {
 	}
 	if *user.Username != newName {
 		t.Errorf("username: want %s, got %s", newName, *user.Username)
+	}
+}
+
+func TestUpdateProfileContext_UsesRequestContext(t *testing.T) {
+	db := newTestDB(t)
+	svc := NewUserService(db)
+
+	userID := uuid.New()
+	db.Create(&models.User{ID: userID, Role: models.RoleViewer})
+
+	key := userServiceContextKey{}
+	seen := installDBContextProbe(t, db, key, "profile-update")
+	ctx := context.WithValue(context.Background(), key, "profile-update")
+
+	newName := "contextname"
+	user, err := svc.UpdateProfileContext(ctx, userID, UpdateProfileInput{Username: &newName})
+	if err != nil {
+		t.Fatalf("UpdateProfileContext: %v", err)
+	}
+	if *user.Username != newName {
+		t.Errorf("username: want %s, got %s", newName, *user.Username)
+	}
+	if seen() == 0 {
+		t.Fatal("expected UpdateProfileContext DB operations to use request context")
+	}
+}
+
+func TestUpdateProfileContext_CanceledContextReturnsCanceled(t *testing.T) {
+	db := newTestDB(t)
+	svc := NewUserService(db)
+
+	userID := uuid.New()
+	db.Create(&models.User{ID: userID, Role: models.RoleViewer})
+
+	ctx, cancel := context.WithCancel(context.Background())
+	cancel()
+
+	newName := "canceledname"
+	_, err := svc.UpdateProfileContext(ctx, userID, UpdateProfileInput{Username: &newName})
+	if !errors.Is(err, context.Canceled) {
+		t.Fatalf("want context.Canceled, got %v", err)
 	}
 }
 
@@ -218,6 +274,58 @@ func TestLinkWallet_Success(t *testing.T) {
 	db.Model(&models.Web3Nonce{}).Where("nonce = ?", nonce).Count(&nonceCount)
 	if nonceCount != 0 {
 		t.Errorf("nonce should be consumed, got %d rows", nonceCount)
+	}
+}
+
+func TestLinkWalletContext_UsesRequestContext(t *testing.T) {
+	db := newTestDB(t)
+	svc := NewUserService(db)
+	userID := uuid.New()
+	db.Create(&models.User{ID: userID, Role: models.RoleViewer})
+
+	key, addr := newTestWallet(t)
+	nonce := "link-wallet-context"
+	nr := seedWalletNonce(t, db, addr, nonce)
+	msg := siweMessage(addr, nonce, nr.CreatedAt.UTC().Format(time.RFC3339))
+	sig := signSIWE(t, msg, key)
+
+	ctxKey := userServiceContextKey{}
+	seen := installDBContextProbe(t, db, ctxKey, "link-wallet")
+	ctx := context.WithValue(context.Background(), ctxKey, "link-wallet")
+
+	got, err := svc.LinkWalletContext(ctx, userID, LinkWalletInput{
+		Address:   addr,
+		Nonce:     nonce,
+		Signature: sig,
+	})
+	if err != nil {
+		t.Fatalf("LinkWalletContext: %v", err)
+	}
+	if got != addr {
+		t.Errorf("address: want %s, got %s", addr, got)
+	}
+	if seen() == 0 {
+		t.Fatal("expected LinkWalletContext DB operations to use request context")
+	}
+}
+
+func TestLinkWalletContext_CanceledContextReturnsCanceled(t *testing.T) {
+	db := newTestDB(t)
+	svc := NewUserService(db)
+	userID := uuid.New()
+	db.Create(&models.User{ID: userID, Role: models.RoleViewer})
+
+	_, addr := newTestWallet(t)
+	ctx, cancel := context.WithCancel(context.Background())
+	cancel()
+
+	_, err := svc.LinkWalletContext(ctx, userID, LinkWalletInput{
+		Address:   addr,
+		Nonce:     "canceled-link-wallet",
+		Signature: "0x" + strings.Repeat("ab", 65),
+	})
+	if !errors.Is(err, context.Canceled) {
+		t.Fatalf("want context.Canceled, got %v", err)
 	}
 }
 

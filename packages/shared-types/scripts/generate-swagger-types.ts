@@ -192,7 +192,7 @@ function parseArgs(argv) {
   }
 
   if (!["generate", "check"].includes(options.command) || !options.input || !options.output) {
-    throw new Error("Usage: generate-swagger-types.mjs <generate|check> --input <swagger.json> --output <index.ts>");
+    throw new Error("Usage: generate-swagger-types.ts <generate|check> --input <swagger.json> --output <index.ts>");
   }
 
   return options;

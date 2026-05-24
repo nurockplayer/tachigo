@@ -84,13 +84,26 @@ type RegisterInput struct {
 }
 
 func (s *AuthService) Register(input RegisterInput) (*models.User, *TokenPair, error) {
+	return s.RegisterContext(context.Background(), input)
+}
+
+func (s *AuthService) RegisterContext(ctx context.Context, input RegisterInput) (*models.User, *TokenPair, error) {
+	if ctx == nil {
+		ctx = context.Background()
+	}
+	db := s.db.WithContext(ctx)
+
 	// Check uniqueness
 	var count int64
-	s.db.Model(&models.User{}).Where("email = ?", input.Email).Count(&count)
+	if err := db.Model(&models.User{}).Where("email = ?", input.Email).Count(&count).Error; err != nil {
+		return nil, nil, err
+	}
 	if count > 0 {
 		return nil, nil, ErrEmailExists
 	}
-	s.db.Model(&models.User{}).Where("username = ?", input.Username).Count(&count)
+	if err := db.Model(&models.User{}).Where("username = ?", input.Username).Count(&count).Error; err != nil {
+		return nil, nil, err
+	}
 	if count > 0 {
 		return nil, nil, ErrUsernameExists
 	}
@@ -112,7 +125,7 @@ func (s *AuthService) Register(input RegisterInput) (*models.User, *TokenPair, e
 	}
 
 	var tokens *TokenPair
-	if err := s.db.Transaction(func(tx *gorm.DB) error {
+	if err := db.Transaction(func(tx *gorm.DB) error {
 		if err := tx.Create(user).Error; err != nil {
 			return err
 		}
@@ -143,8 +156,16 @@ type LoginInput struct {
 }
 
 func (s *AuthService) Login(input LoginInput) (*models.User, *TokenPair, error) {
+	return s.LoginContext(context.Background(), input)
+}
+
+func (s *AuthService) LoginContext(ctx context.Context, input LoginInput) (*models.User, *TokenPair, error) {
+	if ctx == nil {
+		ctx = context.Background()
+	}
+
 	var user models.User
-	if err := s.db.Where("email = ?", input.Email).First(&user).Error; err != nil {
+	if err := s.db.WithContext(ctx).Where("email = ?", input.Email).First(&user).Error; err != nil {
 		return nil, nil, ErrInvalidCredentials
 	}
 	if user.PasswordHash == nil {
@@ -154,17 +175,25 @@ func (s *AuthService) Login(input LoginInput) (*models.User, *TokenPair, error) 
 		return nil, nil, ErrInvalidCredentials
 	}
 
-	tokens, err := s.issueTokenPair(&user)
+	tokens, err := s.issueTokenPairContext(ctx, &user)
 	return &user, tokens, err
 }
 
 // ─── Token Refresh / Logout ──────────────────────────────────────────────────
 
 func (s *AuthService) Refresh(rawRefreshToken string) (*TokenPair, error) {
+	return s.RefreshContext(context.Background(), rawRefreshToken)
+}
+
+func (s *AuthService) RefreshContext(ctx context.Context, rawRefreshToken string) (*TokenPair, error) {
+	if ctx == nil {
+		ctx = context.Background()
+	}
+	db := s.db.WithContext(ctx)
 	hash := hashToken(rawRefreshToken)
 
 	var tokenPair *TokenPair
-	err := s.db.Transaction(func(tx *gorm.DB) error {
+	err := db.Transaction(func(tx *gorm.DB) error {
 		var stored models.RefreshToken
 		if err := tx.Where("token_hash = ?", hash).First(&stored).Error; err != nil {
 			return ErrInvalidToken
@@ -192,7 +221,7 @@ func (s *AuthService) Refresh(rawRefreshToken string) (*TokenPair, error) {
 		return err
 	})
 	if errors.Is(err, errRefreshTokenExpired) {
-		if err := s.db.Where("token_hash = ?", hash).Delete(&models.RefreshToken{}).Error; err != nil {
+		if err := db.Where("token_hash = ?", hash).Delete(&models.RefreshToken{}).Error; err != nil {
 			return nil, err
 		}
 		return nil, ErrInvalidToken
@@ -204,14 +233,28 @@ func (s *AuthService) Refresh(rawRefreshToken string) (*TokenPair, error) {
 }
 
 func (s *AuthService) Logout(rawRefreshToken string) error {
+	return s.LogoutContext(context.Background(), rawRefreshToken)
+}
+
+func (s *AuthService) LogoutContext(ctx context.Context, rawRefreshToken string) error {
+	if ctx == nil {
+		ctx = context.Background()
+	}
 	hash := hashToken(rawRefreshToken)
-	return s.db.Where("token_hash = ?", hash).Delete(&models.RefreshToken{}).Error
+	return s.db.WithContext(ctx).Where("token_hash = ?", hash).Delete(&models.RefreshToken{}).Error
 }
 
 // DeleteExpiredRefreshTokens removes all expired refresh token records.
 // Returns the number of rows deleted.
 func (s *AuthService) DeleteExpiredRefreshTokens() (int64, error) {
-	result := s.db.Where("expires_at < ?", time.Now()).Delete(&models.RefreshToken{})
+	return s.DeleteExpiredRefreshTokensContext(context.Background())
+}
+
+func (s *AuthService) DeleteExpiredRefreshTokensContext(ctx context.Context) (int64, error) {
+	if ctx == nil {
+		ctx = context.Background()
+	}
+	result := s.db.WithContext(ctx).Where("expires_at < ?", time.Now()).Delete(&models.RefreshToken{})
 	return result.RowsAffected, result.Error
 }
 
@@ -266,6 +309,13 @@ func (s *AuthService) GoogleCallback(ctx context.Context, code string) (*models.
 // ─── Web3 / SIWE ─────────────────────────────────────────────────────────────
 
 func (s *AuthService) Web3Nonce(address string) (string, time.Time, error) {
+	return s.Web3NonceContext(context.Background(), address)
+}
+
+func (s *AuthService) Web3NonceContext(ctx context.Context, address string) (string, time.Time, error) {
+	if ctx == nil {
+		ctx = context.Background()
+	}
 	address = strings.ToLower(common.HexToAddress(address).Hex())
 	nonce, err := generateNonce()
 	if err != nil {
@@ -277,7 +327,7 @@ func (s *AuthService) Web3Nonce(address string) (string, time.Time, error) {
 		Address:   address,
 		ExpiresAt: time.Now().Add(5 * time.Minute),
 	}
-	if err := s.db.Transaction(func(tx *gorm.DB) error {
+	if err := s.db.WithContext(ctx).Transaction(func(tx *gorm.DB) error {
 		// Delete any existing nonces for this address.
 		if err := tx.Where("address = ?", address).Delete(&models.Web3Nonce{}).Error; err != nil {
 			return err
@@ -296,14 +346,28 @@ type Web3VerifyInput struct {
 }
 
 func (s *AuthService) Web3Verify(input Web3VerifyInput) (*models.User, *TokenPair, error) {
+	return s.Web3VerifyContext(context.Background(), input)
+}
+
+func (s *AuthService) Web3VerifyContext(ctx context.Context, input Web3VerifyInput) (*models.User, *TokenPair, error) {
+	if ctx == nil {
+		ctx = context.Background()
+	}
 	address := strings.ToLower(input.Address)
+	db := s.db.WithContext(ctx)
 
 	var nonceRecord models.Web3Nonce
-	if err := s.db.Where("nonce = ? AND address = ?", input.Nonce, address).First(&nonceRecord).Error; err != nil {
+	if err := db.Where("nonce = ? AND address = ?", input.Nonce, address).First(&nonceRecord).Error; err != nil {
+		if errors.Is(err, context.Canceled) || errors.Is(err, context.DeadlineExceeded) {
+			return nil, nil, err
+		}
+		if !errors.Is(err, gorm.ErrRecordNotFound) {
+			return nil, nil, err
+		}
 		return nil, nil, ErrInvalidNonce
 	}
 	if nonceRecord.IsExpired() {
-		s.db.Delete(&nonceRecord)
+		db.Delete(&nonceRecord)
 		return nil, nil, ErrInvalidNonce
 	}
 
@@ -317,7 +381,7 @@ func (s *AuthService) Web3Verify(input Web3VerifyInput) (*models.User, *TokenPai
 	checksumAddr := common.HexToAddress(input.Address).Hex()
 	var user *models.User
 	var tokens *TokenPair
-	if err := s.db.Transaction(func(tx *gorm.DB) error {
+	if err := db.Transaction(func(tx *gorm.DB) error {
 		result := tx.Delete(&nonceRecord)
 		if result.Error != nil {
 			return result.Error
@@ -329,7 +393,7 @@ func (s *AuthService) Web3Verify(input Web3VerifyInput) (*models.User, *TokenPai
 		txSvc := *s
 		txSvc.db = tx
 		var err error
-		user, tokens, err = txSvc.upsertOAuthUser(context.Background(), models.ProviderWeb3, checksumAddr, "", "", nil, nil)
+		user, tokens, err = txSvc.upsertOAuthUser(ctx, models.ProviderWeb3, checksumAddr, "", "", nil, nil)
 		return err
 	}); err != nil {
 		return nil, nil, err
@@ -338,19 +402,32 @@ func (s *AuthService) Web3Verify(input Web3VerifyInput) (*models.User, *TokenPai
 }
 
 func (s *AuthService) UnlinkProvider(userID uuid.UUID, provider models.ProviderType) error {
+	return s.UnlinkProviderContext(context.Background(), userID, provider)
+}
+
+func (s *AuthService) UnlinkProviderContext(ctx context.Context, userID uuid.UUID, provider models.ProviderType) error {
+	if ctx == nil {
+		ctx = context.Background()
+	}
+	db := s.db.WithContext(ctx)
+
 	// Ensure the user still has at least one other way to log in
 	var count int64
-	s.db.Model(&models.AuthProvider{}).Where("user_id = ?", userID).Count(&count)
+	if err := db.Model(&models.AuthProvider{}).Where("user_id = ?", userID).Count(&count).Error; err != nil {
+		return err
+	}
 
 	var user models.User
-	s.db.First(&user, "id = ?", userID)
+	if err := db.First(&user, "id = ?", userID).Error; err != nil {
+		return err
+	}
 	hasPassword := user.PasswordHash != nil
 
 	if count <= 1 && !hasPassword {
 		return ErrLastProvider
 	}
 
-	return s.db.Where("user_id = ? AND provider = ?", userID, provider).Delete(&models.AuthProvider{}).Error
+	return db.Where("user_id = ? AND provider = ?", userID, provider).Delete(&models.AuthProvider{}).Error
 }
 
 // ─── JWT helpers ─────────────────────────────────────────────────────────────
@@ -410,6 +487,13 @@ func (s *AuthService) issueTokenPairTx(tx *gorm.DB, user *models.User) (*TokenPa
 
 func (s *AuthService) issueTokenPair(user *models.User) (*TokenPair, error) {
 	return s.issueTokenPairTx(s.db, user)
+}
+
+func (s *AuthService) issueTokenPairContext(ctx context.Context, user *models.User) (*TokenPair, error) {
+	if ctx == nil {
+		ctx = context.Background()
+	}
+	return s.issueTokenPairTx(s.db.WithContext(ctx), user)
 }
 
 // ─── OAuth upsert helper ─────────────────────────────────────────────────────

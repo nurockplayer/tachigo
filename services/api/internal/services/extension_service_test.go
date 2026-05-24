@@ -1,8 +1,10 @@
 package services
 
 import (
+	"context"
 	"encoding/base64"
 	"errors"
+	"fmt"
 	"testing"
 	"time"
 
@@ -17,6 +19,8 @@ import (
 const testExtSecretRaw = "test-extension-secret-32chars!!!"
 
 var testExtSecretB64 = base64.StdEncoding.EncodeToString([]byte(testExtSecretRaw))
+
+type extensionServiceContextKey struct{}
 
 func extTestConfig() *config.Config {
 	cfg := testConfig()
@@ -139,6 +143,147 @@ func TestCompleteTPointTransaction_Success(t *testing.T) {
 	var tx models.PointsTransaction
 	if err := svc.db.Where("external_transaction_id = ?", "tx-success-001").First(&tx).Error; err != nil {
 		t.Errorf("points_transaction not found by external_transaction_id: %v", err)
+	}
+}
+
+func TestCompleteTPointTransactionContext_UsesRequestContextForUserLookup(t *testing.T) {
+	svc, _ := newExtSvc(t)
+	_, twitchID := seedTwitchUser(t, svc.db)
+	channelID := "channel-context"
+
+	extJWT := makeExtJWT(t, twitchID, channelID)
+	receipt := makeReceiptJWT(t, "tx-context-001", twitchID, "TPOINT100", 100, "bits")
+
+	key := extensionServiceContextKey{}
+	seen := installDBContextProbe(t, svc.db, key, "extension-tpoint")
+	ctx := context.WithValue(context.Background(), key, "extension-tpoint")
+
+	if _, _, err := svc.CompleteTPointTransactionContext(ctx, extJWT, receipt, "TPOINT100"); err != nil {
+		t.Fatalf("CompleteTPointTransactionContext: %v", err)
+	}
+	if seen() == 0 {
+		t.Fatal("expected CompleteTPointTransactionContext user lookup to carry request context")
+	}
+}
+
+func TestCompleteTPointTransactionContext_UsesRequestContextForPointsWriteAndTokenIssue(t *testing.T) {
+	svc, _ := newExtSvc(t)
+	_, twitchID := seedTwitchUser(t, svc.db)
+	channelID := "channel-context-write"
+
+	extJWT := makeExtJWT(t, twitchID, channelID)
+	receipt := makeReceiptJWT(t, "tx-context-write-001", twitchID, "TPOINT100", 100, "bits")
+
+	key := extensionServiceContextKey{}
+	ctx := context.WithValue(context.Background(), key, "extension-tpoint-write")
+	var seenPointsWrite bool
+	var seenRefreshTokenWrite bool
+
+	callbackName := "test:extension_tpoint_write_context"
+	probe := func(tx *gorm.DB) {
+		if tx.Statement == nil || tx.Statement.Schema == nil {
+			return
+		}
+		if tx.Statement.Schema.Table != "points_transactions" && tx.Statement.Schema.Table != "refresh_tokens" {
+			return
+		}
+		if tx.Statement.Context.Value(key) != "extension-tpoint-write" {
+			tx.AddError(fmt.Errorf("missing request context for %s", tx.Statement.Schema.Table))
+			return
+		}
+		switch tx.Statement.Schema.Table {
+		case "points_transactions":
+			seenPointsWrite = true
+		case "refresh_tokens":
+			seenRefreshTokenWrite = true
+		}
+	}
+	if err := svc.db.Callback().Create().Before("gorm:create").Register(callbackName, probe); err != nil {
+		t.Fatalf("register context probe: %v", err)
+	}
+	t.Cleanup(func() {
+		if err := svc.db.Callback().Create().Remove(callbackName); err != nil {
+			t.Fatalf("remove context probe: %v", err)
+		}
+	})
+
+	if _, _, err := svc.CompleteTPointTransactionContext(ctx, extJWT, receipt, "TPOINT100"); err != nil {
+		t.Fatalf("CompleteTPointTransactionContext: %v", err)
+	}
+	if !seenPointsWrite {
+		t.Fatal("expected points transaction write to carry request context")
+	}
+	if !seenRefreshTokenWrite {
+		t.Fatal("expected refresh token write to carry request context")
+	}
+}
+
+func TestLoginWithExtensionContext_UsesRequestContextForUserLookupAndTokenIssue(t *testing.T) {
+	svc, _ := newExtSvc(t)
+	_, twitchID := seedTwitchUser(t, svc.db)
+	extJWT := makeExtJWT(t, twitchID, "channel-login-context")
+
+	key := extensionServiceContextKey{}
+	ctx := context.WithValue(context.Background(), key, "extension-login")
+	var seenAuthProviderLookup bool
+	var seenUserLookup bool
+	var seenRefreshTokenWrite bool
+
+	callbackName := "test:extension_login_context:" + uuid.NewString()
+	probe := func(tx *gorm.DB) {
+		if tx.Statement == nil || tx.Statement.Schema == nil {
+			return
+		}
+		table := tx.Statement.Schema.Table
+		if table != "auth_providers" && table != "users" && table != "refresh_tokens" {
+			return
+		}
+		if tx.Statement.Context.Value(key) != "extension-login" {
+			tx.AddError(fmt.Errorf("missing request context for %s", table))
+			return
+		}
+		switch table {
+		case "auth_providers":
+			seenAuthProviderLookup = true
+		case "users":
+			seenUserLookup = true
+		case "refresh_tokens":
+			seenRefreshTokenWrite = true
+		}
+	}
+	if err := svc.db.Callback().Query().Before("gorm:query").Register(callbackName+":query", probe); err != nil {
+		t.Fatalf("register login query context probe: %v", err)
+	}
+	if err := svc.db.Callback().Create().Before("gorm:create").Register(callbackName+":create", probe); err != nil {
+		t.Fatalf("register login create context probe: %v", err)
+	}
+	t.Cleanup(func() {
+		if err := svc.db.Callback().Query().Remove(callbackName + ":query"); err != nil {
+			t.Fatalf("remove login query context probe: %v", err)
+		}
+		if err := svc.db.Callback().Create().Remove(callbackName + ":create"); err != nil {
+			t.Fatalf("remove login create context probe: %v", err)
+		}
+	})
+
+	user, tokens, err := svc.LoginWithExtensionContext(ctx, extJWT)
+	if err != nil {
+		t.Fatalf("LoginWithExtensionContext: %v", err)
+	}
+	if user == nil {
+		t.Fatal("expected user")
+	}
+	if tokens == nil {
+		t.Fatal("expected tokens")
+	}
+	if !seenAuthProviderLookup {
+		t.Fatal("expected extension login auth provider lookup to carry request context")
+	}
+	if !seenUserLookup {
+		t.Fatal("expected extension login user lookup to carry request context")
+	}
+	if !seenRefreshTokenWrite {
+		t.Fatal("expected extension login refresh token write to carry request context")
 	}
 }
 

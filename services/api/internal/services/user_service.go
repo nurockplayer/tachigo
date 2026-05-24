@@ -35,25 +35,51 @@ type LinkWalletInput struct {
 }
 
 func (s *UserService) GetByID(id uuid.UUID) (*models.User, error) {
+	return s.GetByIDContext(context.Background(), id)
+}
+
+func (s *UserService) GetByIDContext(ctx context.Context, id uuid.UUID) (*models.User, error) {
+	if ctx == nil {
+		ctx = context.Background()
+	}
+
 	var user models.User
-	if err := s.db.First(&user, "id = ?", id).Error; err != nil {
-		return nil, ErrUserNotFound
+	if err := s.db.WithContext(ctx).First(&user, "id = ?", id).Error; err != nil {
+		if errors.Is(err, gorm.ErrRecordNotFound) {
+			return nil, ErrUserNotFound
+		}
+		return nil, err
 	}
 	return &user, nil
 }
 
 func (s *UserService) UpdateProfile(id uuid.UUID, input UpdateProfileInput) (*models.User, error) {
+	return s.UpdateProfileContext(context.Background(), id, input)
+}
+
+func (s *UserService) UpdateProfileContext(ctx context.Context, id uuid.UUID, input UpdateProfileInput) (*models.User, error) {
+	if ctx == nil {
+		ctx = context.Background()
+	}
+
+	db := s.db.WithContext(ctx)
+
 	var user models.User
-	if err := s.db.First(&user, "id = ?", id).Error; err != nil {
-		return nil, ErrUserNotFound
+	if err := db.First(&user, "id = ?", id).Error; err != nil {
+		if errors.Is(err, gorm.ErrRecordNotFound) {
+			return nil, ErrUserNotFound
+		}
+		return nil, err
 	}
 
 	if input.Username != nil {
 		// Uniqueness check
 		var count int64
-		s.db.Model(&models.User{}).
+		if err := db.Model(&models.User{}).
 			Where("username = ? AND id != ?", *input.Username, id).
-			Count(&count)
+			Count(&count).Error; err != nil {
+			return nil, err
+		}
 		if count > 0 {
 			return nil, ErrUsernameExists
 		}
@@ -64,7 +90,7 @@ func (s *UserService) UpdateProfile(id uuid.UUID, input UpdateProfileInput) (*mo
 		user.AvatarURL = input.AvatarURL
 	}
 
-	if err := s.db.Save(&user).Error; err != nil {
+	if err := db.Save(&user).Error; err != nil {
 		return nil, err
 	}
 	return &user, nil
@@ -87,15 +113,24 @@ func (s *UserService) ListProvidersContext(ctx context.Context, userID uuid.UUID
 }
 
 func (s *UserService) LinkWallet(userID uuid.UUID, input LinkWalletInput) (string, error) {
+	return s.LinkWalletContext(context.Background(), userID, input)
+}
+
+func (s *UserService) LinkWalletContext(ctx context.Context, userID uuid.UUID, input LinkWalletInput) (string, error) {
+	if ctx == nil {
+		ctx = context.Background()
+	}
+
 	if !common.IsHexAddress(input.Address) {
 		return "", ErrInvalidWalletAddress
 	}
 
+	db := s.db.WithContext(ctx)
 	checksumAddr := common.HexToAddress(input.Address).Hex()
 	lookupAddr := strings.ToLower(checksumAddr)
 
 	var nonceRecord models.Web3Nonce
-	if err := s.db.Where("nonce = ? AND address = ?", input.Nonce, lookupAddr).
+	if err := db.Where("nonce = ? AND address = ?", input.Nonce, lookupAddr).
 		First(&nonceRecord).Error; err != nil {
 		if errors.Is(err, gorm.ErrRecordNotFound) {
 			return "", ErrInvalidNonce
@@ -112,7 +147,7 @@ func (s *UserService) LinkWallet(userID uuid.UUID, input LinkWalletInput) (strin
 		return "", ErrInvalidSignature
 	}
 
-	err := s.db.Transaction(func(tx *gorm.DB) error {
+	err := db.Transaction(func(tx *gorm.DB) error {
 		result := tx.Where("nonce = ? AND address = ?", input.Nonce, lookupAddr).
 			Delete(&models.Web3Nonce{})
 		if result.Error != nil {

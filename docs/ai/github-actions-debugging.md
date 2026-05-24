@@ -17,9 +17,9 @@
 | 層級 | 代表訊號 | 先看哪裡 |
 | --- | --- | --- |
 | PR metadata | title/body/template 欄位不合規 | `docs/pr-scope-policy.md`、`.github/PULL_REQUEST_TEMPLATE.md` |
-| Scope gate | 重型 CI 被跳過 | `.github/workflows/ci.yml` 的 `scope-gate` job |
+| CI scope router | 重型 CI 被跳過 | `.github/workflows/ci.yml` 的 `scope-gate` job |
 | Scope police | PR 被標記或擋下 | `.github/workflows/pr-scope-police.yml` |
-| Workflow regression | workflow script 本身壞掉 | `.github/workflows/ci.test.mjs` |
+| Workflow regression | workflow script 本身壞掉 | `.github/workflows/ci.test.ts` |
 | Product CI | backend/frontend/dashboard/contract 測試失敗 | 對應 product surface 的 job log |
 | Auto-ready | draft PR 沒轉 ready 或 auto-merge 沒 armed | `.github/workflows/auto-ready-pr.yml`、`ci.yml` 的 `auto-ready-after-ci` |
 
@@ -64,7 +64,7 @@ make pr-meta-check TITLE="[chore] Example title" BODY_FILE=/tmp/pr-body.md
 
 `develop` 的 required check snapshot 目前在 `.github/workflows/auto-ready-pr.yml`：
 
-- `Scope gate`
+- `CI scope router`
 - `Frontend build`
 - `Dashboard build`
 - `Contracts build`
@@ -77,7 +77,7 @@ make pr-meta-check TITLE="[chore] Example title" BODY_FILE=/tmp/pr-body.md
 凡是改到 `.github/workflows/ci.yml`、`.github/workflows/pr-scope-police.yml`、`.github/workflows/auto-ready-pr.yml` 或 related workflow script，至少跑：
 
 ```bash
-node --test .github/workflows/ci.test.mjs
+node --experimental-strip-types --no-warnings --test .github/workflows/ci.test.ts
 ```
 
 如果改到 backend CI cache wiring，也跑：
@@ -104,7 +104,6 @@ bash infra/scripts/pr-open.test.sh
 
 1. 讀失敗 job 的 summary 和 notice，判斷是哪一層。
 2. 若是 metadata / scope 問題，先修 PR body 或拆 PR。
-3. 若是 workflow script 問題，跑 `.github/workflows/ci.test.mjs` 復現。
+3. 若是 workflow script 問題，跑 `.github/workflows/ci.test.ts` 復現。
 4. 若是 product CI 問題，只在該 product surface 的獨立 PR 中修。
 5. 若發現需要新機制，先開 issue 或 discussion，不混入當前修補 PR。
-

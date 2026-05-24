@@ -46,6 +46,32 @@ func TestRegister_Success(t *testing.T) {
 	}
 }
 
+func TestAuthService_RegisterContext_UsesRequestContext(t *testing.T) {
+	db := newTestDB(t)
+	svc := NewAuthService(db, testConfig())
+
+	type registerContextKey struct{}
+	key := registerContextKey{}
+	seen := installDBContextProbe(t, db, key, "register")
+	ctx := context.WithValue(context.Background(), key, "register")
+
+	user, tokens, err := svc.RegisterContext(ctx, RegisterInput{
+		Username: "registerctx",
+		Email:    "registerctx@example.com",
+		Password: "password123",
+	})
+
+	if err != nil {
+		t.Fatalf("register context: %v", err)
+	}
+	if user == nil || tokens == nil {
+		t.Fatal("expected user and tokens, got nil")
+	}
+	if seen() == 0 {
+		t.Fatal("expected Register DB query/create to use request context")
+	}
+}
+
 func TestOAuthUser_PersistsOnlyEncryptedTwitchAccessToken(t *testing.T) {
 	db := newTestDB(t)
 	cfg := testConfig()
@@ -330,6 +356,29 @@ func TestLogin_Success(t *testing.T) {
 	}
 }
 
+func TestAuthService_LoginContext_UsesRequestContext(t *testing.T) {
+	db := newTestDB(t)
+	svc := NewAuthService(db, testConfig())
+	svc.Register(RegisterInput{Username: "loginctx", Email: "loginctx@example.com", Password: "mypassword"})
+
+	type loginContextKey struct{}
+	key := loginContextKey{}
+	seen := installDBContextProbe(t, db, key, "login")
+	ctx := context.WithValue(context.Background(), key, "login")
+
+	user, tokens, err := svc.LoginContext(ctx, LoginInput{Email: "loginctx@example.com", Password: "mypassword"})
+
+	if err != nil {
+		t.Fatalf("login context: %v", err)
+	}
+	if user == nil || tokens == nil {
+		t.Fatal("expected user and tokens")
+	}
+	if seen() == 0 {
+		t.Fatal("expected Login DB query/create to use request context")
+	}
+}
+
 func TestLogin_WrongPassword(t *testing.T) {
 	svc := NewAuthService(newTestDB(t), testConfig())
 	svc.Register(RegisterInput{Username: "user", Email: "user@example.com", Password: "correctpass"})
@@ -361,6 +410,32 @@ func TestRefresh_Success(t *testing.T) {
 	}
 	if newTokens.AccessToken == "" {
 		t.Error("expected non-empty access token")
+	}
+}
+
+func TestAuthService_RefreshContext_UsesRequestContext(t *testing.T) {
+	db := newTestDB(t)
+	svc := NewAuthService(db, testConfig())
+	_, tokens, _ := svc.Register(RegisterInput{
+		Username: "refreshctx",
+		Email:    "refreshctx@example.com",
+		Password: "password123",
+	})
+
+	type refreshContextKey struct{}
+	key := refreshContextKey{}
+	seen := installDBContextProbe(t, db, key, "refresh")
+	ctx := context.WithValue(context.Background(), key, "refresh")
+
+	newTokens, err := svc.RefreshContext(ctx, tokens.RefreshToken)
+	if err != nil {
+		t.Fatalf("refresh context: %v", err)
+	}
+	if newTokens == nil || newTokens.RefreshToken == "" {
+		t.Fatal("expected rotated refresh token")
+	}
+	if seen() == 0 {
+		t.Fatal("expected Refresh DB query/delete/create to use request context")
 	}
 }
 
@@ -472,6 +547,28 @@ func TestLogout_InvalidatesRefreshToken(t *testing.T) {
 	}
 }
 
+func TestAuthService_LogoutContext_UsesRequestContext(t *testing.T) {
+	db := newTestDB(t)
+	svc := NewAuthService(db, testConfig())
+	_, tokens, _ := svc.Register(RegisterInput{
+		Username: "logoutctx",
+		Email:    "logoutctx@example.com",
+		Password: "password123",
+	})
+
+	type logoutContextKey struct{}
+	key := logoutContextKey{}
+	seen := installDBContextProbe(t, db, key, "logout")
+	ctx := context.WithValue(context.Background(), key, "logout")
+
+	if err := svc.LogoutContext(ctx, tokens.RefreshToken); err != nil {
+		t.Fatalf("logout context: %v", err)
+	}
+	if seen() == 0 {
+		t.Fatal("expected Logout DB delete to use request context")
+	}
+}
+
 // ─── ValidateAccessToken ─────────────────────────────────────────────────────
 
 func TestValidateAccessToken_Valid(t *testing.T) {
@@ -528,6 +625,28 @@ func TestWeb3Nonce_Success(t *testing.T) {
 	}
 	if issuedAt.IsZero() {
 		t.Error("expected non-zero issuedAt")
+	}
+}
+
+func TestWeb3NonceContext_CanceledRequestStopsDBWrite(t *testing.T) {
+	db := newTestDB(t)
+	svc := NewAuthService(db, testConfig())
+	address := "0xd8dA6BF26964aF9D7eEd9e03E53415D37aA96045"
+
+	ctx, cancel := context.WithCancel(context.Background())
+	cancel()
+
+	nonce, _, err := svc.Web3NonceContext(ctx, address)
+	if !errors.Is(err, context.Canceled) {
+		t.Fatalf("want context.Canceled, got nonce=%q err=%v", nonce, err)
+	}
+
+	var count int64
+	if err := db.Model(&models.Web3Nonce{}).Where("address = ?", strings.ToLower(address)).Count(&count).Error; err != nil {
+		t.Fatalf("count web3 nonce rows: %v", err)
+	}
+	if count != 0 {
+		t.Fatalf("canceled request should not create nonce rows, got %d", count)
 	}
 }
 
@@ -1011,6 +1130,101 @@ func TestUnlinkProvider_MultipleProviders(t *testing.T) {
 	}
 }
 
+func TestUnlinkProviderContext_UsesRequestContext(t *testing.T) {
+	db := newTestDB(t)
+	svc := NewAuthService(db, testConfig())
+
+	userID := uuid.New()
+	if err := db.Create(&models.User{ID: userID, Role: models.RoleViewer}).Error; err != nil {
+		t.Fatalf("create user: %v", err)
+	}
+	if err := db.Create(&models.AuthProvider{UserID: userID, Provider: models.ProviderTwitch, ProviderID: "twitch-ctx"}).Error; err != nil {
+		t.Fatalf("create twitch provider: %v", err)
+	}
+	if err := db.Create(&models.AuthProvider{UserID: userID, Provider: models.ProviderGoogle, ProviderID: "google-ctx"}).Error; err != nil {
+		t.Fatalf("create google provider: %v", err)
+	}
+
+	type unlinkProviderContextKey struct{}
+	key := unlinkProviderContextKey{}
+	seen := installDBContextProbe(t, db, key, "unlink-provider")
+	ctx := context.WithValue(context.Background(), key, "unlink-provider")
+
+	if err := svc.UnlinkProviderContext(ctx, userID, models.ProviderTwitch); err != nil {
+		t.Fatalf("unlink provider: %v", err)
+	}
+	if seen() == 0 {
+		t.Fatal("expected UnlinkProvider DB query to use request context")
+	}
+}
+
+func installUnlinkProviderQueryError(t *testing.T, db *gorm.DB, err error, failOnQuery int) {
+	t.Helper()
+
+	queryCount := 0
+	name := "test:unlink_provider_query_error:" + uuid.NewString()
+	probe := func(tx *gorm.DB) {
+		queryCount++
+		if queryCount == failOnQuery {
+			tx.AddError(err)
+		}
+	}
+
+	if err := db.Callback().Query().Before("gorm:query").Register(name, probe); err != nil {
+		t.Fatalf("register unlink provider query error probe: %v", err)
+	}
+
+	t.Cleanup(func() {
+		_ = db.Callback().Query().Remove(name)
+	})
+}
+
+func TestUnlinkProviderContext_ReturnsCountError(t *testing.T) {
+	db := newTestDB(t)
+	svc := NewAuthService(db, testConfig())
+
+	userID := uuid.New()
+	if err := db.Create(&models.User{ID: userID, Role: models.RoleViewer}).Error; err != nil {
+		t.Fatalf("create user: %v", err)
+	}
+	if err := db.Create(&models.AuthProvider{UserID: userID, Provider: models.ProviderTwitch, ProviderID: "twitch-count-err"}).Error; err != nil {
+		t.Fatalf("create twitch provider: %v", err)
+	}
+	if err := db.Create(&models.AuthProvider{UserID: userID, Provider: models.ProviderGoogle, ProviderID: "google-count-err"}).Error; err != nil {
+		t.Fatalf("create google provider: %v", err)
+	}
+
+	installUnlinkProviderQueryError(t, db, context.Canceled, 1)
+
+	err := svc.UnlinkProviderContext(context.Background(), userID, models.ProviderTwitch)
+	if !errors.Is(err, context.Canceled) {
+		t.Fatalf("expected context.Canceled from count query, got %v", err)
+	}
+}
+
+func TestUnlinkProviderContext_ReturnsUserLookupError(t *testing.T) {
+	db := newTestDB(t)
+	svc := NewAuthService(db, testConfig())
+
+	userID := uuid.New()
+	if err := db.Create(&models.User{ID: userID, Role: models.RoleViewer}).Error; err != nil {
+		t.Fatalf("create user: %v", err)
+	}
+	if err := db.Create(&models.AuthProvider{UserID: userID, Provider: models.ProviderTwitch, ProviderID: "twitch-first-err"}).Error; err != nil {
+		t.Fatalf("create twitch provider: %v", err)
+	}
+	if err := db.Create(&models.AuthProvider{UserID: userID, Provider: models.ProviderGoogle, ProviderID: "google-first-err"}).Error; err != nil {
+		t.Fatalf("create google provider: %v", err)
+	}
+
+	installUnlinkProviderQueryError(t, db, context.DeadlineExceeded, 2)
+
+	err := svc.UnlinkProviderContext(context.Background(), userID, models.ProviderTwitch)
+	if !errors.Is(err, context.DeadlineExceeded) {
+		t.Fatalf("expected context.DeadlineExceeded from user lookup, got %v", err)
+	}
+}
+
 // ─── crypto helpers ───────────────────────────────────────────────────────────
 
 func TestHashToken_Deterministic(t *testing.T) {
@@ -1086,6 +1300,21 @@ func TestDeleteExpiredRefreshTokens_RemovesExpiredOnly(t *testing.T) {
 	svc.db.Model(&models.RefreshToken{}).Where("token_hash = ?", hashToken(tokens.RefreshToken)).Count(&count)
 	if count != 1 {
 		t.Errorf("valid token should still exist, got count=%d", count)
+	}
+}
+
+func TestDeleteExpiredRefreshTokensContext_CanceledContext(t *testing.T) {
+	svc := NewAuthService(newTestDB(t), testConfig())
+
+	ctx, cancel := context.WithCancel(context.Background())
+	cancel()
+
+	deleted, err := svc.DeleteExpiredRefreshTokensContext(ctx)
+	if !errors.Is(err, context.Canceled) {
+		t.Fatalf("want context.Canceled, got deleted=%d err=%v", deleted, err)
+	}
+	if deleted != 0 {
+		t.Errorf("canceled cleanup should not report deleted rows, got %d", deleted)
 	}
 }
 

@@ -33,7 +33,7 @@
 | R3 | backend / API behavior | 可用，但若涉及 auth、permission、schema、migration、security、payment、wallet、workflow 或 release，必須升級為 R4 |
 | R4 | auth / permissions / security / schema / migration / secrets / payments / wallet / workflow / release | 不可用，必須 human review |
 
-`R4` 是 auto-ready / automation 的硬邊界。PR 若勾選 `R4` 且帶有 `auto-ready` label，`PR Scope Police` 會 fail，要求移除 `auto-ready` 並由 human reviewer 明確 review / approve。
+`auto-ready` 可用只代表 PR 可進入 draft-to-ready 自動化路徑，不代表一律要啟動完整 autonomous evidence gate。`R0` / `R1` PR 只有 `auto-ready` label 時走輕量路徑；`R2` / `R3` 若使用 `auto-ready`，仍會被視為 autonomous PR 並要求 delegation / closeout evidence。`R4` 是 auto-ready / automation 的硬邊界。PR 若勾選 `R4` 且帶有 `auto-ready` label，`PR Scope Police` 會 fail，要求移除 `auto-ready` 並由 human reviewer 明確 review / approve。
 
 目前 `PR Risk Class` 是作者自我宣告的治理欄位，`PR Scope Police` 只驗證「剛好勾選一項」與「R4 不可搭配 auto-ready」。它尚未實作 diff-based floor 或路徑自動升級；也就是說，若 PR 修改 `.github/workflows/**`、migration、auth、wallet、security、payment 或 release 相關檔案，系統目前不會自動把 R1/R2/R3 升級為 R4。Reviewer 仍需依 diff 判斷風險，必要時要求作者改填 R4、移除 `auto-ready`，或拆 follow-up issue/PR。
 
@@ -116,7 +116,7 @@ Dependabot maintenance PR 目前不會套用 frontend/backend 依賴關係用的
 
 另外，這類 PR 不應再被 product surface 的 inherited 紅燈拖住 review 流程，因此：
 
-- `Scope gate` 會直接略過 backend / frontend / dashboard 的 heavy CI
+- `CI scope router` 會直接略過 backend / frontend / dashboard 的 heavy CI
 - 仍保留 `PR Scope Police`、workflow regression 與其他 metadata / policy 檢查
 - 若 docs/template PR 因為 restack 需求碰到 `develop` 上的產品線紅燈，應拆成獨立 product fix PR，不可把 inherited 修補留在 docs PR
 
@@ -147,7 +147,7 @@ Dependabot maintenance PR 目前不會套用 frontend/backend 依賴關係用的
 - `PR Scope Police` check 會 fail
 - PR 會收到一則可更新的 sticky comment
 - 嚴重 scope 違規會自動加上 `scope-violation` label
-- 依賴未落地的前端 PR 會自動加上 `blocked-by-dependency` label
+- 依賴未落地的前端 PR 會 fail 並在 sticky comment 顯示 dependency block；不再另加 `blocked-by-dependency` label
 - 若屬於嚴重違規，PR 會被自動關閉
 
 目前視為嚴重違規的情況：
@@ -170,7 +170,8 @@ Dependabot maintenance PR 目前不會套用 frontend/backend 依賴關係用的
 
 關於 autonomous PR 的判定與觸發條件：
 
-- `codex` / `codex-automation` / `auto-ready` label 或 `Delegation Execution Log` 在正式欄位（`Source issue delegation plan`、`Actual worker profile(s)`、`Model strength`、`Verification evidence`、`Self-review / exception reason`）有實質內容時，視為 autonomous PR。
+- `codex` / `codex-automation` label、`R2`-`R4` PR 的 `auto-ready` label，或 `Delegation Execution Log` 在正式欄位（`Source issue delegation plan`、`Actual worker profile(s)`、`Model strength`、`Verification evidence`、`Self-review / exception reason`）有實質內容時，視為 autonomous PR。
+- `R0` / `R1` PR 只有 `auto-ready` label 時不會單獨觸發完整 autonomous evidence gate；若另有 `codex` / `codex-automation` label、autonomous branch/body signal，或 delegation 欄位有實質內容，仍會照 autonomous PR 檢查。
 - autonomous PR 仍必須勾選 `PR Risk Class`；若屬 `R4`，不得使用 `auto-ready`，也不得讓 automation 自行完成 ready / merge path。
 - 自動化 PR 還須在同區塊填寫 `Worker session closeout`，且內容不可空白、`n/a`、`none`、`無`、`不適用`。
 - 自動化 PR 必須至少有一條 spawn directive，且同時包含 `profile=`、`model=`、`reasoning=`、`controller_fallback=`；若 `controller_fallback=allowed`，同一行必須有非空 `fallback_reason=`。
@@ -206,11 +207,36 @@ Autonomous Worker Profiles v2 的完整 evidence discipline 與 `spec workflow-c
 repo 的 CI 目前改成：
 
 - PR 先跑 `PR Scope Police`
-- `.github/workflows/ci.yml` 也會直接跑在 PR 上，但會先經過一個輕量 `Scope gate`
+- `.github/workflows/ci.yml` 也會直接跑在 PR 上，但會先經過一個輕量 `CI scope router`
 - 只有目前符合同一套 scope 規則、且沒有被 dependency gate 擋住的 PR，才會繼續跑 backend / frontend / dashboard 的 docker build 與測試
 - 若 `[frontend]` PR 依賴尚未 merge 的 backend contract，重型 CI 會直接跳過
-- 若 PR 是正式 `[release]` 的 `develop -> main` promotion，重型 CI 會照常執行，不因 diff 過大而被 scope gate 跳過
+- 若 PR 是正式 `[release]` 的 `develop -> main` promotion，重型 CI 會照常執行，不因 diff 過大而被 CI scope router 跳過
 - 若 PR 是 docs / template / metadata-only，重型 product CI 會直接跳過，避免 inherited product failures 造成無限循環
+
+### #764 CI execution strategy
+
+#764 的目標是讓 CI 成本跟 PR 風險成比例，但第一階段只先同步文件與 reviewer 判斷邊界，不在同一個 PR 修改 workflow runtime。任何實際調整 `.github/workflows/**`、required check snapshot、label mutation 或 auto-merge 行為的 PR，都應視為 workflow/policy 變更，獨立成 R4 或至少高風險 tooling PR，並搭配 workflow regression 測試。
+
+目前的 lightweight lanes 定義如下：
+
+- docs / template / metadata-only lane：只修改 `docs/`、`docs/ai/`、`plans/`、`.github/ISSUE_TEMPLATE/`、`.github/PULL_REQUEST_TEMPLATE.md`、repo root Markdown、`infra/`、`.gitignore` 或 `.gitattributes`。這類 PR 保留 metadata/policy checks，但 `CI scope router` 會略過 backend / frontend / dashboard / contracts heavy CI。
+- workflow lane：任何 `.github/workflows/**` 變更都不算 metadata-only。即使內容只是註解或 policy 調整，也要跑 workflow regression，並重新檢查 required check / auto-ready / Scope Police 語義。
+- frontend / style-only lane：目前尚未有獨立 workflow lane。只要修改 `apps/extension/`、`apps/dashboard/`、`tachimint/` 或 `dashboard/`，就仍屬 frontend surface，至少需要對應 frontend/dashboard checks；若未來要新增 style-only lane，必須先在 `.github/workflows/ci.yml` 與 `.github/workflows/ci.test.ts` 定義路徑規則與 regression case。
+- package / API contract lane：`packages/`、OpenAPI generated docs、frontend API client 或 workspace dependency 變更不可混入 docs-only lane；是否跑 API contract / dependency review 由 `CI scope router` path rules 決定。
+
+第一階段的非目標：
+
+- 不改 `.github/workflows/ci.yml` 的 `scope-gate` outputs 或 job `if` 條件。
+- 不改 `.github/workflows/pr-scope-police.yml` 的 sticky comment、label、自動 close 或 dependency gate。
+- 不改 `auto-ready` / auto-merge workflow，也不調整 branch protection required checks。
+- 不用 docs PR 修 inherited backend / frontend / dashboard 紅燈。
+
+後續若要實作 #764 的 runtime 變更，建議依序拆 PR：
+
+1. workflow regression 先行：為預期 lane 行為新增 `ci.test.ts` case，證明 workflow file 仍不會被誤判為 metadata-only。
+2. path-aware CI runtime：只改 `ci.yml` 的 `scope-gate` job（PR check 顯示為 `CI scope router`）與對應 regression，避免混入 Scope Police 或 auto-merge 行為。
+3. frontend / style-only lane：在有明確路徑定義與可接受 skipped required check 語義後再新增。
+4. autonomous review loop 節流：只改 review flag / rerequest / notification workflow，避免和 CI path gate 同 PR。
 
 ## Conflict / Restack 規則
 
@@ -301,7 +327,7 @@ Codex task PR 應使用 `AUTO_READY=1`，讓 wrapper 一次建立 draft PR 並�
 注意：
 
 - `PR Scope Police` 應該是第一道 gate
-- 後面三個 CI checks 會直接出現在 PR 上；若 scope 不合格，job 會在 `Scope gate` 後被略過
+- 後面三個 CI checks 會直接出現在 PR 上；若 scope 不合格，job 會在 `CI scope router` 後被略過
 
 ## Reviewer 指南
 

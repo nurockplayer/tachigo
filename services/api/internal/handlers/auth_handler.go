@@ -66,7 +66,7 @@ func (h *AuthHandler) Register(c *gin.Context) {
 		return
 	}
 
-	user, tokens, err := h.auth.Register(input)
+	user, tokens, err := h.auth.RegisterContext(c.Request.Context(), input)
 	if err != nil {
 		switch err {
 		case services.ErrEmailExists:
@@ -111,7 +111,7 @@ func (h *AuthHandler) Login(c *gin.Context) {
 		return
 	}
 
-	user, tokens, err := h.auth.Login(input)
+	user, tokens, err := h.auth.LoginContext(c.Request.Context(), input)
 	if err != nil {
 		if errors.Is(err, services.ErrInvalidCredentials) {
 			unauthorized(c, "invalid email or password")
@@ -142,7 +142,7 @@ func (h *AuthHandler) Refresh(c *gin.Context) {
 		return
 	}
 
-	tokens, err := h.auth.Refresh(refreshToken)
+	tokens, err := h.auth.RefreshContext(c.Request.Context(), refreshToken)
 	if err != nil {
 		if errors.Is(err, services.ErrInvalidToken) || errors.Is(err, services.ErrUserNotFound) {
 			unauthorized(c, "invalid or expired refresh token")
@@ -172,7 +172,7 @@ func (h *AuthHandler) Logout(c *gin.Context) {
 		return
 	}
 
-	h.auth.Logout(refreshToken)
+	h.auth.LogoutContext(c.Request.Context(), refreshToken)
 	h.clearRefreshCookie(c)
 	ok(c, gin.H{"message": "logged out"})
 }
@@ -298,7 +298,7 @@ func (h *AuthHandler) Web3Nonce(c *gin.Context) {
 		return
 	}
 
-	nonce, issuedAt, err := h.auth.Web3Nonce(body.Address)
+	nonce, issuedAt, err := h.auth.Web3NonceContext(c.Request.Context(), body.Address)
 	if err != nil {
 		internal(c)
 		return
@@ -327,7 +327,7 @@ func (h *AuthHandler) Web3Verify(c *gin.Context) {
 		return
 	}
 
-	user, tokens, err := h.auth.Web3Verify(input)
+	user, tokens, err := h.auth.Web3VerifyContext(c.Request.Context(), input)
 	if err != nil {
 		switch err {
 		case services.ErrInvalidNonce:
@@ -359,7 +359,7 @@ func (h *AuthHandler) UnlinkProvider(c *gin.Context) {
 	userID, _ := uuid.Parse(claims.UserID)
 	provider := models.ProviderType(c.Param("provider"))
 
-	if err := h.auth.UnlinkProvider(userID, provider); err != nil {
+	if err := h.auth.UnlinkProviderContext(c.Request.Context(), userID, provider); err != nil {
 		switch err {
 		case services.ErrLastProvider:
 			badRequest(c, "cannot unlink the only login method")

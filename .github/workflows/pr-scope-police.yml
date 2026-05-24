@@ -37,7 +37,7 @@ jobs:
             const labels = (pr.labels || []).map((label) => label.name)
             const bypassed = labels.some((label) => bypassLabels.has(label))
 
-            const autonomousLabels = new Set(['autonomous', 'codex', 'codex-automation', 'codex-workflow', 'auto-ready'])
+            const autonomousLabels = new Set(['autonomous', 'codex', 'codex-automation', 'codex-workflow'])
             const bodyForAutonomousGate = (pr.body || '').replace(/<!--[\s\S]*?-->/g, '')
             const riskClassDefinitions = [
               { id: 'R0', label: 'docs / template / metadata only' },
@@ -77,6 +77,8 @@ jobs:
             const hasAutoReadyLabel = labels.includes('auto-ready')
             const autoReadyAllowedByRiskClass =
               checkedRiskClassIds.length === 1 && selectedRiskClassId !== 'R4'
+            const autoReadyTriggersAutonomousGate =
+              hasAutoReadyLabel && !['R0', 'R1', 'unclassified', 'invalid'].includes(selectedRiskClassId)
             const delegationExecutionLogSection = extractMarkdownSection(
               bodyForAutonomousGate,
               'Delegation Execution Log',
@@ -379,6 +381,7 @@ jobs:
               /(?:^|\n)\s*-?\s*(?:Autonomous PR|Codex workflow)\s*[：:]\s*(?:yes|true|enabled)/i.test(bodyForAutonomousGate)
             const isAutonomousPr =
               labels.some((label) => autonomousLabels.has(label)) ||
+              autoReadyTriggersAutonomousGate ||
               hasAutonomousBranchSignal ||
               hasAutonomousBodySignal ||
               hasDelegationExecutionLog
@@ -447,7 +450,6 @@ jobs:
             const hardMaxDiffLines = 1000
             const warningDiffLines = 600
             const autoCloseLabel = 'scope-violation'
-            const dependencyLabel = 'blocked-by-dependency'
             const owner = context.repo.owner
             const repo = context.repo.repo
 
@@ -832,7 +834,6 @@ jobs:
               `- Auto-close triggered: ${severeFailures.length > 0 ? 'yes' : 'no'}`,
             )
             summaryLines.push(`- Auto-close label: \`${autoCloseLabel}\``)
-            summaryLines.push(`- Dependency block label: \`${dependencyLabel}\``)
             summaryLines.push('- Bypass label: `scope-exception`')
 
             const commentBody = summaryLines.join('\n')
@@ -921,31 +922,6 @@ jobs:
                   repo,
                   issue_number: pr.number,
                   name: autoCloseLabel,
-                })
-              } catch (error) {
-                if (error.status !== 404) throw error
-              }
-            }
-
-            if (dependencyFailures.length > 0) {
-              await ensureLabel(
-                dependencyLabel,
-                '1D76DB',
-                'PR is blocked by an unmerged dependency or undeployed backend contract',
-              )
-              await github.rest.issues.addLabels({
-                owner,
-                repo,
-                issue_number: pr.number,
-                labels: [dependencyLabel],
-              })
-            } else if (labels.includes(dependencyLabel)) {
-              try {
-                await github.rest.issues.removeLabel({
-                  owner,
-                  repo,
-                  issue_number: pr.number,
-                  name: dependencyLabel,
                 })
               } catch (error) {
                 if (error.status !== 404) throw error

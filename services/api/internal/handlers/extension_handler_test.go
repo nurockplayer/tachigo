@@ -2,6 +2,7 @@ package handlers_test
 
 import (
 	"bytes"
+	"context"
 	"encoding/base64"
 	"encoding/json"
 	"net/http"
@@ -23,6 +24,31 @@ import (
 )
 
 const extHandlerSecretRaw = "test-extension-secret-32chars!!!"
+
+type extensionHandlerContextKey struct{}
+
+func installExtensionHandlerDBContextProbe(t *testing.T, db *gorm.DB, key, want any) func() int {
+	t.Helper()
+
+	var seen int
+	name := "test:extension_handler_db_context:" + uuid.NewString()
+	probe := func(tx *gorm.DB) {
+		if tx.Statement != nil && tx.Statement.Context != nil && tx.Statement.Context.Value(key) == want {
+			seen++
+		}
+	}
+
+	if err := db.Callback().Query().Before("gorm:query").Register(name+":query", probe); err != nil {
+		t.Fatalf("register query context probe: %v", err)
+	}
+	t.Cleanup(func() {
+		_ = db.Callback().Query().Remove(name + ":query")
+	})
+
+	return func() int {
+		return seen
+	}
+}
 
 func newExtHandlerEnv(t *testing.T) (*gin.Engine, *gorm.DB) {
 	t.Helper()
@@ -150,6 +176,30 @@ func tpointBody(t *testing.T, extJWT, receipt, sku string) *bytes.Buffer {
 		"sku":                 sku,
 	})
 	return bytes.NewBuffer(b)
+}
+
+func TestTPointComplete_UsesRequestContextForUserLookup(t *testing.T) {
+	r, db := newExtHandlerEnv(t)
+	twitchID := seedTwitchUserForHandler(t, db)
+	extJWT := signExtJWTForHandler(t, twitchID, "ch-context")
+	receipt := signReceiptJWTForHandler(t, "tx-handler-context", twitchID, "TPOINT100", 100, "bits")
+
+	key := extensionHandlerContextKey{}
+	seen := installExtensionHandlerDBContextProbe(t, db, key, "extension-tpoint")
+	ctx := context.WithValue(context.Background(), key, "extension-tpoint")
+
+	req := httptest.NewRequest(http.MethodPost, "/api/v1/extension/t-point/complete",
+		tpointBody(t, extJWT, receipt, "TPOINT100")).WithContext(ctx)
+	req.Header.Set("Content-Type", "application/json")
+	w := httptest.NewRecorder()
+	r.ServeHTTP(w, req)
+
+	if w.Code != http.StatusOK {
+		t.Fatalf("want 200, got %d: %s", w.Code, w.Body.String())
+	}
+	if seen() == 0 {
+		t.Fatal("expected TPointComplete DB lookup to use request context")
+	}
 }
 
 func TestTPointComplete_DuplicateTransactionID_Returns409(t *testing.T) {

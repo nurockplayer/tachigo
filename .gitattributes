@@ -10,3 +10,8 @@ apps/extension/src/assets/**/*.ttf filter=lfs diff=lfs merge=lfs -text
 apps/extension/src/assets/**/*.otf filter=lfs diff=lfs merge=lfs -text
 apps/extension/src/assets/**/*.woff filter=lfs diff=lfs merge=lfs -text
 apps/extension/src/assets/**/*.woff2 filter=lfs diff=lfs merge=lfs -text
+
+# Atlas migration SQL files and checksums must stay LF on all platforms
+# to ensure consistent atlas checksum computation
+services/api/migrations/*.sql text eol=lf
+services/api/migrations/atlas.sum text eol=lf

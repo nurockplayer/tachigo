@@ -33,7 +33,7 @@ func (h *ExtensionHandler) Login(c *gin.Context) {
 		return
 	}
 
-	user, tokens, err := h.ext.LoginWithExtension(body.ExtensionJWT)
+	user, tokens, err := h.ext.LoginWithExtensionContext(c.Request.Context(), body.ExtensionJWT)
 	if err != nil {
 		switch err {
 		case services.ErrInvalidExtJWT:
@@ -74,7 +74,7 @@ func (h *ExtensionHandler) TPointComplete(c *gin.Context) {
 		return
 	}
 
-	user, tokens, err := h.ext.CompleteTPointTransaction(body.ExtensionJWT, body.TransactionReceipt, body.SKU)
+	user, tokens, err := h.ext.CompleteTPointTransactionContext(c.Request.Context(), body.ExtensionJWT, body.TransactionReceipt, body.SKU)
 	if err != nil {
 		switch err {
 		case services.ErrInvalidExtJWT:

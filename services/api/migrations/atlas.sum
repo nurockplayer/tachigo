@@ -1,4 +1,4 @@
-h1:IdMkq8sk3aou6Y3Cgnbtlg3JQQW4WNtwN0FwxFtoJMg=
+h1:myqrXphQ5F3aaSAjbA2q1Bgfs10ose5xJ7xnd2G0o6U=
 001_init.sql h1:RXDyJb8ZsPCAiihSRadGfVmeVroOZ5Icv6TbGfg13yw=
 002_email_auth.sql h1:knuWN3/aXOfTZYjSa/JE/C6mMfJYcOBse+S8H8Oxcow=
 003_watch_points.sql h1:TZ7OpuYOFatMiffwJv4Tzq+JXP9G3BYUmHK89xEfZEM=
@@ -19,3 +19,4 @@ h1:IdMkq8sk3aou6Y3Cgnbtlg3JQQW4WNtwN0FwxFtoJMg=
 018_points_transaction_external_id.sql h1:cBj2upT5ivdP+ezZEcAMiH4XC1S1bqvkNNWQlguol7g=
 019_coupon_redemptions.sql h1:fW8w/khwRuPwtcVj1xf3lRTw3p+YiXuevjPQ0Q65Suo=
 020_atlas_reconcile_current_schema.sql h1:ILRmsZcmeBBzeU6qDFiRjqTXUHgQG7LPB20Mg67or68=
+021_raffle_prize_tiers.sql h1:crrIPEjm9r59KoUwgdhwWlUrrq+OIUoQTvVhqf5jnHM=

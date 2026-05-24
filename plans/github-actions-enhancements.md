@@ -10,7 +10,7 @@ repo 目前已有 9 個 `.github/workflows` 檔案，其中 8 個是 GitHub Acti
 | 檔案 | 定位 |
 |---|---|
 | `.github/workflows/ci.yml` | 主要 CI、scope gate、backend/frontend/dashboard/contracts 測試、workflow regression、commit message regression |
-| `.github/workflows/ci.test.mjs` | `ci.yml` / scope policy / auto-merge 等 workflow 行為的 Node regression test |
+| `.github/workflows/ci.test.ts` | `ci.yml` / scope policy / auto-merge 等 workflow 行為的 Node regression test |
 | `.github/workflows/pr-scope-police.yml` | PR metadata、diff 大小、product surface、dependency gate 檢查 |
 | `.github/workflows/codex-review-flag.yml` | 管理 `awaiting-review` / `changes-requested` label |
 | `.github/workflows/codex-review-slack.yml` | CI 成功且 PR 有 `awaiting-review` label 時通知 Slack review queue |
@@ -28,7 +28,7 @@ repo 目前已有 9 個 `.github/workflows` 檔案，其中 8 個是 GitHub Acti
 - Backend CI：Docker image build、Go test、Go vet、integration tests。
 - Frontend CI：extension / dashboard docker build、lint、test、build、extension i18n check。
 - Contract CI：Foundry install、build、test、format check。
-- Workflow regression：用 `.github/workflows/ci.test.mjs` 固定 workflow policy 不被誤改。
+- Workflow regression：用 `.github/workflows/ci.test.ts` 固定 workflow policy 不被誤改。
 - Commit message 檢查：`ci.yml` 已有 `commit-message-regression` 與 `pr-commit-messages` job。
 - Review label lifecycle：PR opened/synchronize/ready_for_review、trusted reviewer submitted/dismissed、scheduled fallback。
 - Auto-merge：一般 PR 與 Dependabot 分流處理。
@@ -84,13 +84,13 @@ Repo 內設計 / rollout 文件：
 PR B 已新增：
 
 - `.github/workflows/auto-ready-pr.yml`
-- `.github/workflows/ci.test.mjs` 的 auto-ready regression tests
+- `.github/workflows/ci.test.ts` 的 auto-ready regression tests
 
 rollout PR 補上：
 
 - `.github/workflows/ci.yml` 的 `auto-ready-after-ci` job，讓同一個 PR 的 CI
   gate 結束後能立即重查 check/status results 並觸發 ready transition。
-- `.github/workflows/ci.test.mjs` 的 CI completion hook regression test。
+- `.github/workflows/ci.test.ts` 的 CI completion hook regression test。
 - required-check snapshot gate：rollout validation 發現 Actions `GITHUB_TOKEN`
   無法讀 GraphQL `branchProtectionRule`，因此不引入高權限 secret，改由
   workflow 內受測 snapshot 固定目前 branch protection required checks。
@@ -169,7 +169,7 @@ rollout PR 補上：
 | Job | 目的 |
 |---|---|
 | `actionlint` | 檢查 workflow YAML、expression、shell 常見錯誤 |
-| `workflow-regression` | 跑 `node --test .github/workflows/ci.test.mjs`，可從 `ci.yml` 抽出或保留雙跑 |
+| `workflow-regression` | 跑 `node --experimental-strip-types --no-warnings --test .github/workflows/ci.test.ts`，可從 `ci.yml` 抽出或保留雙跑 |
 | `dependabot-config` | parse `.github/dependabot.yml`，並檢查 configured directory 真的存在 |
 | `permission-sanity` | 檢查高權限 workflow 是否有明確用途與 path/actor guard |
 
@@ -321,12 +321,12 @@ rollout PR 補上：
 已修改：
 
 - `.github/workflows/auto-ready-pr.yml`
-- `.github/workflows/ci.test.mjs`
+- `.github/workflows/ci.test.ts`
 
 rollout PR 修改：
 
 - `.github/workflows/ci.yml`
-- `.github/workflows/ci.test.mjs`
+- `.github/workflows/ci.test.ts`
 - `docs/draft-pr-auto-ready.md`
 - `AGENTS.md`
 - `CLAUDE.md`

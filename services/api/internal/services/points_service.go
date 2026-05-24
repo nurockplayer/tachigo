@@ -108,11 +108,15 @@ func (s *PointsService) ListTransactionsContext(ctx context.Context, userID uuid
 // cumulative_total is never modified by a deduction.
 // Returns ErrInsufficientBalance if the current spendable balance is too low.
 func (s *PointsService) DeductPoints(userID uuid.UUID, channelID string, amount int64, note string) error {
+	return s.DeductPointsContext(context.Background(), userID, channelID, amount, note)
+}
+
+func (s *PointsService) DeductPointsContext(ctx context.Context, userID uuid.UUID, channelID string, amount int64, note string) error {
 	if err := validatePositivePointsAmount(amount); err != nil {
 		return err
 	}
 
-	return s.db.Transaction(func(tx *gorm.DB) error {
+	return s.dbWithContext(ctx).Transaction(func(tx *gorm.DB) error {
 		var ledger models.PointsLedger
 		if err := tx.Clauses(clause.Locking{Strength: "UPDATE"}).
 			Where("user_id = ? AND channel_id = ?", userID, channelID).
@@ -163,6 +167,17 @@ func (s *PointsService) AddPointsWithMeta(
 	amount int64,
 	meta PointsCreditMeta,
 ) error {
+	return s.AddPointsWithMetaContext(context.Background(), userID, channelID, source, amount, meta)
+}
+
+func (s *PointsService) AddPointsWithMetaContext(
+	ctx context.Context,
+	userID uuid.UUID,
+	channelID string,
+	source models.TxSource,
+	amount int64,
+	meta PointsCreditMeta,
+) error {
 	if err := validatePositivePointsAmount(amount); err != nil {
 		return err
 	}
@@ -172,7 +187,7 @@ func (s *PointsService) AddPointsWithMeta(
 	if meta.ExternalTransactionID != nil && utf8.RuneCountInString(*meta.ExternalTransactionID) > 255 {
 		return ErrInvalidExternalTransactionID
 	}
-	return s.db.Transaction(func(tx *gorm.DB) error {
+	return s.dbWithContext(ctx).Transaction(func(tx *gorm.DB) error {
 		return s.addPointsWithMeta(tx, userID, channelID, source, amount, meta)
 	})
 }
@@ -242,7 +257,11 @@ func validatePositivePointsAmount(amount int64) error {
 // AddWatchTime accumulates observed seconds for a viewer in a channel.
 // Called after each successful Heartbeat.
 func (s *PointsService) AddWatchTime(userID uuid.UUID, channelID string, seconds int64) error {
-	return s.addWatchTime(s.db, userID, channelID, seconds)
+	return s.AddWatchTimeContext(context.Background(), userID, channelID, seconds)
+}
+
+func (s *PointsService) AddWatchTimeContext(ctx context.Context, userID uuid.UUID, channelID string, seconds int64) error {
+	return s.addWatchTime(s.dbWithContext(ctx), userID, channelID, seconds)
 }
 
 func (s *PointsService) addWatchTime(db *gorm.DB, userID uuid.UUID, channelID string, seconds int64) error {
@@ -258,10 +277,14 @@ func (s *PointsService) addWatchTime(db *gorm.DB, userID uuid.UUID, channelID st
 
 // GetWatchStats returns the total accumulated watch seconds for a viewer in a channel.
 func (s *PointsService) GetWatchStats(userID uuid.UUID, channelID string) (*WatchStats, error) {
+	return s.GetWatchStatsContext(context.Background(), userID, channelID)
+}
+
+func (s *PointsService) GetWatchStatsContext(ctx context.Context, userID uuid.UUID, channelID string) (*WatchStats, error) {
 	var result struct {
 		TotalWatchSeconds int64
 	}
-	err := s.db.Raw(`
+	err := s.dbWithContext(ctx).Raw(`
 		SELECT COALESCE(total_watch_seconds, 0) AS total_watch_seconds
 		FROM watch_time_stats
 		WHERE user_id = ? AND channel_id = ?
@@ -277,7 +300,11 @@ func (s *PointsService) GetWatchStats(userID uuid.UUID, channelID string) (*Watc
 // streamerID is resolved internally from channelID via auth_providers (Twitch provider_id = channelID).
 // If the channelID has no registered streamer, the call is a no-op.
 func (s *PointsService) AddBroadcastTime(channelID string, seconds int64) error {
-	return s.addBroadcastTime(s.db, channelID, seconds)
+	return s.AddBroadcastTimeContext(context.Background(), channelID, seconds)
+}
+
+func (s *PointsService) AddBroadcastTimeContext(ctx context.Context, channelID string, seconds int64) error {
+	return s.addBroadcastTime(s.dbWithContext(ctx), channelID, seconds)
 }
 
 func (s *PointsService) addBroadcastTime(db *gorm.DB, channelID string, seconds int64) error {

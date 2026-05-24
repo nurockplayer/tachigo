@@ -11,9 +11,12 @@ AI-facing collaboration guidance lives here unless a tool requires a specific pa
 - `autonomous-pr-gates.md` — autonomous evidence gates, review triage refs, spec workflow-check boundaries, and threshold ledger rules.
 - `code-review-refactor.md` — local Claude Code review workflow notes.
 - `github-ssh-443-push.md` — playbook for GitHub SSH over 443 when `git push` is unstable.
-- `github-actions-debugging.md` — playbook for PR, CI, scope gate, and auto-ready debugging.
+- `github-actions-debugging.md` — playbook for PR, CI, CI scope router, and auto-ready debugging.
 - `supply-chain-security.md` — dependency install, AI-agent package use, and developer-machine persistence guardrails.
 - `token-budget.md` — token budget guidance for AI-assisted work.
+- `workflow-metrics-baseline.md` — baseline GitHub metadata metrics for AI-native repo workflow friction and gate-weight audits.
+- `workflow-gate-weight-audit.md` — #881-based audit of PR governance gate weight and Track A exit criteria.
+- `workflow-scope-threshold-sample.md` — #898 sample of recent `scope-violation` / `scope-exception` PRs and threshold calibration recommendations.
 
 ## Root-Level Exceptions
 

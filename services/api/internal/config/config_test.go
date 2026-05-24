@@ -1,6 +1,7 @@
 package config
 
 import (
+	"math"
 	"strings"
 	"testing"
 	"time"
@@ -157,6 +158,21 @@ func TestValidateProductionSecrets(t *testing.T) {
 			}),
 			wantErr: "OAUTH_TOKEN_ENCRYPTION_KEY",
 		},
+		{
+			name: "rejects enabled production metrics without bearer token",
+			cfg: withConfig(func(cfg *Config) {
+				cfg.Metrics.EnableMetrics = true
+			}),
+			wantErr: "METRICS_BEARER_TOKEN",
+		},
+		{
+			name: "rejects enabled production metrics with blank bearer token",
+			cfg: withConfig(func(cfg *Config) {
+				cfg.Metrics.EnableMetrics = true
+				cfg.Metrics.BearerToken = "   "
+			}),
+			wantErr: "METRICS_BEARER_TOKEN",
+		},
 	}
 
 	for _, tc := range tests {
@@ -176,6 +192,20 @@ func TestValidateProductionSecrets(t *testing.T) {
 				t.Fatalf("expected error containing %q, got %q", tc.wantErr, err.Error())
 			}
 		})
+	}
+}
+
+func TestLoad_MetricsConfig(t *testing.T) {
+	t.Setenv("ENABLE_METRICS", "true")
+	t.Setenv("METRICS_BEARER_TOKEN", " local-metrics-token ")
+
+	cfg := Load()
+
+	if !cfg.Metrics.EnableMetrics {
+		t.Fatal("expected EnableMetrics=true")
+	}
+	if cfg.Metrics.BearerToken != "local-metrics-token" {
+		t.Fatalf("expected bearer token to load, got %q", cfg.Metrics.BearerToken)
 	}
 }
 
@@ -365,6 +395,157 @@ func TestLoad_RequestTimeoutSecondsValidation(t *testing.T) {
 
 			if cfg.Server.RequestTimeout != tc.want {
 				t.Fatalf("RequestTimeout: want %v, got %v", tc.want, cfg.Server.RequestTimeout)
+			}
+		})
+	}
+}
+
+func TestLoad_TracingConfig(t *testing.T) {
+	t.Setenv("TRACING_ENABLED", "true")
+	t.Setenv("OTEL_SERVICE_NAME", "tachigo-api-staging")
+	t.Setenv("OTEL_ENVIRONMENT", "staging")
+	t.Setenv("OTEL_TRACES_SAMPLE_RATIO", "0.25")
+	t.Setenv("OTEL_EXPORTER_OTLP_TRACES_ENDPOINT", "https://otel-collector.example.com/v1/traces")
+	t.Setenv("OTEL_EXPORTER_OTLP_TRACES_INSECURE", "true")
+	t.Setenv("OTEL_EXPORTER_OTLP_HEADERS", "x-api-key=abc123,tenant=tachigo")
+
+	cfg := Load()
+
+	if !cfg.Tracing.Enabled {
+		t.Fatal("Tracing.Enabled: want true")
+	}
+	if cfg.Tracing.ServiceName != "tachigo-api-staging" {
+		t.Fatalf("Tracing.ServiceName: want override, got %q", cfg.Tracing.ServiceName)
+	}
+	if cfg.Tracing.Environment != "staging" {
+		t.Fatalf("Tracing.Environment: want staging, got %q", cfg.Tracing.Environment)
+	}
+	if cfg.Tracing.SampleRatio != 0.25 {
+		t.Fatalf("Tracing.SampleRatio: want 0.25, got %v", cfg.Tracing.SampleRatio)
+	}
+	if cfg.Tracing.OTLPTracesEndpoint != "https://otel-collector.example.com/v1/traces" {
+		t.Fatalf("Tracing.OTLPTracesEndpoint: got %q", cfg.Tracing.OTLPTracesEndpoint)
+	}
+	if !cfg.Tracing.OTLPInsecure {
+		t.Fatal("Tracing.OTLPInsecure: want true")
+	}
+	if cfg.Tracing.OTLPHeaders["x-api-key"] != "abc123" || cfg.Tracing.OTLPHeaders["tenant"] != "tachigo" {
+		t.Fatalf("Tracing.OTLPHeaders: got %v", cfg.Tracing.OTLPHeaders)
+	}
+}
+
+func TestLoad_TracingEnvironmentFallsBackToAppEnv(t *testing.T) {
+	t.Setenv("APP_ENV", "staging")
+	t.Setenv("OTEL_ENVIRONMENT", "")
+
+	cfg := Load()
+
+	if cfg.Tracing.Environment != "staging" {
+		t.Fatalf("Tracing.Environment: want APP_ENV fallback, got %q", cfg.Tracing.Environment)
+	}
+}
+
+func TestValidateTracing(t *testing.T) {
+	tests := []struct {
+		name    string
+		cfg     TracingConfig
+		wantErr string
+	}{
+		{
+			name: "accepts disabled tracing without endpoint",
+			cfg: TracingConfig{
+				Enabled:     false,
+				Environment: "production",
+				SampleRatio: 1,
+			},
+		},
+		{
+			name: "accepts enabled staging config",
+			cfg: TracingConfig{
+				Enabled:            true,
+				Environment:        "staging",
+				SampleRatio:        0.10,
+				OTLPTracesEndpoint: "https://otel-collector.example.com/v1/traces",
+				ServiceName:        "tachigo-api",
+			},
+		},
+		{
+			name: "rejects enabled staging without endpoint",
+			cfg: TracingConfig{
+				Enabled:     true,
+				Environment: "staging",
+				SampleRatio: 0.10,
+			},
+			wantErr: "OTEL_EXPORTER_OTLP_TRACES_ENDPOINT",
+		},
+		{
+			name: "rejects enabled production sample ratio below zero",
+			cfg: TracingConfig{
+				Enabled:            true,
+				Environment:        "production",
+				SampleRatio:        -0.01,
+				OTLPTracesEndpoint: "https://otel-collector.example.com/v1/traces",
+			},
+			wantErr: "OTEL_TRACES_SAMPLE_RATIO",
+		},
+		{
+			name: "rejects enabled production sample ratio above one",
+			cfg: TracingConfig{
+				Enabled:            true,
+				Environment:        "production",
+				SampleRatio:        1.01,
+				OTLPTracesEndpoint: "https://otel-collector.example.com/v1/traces",
+			},
+			wantErr: "OTEL_TRACES_SAMPLE_RATIO",
+		},
+		{
+			name: "rejects enabled production sample ratio NaN",
+			cfg: TracingConfig{
+				Enabled:            true,
+				Environment:        "production",
+				SampleRatio:        math.NaN(),
+				OTLPTracesEndpoint: "https://otel-collector.example.com/v1/traces",
+				ServiceName:        "tachigo-api",
+			},
+			wantErr: "OTEL_TRACES_SAMPLE_RATIO",
+		},
+		{
+			name: "rejects enabled production sample ratio infinity",
+			cfg: TracingConfig{
+				Enabled:            true,
+				Environment:        "production",
+				SampleRatio:        math.Inf(1),
+				OTLPTracesEndpoint: "https://otel-collector.example.com/v1/traces",
+				ServiceName:        "tachigo-api",
+			},
+			wantErr: "OTEL_TRACES_SAMPLE_RATIO",
+		},
+		{
+			name: "rejects enabled production without service name",
+			cfg: TracingConfig{
+				Enabled:            true,
+				Environment:        "production",
+				SampleRatio:        0.10,
+				OTLPTracesEndpoint: "https://otel-collector.example.com/v1/traces",
+			},
+			wantErr: "OTEL_SERVICE_NAME",
+		},
+	}
+
+	for _, tc := range tests {
+		t.Run(tc.name, func(t *testing.T) {
+			err := ValidateTracing(tc.cfg)
+			if tc.wantErr == "" {
+				if err != nil {
+					t.Fatalf("ValidateTracing() error = %v", err)
+				}
+				return
+			}
+			if err == nil {
+				t.Fatalf("ValidateTracing() error = nil, want %q", tc.wantErr)
+			}
+			if !strings.Contains(err.Error(), tc.wantErr) {
+				t.Fatalf("ValidateTracing() error = %q, want substring %q", err.Error(), tc.wantErr)
 			}
 		})
 	}

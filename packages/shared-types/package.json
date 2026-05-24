@@ -13,8 +13,8 @@
     }
   },
   "scripts": {
-    "generate": "node scripts/generate-swagger-types.mjs generate --input ../../services/api/docs/swagger.json --output src/index.ts",
-    "check": "node scripts/generate-swagger-types.mjs check --input ../../services/api/docs/swagger.json --output src/index.ts",
-    "test": "node --test scripts/*.test.mjs"
+    "generate": "node --experimental-strip-types --no-warnings scripts/generate-swagger-types.ts generate --input ../../services/api/docs/swagger.json --output src/index.ts",
+    "check": "node --experimental-strip-types --no-warnings scripts/generate-swagger-types.ts check --input ../../services/api/docs/swagger.json --output src/index.ts",
+    "test": "node --experimental-strip-types --no-warnings --test scripts/*.test.ts"
   }
 }

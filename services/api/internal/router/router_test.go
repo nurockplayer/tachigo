@@ -3,6 +3,7 @@ package router_test
 import (
 	"context"
 	"encoding/json"
+	"errors"
 	"fmt"
 	"net/http"
 	"net/http/httptest"
@@ -164,6 +165,111 @@ func TestRouter_AppliesRequestTimeoutMiddleware(t *testing.T) {
 	}
 	if !sawDeadline {
 		t.Fatal("expected router to attach request context deadline")
+	}
+}
+
+func TestMetricsRoute_GatedByConfigAndBearerToken(t *testing.T) {
+	disabled := newRouterTestEnv(t, routerTestConfig("development", false, false))
+	req := httptest.NewRequest(http.MethodGet, "/metrics", nil)
+	rec := httptest.NewRecorder()
+	disabled.router.ServeHTTP(rec, req)
+	if rec.Code != http.StatusNotFound {
+		t.Fatalf("expected disabled metrics endpoint to return 404, got %d", rec.Code)
+	}
+
+	cfg := routerTestConfig("development", false, false)
+	cfg.Metrics.EnableMetrics = true
+	cfg.Metrics.BearerToken = "metrics-token"
+	enabled := newRouterTestEnv(t, cfg)
+
+	req = httptest.NewRequest(http.MethodGet, "/health", nil)
+	rec = httptest.NewRecorder()
+	enabled.router.ServeHTTP(rec, req)
+	if rec.Code != http.StatusOK {
+		t.Fatalf("health request: want 200, got %d", rec.Code)
+	}
+
+	req = httptest.NewRequest(http.MethodGet, "/metrics", nil)
+	rec = httptest.NewRecorder()
+	enabled.router.ServeHTTP(rec, req)
+	if rec.Code != http.StatusUnauthorized {
+		t.Fatalf("expected missing metrics bearer token to return 401, got %d", rec.Code)
+	}
+
+	req = httptest.NewRequest(http.MethodGet, "/metrics", nil)
+	req.Header.Set("Authorization", "Bearer metrics-token")
+	rec = httptest.NewRecorder()
+	enabled.router.ServeHTTP(rec, req)
+	if rec.Code != http.StatusOK {
+		t.Fatalf("expected metrics endpoint to return 200, got %d", rec.Code)
+	}
+	if !strings.Contains(rec.Body.String(), `tachigo_http_requests_total{route="/health",status_family="2xx"} 1`) {
+		t.Fatalf("expected /health request metric, got:\n%s", rec.Body.String())
+	}
+}
+
+func TestMetricsRoute_RecordsTimeoutStatusAfterRequestTimeout(t *testing.T) {
+	cfg := routerTestConfig("development", false, false)
+	cfg.Server.RequestTimeout = time.Millisecond
+	cfg.Metrics.EnableMetrics = true
+	cfg.Metrics.BearerToken = "metrics-token"
+	env := newRouterTestEnv(t, cfg)
+	env.router.GET("/test-metrics-timeout", func(c *gin.Context) {
+		<-c.Request.Context().Done()
+	})
+
+	req := httptest.NewRequest(http.MethodGet, "/test-metrics-timeout", nil)
+	rec := httptest.NewRecorder()
+	env.router.ServeHTTP(rec, req)
+	if rec.Code != http.StatusGatewayTimeout {
+		t.Fatalf("expected timeout request to return 504, got %d", rec.Code)
+	}
+
+	req = httptest.NewRequest(http.MethodGet, "/metrics", nil)
+	req.Header.Set("Authorization", "Bearer metrics-token")
+	rec = httptest.NewRecorder()
+	env.router.ServeHTTP(rec, req)
+	if rec.Code != http.StatusOK {
+		t.Fatalf("expected metrics endpoint to return 200, got %d", rec.Code)
+	}
+	text := rec.Body.String()
+	if !strings.Contains(text, `tachigo_http_requests_total{route="/test-metrics-timeout",status_family="5xx"} 1`) {
+		t.Fatalf("expected timeout request to be recorded as 5xx, got:\n%s", text)
+	}
+	if !strings.Contains(text, `tachigo_http_request_errors_total{route="/test-metrics-timeout",status_family="5xx"} 1`) {
+		t.Fatalf("expected timeout request to be recorded as error, got:\n%s", text)
+	}
+}
+
+func TestRouter_RequestTimeoutCancelsDBWorkUsingRequestContext(t *testing.T) {
+	cfg := routerTestConfig("development", false, false)
+	cfg.Server.RequestTimeout = time.Millisecond
+	env := newRouterTestEnv(t, cfg)
+
+	dbDone := make(chan error, 1)
+	env.router.GET("/test-timeout-db-work", func(c *gin.Context) {
+		<-c.Request.Context().Done()
+
+		var one int
+		err := env.db.WithContext(c.Request.Context()).Raw("SELECT 1").Scan(&one).Error
+		dbDone <- err
+	})
+
+	req := httptest.NewRequest(http.MethodGet, "/test-timeout-db-work", nil)
+	rec := httptest.NewRecorder()
+	env.router.ServeHTTP(rec, req)
+
+	if rec.Code != http.StatusGatewayTimeout {
+		t.Fatalf("expected timeout request to return 504, got %d: %s", rec.Code, rec.Body.String())
+	}
+
+	select {
+	case err := <-dbDone:
+		if !errors.Is(err, context.DeadlineExceeded) && !errors.Is(err, context.Canceled) {
+			t.Fatalf("expected DB work to stop with request context error, got %v", err)
+		}
+	case <-time.After(time.Second):
+		t.Fatal("timed out waiting for DB work to observe canceled request context")
 	}
 }
 

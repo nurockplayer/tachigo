@@ -1629,6 +1629,43 @@ const docTemplate = `{
                 }
             }
         },
+        "/metrics": {
+            "get": {
+                "description": "Operational endpoint exposed at root /metrics when ENABLE_METRICS=true. Requires Authorization: Bearer \u003cMETRICS_BEARER_TOKEN\u003e when METRICS_BEARER_TOKEN is set.",
+                "produces": [
+                    "text/plain"
+                ],
+                "tags": [
+                    "observability"
+                ],
+                "summary": "Scrape backend metrics",
+                "parameters": [
+                    {
+                        "type": "string",
+                        "description": "Bearer metrics token when METRICS_BEARER_TOKEN is set",
+                        "name": "Authorization",
+                        "in": "header"
+                    }
+                ],
+                "responses": {
+                    "200": {
+                        "description": "Prometheus text metrics",
+                        "schema": {
+                            "type": "string"
+                        }
+                    },
+                    "401": {
+                        "description": "Unauthorized",
+                        "schema": {
+                            "type": "object",
+                            "additionalProperties": {
+                                "type": "string"
+                            }
+                        }
+                    }
+                }
+            }
+        },
         "/spend/redeem": {
             "post": {
                 "security": [

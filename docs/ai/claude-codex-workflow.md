@@ -50,6 +50,18 @@
 4. Claude Code 只閱讀最後摘要
 5. 若需要取捨或 review，再由 Claude Code 接手
 
+## Autonomous review loop 節流
+
+當 PR review 由 automation 協助時，預設走 metadata-first，而不是每次 label 或 schedule 事件都重新深審：
+
+- 先讀 PR metadata、head SHA、labels、reviewDecision、required checks、CodeRabbit / Cloudflare / repo checks 狀態。
+- 只有 `needs-codex-review` 或等價的新 head 訊號存在，且所有必要 checks / automated review signals 已完成時，才進入第一輪 review。
+- 若同一個 head SHA 已有 blocker 或 `changes-requested`，不要重複 review；等作者 push 新 head 後再重啟。
+- docs-only / lightweight lane 的 PR 先看 Scope Police / CI scope router 是否符合預期，再決定是否需要讀 patch。
+- review 輸出要優先找 blocker；minor / nit 不應造成重複 CR 或無限 review loop。
+
+這個節流規則只改變 agent / reviewer 的操作方式，不代表授權 workflow 自動改 label、重跑 CI、approve 或 merge。任何會修改 GitHub 公開狀態的 automation 仍必須由對應 workflow 或人類明確授權。
+
 ## 快捷指令
 
 完整指令清單與說明見 [CLAUDE.md](https://github.com/nurockplayer/tachigo/blob/develop/CLAUDE.md)（AI 分工 → 建議優先使用的快捷指令）。

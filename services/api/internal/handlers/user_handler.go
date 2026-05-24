@@ -28,7 +28,7 @@ func (h *UserHandler) Me(c *gin.Context) {
 	claims := middleware.MustClaims(c)
 	userID, _ := uuid.Parse(claims.UserID)
 
-	user, err := h.user.GetByID(userID)
+	user, err := h.user.GetByIDContext(c.Request.Context(), userID)
 	if err != nil {
 		notFound(c, "user not found")
 		return
@@ -58,7 +58,7 @@ func (h *UserHandler) UpdateMe(c *gin.Context) {
 		return
 	}
 
-	user, err := h.user.UpdateProfile(userID, input)
+	user, err := h.user.UpdateProfileContext(c.Request.Context(), userID, input)
 	if err != nil {
 		switch err {
 		case services.ErrUsernameExists:
@@ -96,7 +96,7 @@ func (h *UserHandler) LinkWallet(c *gin.Context) {
 		return
 	}
 
-	addr, err := h.user.LinkWallet(userID, input)
+	addr, err := h.user.LinkWalletContext(c.Request.Context(), userID, input)
 	if err != nil {
 		switch err {
 		case services.ErrInvalidWalletAddress:

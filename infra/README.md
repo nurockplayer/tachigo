@@ -5,7 +5,8 @@ Repo-level automation that is not product code lives here.
 ## Contents
 
 - `scripts/` — local and CI helper scripts for PR metadata checks, commit message checks, setup, and workflow assertions.
-- `scripts/check-supply-chain-guardrails.mjs` — local and CI guardrail for dependency install lifecycle scripts, dynamic package execution, and Mini Shai-Hulud indicators.
+- `scripts/check-supply-chain-guardrails.ts` — local and CI guardrail for dependency install lifecycle scripts, dynamic package execution, and Mini Shai-Hulud indicators.
+- `scripts/check-typescript-only.sh` — local and CI guardrail that rejects tracked `.js`, `.jsx`, `.mjs`, and `.cjs` source/config/tooling/test files. Use `.ts`/`.tsx`; Node-executed TypeScript scripts should run with `node --experimental-strip-types --no-warnings`.
 - `scripts/check-developer-persistence.sh` — local-only check for common Claude / VS Code / LaunchAgent / systemd persistence indicators.
 - `githooks/` — git hooks installed by `make setup` through `core.hooksPath`.
 

@@ -11,11 +11,11 @@ const freshFlags: NavigationFlags = {
 }
 
 test('shouldShowOnboarding only opens the tour for first-time mining viewers', () => {
-  assert.equal(shouldShowOnboarding('hud', freshFlags), true)
+  assert.equal(shouldShowOnboarding('mining', freshFlags), true)
   assert.equal(shouldShowOnboarding('login', freshFlags), false)
-  assert.equal(shouldShowOnboarding('claim', freshFlags), false)
+  assert.equal(shouldShowOnboarding('entry', freshFlags), false)
   assert.equal(
-    shouldShowOnboarding('hud', {
+    shouldShowOnboarding('mining', {
       ...freshFlags,
       onboardingVersion: 1,
     }),

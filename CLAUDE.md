@@ -44,6 +44,10 @@ make pr-open TITLE="[type] ..." BODY_FILE=/tmp/pr_body.md AUTO_READY=1
 
 本專案使用 Claude Code + Gemini CLI + Codex CLI 協作開發。
 
+TypeScript migration 後，source / config / tooling / test scripts 一律使用 TypeScript（`.ts` / `.tsx`），不得新增 `.js` / `.jsx` / `.mjs` / `.cjs`。需要直接執行 Node TypeScript script 時，依情境使用 `node --experimental-strip-types --no-warnings path/to/script.ts`。
+
+例外只限高層次既有類型：lockfiles、generated build output、archived historical docs、以及明確標示的 test fixtures。
+
 若使用者授權 autonomous product work，Codex / Claude 應採用 [docs/ai/codex-autonomous-workflow.md](docs/ai/codex-autonomous-workflow.md) 的 Worker Profiles、issue-first、review gate、CodeRabbit fallback 與 PR Scope Police 合約。
 
 Autonomous Worker Profiles 的 follow-up 改善以「約 40% infra 本質複雜、約 60% 工作流自己製造摩擦」為基準：infra 複雜度用固定 readback 與 gate 管住；流程摩擦要靠 `ops_spark` routing、review closeout evidence、subagent lifecycle cleanup、issue-first planning 與 follow-up split 降低。

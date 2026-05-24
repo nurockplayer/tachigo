@@ -267,6 +267,42 @@ func TestClaim_ReservesSpendableBeforeMint(t *testing.T) {
 	}
 }
 
+func TestClaim_CanceledRequestContextStopsReservationBeforeMint(t *testing.T) {
+	db := newTestDB(t)
+	mintCaller := &mockMintCaller{broadcastHash: "0xabc"}
+	svc := &ClaimService{db: db, mintCaller: mintCaller}
+	userID := userIDForClaim(t, db)
+	seedWeb3Provider(t, db, userID, "0xd8dA6BF26964aF9D7eEd9e03E53415D37aA96045")
+	seedLedger(t, db, userID, "ch1", 80)
+
+	ctx, cancel := context.WithCancel(context.Background())
+	cancel()
+
+	_, err := svc.Claim(ctx, userID, 50)
+	if !errors.Is(err, context.Canceled) {
+		t.Fatalf("expected context.Canceled, got %v", err)
+	}
+	if len(mintCaller.broadcastCalls) != 0 {
+		t.Fatalf("mint should not run after canceled reservation context, got %d calls", len(mintCaller.broadcastCalls))
+	}
+
+	var remaining int64
+	if err := db.Raw("SELECT spendable_balance FROM points_ledgers WHERE user_id = ? AND channel_id = 'ch1'", userID).Scan(&remaining).Error; err != nil {
+		t.Fatalf("query remaining: %v", err)
+	}
+	if remaining != 80 {
+		t.Fatalf("expected spendable balance unchanged at 80, got %d", remaining)
+	}
+
+	var claimCount int64
+	if err := db.Model(&models.Claim{}).Where("user_id = ?", userID).Count(&claimCount).Error; err != nil {
+		t.Fatalf("count claims: %v", err)
+	}
+	if claimCount != 0 {
+		t.Fatalf("expected no claim rows after canceled reservation context, got %d", claimCount)
+	}
+}
+
 func TestClaim_InsufficientBalance(t *testing.T) {
 	db := newTestDB(t)
 	svc := &ClaimService{db: db}

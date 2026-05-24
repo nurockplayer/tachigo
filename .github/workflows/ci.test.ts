@@ -1,12 +1,11 @@
-import assert from 'node:assert/strict'
-import { execFileSync } from 'node:child_process'
-import { mkdir, mkdtemp, readFile, rm, writeFile } from 'node:fs/promises'
-import { tmpdir } from 'node:os'
-import path from 'node:path'
-import test from 'node:test'
-import { fileURLToPath } from 'node:url'
+const assert = require('node:assert/strict')
+const { execFileSync } = require('node:child_process')
+const { mkdir, mkdtemp, readFile, rm, writeFile } = require('node:fs/promises')
+const { tmpdir } = require('node:os')
+const path = require('node:path')
+const test = require('node:test')
 
-const currentDir = path.dirname(fileURLToPath(import.meta.url))
+const currentDir = __dirname
 const repoRoot = path.join(currentDir, '..', '..')
 const workflowPath = path.join(currentDir, 'ci.yml')
 const dockerComposePath = path.join(repoRoot, 'docker-compose.yml')
@@ -41,8 +40,9 @@ const contractsGasSnapshotPolicyPath = path.join(repoRoot, 'docs', 'contracts-ga
 const dependencyInventoryPolicyPath = path.join(repoRoot, 'docs', 'dependency-inventory-policy.md')
 const AsyncFunction = Object.getPrototypeOf(async function () {}).constructor
 const developRequiredCheckRuns = [
-  'Scope gate',
+  'CI scope router',
   'Supply-chain guardrails',
+  'TypeScript-only guardrail',
   'Dependency Review',
   'API contract drift',
   'Frontend build',
@@ -56,7 +56,7 @@ const developRequiredCheckRuns = [
   status: 'completed',
   conclusion: 'success',
   app: { id: 15368 },
-  completed_at: `2026-05-02T00:00:0${index}Z`,
+  completed_at: `2026-05-02T00:00:${String(index).padStart(2, '0')}Z`,
 }))
 
 function successfulDevelopRequiredCheckRuns(...overrides) {
@@ -269,6 +269,7 @@ async function runCiAutoReadyAfterCiWorkflow({
     env: {
       SCOPE_GATE_RESULT: 'success',
       SUPPLY_CHAIN_GUARDRAILS_RESULT: 'success',
+      TYPESCRIPT_ONLY_GUARDRAIL_RESULT: 'success',
       BACKEND_CI_RESULT: 'success',
       DEPENDENCY_REVIEW_RESULT: 'success',
       API_CONTRACTS_RESULT: 'success',
@@ -340,6 +341,7 @@ async function runScopePoliceWorkflow({
   existingComments = [],
   prOverrides = {},
   includeDefaultRiskClass = true,
+  dependencyPrState = 'open',
 } = {}) {
   const parsedWorkflow = parseYaml(scopePolicePath)
   const script = parsedWorkflow.jobs['scope-police'].steps[0].with.script
@@ -372,6 +374,7 @@ async function runScopePoliceWorkflow({
     rest: {
       pulls: {
         listFiles: async () => ({ data: files }),
+        get: async () => ({ data: { state: dependencyPrState } }),
         update: async () => ({ data: { state: 'closed' } }),
       },
       issues: {
@@ -787,7 +790,7 @@ test('frontend CI job runs the frontend test command', async () => {
 
   assert.match(
     workflow,
-    /workflow-regression:\n[\s\S]*?- name: Verify CI workflow assertions\n\s+run: node --test \.github\/workflows\/ci\.test\.mjs/,
+    /workflow-regression:\n[\s\S]*?- name: Verify CI workflow assertions\n\s+run: node --experimental-strip-types --no-warnings --test \.github\/workflows\/ci\.test\.ts/,
   )
 })
 
@@ -796,6 +799,8 @@ test('CI workflow uses infra script entrypoints', async () => {
 
   assert.match(workflow, /run: bash infra\/scripts\/check-backend-ci-cache\.sh/)
   assert.match(workflow, /run: bash infra\/scripts\/check-supply-chain-guardrails\.test\.sh/)
+  assert.match(workflow, /run: bash infra\/scripts\/check-typescript-only\.test\.sh/)
+  assert.match(workflow, /run: bash infra\/scripts\/check-typescript-only\.sh/)
   assert.match(workflow, /run: bash infra\/scripts\/check-developer-persistence\.test\.sh/)
   assert.match(workflow, /run: bash infra\/scripts\/commit-message-check\.test\.sh/)
   assert.match(workflow, /run: bash infra\/scripts\/pr-open\.test\.sh/)
@@ -822,7 +827,25 @@ test('supply-chain guardrail CI job runs the repository guardrail script', async
   assert.match(jobBlock, pinnedActionRef('actions/checkout', 'v4'))
   assert.match(jobBlock, pinnedActionRef('actions/setup-node', 'v4'))
   assert.match(jobBlock, /node-version: 24\.15\.0/)
-  assert.match(jobBlock, /run: node infra\/scripts\/check-supply-chain-guardrails\.mjs/)
+  assert.match(
+    jobBlock,
+    /run: node --experimental-strip-types --no-warnings infra\/scripts\/check-supply-chain-guardrails\.ts/,
+  )
+})
+
+test('TypeScript-only guardrail CI job runs the repository guardrail script', async () => {
+  const workflow = await readFile(workflowPath, 'utf8')
+  const parsedWorkflow = parseYaml(workflowPath)
+  const job = parsedWorkflow.jobs['typescript-only-guardrail']
+  const jobBlock = workflowJobBlock(workflow, 'typescript-only-guardrail')
+
+  assert.equal(job.name, 'TypeScript-only guardrail')
+  assert.equal(job['timeout-minutes'], 5)
+  assert.match(jobBlock, pinnedActionRef('actions/checkout', 'v4'))
+  assert.equal(
+    workflowJobStep(parsedWorkflow, 'typescript-only-guardrail', 'Reject tracked JavaScript source files').run,
+    'bash infra/scripts/check-typescript-only.sh',
+  )
 })
 
 test('CI workflow pins action references to full commit SHAs', async () => {
@@ -880,7 +903,7 @@ test('backend CI vet assertion does not match vet steps from later jobs', () => 
   )
 })
 
-test('scope gate and scope police use rename-aware allFilePaths for touches', async () => {
+test('CI scope router and scope police use rename-aware allFilePaths for touches', async () => {
   const workflow = await readFile(workflowPath, 'utf8')
   const scopePolice = await readFile(scopePolicePath, 'utf8')
 
@@ -900,7 +923,7 @@ test('scope gate and scope police use rename-aware allFilePaths for touches', as
   )
 })
 
-test('scope gate and scope police recognize legacy and monorepo frontend/backend paths', async () => {
+test('CI scope router and scope police recognize legacy and monorepo frontend/backend paths', async () => {
   const workflow = await readFile(workflowPath, 'utf8')
   const scopePolice = await readFile(scopePolicePath, 'utf8')
 
@@ -1137,7 +1160,7 @@ test('backend Docker runtime applies Atlas migrations before starting the API', 
   assert.match(composeOverride, /target: dev/)
 })
 
-test('scope gate backend contract regex accepts full-width and half-width colons', async () => {
+test('CI scope router backend contract regex accepts full-width and half-width colons', async () => {
   const workflow = await readFile(workflowPath, 'utf8')
   const scopePolice = await readFile(scopePolicePath, 'utf8')
   const backendContractYesPattern =
@@ -1288,6 +1311,7 @@ test('AWP v2 docs wire AGENTS and PR scope policy to autonomous evidence gates a
   assert.match(autonomousPrGates, /controller_fallback_reason|fallback_reason/)
   assert.match(autonomousPrGates, /Review conversation closeout/)
   assert.match(autonomousPrGates, /Final merge gate/)
+  assert.match(autonomousPrGates, /codex-automation/)
   assert.match(autonomousPrGates, /spec workflow-check/)
   assert.match(autonomousPrGates, /necessity assessment/)
   assert.match(autonomousPrGates, /25-30%/)
@@ -1321,7 +1345,7 @@ test('PR scope police enforces risk classification and blocks R4 auto-ready', as
 - Actual worker profile(s)：controller / test_worker
 - Model strength：controller = high；test_worker = medium
 - Spawn directive(s)：profile=test_worker model=gpt-5.4 reasoning=medium controller_fallback=denied
-- Verification evidence：node --test .github/workflows/ci.test.mjs
+- Verification evidence：node --experimental-strip-types --no-warnings --test .github/workflows/ci.test.ts
 - Self-review / exception reason：controller reviewed the risk gate
 - Worker session closeout：worker results read back and closed
 
@@ -1415,6 +1439,38 @@ ${validAutonomousEvidence}`,
   assert.match(extraCheckedRiskOutsideSectionRun.comments[0].body, /- PR risk class: R2/)
 })
 
+test('PR scope police keeps dependency protection but does not manage blocked-by-dependency label', async () => {
+  const body = `
+## Scope 對齊
+- Source of truth：#897
+- Depends on PR：#123
+- Backend contract already in develop:
+  - [ ] yes
+  - [x] no
+- If no, this PR is:
+  - [ ] stacked on dependency branch
+  - [x] intentionally blocked until dependency merges
+- 本 PR 明確不做：
+  - 不繞過 dependency gate
+`
+
+  const run = await runScopePoliceWorkflow({
+    title: '[frontend] Use pending backend contract',
+    body,
+    files: [{ filename: 'apps/extension/src/app/App.tsx', status: 'modified', additions: 3, deletions: 1 }],
+    dependencyPrState: 'open',
+  })
+
+  assert.equal(run.failures.length, 1)
+  assert.match(run.comments[0].body, /### Dependency blocks/)
+  assert.match(run.comments[0].body, /This frontend PR depends on #123/)
+  assert.match(run.comments[0].body, /- Dependency blocked: yes/)
+  assert.doesNotMatch(run.comments[0].body, /Dependency block label/)
+  assert.deepEqual(run.labelsCreated, [])
+  assert.deepEqual(run.labelsAdded, [])
+  assert.deepEqual(run.labelsRemoved, [])
+})
+
 test('PR scope police only treats a delegation log as autonomous when it has real content', async () => {
   const prTemplateBody = await readFile(prTemplatePath, 'utf8')
 
@@ -1433,7 +1489,7 @@ test('PR scope police only treats a delegation log as autonomous when it has rea
 - Actual worker profile(s)：controller / test_worker
 - Model strength：controller = high；test_worker = medium
 - Spawn directive(s)：profile=test_worker model=gpt-5.4 reasoning=medium controller_fallback=denied
-- Verification evidence：git diff --check；node --test .github/workflows/ci.test.mjs
+- Verification evidence：git diff --check；node --experimental-strip-types --no-warnings --test .github/workflows/ci.test.ts
 - Self-review / exception reason：已完成 self-review
 - Worker session closeout：已讀回 worker 結果並 close
 
@@ -1483,7 +1539,7 @@ test('PR scope police only treats a delegation log as autonomous when it has rea
 ## Delegation Execution Log
 - Verification evidence：
   - git diff --check
-  - node --test .github/workflows/ci.test.mjs
+  - node --experimental-strip-types --no-warnings --test .github/workflows/ci.test.ts
 `
   const multilineVerificationEvidenceRun = await runScopePoliceWorkflow({
     body: multilineVerificationEvidenceBody,
@@ -1733,7 +1789,7 @@ test('PR scope police only treats a delegation log as autonomous when it has rea
     /Autonomous PR must include a meaningful `Worker session closeout` value/,
   )
 
-  const labelsToTrigger = ['codex', 'codex-automation', 'auto-ready']
+  const labelsToTrigger = ['codex', 'codex-automation']
   for (const label of labelsToTrigger) {
     const labelTriggeredRun = await runScopePoliceWorkflow({
       body: prTemplateBody,
@@ -1746,6 +1802,54 @@ test('PR scope police only treats a delegation log as autonomous when it has rea
       /Autonomous PR must include a `Delegation Execution Log` section\./,
     )
   }
+
+  const r0AutoReadyOnlyRun = await runScopePoliceWorkflow({
+    body: selectRiskClass(prTemplateBody, 'R0'),
+    labels: [{ name: 'auto-ready' }],
+    includeDefaultRiskClass: false,
+  })
+  assert.equal(r0AutoReadyOnlyRun.failures.length, 0)
+  assert.match(r0AutoReadyOnlyRun.comments[0].body, /- Autonomous PR: no/)
+  assert.doesNotMatch(
+    r0AutoReadyOnlyRun.comments[0].body,
+    /Autonomous PR must include a `Delegation Execution Log` section\./,
+  )
+
+  const r1AutoReadyOnlyRun = await runScopePoliceWorkflow({
+    body: selectRiskClass(prTemplateBody, 'R1'),
+    labels: [{ name: 'auto-ready' }],
+    includeDefaultRiskClass: false,
+  })
+  assert.equal(r1AutoReadyOnlyRun.failures.length, 0)
+  assert.match(r1AutoReadyOnlyRun.comments[0].body, /- Autonomous PR: no/)
+  assert.doesNotMatch(
+    r1AutoReadyOnlyRun.comments[0].body,
+    /Autonomous PR must include a `Delegation Execution Log` section\./,
+  )
+
+  const r2AutoReadyOnlyRun = await runScopePoliceWorkflow({
+    body: selectRiskClass(prTemplateBody, 'R2'),
+    labels: [{ name: 'auto-ready' }],
+    includeDefaultRiskClass: false,
+  })
+  assert.equal(r2AutoReadyOnlyRun.failures.length, 1)
+  assert.match(r2AutoReadyOnlyRun.comments[0].body, /- Autonomous PR: yes/)
+  assert.match(
+    r2AutoReadyOnlyRun.comments[0].body,
+    /Autonomous PR must include a `Delegation Execution Log` section\./,
+  )
+
+  const r3AutoReadyOnlyRun = await runScopePoliceWorkflow({
+    body: selectRiskClass(prTemplateBody, 'R3'),
+    labels: [{ name: 'auto-ready' }],
+    includeDefaultRiskClass: false,
+  })
+  assert.equal(r3AutoReadyOnlyRun.failures.length, 1)
+  assert.match(r3AutoReadyOnlyRun.comments[0].body, /- Autonomous PR: yes/)
+  assert.match(
+    r3AutoReadyOnlyRun.comments[0].body,
+    /Autonomous PR must include a `Delegation Execution Log` section\./,
+  )
 
   const autonomousLabelRun = await runScopePoliceWorkflow({
     body: prTemplateBody,
@@ -1786,7 +1890,7 @@ Depends on PR: none
 - Spawn directive(s)：
   - profile=ops_spark model=gpt-5.3-codex-spark reasoning=medium controller_fallback=not-needed
   - profile=docs_worker model=gpt-5.3-codex-spark reasoning=medium controller_fallback=allowed fallback_reason=sticky comment snapshot wording
-- Verification evidence：node --test .github/workflows/ci.test.mjs；git diff --check
+- Verification evidence：node --experimental-strip-types --no-warnings --test .github/workflows/ci.test.ts；git diff --check
 - Self-review / exception reason：controller reviewed the workflow diff before handoff
 - Worker session closeout：all worker sessions read back and closed
 
@@ -1973,7 +2077,7 @@ Depends on PR: none
   )
 })
 
-test('docs/template-only PRs skip heavy product CI in scope gate', async () => {
+test('docs/template-only PRs skip heavy product CI in CI scope router', async () => {
   const workflow = await readFile(workflowPath, 'utf8')
 
   assert.match(workflow, /const isDocsTemplateOrMetadataOnly =/)
@@ -1999,7 +2103,38 @@ test('docs/template-only PRs skip heavy product CI in scope gate', async () => {
   )
 })
 
-test('scope gate emits path-aware outputs for frontend-only PRs', async () => {
+test('CI scope router emits skipped product outputs for docs-only PRs', async () => {
+  const result = await runCiScopeGateWorkflow({
+    prOverrides: { title: '[discussion] Document CI execution strategy' },
+    files: [{ filename: 'docs/pr-scope-policy.md', additions: 12, deletions: 3, status: 'modified' }],
+  })
+
+  assert.deepEqual(result.outputs, {
+    run_ci: 'false',
+    run_backend: 'false',
+    run_backend_integration: 'false',
+    run_backend_scanners: 'false',
+    run_dependency_review: 'false',
+    run_api_contracts: 'false',
+    run_frontend: 'false',
+    run_dashboard: 'false',
+    run_contracts: 'false',
+    run_contracts_slither: 'false',
+    run_contracts_gas_report: 'false',
+  })
+  assert.equal(
+    result.notices.some((notice) =>
+      notice.includes('Skipping heavy product CI because this PR only changes docs/templates/metadata.'),
+    ),
+    true,
+  )
+  assert.equal(
+    result.notices.some((notice) => notice.includes('Skipping backend integration tests')),
+    false,
+  )
+})
+
+test('CI scope router emits path-aware outputs for frontend-only PRs', async () => {
   const result = await runCiScopeGateWorkflow({
     files: [{ filename: 'apps/extension/src/App.tsx', additions: 12, deletions: 3, status: 'modified' }],
   })
@@ -2019,7 +2154,36 @@ test('scope gate emits path-aware outputs for frontend-only PRs', async () => {
   })
 })
 
-test('scope gate emits dependency review output only for dependency file PRs', async () => {
+test('CI scope router emits full CI outputs for workflow file PRs', async () => {
+  const fullOutputs = {
+    run_ci: 'true',
+    run_backend: 'true',
+    run_backend_integration: 'true',
+    run_backend_scanners: 'true',
+    run_dependency_review: 'false',
+    run_api_contracts: 'true',
+    run_frontend: 'true',
+    run_dashboard: 'true',
+    run_contracts: 'true',
+    run_contracts_slither: 'true',
+    run_contracts_gas_report: 'true',
+  }
+  const ciRuntime = await runCiScopeGateWorkflow({
+    prOverrides: { title: '[infra] Update CI scope router' },
+    files: [{ filename: '.github/workflows/ci.yml', additions: 8, deletions: 2, status: 'modified' }],
+  })
+  const ciRegression = await runCiScopeGateWorkflow({
+    prOverrides: { title: '[infra] Update CI regression coverage' },
+    files: [{ filename: '.github/workflows/ci.test.ts', additions: 8, deletions: 2, status: 'modified' }],
+  })
+
+  assert.deepEqual(ciRuntime.outputs, fullOutputs)
+  assert.deepEqual(ciRegression.outputs, fullOutputs)
+  assert.equal(ciRuntime.notices.some((notice) => notice.includes('Skipping heavy')), false)
+  assert.equal(ciRegression.notices.some((notice) => notice.includes('Skipping heavy')), false)
+})
+
+test('CI scope router emits dependency review output only for dependency file PRs', async () => {
   const extensionLockfile = await runCiScopeGateWorkflow({
     files: [{ filename: 'apps/extension/pnpm-lock.yaml', additions: 9, deletions: 2, status: 'modified' }],
   })
@@ -2035,7 +2199,7 @@ test('scope gate emits dependency review output only for dependency file PRs', a
   assert.equal(frontendSource.outputs.run_dependency_review, 'false')
 })
 
-test('scope gate emits API contract drift output for generated contract surfaces', async () => {
+test('CI scope router emits API contract drift output for generated contract surfaces', async () => {
   const sharedTypes = await runCiScopeGateWorkflow({
     files: [{ filename: 'packages/shared-types/src/index.ts', additions: 9, deletions: 2, status: 'modified' }],
   })
@@ -2052,7 +2216,7 @@ test('scope gate emits API contract drift output for generated contract surfaces
   assert.equal(frontendSource.outputs.run_api_contracts, 'false')
 })
 
-test('scope gate emits backend scanner outputs for backend PRs and scheduled scans', async () => {
+test('CI scope router emits backend scanner outputs for backend PRs and scheduled scans', async () => {
   const backendPr = await runCiScopeGateWorkflow({
     files: [{ filename: 'services/api/internal/services/watch_service.go', additions: 3, deletions: 1, status: 'modified' }],
   })
@@ -2086,7 +2250,7 @@ test('scope gate emits backend scanner outputs for backend PRs and scheduled sca
   })
 })
 
-test('scope gate emits contracts report outputs for contracts PRs', async () => {
+test('CI scope router emits contracts report outputs for contracts PRs', async () => {
   const result = await runCiScopeGateWorkflow({
     prOverrides: { title: '[contract] Update TachiToken' },
     files: [{ filename: 'contracts/src/TachiToken.sol', additions: 4, deletions: 1, status: 'modified' }],
@@ -2107,7 +2271,7 @@ test('scope gate emits contracts report outputs for contracts PRs', async () => 
   })
 })
 
-test('scope gate emits full CI outputs for push events and release promotion PRs', async () => {
+test('CI scope router emits full CI outputs for push events and release promotion PRs', async () => {
   const push = await runCiScopeGateWorkflow({ eventName: 'push' })
   const releasePromotion = await runCiScopeGateWorkflow({
     prOverrides: {
@@ -2287,7 +2451,11 @@ test('Dependabot pnpm version updates skip routine production patch releases', (
   const config = parseYaml(dependabotConfigPath)
   const pnpmUpdates = config.updates.filter((update) => update['package-ecosystem'] === 'npm')
 
-  assert.equal(pnpmUpdates.length, 2)
+  assert.equal(pnpmUpdates.length, 3)
+  assert.deepEqual(
+    pnpmUpdates.map((update) => update.directory).sort(),
+    ['/', '/apps/dashboard', '/apps/extension'],
+  )
   for (const update of pnpmUpdates) {
     assert.deepEqual(update.allow, [
       {
@@ -2348,7 +2516,7 @@ test('Dependabot auto-merge keeps production dependency updates on manual review
   assert.match(jobBlock, /reason="production dependency requires manual review"/)
 })
 
-test('CI scope gate runs product validation for Dependabot maintenance PRs', async () => {
+test('CI scope router runs product validation for Dependabot maintenance PRs', async () => {
   const workflow = await readFile(workflowPath, 'utf8')
 
   assert.match(workflow, /const isDependabotPr = pr\.user\?\.login === 'dependabot\[bot\]'/)
@@ -2808,7 +2976,10 @@ test('auto-ready workflow checks required contexts and excludes its own run', as
 
   assert.match(workflow, /const requiredCheckSnapshots = \{/)
   assert.match(workflow, /develop: \[/)
-  assert.match(workflow, /\{ context: 'Scope gate', appId: 15368 \}/)
+  assert.match(workflow, /\{ context: 'CI scope router', appId: 15368 \}/)
+  assert.doesNotMatch(workflow, /\{ context: 'Scope gate', appId: 15368 \}/)
+  assert.match(workflow, /\{ context: 'Supply-chain guardrails', appId: 15368 \}/)
+  assert.match(workflow, /\{ context: 'TypeScript-only guardrail', appId: 15368 \}/)
   assert.match(workflow, /\{ context: 'Dependency Review', appId: 15368 \}/)
   assert.match(workflow, /\{ context: 'API contract drift', appId: 15368 \}/)
   assert.match(workflow, /\{ context: 'Frontend build', appId: 15368 \}/)
@@ -2866,7 +3037,7 @@ test('CI workflow wakes auto-ready draft PRs after required CI jobs finish', asy
 
   assert.equal(job.name, 'Auto-ready draft PR after CI')
   assert.equal(job.if, "always() && github.event_name == 'pull_request'")
-  assert.deepEqual(job.needs, ['scope-gate', 'supply-chain-guardrails', 'backend-ci', 'dependency-review', 'api-contracts', 'frontend', 'dashboard', 'contracts', 'contracts-slither', 'contracts-gas-snapshot'])
+  assert.deepEqual(job.needs, ['scope-gate', 'supply-chain-guardrails', 'typescript-only-guardrail', 'backend-ci', 'dependency-review', 'api-contracts', 'frontend', 'dashboard', 'contracts', 'contracts-slither', 'contracts-gas-snapshot'])
   assert.equal(job.permissions['pull-requests'], 'write')
   assert.equal(job.permissions.contents, 'write')
   assert.equal(job.permissions.issues, 'write')
@@ -2880,6 +3051,7 @@ test('CI workflow wakes auto-ready draft PRs after required CI jobs finish', asy
   assert.match(jobBlock, /const successConclusions = new Set\(\['success', 'neutral', 'skipped'\]\)/)
   assert.match(jobBlock, /SCOPE_GATE_RESULT/)
   assert.match(jobBlock, /SUPPLY_CHAIN_GUARDRAILS_RESULT/)
+  assert.match(jobBlock, /TYPESCRIPT_ONLY_GUARDRAIL_RESULT/)
   assert.match(jobBlock, /BACKEND_CI_RESULT/)
   assert.match(jobBlock, /DEPENDENCY_REVIEW_RESULT/)
   assert.match(jobBlock, /API_CONTRACTS_RESULT/)
@@ -2901,8 +3073,10 @@ test('CI workflow wakes auto-ready draft PRs after required CI jobs finish', asy
   assert.match(jobBlock, /github\.rest\.issues\.removeLabel/)
   assert.match(jobBlock, /github\.rest\.pulls\.get/)
   assert.match(jobBlock, /const requiredCheckSnapshots = \{/)
-  assert.match(jobBlock, /\{ context: 'Scope gate', appId: 15368 \}/)
+  assert.match(jobBlock, /\{ context: 'CI scope router', appId: 15368 \}/)
+  assert.doesNotMatch(jobBlock, /\{ context: 'Scope gate', appId: 15368 \}/)
   assert.match(jobBlock, /\{ context: 'Supply-chain guardrails', appId: 15368 \}/)
+  assert.match(jobBlock, /\{ context: 'TypeScript-only guardrail', appId: 15368 \}/)
   assert.match(jobBlock, /\{ context: 'Dependency Review', appId: 15368 \}/)
   assert.match(jobBlock, /\{ context: 'API contract drift', appId: 15368 \}/)
   assert.match(jobBlock, /\{ context: 'Frontend build', appId: 15368 \}/)
@@ -2983,9 +3157,34 @@ test('standalone auto-ready workflow waits when dependency review check fails', 
   assert.deepEqual(result.labelsAdded, [])
 })
 
+test('standalone auto-ready workflow waits when TypeScript-only guardrail check fails', async () => {
+  const result = await runAutoReadyWorkflow({
+    checkRuns: successfulDevelopRequiredCheckRuns({
+      name: 'TypeScript-only guardrail',
+      status: 'completed',
+      conclusion: 'failure',
+      app: { id: 15368 },
+      completed_at: '2026-05-03T00:01:00Z',
+    }),
+  })
+
+  assert.deepEqual(result.graphqlCalls, [])
+  assert.deepEqual(result.labelsAdded, [])
+})
+
 test('CI auto-ready job waits when supply-chain guardrails fail', async () => {
   const result = await runCiAutoReadyAfterCiWorkflow({
     env: { SUPPLY_CHAIN_GUARDRAILS_RESULT: 'failure' },
+    checkRuns: successfulDevelopRequiredCheckRuns(),
+  })
+
+  assert.deepEqual(result.graphqlCalls, [])
+  assert.deepEqual(result.labelsAdded, [])
+})
+
+test('CI auto-ready job waits when TypeScript-only guardrail fails', async () => {
+  const result = await runCiAutoReadyAfterCiWorkflow({
+    env: { TYPESCRIPT_ONLY_GUARDRAIL_RESULT: 'failure' },
     checkRuns: successfulDevelopRequiredCheckRuns(),
   })
 
@@ -3136,7 +3335,7 @@ test('auto-ready workflow treats skipped required checks as passing', async () =
   const result = await runAutoReadyWorkflow({
     checkRuns: successfulDevelopRequiredCheckRuns(
       {
-        name: 'Scope gate',
+        name: 'CI scope router',
         status: 'completed',
         conclusion: 'skipped',
         app: { id: 15368 },
@@ -3184,10 +3383,10 @@ test('auto-ready workflow refreshes live PR state before marking ready', async (
 
 test('auto-ready workflow does not let a successful status mask a failed check run with the same name', async () => {
   const result = await runAutoReadyWorkflow({
-    statuses: [{ context: 'Scope gate', state: 'success', updated_at: '2026-05-03T00:00:00Z' }],
+    statuses: [{ context: 'CI scope router', state: 'success', updated_at: '2026-05-03T00:00:00Z' }],
     checkRuns: successfulDevelopRequiredCheckRuns(
       {
-        name: 'Scope gate',
+        name: 'CI scope router',
         status: 'completed',
         conclusion: 'failure',
         app: { id: 15368 },

@@ -13,9 +13,45 @@ import (
 	"testing"
 	"time"
 
+	"github.com/google/uuid"
 	"github.com/tachigo/tachigo/internal/models"
 	"golang.org/x/oauth2"
+	"gorm.io/gorm"
 )
+
+type authHandlerContextKey struct{}
+
+func installAuthHandlerDBContextProbe(t *testing.T, db *gorm.DB, key, want any) func() int {
+	t.Helper()
+
+	var seen int
+	name := "test:auth_handler_db_context:" + uuid.NewString()
+	probe := func(tx *gorm.DB) {
+		if tx.Statement != nil && tx.Statement.Context != nil && tx.Statement.Context.Value(key) == want {
+			seen++
+		}
+	}
+
+	if err := db.Callback().Query().Before("gorm:query").Register(name+":query", probe); err != nil {
+		t.Fatalf("register query context probe: %v", err)
+	}
+	if err := db.Callback().Create().Before("gorm:create").Register(name+":create", probe); err != nil {
+		t.Fatalf("register create context probe: %v", err)
+	}
+	if err := db.Callback().Delete().Before("gorm:delete").Register(name+":delete", probe); err != nil {
+		t.Fatalf("register delete context probe: %v", err)
+	}
+
+	t.Cleanup(func() {
+		_ = db.Callback().Query().Remove(name + ":query")
+		_ = db.Callback().Create().Remove(name + ":create")
+		_ = db.Callback().Delete().Remove(name + ":delete")
+	})
+
+	return func() int {
+		return seen
+	}
+}
 
 // ─── Register ────────────────────────────────────────────────────────────────
 
@@ -37,6 +73,26 @@ func TestRegisterHandler_Success(t *testing.T) {
 	}
 	assertRefreshCookieSet(t, w, "", http.SameSiteLaxMode, false)
 	assertTokenPayloadHasBrowserTokens(t, resp)
+}
+
+func TestRegisterHandler_UsesRequestContext(t *testing.T) {
+	env := newTestEnv(t)
+	key := authHandlerContextKey{}
+	seen := installAuthHandlerDBContextProbe(t, env.db, key, "register")
+
+	body := `{"username":"registerctx","email":"registerctx@example.com","password":"password123"}`
+	req := httptest.NewRequest(http.MethodPost, "/api/v1/auth/register", bytes.NewBufferString(body)).
+		WithContext(context.WithValue(context.Background(), key, "register"))
+	req.Header.Set("Content-Type", "application/json")
+	w := httptest.NewRecorder()
+	env.router.ServeHTTP(w, req)
+
+	if w.Code != http.StatusCreated {
+		t.Fatalf("want 201, got %d: %s", w.Code, w.Body.String())
+	}
+	if seen() == 0 {
+		t.Fatal("expected Register DB query/create to use request context")
+	}
 }
 
 func TestRegisterHandler_DuplicateEmail(t *testing.T) {
@@ -113,6 +169,27 @@ func TestLoginHandler_Success(t *testing.T) {
 	}
 	assertRefreshCookieSet(t, w, "", http.SameSiteLaxMode, false)
 	assertTokenPayloadHasBrowserTokens(t, parseBody(t, w.Body.Bytes()))
+}
+
+func TestLoginHandler_UsesRequestContext(t *testing.T) {
+	env := newTestEnv(t)
+	env.registerUser(t, "loginctx", "loginctx@example.com", "mypassword")
+	key := authHandlerContextKey{}
+	seen := installAuthHandlerDBContextProbe(t, env.db, key, "login")
+
+	body := `{"email":"loginctx@example.com","password":"mypassword"}`
+	req := httptest.NewRequest(http.MethodPost, "/api/v1/auth/login", bytes.NewBufferString(body)).
+		WithContext(context.WithValue(context.Background(), key, "login"))
+	req.Header.Set("Content-Type", "application/json")
+	w := httptest.NewRecorder()
+	env.router.ServeHTTP(w, req)
+
+	if w.Code != http.StatusOK {
+		t.Fatalf("want 200, got %d: %s", w.Code, w.Body.String())
+	}
+	if seen() == 0 {
+		t.Fatal("expected Login DB query to use request context")
+	}
 }
 
 func TestLoginHandler_SetsSecureRefreshCookieInProduction(t *testing.T) {
@@ -210,6 +287,27 @@ func TestRefreshHandler_Success(t *testing.T) {
 	assertTokenPayloadHasBrowserTokens(t, parseBody(t, w.Body.Bytes()))
 }
 
+func TestRefreshHandler_UsesRequestContext(t *testing.T) {
+	env := newTestEnv(t)
+	_, refreshToken := env.registerUser(t, "refreshctx", "refreshctx@example.com", "password123")
+	key := authHandlerContextKey{}
+	seen := installAuthHandlerDBContextProbe(t, env.db, key, "refresh")
+
+	body := fmt.Sprintf(`{"refresh_token":"%s"}`, refreshToken)
+	req := httptest.NewRequest(http.MethodPost, "/api/v1/auth/refresh", bytes.NewBufferString(body)).
+		WithContext(context.WithValue(context.Background(), key, "refresh"))
+	req.Header.Set("Content-Type", "application/json")
+	w := httptest.NewRecorder()
+	env.router.ServeHTTP(w, req)
+
+	if w.Code != http.StatusOK {
+		t.Fatalf("want 200, got %d: %s", w.Code, w.Body.String())
+	}
+	if seen() == 0 {
+		t.Fatal("expected Refresh handler DB query/delete/create to use request context")
+	}
+}
+
 func TestRefreshHandler_SuccessWithCookie(t *testing.T) {
 	env := newTestEnv(t)
 	_, refreshToken := env.registerUser(t, "cookieuser", "cookie@example.com", "password123")
@@ -289,6 +387,27 @@ func TestLogoutHandler_Success(t *testing.T) {
 		t.Errorf("want 200, got %d", w.Code)
 	}
 	assertRefreshCookieCleared(t, w, http.SameSiteLaxMode, false)
+}
+
+func TestLogoutHandler_UsesRequestContext(t *testing.T) {
+	env := newTestEnv(t)
+	_, refreshToken := env.registerUser(t, "logoutctx", "logoutctx@example.com", "password123")
+	key := authHandlerContextKey{}
+	seen := installAuthHandlerDBContextProbe(t, env.db, key, "logout")
+
+	body := fmt.Sprintf(`{"refresh_token":"%s"}`, refreshToken)
+	req := httptest.NewRequest(http.MethodPost, "/api/v1/auth/logout", bytes.NewBufferString(body)).
+		WithContext(context.WithValue(context.Background(), key, "logout"))
+	req.Header.Set("Content-Type", "application/json")
+	w := httptest.NewRecorder()
+	env.router.ServeHTTP(w, req)
+
+	if w.Code != http.StatusOK {
+		t.Fatalf("want 200, got %d: %s", w.Code, w.Body.String())
+	}
+	if seen() == 0 {
+		t.Fatal("expected Logout handler DB delete to use request context")
+	}
 }
 
 func TestLogoutHandler_SuccessWithCookie(t *testing.T) {
@@ -909,6 +1028,52 @@ func TestWeb3VerifyHandler_SuccessSetsRefreshCookieAndConsumesNonce(t *testing.T
 	}
 }
 
+func TestWeb3VerifyHandler_CanceledRequestStopsDBWrite(t *testing.T) {
+	env := newTestEnv(t)
+	key, addr := newHandlerTestWallet(t)
+	lookupAddr := strings.ToLower(addr)
+	nonce := "handler-web3-verify-canceled"
+	nonceRecord := seedHandlerWalletNonce(t, env, addr, nonce)
+	msg := handlerSIWEMessage(lookupAddr, nonce, nonceRecord.CreatedAt.UTC().Format(time.RFC3339))
+	sig := handlerSignSIWE(t, msg, key)
+	body := fmt.Sprintf(`{"address":%q,"nonce":%q,"signature":%q}`, addr, nonce, sig)
+
+	ctx, cancel := context.WithCancel(context.Background())
+	cancel()
+	req := httptest.NewRequest(http.MethodPost, "/api/v1/auth/web3/verify", bytes.NewBufferString(body)).WithContext(ctx)
+	req.Header.Set("Content-Type", "application/json")
+	w := httptest.NewRecorder()
+	env.router.ServeHTTP(w, req)
+
+	if w.Code != http.StatusInternalServerError {
+		t.Fatalf("want 500 for canceled request, got %d: %s", w.Code, w.Body.String())
+	}
+
+	var providerCount int64
+	if err := env.db.Model(&models.AuthProvider{}).Where("provider = ?", models.ProviderWeb3).Count(&providerCount).Error; err != nil {
+		t.Fatalf("count web3 providers: %v", err)
+	}
+	if providerCount != 0 {
+		t.Fatalf("canceled request should not create web3 provider rows, got %d", providerCount)
+	}
+
+	var tokenCount int64
+	if err := env.db.Model(&models.RefreshToken{}).Count(&tokenCount).Error; err != nil {
+		t.Fatalf("count refresh token rows: %v", err)
+	}
+	if tokenCount != 0 {
+		t.Fatalf("canceled request should not create refresh token rows, got %d", tokenCount)
+	}
+
+	var nonceCount int64
+	if err := env.db.Model(&models.Web3Nonce{}).Where("nonce = ?", nonce).Count(&nonceCount).Error; err != nil {
+		t.Fatalf("count web3 nonce rows: %v", err)
+	}
+	if nonceCount != 1 {
+		t.Fatalf("canceled request should keep nonce available, got %d rows", nonceCount)
+	}
+}
+
 func assertTokenPayloadHasBrowserTokens(t *testing.T, resp map[string]interface{}) {
 	t.Helper()
 
@@ -966,6 +1131,29 @@ func TestWeb3VerifyHandler_InvalidSignatureReturns401AndKeepsNonce(t *testing.T)
 	env.db.Model(&models.Web3Nonce{}).Where("nonce = ?", nonce).Count(&nonceCount)
 	if nonceCount != 1 {
 		t.Fatalf("invalid signature should keep nonce for retry, got %d rows", nonceCount)
+	}
+}
+
+// ─── UnlinkProvider ──────────────────────────────────────────────────────────
+
+func TestUnlinkProviderHandler_UsesRequestContext(t *testing.T) {
+	env := newTestEnv(t)
+	accessToken, _ := env.registerUser(t, "unlinkctx", "unlinkctx@example.com", "password123")
+
+	key := authHandlerContextKey{}
+	seen := installAuthHandlerDBContextProbe(t, env.db, key, "unlink-provider")
+	ctx := context.WithValue(context.Background(), key, "unlink-provider")
+
+	req := httptest.NewRequest(http.MethodDelete, "/api/v1/auth/providers/email", nil).WithContext(ctx)
+	req.Header.Set("Authorization", "Bearer "+accessToken)
+	w := httptest.NewRecorder()
+	env.router.ServeHTTP(w, req)
+
+	if w.Code != http.StatusOK {
+		t.Fatalf("want 200, got %d: %s", w.Code, w.Body.String())
+	}
+	if seen() == 0 {
+		t.Fatal("expected UnlinkProvider DB query to use request context")
 	}
 }
 

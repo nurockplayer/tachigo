@@ -1,6 +1,7 @@
 package services
 
 import (
+	"context"
 	"crypto/sha256"
 	"encoding/hex"
 	"errors"
@@ -13,6 +14,175 @@ import (
 
 	"github.com/tachigo/tachigo/internal/models"
 )
+
+type raffleServiceContextKey struct{}
+
+func TestRaffleService_CreateContext_UsesRequestContext(t *testing.T) {
+	db := newTestDB(t)
+	ownerID := seedUserWithEmail(t, db, "raffle_create_ctx@example.com")
+
+	key := raffleServiceContextKey{}
+	seen := installDBContextProbe(t, db, key, "raffle-create")
+	ctx := context.WithValue(context.Background(), key, "raffle-create")
+
+	svc := &RaffleService{db: db}
+	raffle, err := svc.CreateContext(ctx, ownerID, "Context Create Raffle")
+	if err != nil {
+		t.Fatalf("CreateContext: %v", err)
+	}
+	if raffle.UserID != ownerID {
+		t.Fatalf("want user ID %s, got %s", ownerID, raffle.UserID)
+	}
+	if seen() == 0 {
+		t.Fatal("expected CreateContext DB operation to use request context")
+	}
+}
+
+func TestRaffleService_GetByIDContext_UsesRequestContext(t *testing.T) {
+	db := newTestDB(t)
+	ownerID := seedUserWithEmail(t, db, "raffle_get_ctx@example.com")
+	raffleID := seedRaffle(t, db, ownerID)
+
+	key := raffleServiceContextKey{}
+	seen := installDBContextProbe(t, db, key, "raffle-get")
+	ctx := context.WithValue(context.Background(), key, "raffle-get")
+
+	svc := &RaffleService{db: db}
+	raffle, err := svc.GetByIDContext(ctx, raffleID, ownerID)
+	if err != nil {
+		t.Fatalf("GetByIDContext: %v", err)
+	}
+	if raffle.ID != raffleID {
+		t.Fatalf("want raffle ID %s, got %s", raffleID, raffle.ID)
+	}
+	if seen() == 0 {
+		t.Fatal("expected GetByIDContext DB query to use request context")
+	}
+}
+
+func TestRaffleService_ListDrawsContext_UsesRequestContext(t *testing.T) {
+	db := newTestDB(t)
+	ownerID := seedUserWithEmail(t, db, "list_draws_ctx@example.com")
+	raffleID := seedRaffle(t, db, ownerID)
+	entryID := seedEntry(t, db, raffleID, nil, "draw_ctx_player")
+	seedDraw(t, db, raffleID, entryID, "draw-context-token")
+
+	key := raffleServiceContextKey{}
+	seen := installDBContextProbe(t, db, key, "raffle-list-draws")
+	ctx := context.WithValue(context.Background(), key, "raffle-list-draws")
+
+	svc := &RaffleService{db: db}
+	draws, err := svc.ListDrawsContext(ctx, raffleID, ownerID)
+	if err != nil {
+		t.Fatalf("ListDrawsContext: %v", err)
+	}
+	if len(draws) != 1 {
+		t.Fatalf("want 1 draw, got %d", len(draws))
+	}
+	if seen() < 2 {
+		t.Fatal("expected at least 2 ListDrawsContext DB operations to use request context")
+	}
+}
+
+func TestRaffleService_GetDrawsByRafflePublicContext_UsesRequestContext(t *testing.T) {
+	db := newTestDB(t)
+	ownerID := seedUserWithEmail(t, db, "public_draws_ctx@example.com")
+	raffleID := seedRaffle(t, db, ownerID)
+	entryID := seedEntry(t, db, raffleID, nil, "public_draw_ctx_player")
+	seedDraw(t, db, raffleID, entryID, "public-draw-context-token")
+
+	key := raffleServiceContextKey{}
+	seen := installDBContextProbe(t, db, key, "raffle-public-draws")
+	ctx := context.WithValue(context.Background(), key, "raffle-public-draws")
+
+	svc := &RaffleService{db: db}
+	draws, err := svc.GetDrawsByRafflePublicContext(ctx, raffleID)
+	if err != nil {
+		t.Fatalf("GetDrawsByRafflePublicContext: %v", err)
+	}
+	if len(draws) != 1 {
+		t.Fatalf("want 1 draw, got %d", len(draws))
+	}
+	if seen() == 0 {
+		t.Fatal("expected GetDrawsByRafflePublicContext DB operations to use request context")
+	}
+}
+
+func TestRaffleService_GetDrawByTokenContext_UsesRequestContext(t *testing.T) {
+	db := newTestDB(t)
+	ownerID := seedUserWithEmail(t, db, "claim_token_ctx_owner@example.com")
+	winnerID := seedUserWithEmail(t, db, "claim_token_ctx_winner@example.com")
+	raffleID := seedRaffle(t, db, ownerID)
+	entryID := seedEntry(t, db, raffleID, &winnerID, "claim_token_ctx_player")
+	seedDraw(t, db, raffleID, entryID, "claim-token-context-token")
+
+	key := raffleServiceContextKey{}
+	seen := installDBContextProbe(t, db, key, "raffle-claim-token")
+	ctx := context.WithValue(context.Background(), key, "raffle-claim-token")
+
+	svc := &RaffleService{db: db}
+	draw, err := svc.GetDrawByTokenContext(ctx, "claim-token-context-token")
+	if err != nil {
+		t.Fatalf("GetDrawByTokenContext: %v", err)
+	}
+	if draw.Entry.UserID == nil || *draw.Entry.UserID != winnerID {
+		t.Fatalf("want winner ID %s, got %v", winnerID, draw.Entry.UserID)
+	}
+	if seen() == 0 {
+		t.Fatal("expected GetDrawByTokenContext DB query to use request context")
+	}
+}
+
+func TestRaffleService_CompleteContext_UsesRequestContext(t *testing.T) {
+	db := newTestDB(t)
+	ownerID := seedUserWithEmail(t, db, "complete_context_owner@example.com")
+	raffleID := seedDraftRaffle(t, db, ownerID)
+
+	key := raffleServiceContextKey{}
+	seen := installDBContextProbe(t, db, key, "raffle-complete")
+	ctx := context.WithValue(context.Background(), key, "raffle-complete")
+
+	svc := &RaffleService{db: db}
+	raffle, err := svc.CompleteContext(ctx, raffleID, ownerID)
+	if err != nil {
+		t.Fatalf("CompleteContext: %v", err)
+	}
+	if raffle.Status != models.RaffleStatusCompleted {
+		t.Fatalf("want status completed, got %q", raffle.Status)
+	}
+	if seen() < 2 {
+		t.Fatal("expected CompleteContext lookup and update operations to use request context")
+	}
+}
+
+func TestRaffleService_SubmitClaimContext_UsesRequestContext(t *testing.T) {
+	db := newTestDB(t)
+	ownerID := seedUserWithEmail(t, db, "submit_claim_ctx_owner@example.com")
+	winnerID := seedUserWithEmail(t, db, "submit_claim_ctx_winner@example.com")
+	raffleID := seedRaffle(t, db, ownerID)
+	entryID := seedEntry(t, db, raffleID, &winnerID, "submit_claim_ctx_player")
+	seedDraw(t, db, raffleID, entryID, "submit-claim-context-token")
+
+	key := raffleServiceContextKey{}
+	seen := installDBContextProbe(t, db, key, "raffle-submit-claim")
+	ctx := context.WithValue(context.Background(), key, "raffle-submit-claim")
+
+	svc := &RaffleService{db: db}
+	claim, err := svc.SubmitClaimContext(ctx, "submit-claim-context-token", winnerID, ClaimInput{
+		RecipientName: "Context Winner",
+		AddressLine1:  "Context Address",
+		City:          "Taipei",
+	})
+	if err != nil {
+		t.Fatalf("SubmitClaimContext: %v", err)
+	}
+	if claim == nil {
+		t.Fatal("expected non-nil claim")
+	}
+	if seen() < 2 {
+		t.Fatal("expected SubmitClaimContext query and create operations to use request context")
+	}
+}
 
 // TestDrawNext_SkipsAlreadyDrawnEntry verifies that if one entry is already
 // drawn (seeded directly into DB), DrawNext picks the remaining entry rather

@@ -1,6 +1,7 @@
 package services
 
 import (
+	"context"
 	"errors"
 	"strings"
 	"testing"
@@ -34,6 +35,28 @@ func TestActivate_SuccessFromDraft(t *testing.T) {
 	}
 	if raffle.Status != models.RaffleStatusActive {
 		t.Errorf("expected status active, got %q", raffle.Status)
+	}
+}
+
+func TestActivateContext_UsesRequestContext(t *testing.T) {
+	db := newTestDB(t)
+	ownerID := seedUserWithEmail(t, db, "activate_context_owner@example.com")
+	raffleID := seedDraftRaffle(t, db, ownerID)
+
+	key := raffleServiceContextKey{}
+	seen := installDBContextProbe(t, db, key, "raffle-activate")
+	ctx := context.WithValue(context.Background(), key, "raffle-activate")
+
+	svc := &RaffleService{db: db}
+	raffle, err := svc.ActivateContext(ctx, raffleID, ownerID)
+	if err != nil {
+		t.Fatalf("ActivateContext: %v", err)
+	}
+	if raffle.Status != models.RaffleStatusActive {
+		t.Fatalf("want status active, got %q", raffle.Status)
+	}
+	if seen() < 2 {
+		t.Fatal("expected ActivateContext lookup and update operations to use request context")
 	}
 }
 

@@ -2,7 +2,7 @@
 title: 部署追蹤
 status: active
 owner: engineering
-last_reviewed: 2026-05-14
+last_reviewed: 2026-05-24
 source_of_truth: true
 code_areas:
   - docs
@@ -38,7 +38,7 @@ related_issues:
 | Node / package manager | Node 24 via `.node-version` / `pnpm@10.33.0` / lockfile |
 | Base path | `/tachigo/` via static `_redirects` rewrites |
 | Environment variables | optional `DOCS_SITE_URL`; Cloudflare injects `CF_PAGES_URL` |
-| Initial public URL | Cloudflare `*.pages.dev` URL |
+| Initial public URL | `https://tachigo-dev-portal.pages.dev/tachigo/` |
 | Custom domain | 延後決定；目前偏好 `wiki.tachigo.dev` |
 
 Cloudflare 後台操作重點：
@@ -68,6 +68,27 @@ Cloudflare Pages 的 preview 行為不能只靠填一個欄位宣稱完成。連
 | Public URL | 初期使用 Cloudflare `*.pages.dev` URL，不要求 custom domain |
 
 若 production deploy 或 PR preview 沒有出現在 dashboard，先不要把 #699 關成完成；補 Cloudflare Pages 設定或另開 issue 追蹤。
+
+## Current public readback
+
+Last verified: 2026-05-24 06:08 Asia/Taipei.
+
+Production URL: [https://tachigo-dev-portal.pages.dev/tachigo/](https://tachigo-dev-portal.pages.dev/tachigo/)
+
+| Path | Expected | Readback |
+|---|---|---|
+| `/tachigo/` | Dev Portal homepage | `200 text/html; charset=utf-8` |
+| `/tachigo/dev-portal/start-here` | core docs page | `200 text/html; charset=utf-8` |
+| `/tachigo/dev-portal/deployment` | deployment tracker page | `200 text/html; charset=utf-8` |
+| `/tachigo/dev-portal/source-index` | source index page | `200 text/html; charset=utf-8` |
+| `/tachigo/llms.txt` | public LLM index | `200 text/plain; charset=utf-8` |
+| `/tachigo/manifest.json` | public docs manifest | `200 application/json`; `jq` valid; `docs_count=9` |
+| `/tachigo/search` | search page | `200 text/html; charset=utf-8` |
+| `/tachigo/search-index.json` | search index payload | `200 application/json`; contains deployment and start-here docs |
+
+The public `pages.dev` URL is sufficient for the initial #699 readback. The
+custom domain gate remains deferred until the team decides whether to bind
+`wiki.tachigo.dev`.
 
 ## Branch 部署模型
 

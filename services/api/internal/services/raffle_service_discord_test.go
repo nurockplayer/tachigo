@@ -1,7 +1,9 @@
 package services
 
 import (
+	"context"
 	"encoding/json"
+	"errors"
 	"io"
 	"net/http"
 	"strings"
@@ -104,6 +106,21 @@ func TestSetDiscordWebhook_RejectsInvalidURL(t *testing.T) {
 	}
 	if !strings.Contains(err.Error(), "invalid Discord webhook URL") {
 		t.Errorf("unexpected error: %v", err)
+	}
+}
+
+func TestSetDiscordWebhookContext_UsesRequestContext(t *testing.T) {
+	db := newTestDB(t)
+	ownerID := seedUserWithEmail(t, db, "owner-context@example.com")
+	raffleID := seedRaffle(t, db, ownerID)
+	svc := &RaffleService{db: db}
+
+	ctx, cancel := context.WithCancel(context.Background())
+	cancel()
+
+	_, err := svc.SetDiscordWebhookContext(ctx, raffleID, ownerID, "https://discord.com/api/webhooks/123/abc")
+	if !errors.Is(err, context.Canceled) {
+		t.Fatalf("want context.Canceled, got %v", err)
 	}
 }
 

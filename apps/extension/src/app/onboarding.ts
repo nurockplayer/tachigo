@@ -1,10 +1,10 @@
 import type { NavigationFlags } from './navigation/types'
-import type { DemoScreen } from '../extension/types'
+import type { Scene } from './navigation/types'
 
 export const ONBOARDING_VERSION = 1
 
-export function shouldShowOnboarding(screen: DemoScreen, flags: NavigationFlags): boolean {
-  return screen === 'hud' && flags.onboardingVersion < ONBOARDING_VERSION
+export function shouldShowOnboarding(scene: Scene, flags: NavigationFlags): boolean {
+  return scene === 'mining' && flags.onboardingVersion < ONBOARDING_VERSION
 }
 
 export function markOnboardingComplete(flags: NavigationFlags): NavigationFlags {

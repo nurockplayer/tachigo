@@ -23,7 +23,7 @@ env:
 jobs:
   scope-gate:
     timeout-minutes: 5
-    name: Scope gate
+    name: CI scope router
     runs-on: ubuntu-latest
     outputs:
       run_ci: ${{ steps.evaluate.outputs.run_ci }}
@@ -114,7 +114,7 @@ jobs:
                 })
                 return
               }
-              core.notice('Non-PR event detected; running CI without scope gate restrictions.')
+              core.notice('Non-PR event detected; running CI without CI scope router restrictions.')
               setFullCiOutputs()
               return
             }
@@ -130,7 +130,7 @@ jobs:
             const bypassLabels = new Set(['scope-exception'])
             const labels = (pr.labels || []).map((label) => label.name)
             if (labels.some((label) => bypassLabels.has(label))) {
-              core.notice('Scope gate bypassed by scope-exception label.')
+              core.notice('CI scope router bypassed by scope-exception label.')
               setFullCiOutputs()
               return
             }
@@ -244,7 +244,7 @@ jobs:
             ]
             const ciWorkflowPaths = [
               /^\.github\/workflows\/ci\.yml$/,
-              /^\.github\/workflows\/ci\.test\.mjs$/,
+              /^\.github\/workflows\/ci\.test\.ts$/,
             ]
             const dockerComposePaths = [/^docker-compose(?:\..+)?\.ya?ml$/]
             const frontendWorkspacePaths = [
@@ -264,7 +264,7 @@ jobs:
             const apiContractPaths = [
               /^apps\/dashboard\/src\/(?:providers\/dataProvider\.ts|services\/)/,
               /^apps\/extension\/src\/services\/api\.ts$/,
-              /^infra\/scripts\/check-frontend-api-contracts\.mjs$/,
+              /^infra\/scripts\/check-frontend-api-contracts\.ts$/,
               /^packages\/(?:shared-types|api-client)\//,
               /^services\/api\/internal\/router\/router\.go$/,
               /^services\/api\/docs\/(?:docs\.go|swagger\.json|swagger\.ya?ml)$/,
@@ -350,10 +350,13 @@ jobs:
           node-version: 24.15.0
 
       - name: Verify CI workflow assertions
-        run: node --test .github/workflows/ci.test.mjs
+        run: node --experimental-strip-types --no-warnings --test .github/workflows/ci.test.ts
 
       - name: Verify supply-chain guardrail assertions
         run: bash infra/scripts/check-supply-chain-guardrails.test.sh
+
+      - name: Verify TypeScript-only guardrail assertions
+        run: bash infra/scripts/check-typescript-only.test.sh
 
       - name: Verify developer persistence guardrail assertions
         run: bash infra/scripts/check-developer-persistence.test.sh
@@ -370,7 +373,19 @@ jobs:
           node-version: 24.15.0
 
       - name: Verify dependency install guardrails
-        run: node infra/scripts/check-supply-chain-guardrails.mjs
+        run: node --experimental-strip-types --no-warnings infra/scripts/check-supply-chain-guardrails.ts
+
+  typescript-only-guardrail:
+    timeout-minutes: 5
+    name: TypeScript-only guardrail
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@34e114876b0b11c390a56381ad16ebd13914f8d5 # v4
+        with:
+          persist-credentials: false
+
+      - name: Reject tracked JavaScript source files
+        run: bash infra/scripts/check-typescript-only.sh
 
   commit-message-regression:
     timeout-minutes: 5
@@ -834,7 +849,7 @@ jobs:
   auto-ready-after-ci:
     timeout-minutes: 5
     name: Auto-ready draft PR after CI
-    needs: [scope-gate, supply-chain-guardrails, backend-ci, dependency-review, api-contracts, frontend, dashboard, contracts, contracts-slither, contracts-gas-snapshot]
+    needs: [scope-gate, supply-chain-guardrails, typescript-only-guardrail, backend-ci, dependency-review, api-contracts, frontend, dashboard, contracts, contracts-slither, contracts-gas-snapshot]
     if: always() && github.event_name == 'pull_request'
     runs-on: ubuntu-latest
     permissions:
@@ -849,6 +864,7 @@ jobs:
         env:
           SCOPE_GATE_RESULT: ${{ needs.scope-gate.result }}
           SUPPLY_CHAIN_GUARDRAILS_RESULT: ${{ needs.supply-chain-guardrails.result }}
+          TYPESCRIPT_ONLY_GUARDRAIL_RESULT: ${{ needs.typescript-only-guardrail.result }}
           BACKEND_CI_RESULT: ${{ needs.backend-ci.result }}
           DEPENDENCY_REVIEW_RESULT: ${{ needs.dependency-review.result }}
           API_CONTRACTS_RESULT: ${{ needs.api-contracts.result }}
@@ -872,8 +888,9 @@ jobs:
             const currentHeadSha = context.payload.pull_request?.head?.sha
             const requiredCheckSnapshots = {
               develop: [
-                { context: 'Scope gate', appId: 15368 },
+                { context: 'CI scope router', appId: 15368 },
                 { context: 'Supply-chain guardrails', appId: 15368 },
+                { context: 'TypeScript-only guardrail', appId: 15368 },
                 { context: 'Dependency Review', appId: 15368 },
                 { context: 'API contract drift', appId: 15368 },
                 { context: 'Frontend build', appId: 15368 },
@@ -890,6 +907,7 @@ jobs:
             const requiredJobResults = [
               ['scope-gate', process.env.SCOPE_GATE_RESULT],
               ['supply-chain-guardrails', process.env.SUPPLY_CHAIN_GUARDRAILS_RESULT],
+              ['typescript-only-guardrail', process.env.TYPESCRIPT_ONLY_GUARDRAIL_RESULT],
               ['backend-ci', process.env.BACKEND_CI_RESULT],
               ['dependency-review', process.env.DEPENDENCY_REVIEW_RESULT],
               ['api-contracts', process.env.API_CONTRACTS_RESULT],
@@ -1213,7 +1231,7 @@ jobs:
   notify-discord:
     timeout-minutes: 5
     name: Notify Discord on failure
-    needs: [workflow-regression, supply-chain-guardrails, commit-message-regression, pr-metadata-regression, check-cache-wiring, atlas-migration-tooling, backend-ci, dependency-review, frontend, dashboard, contracts, contracts-slither, contracts-gas-snapshot]
+    needs: [workflow-regression, supply-chain-guardrails, typescript-only-guardrail, commit-message-regression, pr-metadata-regression, check-cache-wiring, atlas-migration-tooling, backend-ci, dependency-review, frontend, dashboard, contracts, contracts-slither, contracts-gas-snapshot]
     if: failure()
     runs-on: ubuntu-latest
     steps:

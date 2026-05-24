@@ -4,7 +4,7 @@ import { tmpdir } from "node:os";
 import path from "node:path";
 import test from "node:test";
 
-import { generateTypes, generateTypesFromSwaggerFile } from "./generate-swagger-types.mjs";
+import { generateTypes, generateTypesFromSwaggerFile } from "./generate-swagger-types.ts";
 
 test("generates deterministic TypeScript contracts from committed Swagger schema", async () => {
   const repoRoot = path.resolve(import.meta.dirname, "../../..");

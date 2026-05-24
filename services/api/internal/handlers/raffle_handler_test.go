@@ -2,6 +2,7 @@ package handlers_test
 
 import (
 	"bytes"
+	"context"
 	"crypto/sha256"
 	"encoding/hex"
 	"encoding/json"
@@ -26,6 +27,58 @@ import (
 	"github.com/tachigo/tachigo/internal/services"
 	"github.com/tachigo/tachigo/internal/testutil"
 )
+
+type raffleHandlerContextKey struct{}
+
+func installRaffleHandlerDBContextProbe(t *testing.T, db *gorm.DB, key, want any) func() int {
+	t.Helper()
+
+	return installRaffleHandlerDBContextProbeForTables(t, db, key, want)
+}
+
+func installRaffleHandlerDBContextProbeForTables(t *testing.T, db *gorm.DB, key, want any, tables ...string) func() int {
+	t.Helper()
+
+	var seen int
+	name := "test:raffle_handler_db_context:" + uuid.NewString()
+	wantedTables := map[string]struct{}{}
+	for _, table := range tables {
+		wantedTables[table] = struct{}{}
+	}
+	probe := func(tx *gorm.DB) {
+		if len(wantedTables) > 0 {
+			if tx.Statement == nil {
+				return
+			}
+			if _, ok := wantedTables[tx.Statement.Table]; !ok {
+				return
+			}
+		}
+		if tx.Statement != nil && tx.Statement.Context != nil && tx.Statement.Context.Value(key) == want {
+			seen++
+		}
+	}
+
+	if err := db.Callback().Query().Before("gorm:query").Register(name+":query", probe); err != nil {
+		t.Fatalf("register query context probe: %v", err)
+	}
+	if err := db.Callback().Create().Before("gorm:create").Register(name+":create", probe); err != nil {
+		t.Fatalf("register create context probe: %v", err)
+	}
+	if err := db.Callback().Update().Before("gorm:update").Register(name+":update", probe); err != nil {
+		t.Fatalf("register update context probe: %v", err)
+	}
+
+	t.Cleanup(func() {
+		_ = db.Callback().Query().Remove(name + ":query")
+		_ = db.Callback().Create().Remove(name + ":create")
+		_ = db.Callback().Update().Remove(name + ":update")
+	})
+
+	return func() int {
+		return seen
+	}
+}
 
 // raffleTestEnv wires only the raffle-related handlers.
 type raffleTestEnv struct {
@@ -94,6 +147,21 @@ func newRaffleTestEnv(t *testing.T) *raffleTestEnv {
 	dash.POST("/raffles/:id/complete", raffleH.Complete)
 	dash.PATCH("/raffles/:id/discord-webhook", raffleH.SetDiscordWebhook)
 	dash.POST("/raffles/:id/snapshot", raffleH.Snapshot)
+	dash.POST("/raffles/:id/prize-tiers",
+		middleware.RequireRole(models.RoleStreamer),
+		raffleH.CreatePrizeTier)
+	dash.GET("/raffles/:id/prize-tiers",
+		middleware.RequireRole(models.RoleStreamer),
+		raffleH.ListPrizeTiers)
+	dash.PATCH("/raffles/:id/prize-tiers/:tier_id",
+		middleware.RequireRole(models.RoleStreamer),
+		raffleH.UpdatePrizeTier)
+	dash.DELETE("/raffles/:id/prize-tiers/:tier_id",
+		middleware.RequireRole(models.RoleStreamer),
+		raffleH.DeletePrizeTier)
+	dash.POST("/raffles/:id/prize-tiers/:tier_id/draws",
+		middleware.RequireRole(models.RoleStreamer),
+		raffleH.DrawFromTier)
 
 	return &raffleTestEnv{db: db, authSvc: authSvc, raffleSvc: raffleSvc, router: r}
 }
@@ -183,6 +251,29 @@ func TestRaffle_Create(t *testing.T) {
 	}
 }
 
+func TestRaffle_Create_UsesRequestContext(t *testing.T) {
+	env := newRaffleTestEnv(t)
+	token := env.registerStreamer(t, "createctx", "createctx@test.com", "pass1234")
+
+	key := raffleHandlerContextKey{}
+	seen := installRaffleHandlerDBContextProbeForTables(t, env.db, key, "raffle-create", "raffles")
+	ctx := context.WithValue(context.Background(), key, "raffle-create")
+
+	body, _ := json.Marshal(map[string]string{"title": "Context Create Raffle"})
+	w := httptest.NewRecorder()
+	req, _ := http.NewRequestWithContext(ctx, http.MethodPost, "/api/v1/dashboard/raffles", bytes.NewReader(body))
+	req.Header.Set("Content-Type", "application/json")
+	req.Header.Set("Authorization", bearer(token))
+	env.router.ServeHTTP(w, req)
+
+	if w.Code != http.StatusCreated {
+		t.Fatalf("want 201, got %d: %s", w.Code, w.Body.String())
+	}
+	if seen() == 0 {
+		t.Fatal("expected raffle create DB operation to use request context")
+	}
+}
+
 func TestRaffle_Create_Unauthorized(t *testing.T) {
 	env := newRaffleTestEnv(t)
 	body, _ := json.Marshal(map[string]string{"title": "test"})
@@ -225,6 +316,81 @@ func TestRaffle_List(t *testing.T) {
 	raffles := data["raffles"].([]interface{})
 	if len(raffles) != 2 {
 		t.Errorf("want 2 raffles, got %d", len(raffles))
+	}
+}
+
+func TestRaffle_List_UsesRequestContext(t *testing.T) {
+	env := newRaffleTestEnv(t)
+	token := env.registerStreamer(t, "streamerctx", "streamerctx@test.com", "pass1234")
+
+	body, _ := json.Marshal(map[string]string{"title": "Context Raffle"})
+	createReq, _ := http.NewRequest(http.MethodPost, "/api/v1/dashboard/raffles", bytes.NewReader(body))
+	createReq.Header.Set("Content-Type", "application/json")
+	createReq.Header.Set("Authorization", bearer(token))
+	createW := httptest.NewRecorder()
+	env.router.ServeHTTP(createW, createReq)
+	if createW.Code != http.StatusCreated {
+		t.Fatalf("create raffle: want 201, got %d: %s", createW.Code, createW.Body.String())
+	}
+
+	key := raffleHandlerContextKey{}
+	seen := installRaffleHandlerDBContextProbe(t, env.db, key, "raffle-list")
+	ctx := context.WithValue(context.Background(), key, "raffle-list")
+
+	w := httptest.NewRecorder()
+	req, _ := http.NewRequestWithContext(ctx, http.MethodGet, "/api/v1/dashboard/raffles", nil)
+	req.Header.Set("Authorization", bearer(token))
+	env.router.ServeHTTP(w, req)
+
+	if w.Code != http.StatusOK {
+		t.Fatalf("want 200, got %d: %s", w.Code, w.Body.String())
+	}
+	if seen() == 0 {
+		t.Fatal("expected raffle list DB query to use request context")
+	}
+}
+
+func TestRaffle_ListDraws_UsesRequestContext(t *testing.T) {
+	env := newRaffleTestEnv(t)
+	token := env.registerStreamer(t, "drawctx", "drawctx@test.com", "pass1234")
+	raffleID := env.createRaffle(t, token, "Draw Context Raffle")
+
+	key := raffleHandlerContextKey{}
+	seen := installRaffleHandlerDBContextProbeForTables(t, env.db, key, "raffle-draw-list", "raffles", "raffle_draws")
+	ctx := context.WithValue(context.Background(), key, "raffle-draw-list")
+
+	w := httptest.NewRecorder()
+	req, _ := http.NewRequestWithContext(ctx, http.MethodGet, "/api/v1/dashboard/raffles/"+raffleID+"/draws", nil)
+	req.Header.Set("Authorization", bearer(token))
+	env.router.ServeHTTP(w, req)
+
+	if w.Code != http.StatusOK {
+		t.Fatalf("want 200, got %d: %s", w.Code, w.Body.String())
+	}
+	if seen() < 2 {
+		t.Fatal("expected raffle ownership and draw list DB queries to use request context")
+	}
+}
+
+func TestRaffle_Get_UsesRequestContext(t *testing.T) {
+	env := newRaffleTestEnv(t)
+	token := env.registerStreamer(t, "getctx", "getctx@test.com", "pass1234")
+	raffleID := env.createRaffle(t, token, "Get Context Raffle")
+
+	key := raffleHandlerContextKey{}
+	seen := installRaffleHandlerDBContextProbeForTables(t, env.db, key, "raffle-get", "raffles")
+	ctx := context.WithValue(context.Background(), key, "raffle-get")
+
+	w := httptest.NewRecorder()
+	req, _ := http.NewRequestWithContext(ctx, http.MethodGet, "/api/v1/dashboard/raffles/"+raffleID, nil)
+	req.Header.Set("Authorization", bearer(token))
+	env.router.ServeHTTP(w, req)
+
+	if w.Code != http.StatusOK {
+		t.Fatalf("want 200, got %d: %s", w.Code, w.Body.String())
+	}
+	if seen() == 0 {
+		t.Fatal("expected raffle detail DB query to use request context")
 	}
 }
 
@@ -356,6 +522,29 @@ func TestRaffle_Complete(t *testing.T) {
 	raffle := completeResp["data"].(map[string]interface{})["raffle"].(map[string]interface{})
 	if raffle["status"] != "completed" {
 		t.Errorf("expected completed status, got %v", raffle["status"])
+	}
+}
+
+func TestRaffle_Complete_UsesRequestContext(t *testing.T) {
+	env := newRaffleTestEnv(t)
+	token := env.registerStreamer(t, "completectx", "completectx@test.com", "pass1234")
+	raffleID := env.createRaffle(t, token, "Complete Context Raffle")
+
+	key := raffleHandlerContextKey{}
+	seen := installRaffleHandlerDBContextProbeForTables(t, env.db, key, "raffle-complete", "raffles")
+	ctx := context.WithValue(context.Background(), key, "raffle-complete")
+
+	w := httptest.NewRecorder()
+	req, _ := http.NewRequestWithContext(ctx, http.MethodPost,
+		"/api/v1/dashboard/raffles/"+raffleID+"/complete", nil)
+	req.Header.Set("Authorization", bearer(token))
+	env.router.ServeHTTP(w, req)
+
+	if w.Code != http.StatusOK {
+		t.Fatalf("complete: want 200, got %d: %s", w.Code, w.Body.String())
+	}
+	if seen() < 2 {
+		t.Fatal("expected raffle complete lookup and update DB operations to use request context")
 	}
 }
 
@@ -508,6 +697,63 @@ func TestRaffle_ClaimFlow(t *testing.T) {
 	env.router.ServeHTTP(w6, req6)
 	if w6.Code != http.StatusConflict {
 		t.Fatalf("duplicate claim: want 409, got %d", w6.Code)
+	}
+}
+
+func TestRaffle_SubmitClaim_UsesRequestContext(t *testing.T) {
+	env := newRaffleTestEnv(t)
+	hostToken := env.registerStreamer(t, "claimctxhost", "claimctxhost@test.com", "pass1234")
+
+	body, _ := json.Marshal(map[string]string{"title": "claim context flow"})
+	w := httptest.NewRecorder()
+	req, _ := http.NewRequest(http.MethodPost, "/api/v1/dashboard/raffles", bytes.NewReader(body))
+	req.Header.Set("Content-Type", "application/json")
+	req.Header.Set("Authorization", bearer(hostToken))
+	env.router.ServeHTTP(w, req)
+	resp := parseBody(t, w.Body.Bytes())
+	raffleID := resp["data"].(map[string]interface{})["raffle"].(map[string]interface{})["id"].(string)
+
+	env.createTwitchLinkedUser(t, "claimctxwinner")
+	winnerJWT := env.loginUser(t, "claimctxwinner")
+
+	var buf bytes.Buffer
+	mw := multipart.NewWriter(&buf)
+	fw, _ := mw.CreateFormFile("file", "entries.csv")
+	fmt.Fprintln(fw, "claimctxwinner")
+	mw.Close()
+	w2 := httptest.NewRecorder()
+	req2, _ := http.NewRequest(http.MethodPost, "/api/v1/dashboard/raffles/"+raffleID+"/entries/import-csv", &buf)
+	req2.Header.Set("Content-Type", mw.FormDataContentType())
+	req2.Header.Set("Authorization", bearer(hostToken))
+	env.router.ServeHTTP(w2, req2)
+
+	w3 := httptest.NewRecorder()
+	req3, _ := http.NewRequest(http.MethodPost, "/api/v1/dashboard/raffles/"+raffleID+"/draws", nil)
+	req3.Header.Set("Authorization", bearer(hostToken))
+	env.router.ServeHTTP(w3, req3)
+	drawResp := parseBody(t, w3.Body.Bytes())
+	claimToken := drawResp["data"].(map[string]interface{})["draw"].(map[string]interface{})["claim_token"].(string)
+
+	key := raffleHandlerContextKey{}
+	seen := installRaffleHandlerDBContextProbeForTables(t, env.db, key, "raffle-submit-claim", "raffle_draws", "raffle_claims")
+	ctx := context.WithValue(context.Background(), key, "raffle-submit-claim")
+
+	claimBody, _ := json.Marshal(map[string]string{
+		"recipient_name": "Context Winner",
+		"address_line1":  "Context Address",
+		"city":           "Taipei",
+		"country":        "TW",
+	})
+	w4 := httptest.NewRecorder()
+	req4, _ := http.NewRequestWithContext(ctx, http.MethodPost, "/api/v1/claim/"+claimToken, bytes.NewReader(claimBody))
+	req4.Header.Set("Content-Type", "application/json")
+	req4.Header.Set("Authorization", bearer(winnerJWT))
+	env.router.ServeHTTP(w4, req4)
+	if w4.Code != http.StatusOK {
+		t.Fatalf("submit claim: want 200, got %d: %s", w4.Code, w4.Body.String())
+	}
+	if seen() < 2 {
+		t.Fatal("expected claim token query and claim create operations to use request context")
 	}
 }
 
@@ -698,6 +944,26 @@ func TestRaffle_GetResult_Extension(t *testing.T) {
 	}
 }
 
+func TestRaffle_GetResult_UsesRequestContext(t *testing.T) {
+	env := newRaffleTestEnv(t)
+	raffleID := uuid.NewString()
+
+	key := raffleHandlerContextKey{}
+	seen := installRaffleHandlerDBContextProbeForTables(t, env.db, key, "raffle-result", "raffle_draws")
+	ctx := context.WithValue(context.Background(), key, "raffle-result")
+
+	w := httptest.NewRecorder()
+	req, _ := http.NewRequestWithContext(ctx, http.MethodGet, "/api/v1/extension/raffles/"+raffleID+"/result", nil)
+	env.router.ServeHTTP(w, req)
+
+	if w.Code != http.StatusOK {
+		t.Fatalf("want 200, got %d: %s", w.Code, w.Body.String())
+	}
+	if seen() == 0 {
+		t.Fatal("expected raffle result DB query to use request context")
+	}
+}
+
 func TestRaffle_CSVDuplicateSkipped(t *testing.T) {
 	env := newRaffleTestEnv(t)
 	token := env.registerStreamer(t, "dedup", "dup@test.com", "pass1234")
@@ -763,6 +1029,27 @@ func TestRaffle_ImportCSV_ValidUploadStillWorks(t *testing.T) {
 	}
 }
 
+func TestRaffle_ImportCSV_UsesRequestContext(t *testing.T) {
+	env := newRaffleTestEnv(t)
+	token := env.registerStreamer(t, "csvctx", "csvctx@test.com", "pass1234")
+	raffleID := env.createRaffle(t, token, "context csv")
+	env.createTwitchLinkedUser(t, "csv_context_user")
+
+	key := raffleHandlerContextKey{}
+	seen := installRaffleHandlerDBContextProbeForTables(t, env.db, key, "raffle-import-csv",
+		"raffles", "auth_providers", "raffle_entries")
+	ctx := context.WithValue(context.Background(), key, "raffle-import-csv")
+
+	w := env.uploadCSVWithContext(t, ctx, token, raffleID, "csv_context_user,CSV Context User\n")
+
+	if w.Code != http.StatusOK {
+		t.Fatalf("want 200, got %d: %s", w.Code, w.Body.String())
+	}
+	if seen() == 0 {
+		t.Fatal("expected ImportCSV DB work to use request context")
+	}
+}
+
 func TestRaffle_ImportCSV_OversizedUploadReturns413(t *testing.T) {
 	env := newRaffleTestEnv(t)
 	token := env.registerStreamer(t, "csvlarge", "csvlarge@test.com", "pass1234")
@@ -798,6 +1085,11 @@ func (e *raffleTestEnv) createRaffle(t *testing.T, token, title string) string {
 
 func (e *raffleTestEnv) uploadCSV(t *testing.T, token, raffleID, csvBody string) *httptest.ResponseRecorder {
 	t.Helper()
+	return e.uploadCSVWithContext(t, context.Background(), token, raffleID, csvBody)
+}
+
+func (e *raffleTestEnv) uploadCSVWithContext(t *testing.T, ctx context.Context, token, raffleID, csvBody string) *httptest.ResponseRecorder {
+	t.Helper()
 
 	var buf bytes.Buffer
 	mw := multipart.NewWriter(&buf)
@@ -813,7 +1105,7 @@ func (e *raffleTestEnv) uploadCSV(t *testing.T, token, raffleID, csvBody string)
 	}
 
 	w := httptest.NewRecorder()
-	req, _ := http.NewRequest(http.MethodPost, "/api/v1/dashboard/raffles/"+raffleID+"/entries/import-csv", &buf)
+	req, _ := http.NewRequestWithContext(ctx, http.MethodPost, "/api/v1/dashboard/raffles/"+raffleID+"/entries/import-csv", &buf)
 	req.Header.Set("Content-Type", mw.FormDataContentType())
 	req.Header.Set("Authorization", bearer(token))
 	e.router.ServeHTTP(w, req)
@@ -1164,6 +1456,28 @@ func TestRaffle_Activate_Success(t *testing.T) {
 	}
 }
 
+func TestRaffle_Activate_UsesRequestContext(t *testing.T) {
+	env := newRaffleTestEnv(t)
+	token := env.registerStreamer(t, "activatectx", "activatectx@test.com", "pass1234")
+	raffleID := env.createRaffle(t, token, "Activate Context Raffle")
+
+	key := raffleHandlerContextKey{}
+	seen := installRaffleHandlerDBContextProbeForTables(t, env.db, key, "raffle-activate", "raffles")
+	ctx := context.WithValue(context.Background(), key, "raffle-activate")
+
+	w := httptest.NewRecorder()
+	req, _ := http.NewRequestWithContext(ctx, http.MethodPost, "/api/v1/dashboard/raffles/"+raffleID+"/activate", nil)
+	req.Header.Set("Authorization", bearer(token))
+	env.router.ServeHTTP(w, req)
+
+	if w.Code != http.StatusOK {
+		t.Fatalf("want 200, got %d: %s", w.Code, w.Body.String())
+	}
+	if seen() < 2 {
+		t.Fatal("expected raffle activate lookup and update DB operations to use request context")
+	}
+}
+
 func TestRaffle_Activate_Conflict_WhenAlreadyActive(t *testing.T) {
 	env := newRaffleTestEnv(t)
 	token := env.registerStreamer(t, "act2", "act2@test.com", "pass1234")
@@ -1195,6 +1509,167 @@ func TestRaffle_Activate_Conflict_WhenAlreadyActive(t *testing.T) {
 	env.router.ServeHTTP(w, req)
 	if w.Code != http.StatusConflict {
 		t.Errorf("second activate: want 409, got %d: %s", w.Code, w.Body.String())
+	}
+}
+
+// ── Prize Tier helper methods ─────────────────────────────────────────────────
+
+func (e *raffleTestEnv) activateRaffle(t *testing.T, token, raffleID string) {
+	t.Helper()
+	w := httptest.NewRecorder()
+	req, _ := http.NewRequest(http.MethodPost, "/api/v1/dashboard/raffles/"+raffleID+"/activate", nil)
+	req.Header.Set("Authorization", "Bearer "+token)
+	e.router.ServeHTTP(w, req)
+	if w.Code != http.StatusOK {
+		t.Fatalf("activateRaffle: want 200, got %d — %s", w.Code, w.Body.String())
+	}
+}
+
+func (e *raffleTestEnv) createPrizeTier(t *testing.T, token, raffleID, name, prize string, count int) string {
+	t.Helper()
+	body, _ := json.Marshal(map[string]interface{}{
+		"name": name, "prize_description": prize, "winner_count": count,
+	})
+	w := httptest.NewRecorder()
+	req, _ := http.NewRequest(http.MethodPost, "/api/v1/dashboard/raffles/"+raffleID+"/prize-tiers", bytes.NewReader(body))
+	req.Header.Set("Content-Type", "application/json")
+	req.Header.Set("Authorization", "Bearer "+token)
+	e.router.ServeHTTP(w, req)
+	if w.Code != http.StatusCreated {
+		t.Fatalf("createPrizeTier: want 201, got %d — %s", w.Code, w.Body.String())
+	}
+	var resp struct {
+		Data struct {
+			Tier struct {
+				ID string `json:"id"`
+			} `json:"tier"`
+		} `json:"data"`
+	}
+	if err := json.NewDecoder(w.Body).Decode(&resp); err != nil {
+		t.Fatalf("createPrizeTier: decode response: %v", err)
+	}
+	if resp.Data.Tier.ID == "" {
+		t.Fatal("createPrizeTier: returned empty tier id")
+	}
+	return resp.Data.Tier.ID
+}
+
+func (e *raffleTestEnv) drawFromTier(t *testing.T, token, raffleID, tierID string) *httptest.ResponseRecorder {
+	t.Helper()
+	w := httptest.NewRecorder()
+	req, _ := http.NewRequest(http.MethodPost,
+		"/api/v1/dashboard/raffles/"+raffleID+"/prize-tiers/"+tierID+"/draws", nil)
+	req.Header.Set("Authorization", "Bearer "+token)
+	e.router.ServeHTTP(w, req)
+	return w
+}
+
+// ── Prize Tier tests ──────────────────────────────────────────────────────────
+
+func TestPrizeTierHandler_CreateAndList(t *testing.T) {
+	env := newRaffleTestEnv(t)
+	token := env.registerStreamer(t, "host", "host@test.com", "pass1234")
+	raffleID := env.createRaffle(t, token, "Tier Test Raffle")
+
+	// Create tier
+	body, _ := json.Marshal(map[string]interface{}{
+		"name":              "一等獎",
+		"prize_description": "Switch 主機",
+		"winner_count":      1,
+	})
+	w := httptest.NewRecorder()
+	req, _ := http.NewRequest(http.MethodPost,
+		"/api/v1/dashboard/raffles/"+raffleID+"/prize-tiers",
+		bytes.NewReader(body))
+	req.Header.Set("Content-Type", "application/json")
+	req.Header.Set("Authorization", "Bearer "+token)
+	env.router.ServeHTTP(w, req)
+	if w.Code != http.StatusCreated {
+		t.Fatalf("create tier: want 201, got %d — %s", w.Code, w.Body.String())
+	}
+
+	// List tiers
+	w2 := httptest.NewRecorder()
+	req2, _ := http.NewRequest(http.MethodGet,
+		"/api/v1/dashboard/raffles/"+raffleID+"/prize-tiers", nil)
+	req2.Header.Set("Authorization", "Bearer "+token)
+	env.router.ServeHTTP(w2, req2)
+	if w2.Code != http.StatusOK {
+		t.Fatalf("list tiers: want 200, got %d", w2.Code)
+	}
+	var listResp struct {
+		Data struct {
+			Tiers []map[string]interface{} `json:"tiers"`
+		} `json:"data"`
+	}
+	json.NewDecoder(w2.Body).Decode(&listResp)
+	if len(listResp.Data.Tiers) != 1 {
+		t.Fatalf("want 1 tier, got %d", len(listResp.Data.Tiers))
+	}
+}
+
+func TestPrizeTierHandler_DrawFromTier_ExcludesWinners(t *testing.T) {
+	env := newRaffleTestEnv(t)
+	token := env.registerStreamer(t, "host2", "host2@test.com", "pass1234")
+	raffleID := env.createRaffle(t, token, "Draw Tier Test")
+
+	// Create tachigo users linked to Twitch logins before importing.
+	env.createTwitchLinkedUser(t, "user_a")
+	env.createTwitchLinkedUser(t, "user_b")
+
+	// Seed 2 entries via CSV
+	env.uploadCSV(t, token, raffleID, "user_a,UserA\nuser_b,UserB\n")
+	env.activateRaffle(t, token, raffleID)
+
+	tier1ID := env.createPrizeTier(t, token, raffleID, "一等獎", "Switch", 1)
+	tier2ID := env.createPrizeTier(t, token, raffleID, "二等獎", "貼圖包", 1)
+
+	w1 := env.drawFromTier(t, token, raffleID, tier1ID)
+	if w1.Code != http.StatusCreated {
+		t.Fatalf("draw tier1: want 201, got %d — %s", w1.Code, w1.Body.String())
+	}
+
+	w2 := env.drawFromTier(t, token, raffleID, tier2ID)
+	if w2.Code != http.StatusCreated {
+		t.Fatalf("draw tier2: want 201, got %d — %s", w2.Code, w2.Body.String())
+	}
+
+	var r1, r2 struct {
+		Data struct {
+			Draw struct {
+				EntryID string `json:"entry_id"`
+			} `json:"draw"`
+		} `json:"data"`
+	}
+	json.NewDecoder(w1.Body).Decode(&r1)
+	json.NewDecoder(w2.Body).Decode(&r2)
+	if r1.Data.Draw.EntryID == r2.Data.Draw.EntryID {
+		t.Fatal("tier2 must not draw the same winner as tier1")
+	}
+}
+
+func TestPrizeTierHandler_DeleteTier_WithDrawsFails(t *testing.T) {
+	env := newRaffleTestEnv(t)
+	token := env.registerStreamer(t, "host3", "host3@test.com", "pass1234")
+	raffleID := env.createRaffle(t, token, "Delete Tier Test")
+	env.createTwitchLinkedUser(t, "user_x")
+	env.uploadCSV(t, token, raffleID, "user_x,UserX\n")
+	env.activateRaffle(t, token, raffleID)
+
+	tierID := env.createPrizeTier(t, token, raffleID, "一等獎", "Prize", 1)
+	drawW := env.drawFromTier(t, token, raffleID, tierID)
+	if drawW.Code != http.StatusCreated {
+		t.Fatalf("seed draw: want 201, got %d — %s", drawW.Code, drawW.Body.String())
+	}
+
+	// Try to delete — should fail with 409
+	w := httptest.NewRecorder()
+	req, _ := http.NewRequest(http.MethodDelete,
+		"/api/v1/dashboard/raffles/"+raffleID+"/prize-tiers/"+tierID, nil)
+	req.Header.Set("Authorization", "Bearer "+token)
+	env.router.ServeHTTP(w, req)
+	if w.Code != http.StatusConflict {
+		t.Fatalf("delete with draws: want 409, got %d — %s", w.Code, w.Body.String())
 	}
 }
 

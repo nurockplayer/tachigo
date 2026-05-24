@@ -66,6 +66,27 @@ func TestMeHandler_Success(t *testing.T) {
 	}
 }
 
+func TestMeHandler_UsesRequestContext(t *testing.T) {
+	env := newTestEnv(t)
+	accessToken, _ := env.registerUser(t, "mectx", "mectx@example.com", "password123")
+
+	key := userHandlerContextKey{}
+	seen := installUserHandlerDBContextProbe(t, env.db, key, "me")
+	ctx := context.WithValue(context.Background(), key, "me")
+
+	req := httptest.NewRequest(http.MethodGet, "/api/v1/users/me", nil).WithContext(ctx)
+	req.Header.Set("Authorization", "Bearer "+accessToken)
+	w := httptest.NewRecorder()
+	env.router.ServeHTTP(w, req)
+
+	if w.Code != http.StatusOK {
+		t.Fatalf("want 200, got %d: %s", w.Code, w.Body.String())
+	}
+	if seen() == 0 {
+		t.Fatal("expected Me DB query to use request context")
+	}
+}
+
 func TestUpdateMeHandler_Username(t *testing.T) {
 	env := newTestEnv(t)
 	accessToken, _ := env.registerUser(t, "oldname", "update@example.com", "password123")
@@ -85,6 +106,29 @@ func TestUpdateMeHandler_Username(t *testing.T) {
 	user, _ := data["user"].(map[string]interface{})
 	if user["username"] != "brandnewname" {
 		t.Errorf("username: want brandnewname, got %v", user["username"])
+	}
+}
+
+func TestUpdateMeHandler_UsesRequestContext(t *testing.T) {
+	env := newTestEnv(t)
+	accessToken, _ := env.registerUser(t, "updatectx", "updatectx@example.com", "password123")
+
+	key := userHandlerContextKey{}
+	seen := installUserHandlerDBContextProbe(t, env.db, key, "update-me")
+	ctx := context.WithValue(context.Background(), key, "update-me")
+
+	body := `{"username":"contextupdate"}`
+	req := httptest.NewRequest(http.MethodPut, "/api/v1/users/me", bytes.NewBufferString(body)).WithContext(ctx)
+	req.Header.Set("Authorization", "Bearer "+accessToken)
+	req.Header.Set("Content-Type", "application/json")
+	w := httptest.NewRecorder()
+	env.router.ServeHTTP(w, req)
+
+	if w.Code != http.StatusOK {
+		t.Fatalf("want 200, got %d: %s", w.Code, w.Body.String())
+	}
+	if seen() == 0 {
+		t.Fatal("expected UpdateMe DB query to use request context")
 	}
 }
 
@@ -310,6 +354,35 @@ func TestLinkWalletHandler_Success(t *testing.T) {
 	data, _ := resp["data"].(map[string]interface{})
 	if data["address"] != addr {
 		t.Errorf("address: want %s, got %v", addr, data["address"])
+	}
+}
+
+func TestLinkWalletHandler_UsesRequestContext(t *testing.T) {
+	env := newTestEnv(t)
+	accessToken, _ := env.registerUser(t, "walletctx", "walletctx@example.com", "password123")
+
+	key, addr := newHandlerTestWallet(t)
+	nonce := "handler-context-nonce"
+	nr := seedHandlerWalletNonce(t, env, addr, nonce)
+	msg := handlerSIWEMessage(addr, nonce, nr.CreatedAt.UTC().Format(time.RFC3339))
+	sig := handlerSignSIWE(t, msg, key)
+
+	ctxKey := userHandlerContextKey{}
+	seen := installUserHandlerDBContextProbe(t, env.db, ctxKey, "link-wallet")
+	ctx := context.WithValue(context.Background(), ctxKey, "link-wallet")
+
+	body := fmt.Sprintf(`{"address":%q,"nonce":%q,"signature":%q}`, addr, nonce, sig)
+	req := httptest.NewRequest(http.MethodPost, "/api/v1/users/me/wallet", bytes.NewBufferString(body)).WithContext(ctx)
+	req.Header.Set("Authorization", "Bearer "+accessToken)
+	req.Header.Set("Content-Type", "application/json")
+	w := httptest.NewRecorder()
+	env.router.ServeHTTP(w, req)
+
+	if w.Code != http.StatusOK {
+		t.Fatalf("want 200, got %d: %s", w.Code, w.Body.String())
+	}
+	if seen() == 0 {
+		t.Fatal("expected LinkWallet DB query to use request context")
 	}
 }
 
