@@ -4,10 +4,6 @@ settings:
   autoInstallPeers: true
   excludeLinksFromLockfile: false
 
-overrides:
-  copy-webpack-plugin: 14.0.0
-  serialize-javascript: 7.0.5
-
 importers:
 
   .:
