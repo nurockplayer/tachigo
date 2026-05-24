@@ -17,6 +17,7 @@ import { SceneRenderer } from './navigation/SceneRenderer'
 import { useNavigation } from './navigation/useNavigation'
 import { markOnboardingComplete, shouldShowOnboarding } from './onboarding'
 import { useTwitch } from '../hooks/useTwitch'
+import { claimFromHudState } from './claimState'
 import { executeCouponRedeem, type CouponRedeemOutcome } from './couponRedeem'
 
 export default function App() {
@@ -105,7 +106,7 @@ export default function App() {
 
   const handleClaim = (cpcAmount: number) => {
     setHudState((previousHudState) => {
-      const claimable = Math.max(0, Math.min(cpcAmount, previousHudState.points))
+      const { claimable, nextHudState } = claimFromHudState(previousHudState, cpcAmount)
       if (claimable === 0) {
         return previousHudState
       }
@@ -117,10 +118,7 @@ export default function App() {
         return nextTcgBalance
       })
 
-      return {
-        ...previousHudState,
-        points: previousHudState.points - claimable,
-      }
+      return nextHudState
     })
   }
 
