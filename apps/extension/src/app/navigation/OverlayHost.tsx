@@ -83,7 +83,20 @@ export function OverlayHost({
               onRedeem={onCouponRedeem}
             />
           ) : entry.kind === 'raffle-result' ? (
-            <RaffleResultPanel raffleId={entry.params.raffleId} onBack={popOverlay} />
+            entry.params.raffleId.trim() === '' ? (
+              <PlaceholderSurface
+                eyebrow="Dev-only"
+                title="Invalid Raffle"
+                body="Enter a raffle id before opening the result panel."
+                action={
+                  <button type="button" onClick={popOverlay} style={menuButtonStyle}>
+                    back
+                  </button>
+                }
+              />
+            ) : (
+              <RaffleResultPanel raffleId={entry.params.raffleId.trim()} onBack={popOverlay} />
+            )
           ) : entry.kind === 'menu' ? (
             <MenuOverlay />
           ) : (

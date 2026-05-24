@@ -61,4 +61,7 @@ test('drives scene and overlay navigation in dev mode', () => {
 
   fireEvent.click(screen.getByRole('button', { name: 'CLAIM' }))
   screen.getByText('mining:claim')
+
+  fireEvent.click(screen.getByRole('button', { name: 'LOGIN' }))
+  screen.getByText('login:none')
 })

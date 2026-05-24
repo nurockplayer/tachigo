@@ -104,17 +104,23 @@ export default function App() {
   }, [currentLanguage, flags, hudState, isHydrated, redeemedCouponIds, tcgBalance])
 
   const handleClaim = (cpcAmount: number) => {
-    const claimable = Math.max(0, Math.min(cpcAmount, hudState.points))
-    if (claimable === 0) {
-      return
-    }
+    setHudState((previousHudState) => {
+      const claimable = Math.max(0, Math.min(cpcAmount, previousHudState.points))
+      if (claimable === 0) {
+        return previousHudState
+      }
 
-    const tcgGained = Number((claimable * 0.1).toFixed(2))
-    setHudState((s) => ({ ...s, points: s.points - claimable }))
-    setTcgBalance((t) => {
-      const next = Number((t + tcgGained).toFixed(2))
-      tcgBalanceRef.current = next
-      return next
+      const tcgGained = Number((claimable * 0.1).toFixed(2))
+      setTcgBalance((previousTcgBalance) => {
+        const nextTcgBalance = Number((previousTcgBalance + tcgGained).toFixed(2))
+        tcgBalanceRef.current = nextTcgBalance
+        return nextTcgBalance
+      })
+
+      return {
+        ...previousHudState,
+        points: previousHudState.points - claimable,
+      }
     })
   }
 
