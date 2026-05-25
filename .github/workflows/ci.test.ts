@@ -2494,12 +2494,13 @@ test('Dependabot pnpm lockfile repair is scoped to same-repo Dependabot PRs', as
   assert.match(jobBlock, /corepack prepare pnpm@10\.33\.0 --activate/)
   assert.match(
     jobBlock,
-    /working-directory: apps\/dashboard\n\s+run: pnpm install --lockfile-only --ignore-scripts --config\.shared-workspace-lockfile=false/,
+    /working-directory: apps\/dashboard\n\s+run: pnpm install --lockfile-only --ignore-scripts --ignore-workspace/,
   )
   assert.match(
     jobBlock,
-    /working-directory: apps\/extension\n\s+run: pnpm install --lockfile-only --ignore-scripts --config\.shared-workspace-lockfile=false/,
+    /working-directory: apps\/extension\n\s+run: pnpm install --lockfile-only --ignore-scripts --ignore-workspace/,
   )
+  assert.doesNotMatch(jobBlock, /shared-workspace-lockfile=false/)
   const stripOverridesStep = workflowJobStep(
     parsedWorkflow,
     'repair-lockfiles',
