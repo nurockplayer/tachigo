@@ -27,11 +27,12 @@ function runValidator(seedPath) {
   })
 }
 
-function runValidatorFailure(seedPath) {
+function runValidatorFailure(seedPath, expectedErrorPattern) {
   assert.throws(
     () => runValidator(seedPath),
     (error) => {
       assert.notEqual(error.status, 0)
+      assert.match(String(error.stderr ?? error.message ?? ''), expectedErrorPattern)
       return true
     },
   )
@@ -80,14 +81,15 @@ test('validates a repository knowledge graph seed', async () => {
 })
 
 test('rejects duplicate node identities', async () => {
-  await withSeed(`${validSeed}
+  await withSeed(`
 nodes:
   - kind: Feature
     name: Watch Points
   - kind: Feature
     name: Watch Points
+edges:
 `, async (seedPath) => {
-    runValidatorFailure(seedPath)
+    runValidatorFailure(seedPath, /duplicate node identity/i)
   })
 })
 
@@ -106,7 +108,7 @@ edges:
       name: MissingService
     source: docs/architecture.md
 `, async (seedPath) => {
-    runValidatorFailure(seedPath)
+    runValidatorFailure(seedPath, /edge references missing to node/i)
   })
 })
 
@@ -126,6 +128,31 @@ edges:
       kind: Service
       name: PointsService
 `, async (seedPath) => {
-    runValidatorFailure(seedPath)
+    runValidatorFailure(seedPath, /missing source/i)
+  })
+})
+
+test('rejects blank required scalar fields', async () => {
+  await withSeed(`
+nodes:
+  - kind: Feature
+    name:
+edges:
+`, async (seedPath) => {
+    runValidatorFailure(seedPath, /missing name/i)
+  })
+})
+
+test('preserves hash characters in scalar values', async () => {
+  await withSeed(`
+nodes:
+  - kind: Issue
+    name: Issue #123
+edges:
+`, async (seedPath) => {
+    const output = runValidator(seedPath)
+
+    assert.match(output, /Knowledge graph validation passed\./)
+    assert.match(output, /Issue=1/)
   })
 })

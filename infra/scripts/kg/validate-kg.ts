@@ -67,6 +67,14 @@ function parseScalar(rawValue) {
   return value
 }
 
+function isCommentLine(rawLine) {
+  return rawLine.trimStart().startsWith('#')
+}
+
+function isRecord(value) {
+  return typeof value === 'object' && value !== null && !Array.isArray(value)
+}
+
 function assignKey(target, content, lineNumber) {
   const match = content.match(/^([^:]+):(?:\s*(.*))?$/)
   if (!match) {
@@ -80,7 +88,7 @@ function assignKey(target, content, lineNumber) {
   }
 
   if (rawValue.trim() === '') {
-    target[key] = {}
+    target[key] = ''
     return key
   }
 
@@ -97,7 +105,7 @@ function parseSeedYaml(content) {
   const lines = content.split(/\r?\n/)
   for (const [lineIndex, rawLine] of lines.entries()) {
     const lineNumber = lineIndex + 1
-    const withoutComment = rawLine.replace(/\s+#.*$/, '')
+    const withoutComment = isCommentLine(rawLine) ? '' : rawLine
     if (!withoutComment.trim()) {
       continue
     }
@@ -142,6 +150,9 @@ function parseSeedYaml(content) {
     }
 
     if (indent === 6 && nestedKey) {
+      if (!isRecord(current[nestedKey])) {
+        current[nestedKey] = {}
+      }
       assignKey(current[nestedKey], contentLine.trim(), lineNumber)
       continue
     }
@@ -158,6 +169,14 @@ function identity(node) {
 
 function edgeIdentity(edge) {
   return `${identity(edge.from)}-${edge.relation}-${identity(edge.to)}`
+}
+
+function isNonEmptyString(value) {
+  return typeof value === 'string' && value.trim().length > 0
+}
+
+function requiredLabel(value) {
+  return isNonEmptyString(value) ? value : '(missing)'
 }
 
 function countBy(values) {
@@ -181,11 +200,11 @@ function validateGraph(graph) {
   }
 
   for (const node of graph.nodes) {
-    if (!allowedKinds.has(node.kind)) {
-      problems.push(`unsupported node kind: ${node.kind || '(missing)'}`)
+    if (!isNonEmptyString(node.kind) || !allowedKinds.has(node.kind)) {
+      problems.push(`unsupported node kind: ${requiredLabel(node.kind)}`)
     }
-    if (!node.name) {
-      problems.push(`node ${node.kind || '(missing kind)'} is missing name`)
+    if (!isNonEmptyString(node.name)) {
+      problems.push(`node ${requiredLabel(node.kind)} is missing name`)
       continue
     }
 
@@ -197,27 +216,33 @@ function validateGraph(graph) {
   }
 
   for (const edge of graph.edges) {
-    if (!edge.from?.kind || !edge.from?.name) {
+    if (!isNonEmptyString(edge.from?.kind) || !isNonEmptyString(edge.from?.name)) {
       problems.push('edge is missing from.kind/from.name')
     }
-    if (!edge.to?.kind || !edge.to?.name) {
+    if (!isNonEmptyString(edge.to?.kind) || !isNonEmptyString(edge.to?.name)) {
       problems.push('edge is missing to.kind/to.name')
     }
-    if (!allowedRelations.has(edge.relation)) {
-      problems.push(`unsupported edge relation: ${edge.relation || '(missing)'}`)
+    if (!isNonEmptyString(edge.relation) || !allowedRelations.has(edge.relation)) {
+      problems.push(`unsupported edge relation: ${requiredLabel(edge.relation)}`)
     }
-    if (!edge.source) {
-      problems.push(`edge ${edge.relation || '(missing relation)'} is missing source`)
+    if (!isNonEmptyString(edge.source)) {
+      problems.push(`edge ${requiredLabel(edge.relation)} is missing source`)
     }
 
-    if (edge.from?.kind && edge.from?.name && !nodeIds.has(identity(edge.from))) {
+    if (isNonEmptyString(edge.from?.kind) && isNonEmptyString(edge.from?.name) && !nodeIds.has(identity(edge.from))) {
       problems.push(`edge references missing from node: ${identity(edge.from)}`)
     }
-    if (edge.to?.kind && edge.to?.name && !nodeIds.has(identity(edge.to))) {
+    if (isNonEmptyString(edge.to?.kind) && isNonEmptyString(edge.to?.name) && !nodeIds.has(identity(edge.to))) {
       problems.push(`edge references missing to node: ${identity(edge.to)}`)
     }
 
-    if (edge.from?.kind && edge.from?.name && edge.to?.kind && edge.to?.name && edge.relation) {
+    if (
+      isNonEmptyString(edge.from?.kind) &&
+      isNonEmptyString(edge.from?.name) &&
+      isNonEmptyString(edge.to?.kind) &&
+      isNonEmptyString(edge.to?.name) &&
+      isNonEmptyString(edge.relation)
+    ) {
       const id = edgeIdentity(edge)
       if (edgeIds.has(id)) {
         problems.push(`duplicate edge identity: ${id}`)
