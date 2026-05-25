@@ -1,4 +1,4 @@
-.PHONY: setup dev up down logs pr-meta-check pr-open ai-readback ai-docs-build ai-test-backend ai-test-extension ai-test-dashboard ai-pr-check session-index session-find session-index-test supply-chain-check typescript-only-check developer-persistence-check
+.PHONY: setup dev up down logs pr-meta-check pr-open ai-readback ai-docs-build ai-test-backend ai-test-extension ai-test-dashboard ai-pr-check session-index session-find session-index-test supply-chain-check typescript-only-check developer-persistence-check kg-validate
 
 # ── Setup (run once after cloning) ────────────────────────────────────────────
 setup:
@@ -111,3 +111,7 @@ typescript-only-check:
 
 developer-persistence-check:
 	@bash infra/scripts/check-developer-persistence.sh
+
+# ── Repository knowledge graph ───────────────────────────────────────────────
+kg-validate:
+	@node --experimental-strip-types --no-warnings infra/scripts/kg/validate-kg.ts
