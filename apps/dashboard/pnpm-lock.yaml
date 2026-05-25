@@ -80,7 +80,7 @@ importers:
         version: 6.0.1(vite@8.0.14(@types/node@25.5.0)(jiti@2.6.1))
       autoprefixer:
         specifier: ^10.4.27
-        version: 10.4.27(postcss@8.5.10)
+        version: 10.4.27(postcss@8.5.13)
       axios-mock-adapter:
         specifier: ^2.1.0
         version: 2.1.0(axios@1.16.1)
@@ -103,8 +103,8 @@ importers:
         specifier: ^29.1.1
         version: 29.1.1
       postcss:
-        specifier: ^8.5.10
-        version: 8.5.10
+        specifier: ^8.5.13
+        version: 8.5.13
       tailwindcss:
         specifier: ^4.2.2
         version: 4.2.2
@@ -1432,6 +1432,10 @@ packages:
     resolution: {integrity: sha512-pMMHxBOZKFU6HgAZ4eyGnwXF/EvPGGqUr0MnZ5+99485wwW41kW91A4LOGxSHhgugZmSChL5AlElNdwlNgcnLQ==}
     engines: {node: ^10 || ^12 || >=14}
 
+  postcss@8.5.13:
+    resolution: {integrity: sha512-qif0+jGGZoLWdHey3UFHHWP0H7Gbmsk8T5VEqyYFbWqPr1XqvLGBbk/sl8V5exGmcYJklJOhOQq1pV9IcsiFag==}
+    engines: {node: ^10 || ^12 || >=14}
+
   postcss@8.5.15:
     resolution: {integrity: sha512-FfR8sjd4em2T6fb3I2MwAJU7HWVMr9zba+enmQeeWFfCbm+UOC/0X4DS8XtpUTMwWMGbjKYP7xjfNekzyGmB3A==}
     engines: {node: ^10 || ^12 || >=14}
@@ -2491,6 +2495,15 @@ snapshots:
       postcss: 8.5.10
       postcss-value-parser: 4.2.0
 
+  autoprefixer@10.4.27(postcss@8.5.13):
+    dependencies:
+      browserslist: 4.28.2
+      caniuse-lite: 1.0.30001784
+      fraction.js: 5.3.4
+      picocolors: 1.1.1
+      postcss: 8.5.13
+      postcss-value-parser: 4.2.0
+
   axios-mock-adapter@2.1.0(axios@1.16.1):
     dependencies:
       axios: 1.16.1
@@ -3030,6 +3043,12 @@ snapshots:
   postcss-value-parser@4.2.0: {}
 
   postcss@8.5.10:
+    dependencies:
+      nanoid: 3.3.11
+      picocolors: 1.1.1
+      source-map-js: 1.2.1
+
+  postcss@8.5.13:
     dependencies:
       nanoid: 3.3.11
       picocolors: 1.1.1
