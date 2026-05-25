@@ -85,7 +85,7 @@ importers:
         specifier: ^6.0.1
         version: 6.0.1(vite@8.0.14(@types/node@25.6.0)(jiti@2.7.0)(terser@5.47.1))
       autoprefixer:
-        specifier: ^10.4.27
+        specifier: ^10.5.0
         version: 10.5.0(postcss@8.5.13)
       axios-mock-adapter:
         specifier: ^2.1.0
