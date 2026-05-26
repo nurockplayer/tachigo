@@ -24,6 +24,10 @@ var (
 const (
 	verifyTokenTTL = 24 * time.Hour
 	resetTokenTTL  = 1 * time.Hour
+	// passwordResetCooldown throttles how often a reset email may be sent to the
+	// same address, to prevent inbox bombing / email-cost abuse via the public
+	// /auth/forgot-password endpoint.
+	passwordResetCooldown = 5 * time.Minute
 )
 
 type EmailAuthService struct {
@@ -126,6 +130,22 @@ func (s *EmailAuthService) ForgotPassword(ctx context.Context, email string) err
 			// Do not reveal whether the email exists (anti-enumeration)
 			return nil
 		}
+		return err
+	}
+
+	// Per-email throttle: if a reset email was already issued within the cooldown
+	// window, silently skip re-sending. Returning nil — indistinguishable from the
+	// success and not-found paths — keeps the endpoint from leaking whether the
+	// address exists or has a pending reset, while preventing inbox bombing.
+	var lastReset models.PasswordReset
+	switch err := db.Where("email = ?", email).Order("created_at DESC").First(&lastReset).Error; {
+	case err == nil:
+		if time.Since(lastReset.CreatedAt) < passwordResetCooldown {
+			return nil
+		}
+	case errors.Is(err, gorm.ErrRecordNotFound):
+		// No prior reset token for this address; proceed to issue one.
+	default:
 		return err
 	}
 

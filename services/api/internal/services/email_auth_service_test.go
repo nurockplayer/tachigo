@@ -405,6 +405,12 @@ func TestForgotPassword_ReplacesExistingToken(t *testing.T) {
 	if err := svc.ForgotPassword(context.Background(), email); err != nil {
 		t.Fatalf("first ForgotPassword failed: %v", err)
 	}
+	// Age the issued token past the cooldown so the second request is not throttled
+	// and actually replaces the token (the behaviour under test here).
+	if err := svc.db.Model(&models.PasswordReset{}).Where("email = ?", email).
+		Update("created_at", time.Now().Add(-2*passwordResetCooldown)).Error; err != nil {
+		t.Fatalf("age reset token: %v", err)
+	}
 	if err := svc.ForgotPassword(context.Background(), email); err != nil {
 		t.Fatalf("second ForgotPassword failed: %v", err)
 	}
@@ -425,6 +431,12 @@ func TestForgotPassword_DeleteExistingTokenFailureReturnsError(t *testing.T) {
 		TokenHash: hashToken("existing-reset-token"),
 		ExpiresAt: time.Now().Add(time.Hour),
 	})
+	// Age the existing token past the cooldown so the request proceeds to the
+	// delete step instead of being short-circuited by the per-email throttle.
+	if err := svc.db.Model(&models.PasswordReset{}).Where("email = ?", email).
+		Update("created_at", time.Now().Add(-2*passwordResetCooldown)).Error; err != nil {
+		t.Fatalf("age reset token: %v", err)
+	}
 
 	if err := svc.db.Exec(`
 		CREATE TRIGGER fail_password_reset_delete
@@ -467,6 +479,52 @@ func TestForgotPassword_CanceledContextDoesNotPersistOrSend(t *testing.T) {
 	}
 	if len(mailer.sent) != 0 {
 		t.Fatalf("email should not be sent after canceled context, got %d sends", len(mailer.sent))
+	}
+}
+
+func TestForgotPassword_ThrottlesRepeatWithinCooldown(t *testing.T) {
+	svc, mailer := newEmailAuthSvc(t)
+	email := "throttle@example.com"
+	seedEmailUser(t, svc, email, true)
+
+	if err := svc.ForgotPassword(context.Background(), email); err != nil {
+		t.Fatalf("first ForgotPassword failed: %v", err)
+	}
+	// A second request inside the cooldown window must be silently throttled:
+	// no error (anti-enumeration), no extra email, no extra token.
+	if err := svc.ForgotPassword(context.Background(), email); err != nil {
+		t.Fatalf("second ForgotPassword failed: %v", err)
+	}
+
+	if len(mailer.sent) != 1 {
+		t.Errorf("expected exactly 1 reset email within cooldown, got %d", len(mailer.sent))
+	}
+	var count int64
+	svc.db.Model(&models.PasswordReset{}).Where("email = ?", email).Count(&count)
+	if count != 1 {
+		t.Errorf("expected 1 reset token, got %d", count)
+	}
+}
+
+func TestForgotPassword_AllowsResendAfterCooldown(t *testing.T) {
+	svc, mailer := newEmailAuthSvc(t)
+	email := "resend-after-cooldown@example.com"
+	seedEmailUser(t, svc, email, true)
+
+	if err := svc.ForgotPassword(context.Background(), email); err != nil {
+		t.Fatalf("first ForgotPassword failed: %v", err)
+	}
+	// Simulate the cooldown elapsing by ageing the issued token.
+	if err := svc.db.Model(&models.PasswordReset{}).Where("email = ?", email).
+		Update("created_at", time.Now().Add(-2*passwordResetCooldown)).Error; err != nil {
+		t.Fatalf("age reset token: %v", err)
+	}
+	if err := svc.ForgotPassword(context.Background(), email); err != nil {
+		t.Fatalf("second ForgotPassword failed: %v", err)
+	}
+
+	if len(mailer.sent) != 2 {
+		t.Errorf("expected 2 reset emails after cooldown elapsed, got %d", len(mailer.sent))
 	}
 }
 
