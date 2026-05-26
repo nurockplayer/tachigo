@@ -105,4 +105,34 @@ describe('DashboardPage', () => {
     })
     cleanup(root, container)
   })
+
+  it('抽獎列表為空時顯示「尚無抽獎活動」', async () => {
+    const dp = createMockDataProvider({
+      getList: {
+        'streamer-channels': async () => [mockChannel],
+        raffles: async () => [],
+      },
+      getOne: { 'streamer-stats': async () => mockStats },
+    })
+    const { container, root } = await renderDashboard(dp)
+    await waitFor(() => {
+      expect(container.textContent).toContain('尚無抽獎活動')
+    })
+    cleanup(root, container)
+  })
+
+  it('抽獎 API 錯誤時顯示錯誤訊息', async () => {
+    const dp = createMockDataProvider({
+      getList: {
+        'streamer-channels': async () => [mockChannel],
+        raffles: async () => { throw new Error('network error') },
+      },
+      getOne: { 'streamer-stats': async () => mockStats },
+    })
+    const { container, root } = await renderDashboard(dp)
+    await waitFor(() => {
+      expect(container.textContent).toContain('無法載入最近抽獎')
+    })
+    cleanup(root, container)
+  })
 })
