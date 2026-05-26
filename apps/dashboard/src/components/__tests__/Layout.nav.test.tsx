@@ -1,5 +1,5 @@
 import { act } from 'react'
-import { createRoot } from 'react-dom/client'
+import { createRoot, type Root } from 'react-dom/client'
 import { MemoryRouter } from 'react-router'
 import { afterEach, describe, expect, it, vi } from 'vitest'
 
@@ -10,6 +10,8 @@ vi.mock('@/services/auth', () => ({
 
 import { getUserRole } from '@/services/auth'
 import Layout from '@/components/Layout'
+
+let currentRoot: Root | null = null
 
 function render(role: string | null) {
   const mockGetUserRole = vi.mocked(getUserRole)
@@ -25,11 +27,16 @@ function render(role: string | null) {
       </MemoryRouter>,
     )
   })
+  currentRoot = root
   return { container, root }
 }
 
 describe('Layout nav role filtering', () => {
   afterEach(() => {
+    if (currentRoot) {
+      act(() => { currentRoot!.unmount() })
+      currentRoot = null
+    }
     document.body.innerHTML = ''
   })
 
