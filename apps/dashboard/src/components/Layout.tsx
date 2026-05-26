@@ -3,14 +3,14 @@ import { NavLink, Outlet, useNavigate } from 'react-router'
 import { LayoutDashboard, Users, ArrowLeftRight, Settings, Ticket } from 'lucide-react'
 import { Button } from '@/components/ui/button'
 import { cn } from '@/lib/utils'
-import { logout } from '@/services/auth'
+import { logout, getUserRole } from '@/services/auth'
 
 const navItems = [
   { to: '/', label: '總覽', icon: LayoutDashboard, end: true },
-  { to: '/streamers', label: '實況主管理', icon: Users, end: false },
+  { to: '/streamers', label: '實況主管理', icon: Users, end: false, roles: ['admin'] },
   { to: '/raffles', label: '抽獎管理', icon: Ticket, end: false },
   { to: '/transactions', label: '交易紀錄', icon: ArrowLeftRight, end: false },
-  { to: '/settings', label: '設定', icon: Settings, end: false },
+  { to: '/settings', label: '設定', icon: Settings, end: false, roles: ['admin'] },
 ]
 
 export default function Layout() {
@@ -28,6 +28,9 @@ export default function Layout() {
     }
   }
 
+  const role = getUserRole()
+  const visibleItems = navItems.filter(item => !item.roles || item.roles.includes(role ?? ''))
+
   return (
     <div className="flex h-screen bg-background">
       {/* Sidebar */}
@@ -36,7 +39,7 @@ export default function Layout() {
           <span className="text-lg font-bold text-foreground">Tachigo</span>
         </div>
         <nav className="flex-1 px-3 py-4 space-y-1">
-          {navItems.map(({ to, label, icon: Icon, end }) => (
+          {visibleItems.map(({ to, label, icon: Icon, end }) => (
             <NavLink
               key={to}
               to={to}
