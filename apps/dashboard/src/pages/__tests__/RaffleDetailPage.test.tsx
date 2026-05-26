@@ -234,6 +234,38 @@ describe('RaffleDetailPage — prize tiers', () => {
     cleanup(root, container)
   })
 
+  it('does not create a prize tier when winner count is empty', async () => {
+    const dp = createMockDataProvider({
+      getOne: { raffles: vi.fn().mockResolvedValue(mockRaffle as BaseRecord) },
+    })
+    const { container, root } = await renderAt('r1', dp)
+    await waitFor(() => expect(container.querySelector('[data-testid="prize-tier-toggle"]')).toBeTruthy())
+
+    await act(async () => {
+      container.querySelector('[data-testid="prize-tier-toggle"]')!
+        .dispatchEvent(new MouseEvent('click', { bubbles: true }))
+    })
+
+    const name = container.querySelector('[data-testid="prize-tier-name"]') as HTMLInputElement
+    const count = container.querySelector('[data-testid="prize-tier-winner-count"]') as HTMLInputElement
+    vi.mocked(rafflesService.createPrizeTier).mockClear()
+    await act(async () => {
+      name.value = '一等獎'
+      name.dispatchEvent(new Event('input', { bubbles: true }))
+      count.value = ''
+      count.dispatchEvent(new Event('input', { bubbles: true }))
+    })
+
+    const add = container.querySelector('[data-testid="prize-tier-add"]') as HTMLButtonElement
+    expect(add.disabled).toBe(true)
+
+    await act(async () => {
+      add.dispatchEvent(new MouseEvent('click', { bubbles: true }))
+    })
+    expect(rafflesService.createPrizeTier).not.toHaveBeenCalled()
+    cleanup(root, container)
+  })
+
   it('draws and deletes prize tiers through tier actions', async () => {
     vi.mocked(rafflesService.listPrizeTiers).mockResolvedValue([mockPrizeTier])
     const dp = createMockDataProvider({

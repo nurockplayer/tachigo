@@ -76,6 +76,10 @@ const statusLabel: Record<RaffleStatus, string> = {
   completed: '已完成',
 }
 
+function isValidPrizeTierWinnerCount(value: number): boolean {
+  return Number.isInteger(value) && value >= 1
+}
+
 function formatRelativeTime(dateStr: string): string {
   const date = new Date(dateStr)
   if (Number.isNaN(date.getTime())) return ''
@@ -688,7 +692,7 @@ export default function RaffleDetailPage() {
   }
 
   async function handleAddTier() {
-    if (!raffleId || addingTier || !newTier.name.trim() || newTier.winner_count < 1) return
+    if (!raffleId || addingTier || !newTier.name.trim() || !isValidPrizeTierWinnerCount(newTier.winner_count)) return
     setAddingTier(true)
     setAddTierError(null)
     try {
@@ -900,9 +904,9 @@ export default function RaffleDetailPage() {
                 </div>
                 <div style={{ display: 'flex', flexDirection: 'column', gap: 3 }}>
                   <label style={{ fontSize: 10, color: 'rgba(148,210,255,.6)' }}>抽幾人</label>
-                  <input data-testid="prize-tier-winner-count" type="number" min={1} value={newTier.winner_count} onInput={e => setNewTier(p => ({ ...p, winner_count: Number((e.target as HTMLInputElement).value) }))} onChange={e => setNewTier(p => ({ ...p, winner_count: Number(e.target.value) }))} style={{ width: 60, background: 'rgba(255,255,255,.07)', border: '1px solid rgba(80,160,255,.25)', borderRadius: 5, color: '#e0f2fe', fontSize: 12, padding: '5px 8px' }} />
+                  <input data-testid="prize-tier-winner-count" type="number" min={1} value={Number.isFinite(newTier.winner_count) ? newTier.winner_count : ''} onInput={e => setNewTier(p => ({ ...p, winner_count: (e.target as HTMLInputElement).valueAsNumber }))} onChange={e => setNewTier(p => ({ ...p, winner_count: e.target.valueAsNumber }))} style={{ width: 60, background: 'rgba(255,255,255,.07)', border: '1px solid rgba(80,160,255,.25)', borderRadius: 5, color: '#e0f2fe', fontSize: 12, padding: '5px 8px' }} />
                 </div>
-                <button data-testid="prize-tier-add" onClick={() => { void handleAddTier() }} disabled={addingTier || !newTier.name.trim()} style={{ background: 'rgba(34,197,94,.15)', border: '1px solid rgba(34,197,94,.3)', color: '#4ade80', borderRadius: 6, padding: '6px 14px', fontSize: 12, cursor: 'pointer', opacity: (addingTier || !newTier.name.trim()) ? .5 : 1 }}>
+                <button data-testid="prize-tier-add" onClick={() => { void handleAddTier() }} disabled={addingTier || !newTier.name.trim() || !isValidPrizeTierWinnerCount(newTier.winner_count)} style={{ background: 'rgba(34,197,94,.15)', border: '1px solid rgba(34,197,94,.3)', color: '#4ade80', borderRadius: 6, padding: '6px 14px', fontSize: 12, cursor: 'pointer', opacity: (addingTier || !newTier.name.trim() || !isValidPrizeTierWinnerCount(newTier.winner_count)) ? .5 : 1 }}>
                   {addingTier ? '新增中...' : '確認新增'}
                 </button>
                 {addTierError && (
