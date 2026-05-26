@@ -798,9 +798,12 @@ func (s *RaffleService) clearProviderTokensContext(ctx context.Context, provider
 
 // ── Scheduled snapshot (cron) ─────────────────────────────────────────────────
 
-// RunScheduledSnapshots finds draft raffles with scheduled_at in [now, now+10min]
-// and triggers their snapshot. Per-raffle errors are logged and do not abort the batch.
-// CSV raffles are excluded: they are uploaded manually and have no remote source to sync from.
+// RunScheduledSnapshots finds draft raffles whose scheduled_at is due — already
+// elapsed or within the next 10 minutes — and triggers their snapshot. There is
+// intentionally no lower bound, so a raffle whose scheduled_at passed while the
+// server was down is caught up on the next scan rather than skipped forever.
+// Per-raffle errors are logged and do not abort the batch. CSV raffles are
+// excluded: they are uploaded manually and have no remote source to sync from.
 func (s *RaffleService) RunScheduledSnapshots(ctx context.Context, now time.Time) error {
 	start := time.Now()
 	result := "success"
@@ -813,8 +816,8 @@ func (s *RaffleService) RunScheduledSnapshots(ctx context.Context, now time.Time
 	window := now.Add(10 * time.Minute)
 	var raffles []models.Raffle
 	if err := s.db.WithContext(ctx).Where(
-		"status = ? AND source != ? AND scheduled_at IS NOT NULL AND scheduled_at >= ? AND scheduled_at <= ?",
-		models.RaffleStatusDraft, models.RaffleSourceCSV, now, window,
+		"status = ? AND source != ? AND scheduled_at IS NOT NULL AND scheduled_at <= ?",
+		models.RaffleStatusDraft, models.RaffleSourceCSV, window,
 	).Find(&raffles).Error; err != nil {
 		log.Printf(
 			"event=raffle_scheduled_snapshots_query_error job=raffle_scheduled_snapshots run_at=%s window_end=%s err=%q",
