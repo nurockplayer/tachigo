@@ -164,7 +164,7 @@ Autonomous workflow 的改善假設是「約 40% infra 本質複雜、約 60% �
 
 autonomous work 一開始就必須先分派 worker，再進入計劃、開 issue、讀資料或實作；只有 `trivial/self-only exception` 可以不分派，但必須明寫原因。0-3 分鐘的單一 read-only trivial check 可由 controller 直接做，但必須記錄 `controller_fallback_reason`。
 
-完整 worker profile、路由規則、review gate 與 PR Scope Police 合約見 [docs/ai/codex-autonomous-workflow.md](docs/ai/codex-autonomous-workflow.md)，Autonomous evidence gate、`spec workflow-check` start / commit / merge gate 與 local-only spec-injector 邊界見 [docs/ai/autonomous-pr-gates.md](docs/ai/autonomous-pr-gates.md)。
+完整 worker profile、路由規則、review gate 與 PR Scope Police 合約見 [docs/ai/codex-autonomous-workflow.md](docs/ai/codex-autonomous-workflow.md)，Autonomous evidence gate、`spec workflow-check` start / commit / merge gate 與 local-only spec-injector 邊界見 [docs/ai/autonomous-pr-gates.md](docs/ai/autonomous-pr-gates.md)。#664 收斂後的 controller-direct / worker-routing threshold policy 見 [docs/ai/autonomous-threshold-policy.md](docs/ai/autonomous-threshold-policy.md)。
 
 ## Gemini CLI Delegation
 

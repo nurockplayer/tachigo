@@ -129,85 +129,16 @@ Autonomous Worker Profiles 的優化目標不是把所有工作都丟給低模�
 
 ### Threshold Calibration v2
 
-Threshold calibration v2 的目的不是永久蒐集個人工作量資料，而是暫時把「何時可 controller 直做、何時必須先走 Spark、何時需要 5.4 或 5.5」寫成可回看的 routing 決策。tachigo 的完整 metrics 集中留在 #664 long-lived ledger comment；PR body 只保留 `status + ref`，避免每張 PR 被 calibration 內容撐大。
+Threshold calibration v2 已由 #664 ledger 收斂成 [docs/ai/autonomous-threshold-policy.md](autonomous-threshold-policy.md)。後續不再要求每 3 張 autonomous PR 回寫 routine threshold comment；只有新的 P0 workflow regression 才重新記錄。
 
-#### 1. Controller direct / trivial / self-only allowed
+簡版規則：
 
-只有同時滿足下列條件，總控才可以不先派 worker，直接處理：
+- Start gate 與 routing decision 仍不可省略；只有 routing decision 已判定符合 `trivial/self-only exception` 時，小型、單一 surface 的 docs / tests / controller-direct 修補才可由 controller 直做。
+- Routine GitHub / CI / review / PR body readback 預設交給 `ops_spark` 或同級低成本 worker。
+- 非 trivial 的 implementation slice 預設交給 bounded worker。
+- controller 保留 final review、merge、scope、review finding disposition 與高風險技術決策。
 
-- 單檔或極小範圍修改，沒有跨檔共享狀態。
-- 不需要 CI/check readback、review thread readback、PR body/comment cleanup、或 closeout evidence 蒐集。
-- 不牽涉 schema、migration、ledger、auth、wallet、points、金流、跨 repo contract、merge gate、或 review disposition 決策。
-- 不需要額外 worker 才能把證據補齊。
-
-若走這條路，必須明寫 `Trivial/self-only exception reason` 或 `controller_fallback_reason`。不得只寫 `small task`、`quick fix`、`docs only` 這種空泛描述。
-
-#### 2. ops_spark required
-
-下列工作預設交給 `ops_spark` 或同級低成本替代 worker：
-
-- GitHub issue / PR / label / milestone / branch readback。
-- PR body、PR comment、issue comment、review closeout evidence 整理。
-- `gh pr checks`、status check rollup、CI log 初步摘要。
-- CodeRabbit / `chatgpt-codex-connector` review/comment/reaction 狀態讀回。
-- review thread list、resolved/unresolved count、thread URL 蒐集。
-- pre-commit checklist、post-push head SHA / branch / PR URL readback。
-
-同級低成本替代 worker 白名單為 `repo_scout`、`docs_worker`。若 `ops_spark` 不可用，PR log 必須寫明 fallback profile 與原因；若低成本 worker 都不可用，才可由 controller 補位，並把 `worker unavailable` 寫進 evidence。
-
-#### 3. 5.4 worker required
-
-任務超過 routine readback / docs / summary，但還沒進入 schema 或 merge decision 層級時，預設使用 GPT-5.4 或 GPT-5.4-mini worker：
-
-- 單檔或小範圍 workflow / unit test 補強。
-- API handler、service、CI 相關實作。
-- extension / dashboard 前端修補。
-- 跨 repo contract、Docker、build contract 驗證。
-
-這類工作不應直接吃 controller 的 GPT-5.5，除非低一階 worker 已經證明不足，且有明確 fallback reason。
-
-#### 4. 5.5 / controller decision
-
-下列情況才進入 GPT-5.5 或 controller decision 層級：
-
-- schema、migration、ledger、資料一致性、帳務、金流、權限模型。
-- merge 前風險掃描、review finding disposition、blocking technical decision。
-- scope-exception、merge method、guarded merge、branch protection、stale review、rebase / merge conflict 決策。
-- low-cost worker 或 5.4 worker 回報互相矛盾 evidence，需要總控做最後判斷。
-
-#### 5. Controller fallback reason format
-
-只要 `controller_fallback=allowed`，spawn directive 同一行必須補 `fallback_reason`，並在 PR log 的 `Self-review / exception reason` 或 `Worker session closeout` 展開。建議格式：
-
-```text
-fallback_reason=<category>: <why lower tier was insufficient>; impact=<decision or blocker>; evidence=<url|sha|command>
-```
-
-`category` 限定為：
-
-- `worker_unavailable`
-- `tool_unavailable`
-- `rate_limited`
-- `conflicting_evidence`
-- `schema_or_data_risk`
-- `review_or_merge_decision`
-
-#### 6. Calibration data fields
-
-新 autonomous PR 的 calibration evidence 保持精簡：
-
-- `threshold_ledger_ref`：#664 issue/comment URL、`#664`、或 `not_needed`。若 final merge gate 已 `ready_to_merge=true` / `ready`，不得再填 `pending`。
-- `status`：`logged`、`open_followup`、`not_needed`。
-
-完整 calibration metrics 以 #664 ledger comment 為主，不要求每張 PR 重複貼進 PR body。legacy metrics 只供舊 PR 或過渡期相容，不是新 PR 必填：`spawn_count`、`ci_rerun_count`、`review_thread_count`、`rework_reason`、`threshold_decision`、`threshold_followup_needed`。
-
-#### 7. Calibration review cadence
-
-至少每累積 3 張 autonomous PR，回看 #664 最近紀錄一次，決定 threshold 是否要調整。
-
-- 若連續出現 `spawn_count`、`ci_rerun_count` 或 `review_thread_count` 偏高，優先調整 routing 或拆 follow-up，不要只靠 controller 補洞。
-- 若連續出現 `threshold_followup_needed=yes`，必須開 follow-up issue 或更新 docs / PR template / routing policy。
-- 若資料顯示現有規則正常，回看紀錄仍要寫 `no threshold change`，避免規則默默漂移。
+完整 evidence shape、#664 停止條件、PR template / Scope Police 非目標、以及 spec-injector local-only 邊界，以 [autonomous-threshold-policy.md](autonomous-threshold-policy.md) 為準。
 
 ### ops_spark Routing Hardening
 
