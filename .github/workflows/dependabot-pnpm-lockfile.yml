@@ -48,12 +48,12 @@ jobs:
       - name: Repair dashboard lockfile
         if: steps.changed.outputs.dashboard == 'true'
         working-directory: apps/dashboard
-        run: pnpm install --lockfile-only --ignore-scripts --config.shared-workspace-lockfile=false
+        run: pnpm install --lockfile-only --ignore-scripts --ignore-workspace
 
       - name: Repair extension lockfile
         if: steps.changed.outputs.extension == 'true'
         working-directory: apps/extension
-        run: pnpm install --lockfile-only --ignore-scripts --config.shared-workspace-lockfile=false
+        run: pnpm install --lockfile-only --ignore-scripts --ignore-workspace
 
       - name: Strip root-only overrides from app lockfiles
         run: |

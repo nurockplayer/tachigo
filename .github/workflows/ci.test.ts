@@ -2439,7 +2439,8 @@ test('dependency review policy documents Dependabot split and waiver handling', 
   assert.match(policy, /development dependency findings are report-only/)
   assert.match(policy, /Dependabot opens routine version update PRs for the configured update levels/)
   assert.match(policy, /dependabot-pnpm-lockfile\.yml/)
-  assert.match(policy, /shared-workspace-lockfile=false/)
+  assert.match(policy, /--ignore-workspace/)
+  assert.doesNotMatch(policy, /shared-workspace-lockfile=false/)
   assert.match(policy, /security update PRs for alert-triggered fixes/)
   assert.match(policy, /Production security update\s+PRs remain manual-review changes/)
   assert.match(policy, /False Positives And Waivers/)
@@ -2494,12 +2495,13 @@ test('Dependabot pnpm lockfile repair is scoped to same-repo Dependabot PRs', as
   assert.match(jobBlock, /corepack prepare pnpm@10\.33\.0 --activate/)
   assert.match(
     jobBlock,
-    /working-directory: apps\/dashboard\n\s+run: pnpm install --lockfile-only --ignore-scripts --config\.shared-workspace-lockfile=false/,
+    /working-directory: apps\/dashboard\n\s+run: pnpm install --lockfile-only --ignore-scripts --ignore-workspace/,
   )
   assert.match(
     jobBlock,
-    /working-directory: apps\/extension\n\s+run: pnpm install --lockfile-only --ignore-scripts --config\.shared-workspace-lockfile=false/,
+    /working-directory: apps\/extension\n\s+run: pnpm install --lockfile-only --ignore-scripts --ignore-workspace/,
   )
+  assert.doesNotMatch(jobBlock, /shared-workspace-lockfile=false/)
   const stripOverridesStep = workflowJobStep(
     parsedWorkflow,
     'repair-lockfiles',
