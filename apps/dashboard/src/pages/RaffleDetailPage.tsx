@@ -875,11 +875,12 @@ export default function RaffleDetailPage() {
 
       {/* Prize Tiers */}
       {effectiveStatus === 'active' && (
-        <div style={{ maxWidth: 1300, margin: '0 auto 2rem', padding: '0 16px' }}>
+        <div data-testid="prize-tiers-section" style={{ maxWidth: 1300, margin: '0 auto 2rem', padding: '0 16px' }}>
           <div style={{ ...glassStyle, padding: '16px 20px' }}>
             <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', marginBottom: 12 }}>
               <span style={{ fontSize: 13, fontWeight: 700, color: '#e0f2fe', letterSpacing: '.04em' }}>🏆 獎項設定</span>
               <button
+                data-testid="prize-tier-toggle"
                 onClick={() => setShowAddTier(v => !v)}
                 style={{ background: 'rgba(56,189,248,.12)', border: '1px solid rgba(56,189,248,.3)', color: '#7dd3fc', borderRadius: 6, padding: '4px 12px', fontSize: 12, cursor: 'pointer' }}
               >
@@ -891,17 +892,17 @@ export default function RaffleDetailPage() {
               <div style={{ display: 'flex', gap: 8, flexWrap: 'wrap', alignItems: 'flex-end', marginBottom: 12, padding: '10px 12px', background: 'rgba(56,189,248,.06)', borderRadius: 8, border: '1px solid rgba(56,189,248,.15)' }}>
                 <div style={{ display: 'flex', flexDirection: 'column', gap: 3 }}>
                   <label style={{ fontSize: 10, color: 'rgba(148,210,255,.6)' }}>獎項名稱</label>
-                  <input value={newTier.name} onChange={e => setNewTier(p => ({ ...p, name: e.target.value }))} placeholder="例：一等獎" style={{ background: 'rgba(255,255,255,.07)', border: '1px solid rgba(80,160,255,.25)', borderRadius: 5, color: '#e0f2fe', fontSize: 12, padding: '5px 8px' }} />
+                  <input data-testid="prize-tier-name" value={newTier.name} onInput={e => setNewTier(p => ({ ...p, name: (e.target as HTMLInputElement).value }))} onChange={e => setNewTier(p => ({ ...p, name: e.target.value }))} placeholder="例：一等獎" style={{ background: 'rgba(255,255,255,.07)', border: '1px solid rgba(80,160,255,.25)', borderRadius: 5, color: '#e0f2fe', fontSize: 12, padding: '5px 8px' }} />
                 </div>
                 <div style={{ display: 'flex', flexDirection: 'column', gap: 3 }}>
                   <label style={{ fontSize: 10, color: 'rgba(148,210,255,.6)' }}>獎品描述</label>
-                  <input value={newTier.prize_description} onChange={e => setNewTier(p => ({ ...p, prize_description: e.target.value }))} placeholder="例：Switch 主機" style={{ background: 'rgba(255,255,255,.07)', border: '1px solid rgba(80,160,255,.25)', borderRadius: 5, color: '#e0f2fe', fontSize: 12, padding: '5px 8px' }} />
+                  <input data-testid="prize-tier-description" value={newTier.prize_description} onInput={e => setNewTier(p => ({ ...p, prize_description: (e.target as HTMLInputElement).value }))} onChange={e => setNewTier(p => ({ ...p, prize_description: e.target.value }))} placeholder="例：Switch 主機" style={{ background: 'rgba(255,255,255,.07)', border: '1px solid rgba(80,160,255,.25)', borderRadius: 5, color: '#e0f2fe', fontSize: 12, padding: '5px 8px' }} />
                 </div>
                 <div style={{ display: 'flex', flexDirection: 'column', gap: 3 }}>
                   <label style={{ fontSize: 10, color: 'rgba(148,210,255,.6)' }}>抽幾人</label>
-                  <input type="number" min={1} value={newTier.winner_count} onChange={e => setNewTier(p => ({ ...p, winner_count: Number(e.target.value) }))} style={{ width: 60, background: 'rgba(255,255,255,.07)', border: '1px solid rgba(80,160,255,.25)', borderRadius: 5, color: '#e0f2fe', fontSize: 12, padding: '5px 8px' }} />
+                  <input data-testid="prize-tier-winner-count" type="number" min={1} value={newTier.winner_count} onInput={e => setNewTier(p => ({ ...p, winner_count: Number((e.target as HTMLInputElement).value) }))} onChange={e => setNewTier(p => ({ ...p, winner_count: Number(e.target.value) }))} style={{ width: 60, background: 'rgba(255,255,255,.07)', border: '1px solid rgba(80,160,255,.25)', borderRadius: 5, color: '#e0f2fe', fontSize: 12, padding: '5px 8px' }} />
                 </div>
-                <button onClick={() => { void handleAddTier() }} disabled={addingTier || !newTier.name.trim()} style={{ background: 'rgba(34,197,94,.15)', border: '1px solid rgba(34,197,94,.3)', color: '#4ade80', borderRadius: 6, padding: '6px 14px', fontSize: 12, cursor: 'pointer', opacity: (addingTier || !newTier.name.trim()) ? .5 : 1 }}>
+                <button data-testid="prize-tier-add" onClick={() => { void handleAddTier() }} disabled={addingTier || !newTier.name.trim()} style={{ background: 'rgba(34,197,94,.15)', border: '1px solid rgba(34,197,94,.3)', color: '#4ade80', borderRadius: 6, padding: '6px 14px', fontSize: 12, cursor: 'pointer', opacity: (addingTier || !newTier.name.trim()) ? .5 : 1 }}>
                   {addingTier ? '新增中...' : '確認新增'}
                 </button>
                 {addTierError && (
@@ -919,18 +920,18 @@ export default function RaffleDetailPage() {
               const isDrawing = tierDrawing[tier.id] ?? false
               const isExhausted = tierExhausted[tier.id] ?? false
               return (
-                <div key={tier.id} style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', padding: '8px 12px', borderRadius: 8, marginBottom: 6, background: isDone ? 'rgba(255,255,255,.03)' : 'rgba(56,189,248,.05)', border: `1px solid ${isDone ? 'rgba(255,255,255,.08)' : 'rgba(56,189,248,.18)'}` }}>
+                <div key={tier.id} data-testid={`prize-tier-row-${tier.id}`} style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', padding: '8px 12px', borderRadius: 8, marginBottom: 6, background: isDone ? 'rgba(255,255,255,.03)' : 'rgba(56,189,248,.05)', border: `1px solid ${isDone ? 'rgba(255,255,255,.08)' : 'rgba(56,189,248,.18)'}` }}>
                   <div style={{ display: 'flex', flexDirection: 'column', gap: 2 }}>
                     <span style={{ fontSize: 13, fontWeight: 600, color: isDone ? 'rgba(148,210,255,.5)' : '#e0f2fe' }}>{tier.name}</span>
                     {tier.prize_description && <span style={{ fontSize: 11, color: 'rgba(148,210,255,.5)' }}>{tier.prize_description}</span>}
                     <span style={{ fontSize: 10, color: isDone ? '#4ade80' : 'rgba(148,210,255,.4)' }}>{tier.drawn_count} / {tier.winner_count} 人已抽出</span>
                   </div>
                   <div style={{ display: 'flex', gap: 6, alignItems: 'center' }}>
-                    <button onClick={() => { void handleDrawFromTier(tier.id) }} disabled={isDone || isDrawing || isExhausted} style={{ background: 'rgba(14,165,233,.15)', border: '1px solid rgba(14,165,233,.3)', color: '#38bdf8', borderRadius: 6, padding: '5px 12px', fontSize: 11, cursor: 'pointer', opacity: (isDone || isDrawing || isExhausted) ? .4 : 1 }}>
+                    <button data-testid={`prize-tier-draw-${tier.id}`} onClick={() => { void handleDrawFromTier(tier.id) }} disabled={isDone || isDrawing || isExhausted} style={{ background: 'rgba(14,165,233,.15)', border: '1px solid rgba(14,165,233,.3)', color: '#38bdf8', borderRadius: 6, padding: '5px 12px', fontSize: 11, cursor: 'pointer', opacity: (isDone || isDrawing || isExhausted) ? .4 : 1 }}>
                       {isDrawing ? '抽中...' : isExhausted ? '已抽完' : '抽一人'}
                     </button>
                     {tier.drawn_count === 0 && (
-                      <button onClick={() => { void handleDeleteTier(tier.id) }} style={{ background: 'rgba(239,68,68,.1)', border: '1px solid rgba(239,68,68,.25)', color: '#f87171', borderRadius: 6, padding: '5px 10px', fontSize: 11, cursor: 'pointer' }}>✕</button>
+                      <button data-testid={`prize-tier-delete-${tier.id}`} onClick={() => { void handleDeleteTier(tier.id) }} style={{ background: 'rgba(239,68,68,.1)', border: '1px solid rgba(239,68,68,.25)', color: '#f87171', borderRadius: 6, padding: '5px 10px', fontSize: 11, cursor: 'pointer' }}>✕</button>
                     )}
                   </div>
                 </div>
