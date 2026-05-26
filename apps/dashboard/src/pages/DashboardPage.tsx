@@ -68,6 +68,7 @@ export default function DashboardPage() {
 
   const statsLoading = channelsQuery.isLoading || (Boolean(channelId) && statsQuery.isLoading)
   const rafflesLoading = rafflesQuery.isLoading
+  const rafflesError = rafflesQuery.isError
 
   return (
     <div className="space-y-8">
@@ -111,6 +112,12 @@ export default function DashboardPage() {
                 ))}
               </div>
             )
+          : rafflesError
+            ? (
+                <div className="rounded-lg border border-destructive/20 bg-destructive/5 px-4 py-8 text-center text-sm text-destructive">
+                  無法載入最近抽獎。
+                </div>
+              )
           : recentRaffles.length === 0
             ? (
                 <div className="rounded-lg border border-border bg-secondary/20 px-4 py-8 text-center text-sm text-muted-foreground">
