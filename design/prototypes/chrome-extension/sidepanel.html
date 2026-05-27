@@ -1,0 +1,119 @@
+<!doctype html>
+<html lang="en">
+  <head>
+    <meta charset="utf-8" />
+    <meta name="viewport" content="width=device-width, initial-scale=1" />
+    <title>Tachigo Prototype</title>
+    <link rel="stylesheet" href="src/styles/global.css" />
+  </head>
+  <body>
+    <main class="extension-shell">
+      <section class="panel-frame" aria-label="Tachigo extension prototype">
+        <section class="screen opening-screen" id="openingScreen" aria-label="Tachigo opening screen">
+          <div class="opening-video-stack" aria-hidden="true">
+            <video class="opening-video is-active" id="opening01" muted playsinline preload="auto"></video>
+            <video class="opening-video" id="opening02" muted playsinline preload="auto"></video>
+          </div>
+          <button class="opening-logo-button" id="openingLogoButton" type="button" aria-label="Enter Tachigo">
+            <img data-asset="logo" alt="Tachigo" />
+          </button>
+        </section>
+
+        <section class="screen login-screen" id="loginScreen" aria-label="Tachigo login screen" hidden>
+          <img class="login-background" data-asset="loginBackground" alt="" />
+          <form class="login-panel" id="loginForm">
+            <img class="login-character" data-asset="loginCharacter" alt="" />
+            <div class="login-controls">
+              <img class="login-subtitle" data-asset="loginSubtitle" alt="Mine watch earn" />
+              <label class="login-field">
+                <img data-asset="loginEmailInput" alt="" />
+                <input type="email" placeholder="Enter your email address" autocomplete="email" required />
+              </label>
+              <label class="login-field" id="passwordField">
+                <img data-asset="loginPasswordInput" alt="" />
+                <input type="password" placeholder="Enter your password" autocomplete="current-password" required />
+              </label>
+              <button class="login-text-button login-forgot" id="forgotButton" type="button">Forgot Password?</button>
+              <button class="login-primary-button" type="submit" aria-label="Login">
+                <img data-asset="loginButton" alt="Login" />
+              </button>
+              <img class="login-or" data-asset="loginOr" alt="or" />
+              <button class="login-twitch-button" id="twitchLoginButton" type="button" aria-label="Login with Twitch">
+                <img data-asset="loginTwitchButton" alt="Login with Twitch" />
+              </button>
+              <p class="login-signup">
+                <span id="signupCopy">Don't have an account?</span>
+                <button id="signupButton" type="button">SIGN UP</button>
+              </p>
+            </div>
+          </form>
+        </section>
+
+        <section class="screen character-screen" id="characterScreen" aria-label="Choose your character" hidden>
+          <div class="character-bg" aria-hidden="true"></div>
+          <header class="character-header">
+            <img class="character-title" data-asset="characterTitle" alt="Choose your character" />
+            <button class="character-dive-button" id="diveInButton" type="button" aria-label="Let's dive in">
+              <img data-asset="characterDiveButton" alt="LET'S DIVE IN" />
+            </button>
+          </header>
+          <div class="character-carousel">
+            <button class="character-arrow character-arrow-left" type="button" aria-label="Previous character">
+              <img data-asset="characterLeftArrow" alt="" />
+            </button>
+            <video class="character-video" id="characterVideo" muted loop playsinline preload="auto"></video>
+            <button class="character-arrow character-arrow-right" type="button" aria-label="Next character">
+              <img data-asset="characterRightArrow" alt="" />
+            </button>
+          </div>
+          <div class="character-name">
+            <h1>Crab</h1>
+            <p>A calm and wise wanderer who moves gently through the depths, carrying ancient stories within</p>
+          </div>
+          <img class="character-dots" data-asset="characterPageDots" alt="" />
+        </section>
+
+        <section class="screen mining-screen" id="miningScreen" aria-label="Tachigo mining screen" hidden>
+          <div class="mining-video-stack" aria-hidden="true">
+            <video class="mining-video is-active" id="sayHiVideo" muted playsinline preload="auto"></video>
+            <video class="mining-video" id="idleVideo" muted playsinline preload="auto"></video>
+            <video class="mining-video" id="miningActionVideo" muted playsinline preload="auto"></video>
+          </div>
+          <div class="mining-hud" aria-label="Tachigo mining HUD">
+            <button class="settings-button" type="button" aria-label="Settings">
+              <img data-asset="hud.settings" alt="" />
+            </button>
+            <button class="mine-hit-area" id="mineButton" type="button" aria-label="Mine Tachigo crystal"></button>
+            <div class="arrows-indicator" aria-hidden="true">
+              <img data-asset="hud.arrows" alt="" />
+            </div>
+            <footer class="bottom-stats-bar" aria-label="Mining stats">
+              <div class="stat-item">
+                <img data-asset="hud.perClick" alt="" />
+                <strong id="clickPower">1</strong>
+                <span>PER CLICK</span>
+              </div>
+              <div class="stat-item">
+                <img data-asset="hud.level" alt="" />
+                <strong>1</strong>
+                <span>LEVEL</span>
+              </div>
+              <div class="stat-item stat-item-wide">
+                <img data-asset="hud.miningSpeed" alt="" />
+                <strong>2.0s</strong>
+                <span>MINING SPEED</span>
+              </div>
+              <div class="stat-item stat-item-wide">
+                <img data-asset="hud.cpc" alt="" />
+                <strong id="totalMined">12,450</strong>
+              </div>
+            </footer>
+          </div>
+          <div class="tap-feedback" id="tapFeedback" aria-hidden="true">+1</div>
+        </section>
+      </section>
+      <p class="sr-status" id="srStatus" aria-live="polite">Opening screen.</p>
+    </main>
+    <script type="module" src="src/main.js"></script>
+  </body>
+</html>

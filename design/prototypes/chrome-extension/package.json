@@ -1,0 +1,11 @@
+{
+  "name": "tachigo-chrome-extension",
+  "private": true,
+  "version": "0.1.0",
+  "description": "Zero-install Tachigo Chrome Extension frontend prototype.",
+  "scripts": {
+    "build": "echo \"No build step required. Load this folder unpacked in Chrome.\""
+  },
+  "dependencies": {},
+  "devDependencies": {}
+}
