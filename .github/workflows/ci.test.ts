@@ -791,7 +791,7 @@ test('frontend CI job runs the frontend test command', async () => {
   )
   assert.equal(
     restoreAssetsStep.run.trimEnd(),
-    'git lfs fetch --exclude="" --include="apps/extension/src/assets/**/*.png,apps/extension/src/assets/**/*.jpg,apps/extension/src/assets/**/*.jpeg,apps/extension/src/assets/**/*.webp,apps/extension/src/assets/**/*.gif"\ngit lfs checkout apps/extension/src/assets',
+    'git lfs fetch --exclude="" --include="apps/extension/src/assets/**/*.png,apps/extension/src/assets/**/*.jpg,apps/extension/src/assets/**/*.jpeg,apps/extension/src/assets/**/*.webp,apps/extension/src/assets/**/*.gif,apps/extension/src/assets/**/*.ttf,apps/extension/src/assets/**/*.otf,apps/extension/src/assets/**/*.woff,apps/extension/src/assets/**/*.woff2"\ngit lfs checkout apps/extension/src/assets',
   )
 
   assert.match(
