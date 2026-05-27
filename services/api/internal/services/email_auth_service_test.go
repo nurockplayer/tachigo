@@ -30,6 +30,14 @@ func (m *mockMailer) lastTo() string {
 	return m.sent[len(m.sent)-1].to
 }
 
+type failingMailer struct {
+	err error
+}
+
+func (m *failingMailer) Send(_ context.Context, _, _, _ string) error {
+	return m.err
+}
+
 func newEmailAuthSvc(t *testing.T) (*EmailAuthService, *mockMailer) {
 	t.Helper()
 	db := newTestDB(t)
@@ -455,8 +463,49 @@ func TestForgotPassword_DeleteExistingTokenFailureReturnsError(t *testing.T) {
 	if !strings.Contains(err.Error(), "forced password reset delete failure") {
 		t.Fatalf("want forced delete error, got %v", err)
 	}
-	if len(mailer.sent) != 0 {
-		t.Fatalf("email should not be sent after delete failure, got %d sends", len(mailer.sent))
+	if len(mailer.sent) != 1 {
+		t.Fatalf("email should be sent before old-token cleanup failure, got %d sends", len(mailer.sent))
+	}
+	var count int64
+	svc.db.Model(&models.PasswordReset{}).Where("email = ?", email).Count(&count)
+	if count != 2 {
+		t.Fatalf("old and newly emailed reset tokens should remain after cleanup failure, got %d", count)
+	}
+}
+
+func TestForgotPassword_SendFailureKeepsExistingTokenAndDeletesNewAttempt(t *testing.T) {
+	db := newTestDB(t)
+	cfg := testConfig()
+	cfg.App.FrontendURL = "http://localhost:3000"
+	mailer := &failingMailer{err: errors.New("forced send failure")}
+	svc := NewEmailAuthService(db, cfg, mailer)
+	email := "reset-send-failure@example.com"
+	seedEmailUser(t, svc, email, true)
+
+	oldTokenHash := hashToken("existing-reset-token")
+	if err := db.Create(&models.PasswordReset{
+		Email:     email,
+		TokenHash: oldTokenHash,
+		ExpiresAt: time.Now().Add(time.Hour),
+		CreatedAt: time.Now().Add(-2 * passwordResetCooldown),
+	}).Error; err != nil {
+		t.Fatalf("seed existing reset token: %v", err)
+	}
+
+	err := svc.ForgotPassword(context.Background(), email)
+	if !errors.Is(err, ErrPasswordResetEmailSend) {
+		t.Fatalf("want ErrPasswordResetEmailSend, got %v", err)
+	}
+
+	var resets []models.PasswordReset
+	if err := db.Where("email = ?", email).Find(&resets).Error; err != nil {
+		t.Fatalf("load reset tokens: %v", err)
+	}
+	if len(resets) != 1 {
+		t.Fatalf("expected only the existing reset token to remain, got %d", len(resets))
+	}
+	if resets[0].TokenHash != oldTokenHash {
+		t.Fatalf("expected existing reset token to remain, got token hash %q", resets[0].TokenHash)
 	}
 }
 

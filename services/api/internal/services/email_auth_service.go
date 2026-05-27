@@ -22,8 +22,9 @@ var (
 )
 
 const (
-	verifyTokenTTL = 24 * time.Hour
-	resetTokenTTL  = 1 * time.Hour
+	verifyTokenTTL      = 24 * time.Hour
+	resetTokenTTL       = 1 * time.Hour
+	resetCleanupTimeout = 5 * time.Second
 	// passwordResetCooldown throttles how often a reset email may be sent to the
 	// same address, to prevent inbox bombing / email-cost abuse via the public
 	// /auth/forgot-password endpoint.
@@ -154,11 +155,6 @@ func (s *EmailAuthService) ForgotPassword(ctx context.Context, email string) err
 		return err
 	}
 
-	// Replace any existing reset token for this email
-	if err := db.Where("email = ?", email).Delete(&models.PasswordReset{}).Error; err != nil {
-		return err
-	}
-
 	reset := &models.PasswordReset{
 		Email:     email,
 		TokenHash: hashToken(rawToken),
@@ -174,11 +170,17 @@ func (s *EmailAuthService) ForgotPassword(ctx context.Context, email string) err
 		// The cooldown is based on persisted reset rows. If delivery fails after the
 		// row is created, clear that unsent attempt so an immediate retry is not
 		// silently throttled into a temporary lockout window.
-		cleanupDB := s.db.WithContext(context.WithoutCancel(ctx))
+		cleanupCtx, cancel := context.WithTimeout(context.WithoutCancel(ctx), resetCleanupTimeout)
+		defer cancel()
+		cleanupDB := s.db.WithContext(cleanupCtx)
 		if deleteErr := cleanupDB.Delete(reset).Error; deleteErr != nil {
 			return fmt.Errorf("%w: %w; failed to clear unsent reset token: %v", ErrPasswordResetEmailSend, err, deleteErr)
 		}
 		return fmt.Errorf("%w: %w", ErrPasswordResetEmailSend, err)
+	}
+
+	if err := db.Where("email = ? AND id <> ?", email, reset.ID).Delete(&models.PasswordReset{}).Error; err != nil {
+		return err
 	}
 	return nil
 }
