@@ -22,6 +22,7 @@
 | [`backend-request-context.md`](backend-request-context.md) | Backend request context 與刻意 detached DB 路徑 baseline |
 | [`auto-merge-policy.md`](auto-merge-policy.md) | Auto-merge 與 approve 語義 |
 | [`dependabot-update-policy.md`](dependabot-update-policy.md) | Dependabot 更新政策 |
+| [`design-source-naming-conventions.md`](design-source-naming-conventions.md) | Tachigo design-source、prototype、final assets 命名規範 |
 | [`draft-pr-auto-ready.md`](draft-pr-auto-ready.md) | Draft PR auto-ready 現行流程 |
 | [`pr-scope-policy.md`](pr-scope-policy.md) | PR scope 與 required checks policy |
 | [`sequence-diagram.md`](sequence-diagram.md) | Watch / points / dashboard 主要時序圖 |
