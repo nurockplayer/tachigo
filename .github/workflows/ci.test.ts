@@ -782,10 +782,16 @@ async function runNotifyRebaseNeededWorkflow({
 
 test('frontend CI job runs the frontend test command', async () => {
   const workflow = await readFile(workflowPath, 'utf8')
+  const parsedWorkflow = parseYaml(workflowPath)
+  const restoreAssetsStep = workflowJobStep(parsedWorkflow, 'frontend', 'Restore frontend LFS assets')
 
   assert.match(
     workflow,
     /frontend:\n[\s\S]*?- name: Test\n\s+run: docker compose run --no-deps --rm frontend pnpm test/,
+  )
+  assert.equal(
+    restoreAssetsStep.run.trimEnd(),
+    'git lfs fetch --exclude="" --include="apps/extension/src/assets/**/*.png,apps/extension/src/assets/**/*.jpg,apps/extension/src/assets/**/*.jpeg,apps/extension/src/assets/**/*.webp,apps/extension/src/assets/**/*.gif"\ngit lfs checkout apps/extension/src/assets',
   )
 
   assert.match(

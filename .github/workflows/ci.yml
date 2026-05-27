@@ -678,6 +678,11 @@ jobs:
         with:
           lfs: true
 
+      - name: Restore frontend LFS assets
+        run: |
+          git lfs fetch --exclude="" --include="apps/extension/src/assets/**/*.png,apps/extension/src/assets/**/*.jpg,apps/extension/src/assets/**/*.jpeg,apps/extension/src/assets/**/*.webp,apps/extension/src/assets/**/*.gif"
+          git lfs checkout apps/extension/src/assets
+
       - name: Build image
         run: docker compose build frontend
 

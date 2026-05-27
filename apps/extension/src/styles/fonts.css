@@ -1,6 +1,7 @@
 @font-face {
   font-family: 'Press Start 2P';
-  src: url('../assets/fonts/PressStart2P-Latin.woff2') format('woff2');
+  src: url('https://cdn.jsdelivr.net/npm/@fontsource/press-start-2p@5.2.7/files/press-start-2p-latin-400-normal.woff2')
+    format('woff2');
   font-weight: 400;
   font-style: normal;
   font-display: swap;
@@ -8,7 +9,7 @@
 
 @font-face {
   font-family: Zpix;
-  src: url('../assets/fonts/Zpix.ttf') format('truetype');
+  src: url('https://cdn.jsdelivr.net/gh/SolidZORO/zpix-pixel-font@v3.1.11/dist/zpix.ttf') format('truetype');
   font-weight: normal;
   font-style: normal;
   font-display: swap;
@@ -16,7 +17,7 @@
 
 @font-face {
   font-family: 'Zpix CJK';
-  src: url('../assets/fonts/Zpix.ttf') format('truetype');
+  src: url('https://cdn.jsdelivr.net/gh/SolidZORO/zpix-pixel-font@v3.1.11/dist/zpix.ttf') format('truetype');
   font-weight: normal;
   font-style: normal;
   font-display: swap;
