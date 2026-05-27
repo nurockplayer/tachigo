@@ -556,15 +556,16 @@ func TestAgencyHandler_Create_MailerFailureStillReturns201(t *testing.T) {
 		t.Fatalf("expected 1 agency user, got %d", userCount)
 	}
 
-	// password_resets token must still be written (token is persisted before mailer.Send).
+	// Unsent password reset tokens are cleaned up on mailer failure.
+	// Admin can re-trigger password setup via POST /agencies/:id/resend-setup.
 	var resetCount int64
 	if err := env.db.Table("password_resets").
 		Where("email = ?", "agency-mailfail@example.com").
 		Count(&resetCount).Error; err != nil {
 		t.Fatalf("query password_resets: %v", err)
 	}
-	if resetCount != 1 {
-		t.Fatalf("expected 1 password_resets row even on mailer failure, got %d", resetCount)
+	if resetCount != 0 {
+		t.Fatalf("expected no password_resets row after mailer failure cleanup, got %d", resetCount)
 	}
 }
 
