@@ -74,7 +74,11 @@
         </section>
 
         <section class="screen mining-screen" id="miningScreen" aria-label="Tachigo mining screen" hidden>
-          <video class="mining-video" id="miningVideo" muted playsinline preload="auto"></video>
+          <div class="mining-video-stack" aria-hidden="true">
+            <video class="mining-video is-active" id="sayHiVideo" muted playsinline preload="auto"></video>
+            <video class="mining-video" id="idleVideo" muted playsinline preload="auto"></video>
+            <video class="mining-video" id="miningActionVideo" muted playsinline preload="auto"></video>
+          </div>
           <div class="mining-hud" aria-label="Tachigo mining HUD">
             <button class="settings-button" type="button" aria-label="Settings">
               <img data-asset="hud.settings" alt="" />

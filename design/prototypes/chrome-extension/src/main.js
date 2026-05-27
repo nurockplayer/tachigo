@@ -1,6 +1,8 @@
 import { ASSETS, assetValue } from "./assets/assets.js";
+import { CRAB_MINING_CONFIG } from "./config/crabMining.js";
 import { createOpeningLoop } from "./hooks/openingLoop.js";
 import { showScreen, wireLoginModes } from "./screens/screens.js";
+import { createCrabClickController } from "./state/crabClickState.js";
 
 const elements = {
   openingScreen: document.querySelector("#openingScreen"),
@@ -18,7 +20,9 @@ const elements = {
   twitchLoginButton: document.querySelector("#twitchLoginButton"),
   characterVideo: document.querySelector("#characterVideo"),
   diveInButton: document.querySelector("#diveInButton"),
-  miningVideo: document.querySelector("#miningVideo"),
+  sayHiVideo: document.querySelector("#sayHiVideo"),
+  idleVideo: document.querySelector("#idleVideo"),
+  miningActionVideo: document.querySelector("#miningActionVideo"),
   mineButton: document.querySelector("#mineButton"),
   tapFeedback: document.querySelector("#tapFeedback"),
   totalMined: document.querySelector("#totalMined"),
@@ -32,9 +36,15 @@ const screens = {
   mining: elements.miningScreen
 };
 
-let miningState = "sayHi";
+const animationState = {
+  current: "sayHi",
+  isMiningActive: false,
+  pendingMiningReplay: false
+};
+
 let totalMined = 12450;
-let idleTimer = 0;
+
+const crabClickController = createCrabClickController();
 
 function setStatus(message) {
   elements.srStatus.textContent = message;
@@ -50,14 +60,34 @@ function applyAssets() {
   elements.opening01.src = ASSETS.opening01;
   elements.opening02.src = ASSETS.opening02;
   elements.characterVideo.src = ASSETS.characterCrab;
-  elements.miningVideo.src = ASSETS.crabSayHi;
+  prepareVideo(elements.sayHiVideo, ASSETS.crabSayHi, { loop: false });
+  prepareVideo(elements.idleVideo, ASSETS.crabIdle);
+  prepareVideo(elements.miningActionVideo, ASSETS.crabMining, { loop: false });
 }
 
-function playVideo(video, src, { loop = true, restart = true } = {}) {
+function prepareVideo(video, src, { loop = true } = {}) {
   video.loop = loop;
   video.muted = true;
   video.playsInline = true;
-  if (!video.currentSrc.endsWith(src)) video.src = src;
+  video.preload = "auto";
+  if (!video.currentSrc.endsWith(src)) {
+    video.src = src;
+    video.load();
+  }
+}
+
+function logVideoSwitch(next, video) {
+  console.log("[Tachigo video switch]", {
+    next,
+    src: video.currentSrc || video.src,
+    readyState: video.readyState,
+    paused: video.paused,
+    currentTime: video.currentTime
+  });
+}
+
+function playVideo(video, src, { loop = true, restart = true } = {}) {
+  prepareVideo(video, src, { loop });
   if (restart) {
     try {
       video.currentTime = 0;
@@ -66,6 +96,81 @@ function playVideo(video, src, { loop = true, restart = true } = {}) {
     }
   }
   video.play().catch(() => setStatus("Tap the screen to start playback."));
+}
+
+function showTapFeedback(text, className = "") {
+  elements.tapFeedback.textContent = text;
+  elements.tapFeedback.className = "tap-feedback";
+  if (className) elements.tapFeedback.classList.add(className);
+  void elements.tapFeedback.offsetWidth;
+  elements.tapFeedback.classList.add("is-visible");
+}
+
+function setActiveMiningVideo(activeVideo, next) {
+  [elements.sayHiVideo, elements.idleVideo, elements.miningActionVideo].forEach((video) => {
+    video.classList.toggle("is-active", video === activeVideo);
+    if (video !== activeVideo) video.pause();
+  });
+  logVideoSwitch(next, activeVideo);
+}
+
+function playWhenReady(video, next, { restart = true } = {}) {
+  const start = () => {
+    if (restart) {
+      try {
+        video.currentTime = 0;
+      } catch {
+        // Browser may reject early seeking.
+      }
+    }
+    setActiveMiningVideo(video, next);
+    video.play().catch((error) => {
+      console.warn("[Tachigo video play failed]", next, error);
+      setStatus("Tap the screen to start playback.");
+    });
+  };
+
+  if (video.readyState >= HTMLMediaElement.HAVE_CURRENT_DATA) {
+    start();
+    return;
+  }
+
+  video.addEventListener("canplay", start, { once: true });
+  video.load();
+}
+
+function switchToSayHi() {
+  animationState.current = "sayHi";
+  animationState.isMiningActive = false;
+  animationState.pendingMiningReplay = false;
+  elements.mineButton.disabled = true;
+  prepareVideo(elements.sayHiVideo, ASSETS.crabSayHi, { loop: false });
+  prepareVideo(elements.idleVideo, ASSETS.crabIdle);
+  prepareVideo(elements.miningActionVideo, ASSETS.crabMining, { loop: false });
+  playWhenReady(elements.sayHiVideo, "sayHi");
+  setStatus("Crab says hi.");
+}
+
+function switchToIdle() {
+  animationState.current = "idle";
+  animationState.isMiningActive = false;
+  elements.mineButton.disabled = false;
+  prepareVideo(elements.idleVideo, ASSETS.crabIdle);
+  playWhenReady(elements.idleVideo, "idle");
+  setStatus("Crab is idle.");
+}
+
+function triggerMiningAnimation() {
+  if (animationState.current === "mining") {
+    animationState.pendingMiningReplay = true;
+    return;
+  }
+
+  animationState.current = "mining";
+  animationState.isMiningActive = true;
+  animationState.pendingMiningReplay = false;
+  prepareVideo(elements.miningActionVideo, ASSETS.crabMining, { loop: false });
+  playWhenReady(elements.miningActionVideo, "mining");
 }
 
 function goToLogin() {
@@ -83,28 +188,23 @@ function goToCharacter() {
 function goToMining() {
   elements.characterVideo.pause();
   showScreen(screens, "mining");
-  miningState = "sayHi";
-  playVideo(elements.miningVideo, ASSETS.crabSayHi, { loop: false });
-  setStatus("Crab says hi.");
-}
-
-function playIdle() {
-  miningState = "idle";
-  playVideo(elements.miningVideo, ASSETS.crabIdle);
-  setStatus("Crab is idle.");
+  switchToSayHi();
 }
 
 function mine() {
-  totalMined += 1;
+  const clickResult = crabClickController.registerClick();
+  if (!clickResult.valid) {
+    showTapFeedback("MAX", "is-invalid");
+    setStatus("Invalid click. Crab click quota reached for this tick.");
+    return;
+  }
+
+  totalMined += clickResult.pointGain;
   elements.totalMined.textContent = totalMined.toLocaleString("en-US");
-  miningState = "mining";
-  playVideo(elements.miningVideo, ASSETS.crabMining);
-  elements.tapFeedback.classList.remove("is-visible");
-  void elements.tapFeedback.offsetWidth;
-  elements.tapFeedback.classList.add("is-visible");
-  window.clearTimeout(idleTimer);
-  idleTimer = window.setTimeout(playIdle, 1100);
-  setStatus("Mining.");
+  triggerMiningAnimation();
+  showTapFeedback(clickResult.burstTriggered ? `x${clickResult.burstMultiplier}` : `+${clickResult.pointGain}`);
+  const quota = `${clickResult.state.validClicksThisTick}/${CRAB_MINING_CONFIG.maxValidClicksPerTick}`;
+  setStatus(`Valid crab click. ${quota} clicks this tick. ${clickResult.state.comboState} combo, ${clickResult.continuousMultiplier}x multiplier.`);
 }
 
 applyAssets();
@@ -129,13 +229,26 @@ wireLoginModes(
 elements.twitchLoginButton.addEventListener("click", goToCharacter);
 elements.diveInButton.addEventListener("click", goToMining);
 elements.mineButton.addEventListener("click", mine);
-elements.miningVideo.addEventListener("ended", () => {
-  if (miningState === "sayHi") playIdle();
+elements.sayHiVideo.addEventListener("ended", () => {
+  if (animationState.current === "sayHi") switchToIdle();
 });
+elements.miningActionVideo.addEventListener("ended", () => {
+  if (animationState.current !== "mining") return;
+  if (animationState.pendingMiningReplay) {
+    animationState.pendingMiningReplay = false;
+    playWhenReady(elements.miningActionVideo, "mining");
+    return;
+  }
+  switchToIdle();
+});
+
+const tickTimer = window.setInterval(() => {
+  crabClickController.syncTickWindow();
+}, 1000);
 
 window.addEventListener("pagehide", () => {
   openingLoop.stop();
-  window.clearTimeout(idleTimer);
+  window.clearInterval(tickTimer);
 });
 
 openingLoop.start();
