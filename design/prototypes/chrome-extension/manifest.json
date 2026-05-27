@@ -7,6 +7,10 @@
     "default_title": "Open Tachigo",
     "default_popup": "sidepanel.html"
   },
+  "background": {
+    "service_worker": "dist/background.js",
+    "type": "module"
+  },
   "permissions": ["sidePanel", "storage"],
   "side_panel": {
     "default_path": "sidepanel.html"
