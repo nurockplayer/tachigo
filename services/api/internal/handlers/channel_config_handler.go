@@ -43,9 +43,12 @@ func (h *ChannelConfigHandler) GetChannelConfig(c *gin.Context) {
 }
 
 func (h *ChannelConfigHandler) UpdateChannelConfig(c *gin.Context) {
+	// Upper bounds cap the earning rate a channel owner can configure. multiplier
+	// is the main inflation lever (points → claimable $TACHI), so it is capped at
+	// 10x; seconds_per_point has a generous sanity ceiling. 0 still means "unset".
 	var body struct {
-		SecondsPerPoint int64 `json:"seconds_per_point" binding:"min=0"`
-		Multiplier      int64 `json:"multiplier" binding:"min=0"`
+		SecondsPerPoint int64 `json:"seconds_per_point" binding:"min=0,max=86400"`
+		Multiplier      int64 `json:"multiplier" binding:"min=0,max=10"`
 	}
 	if err := c.ShouldBindJSON(&body); err != nil {
 		badRequest(c, err.Error())
