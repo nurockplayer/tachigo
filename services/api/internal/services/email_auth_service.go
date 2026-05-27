@@ -159,17 +159,25 @@ func (s *EmailAuthService) ForgotPassword(ctx context.Context, email string) err
 		return err
 	}
 
-	if err := db.Create(&models.PasswordReset{
+	reset := &models.PasswordReset{
 		Email:     email,
 		TokenHash: hashToken(rawToken),
 		ExpiresAt: time.Now().Add(resetTokenTTL),
-	}).Error; err != nil {
+	}
+	if err := db.Create(reset).Error; err != nil {
 		return err
 	}
 
 	link := fmt.Sprintf("%s/reset-password?token=%s", s.cfg.App.FrontendURL, rawToken)
 	body := passwordResetEmailBody(link)
 	if err := s.mailer.Send(ctx, email, "Reset your Tachigo password", body); err != nil {
+		// The cooldown is based on persisted reset rows. If delivery fails after the
+		// row is created, clear that unsent attempt so an immediate retry is not
+		// silently throttled into a temporary lockout window.
+		cleanupDB := s.db.WithContext(context.WithoutCancel(ctx))
+		if deleteErr := cleanupDB.Delete(reset).Error; deleteErr != nil {
+			return fmt.Errorf("%w: %w; failed to clear unsent reset token: %v", ErrPasswordResetEmailSend, err, deleteErr)
+		}
 		return fmt.Errorf("%w: %w", ErrPasswordResetEmailSend, err)
 	}
 	return nil
