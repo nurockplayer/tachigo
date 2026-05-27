@@ -4,8 +4,7 @@
   "description": "Tachigo Chrome Extension frontend prototype.",
   "version": "0.1.0",
   "action": {
-    "default_title": "Open Tachigo",
-    "default_popup": "sidepanel.html"
+    "default_title": "Open Tachigo"
   },
   "permissions": ["sidePanel", "storage"],
   "side_panel": {
