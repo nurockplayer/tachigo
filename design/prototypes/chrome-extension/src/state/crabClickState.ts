@@ -1,4 +1,4 @@
-import { CRAB_COMBO_STATE, CRAB_MINING_CONFIG } from "../config/crabMining.js";
+import { CRAB_COMBO_STATE, CRAB_MINING_CONFIG } from "../config/crabMining.ts";
 
 export function createCrabClickController({ config = CRAB_MINING_CONFIG, now = () => Date.now(), random = () => Math.random() } = {}) {
   let pointRemainder = 0;

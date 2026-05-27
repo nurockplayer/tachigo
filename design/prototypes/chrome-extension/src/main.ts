@@ -1,8 +1,8 @@
-import { ASSETS, assetValue } from "./assets/assets.js";
-import { CRAB_MINING_CONFIG } from "./config/crabMining.js";
-import { createOpeningLoop } from "./hooks/openingLoop.js";
-import { showScreen, wireLoginModes } from "./screens/screens.js";
-import { createCrabClickController } from "./state/crabClickState.js";
+import { ASSETS, assetValue } from "./assets/assets.ts";
+import { CRAB_MINING_CONFIG } from "./config/crabMining.ts";
+import { createOpeningLoop } from "./hooks/openingLoop.ts";
+import { showScreen, wireLoginModes } from "./screens/screens.ts";
+import { createCrabClickController } from "./state/crabClickState.ts";
 
 const elements = {
   openingScreen: document.querySelector("#openingScreen"),
