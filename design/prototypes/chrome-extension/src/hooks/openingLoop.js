@@ -1,0 +1,65 @@
+export function createOpeningLoop({ opening01, opening02, onStatus }) {
+  let activeVideo = opening01;
+  let switchTimer = 0;
+  let running = false;
+
+  function clearSwitchTimer() {
+    if (!switchTimer) return;
+    window.clearTimeout(switchTimer);
+    switchTimer = 0;
+  }
+
+  async function play(video, loop) {
+    video.muted = true;
+    video.playsInline = true;
+    video.loop = loop;
+    try {
+      video.currentTime = 0;
+    } catch {
+      // Browser may reject seeking until metadata is ready.
+    }
+    try {
+      await video.play();
+    } catch {
+      onStatus("Tap the Tachigo logo to continue.");
+    }
+  }
+
+  function setActive(video) {
+    activeVideo.classList.remove("is-active");
+    activeVideo.pause();
+    activeVideo = video;
+    activeVideo.classList.add("is-active");
+  }
+
+  function startOpening01() {
+    if (!running) return;
+    clearSwitchTimer();
+    setActive(opening01);
+    void play(opening01, true);
+    switchTimer = window.setTimeout(startOpening02, 15000);
+    onStatus("Opening screen.");
+  }
+
+  function startOpening02() {
+    if (!running) return;
+    clearSwitchTimer();
+    setActive(opening02);
+    void play(opening02, false);
+  }
+
+  opening02.addEventListener("ended", startOpening01);
+
+  return {
+    start() {
+      running = true;
+      startOpening01();
+    },
+    stop() {
+      running = false;
+      clearSwitchTimer();
+      opening01.pause();
+      opening02.pause();
+    }
+  };
+}
