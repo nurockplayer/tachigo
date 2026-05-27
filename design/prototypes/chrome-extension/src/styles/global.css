@@ -662,6 +662,7 @@ video {
   height: 1px;
   overflow: hidden;
   clip: rect(0 0 0 0);
+  clip-path: inset(50%);
   white-space: nowrap;
 }
 
@@ -669,4 +670,12 @@ button:focus-visible,
 input:focus-visible {
   outline: 2px solid rgba(202, 183, 255, 0.9);
   outline-offset: 3px;
+}
+
+@media (prefers-reduced-motion: reduce) {
+  .tap-feedback.is-visible {
+    animation: none;
+    opacity: 1;
+    transform: translate(-50%, -20px);
+  }
 }
