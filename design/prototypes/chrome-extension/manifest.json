@@ -1,0 +1,35 @@
+{
+  "manifest_version": 3,
+  "name": "Tachigo Prototype",
+  "description": "Tachigo Chrome Extension frontend prototype.",
+  "version": "0.1.0",
+  "action": {
+    "default_title": "Open Tachigo",
+    "default_popup": "sidepanel.html",
+    "default_icon": {
+      "16": "public/assets/icons/icon16.png",
+      "32": "public/assets/icons/icon32.png",
+      "48": "public/assets/icons/icon48.png",
+      "128": "public/assets/icons/icon128.png"
+    }
+  },
+  "background": {
+    "service_worker": "background.js"
+  },
+  "permissions": ["sidePanel", "storage"],
+  "side_panel": {
+    "default_path": "sidepanel.html"
+  },
+  "web_accessible_resources": [
+    {
+      "resources": ["public/assets/**"],
+      "matches": ["<all_urls>"]
+    }
+  ],
+  "icons": {
+    "16": "public/assets/icons/icon16.png",
+    "32": "public/assets/icons/icon32.png",
+    "48": "public/assets/icons/icon48.png",
+    "128": "public/assets/icons/icon128.png"
+  }
+}
