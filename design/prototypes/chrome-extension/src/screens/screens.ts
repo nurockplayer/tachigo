@@ -11,7 +11,10 @@ export function wireLoginModes({ forgotButton, form, passwordField, signupButton
     const isSignup = mode === "signup";
     const isForgot = mode === "forgot";
     passwordField.hidden = isForgot;
-    passwordField.querySelector("input").required = !isForgot;
+    const passwordInput = passwordField.querySelector("input");
+    if (passwordInput) {
+      passwordInput.required = !isForgot;
+    }
     signupCopy.textContent = isSignup ? "Already have an account?" : "Don't have an account?";
     signupButton.textContent = isSignup ? "LOGIN" : "SIGN UP";
   }

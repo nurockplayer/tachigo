@@ -4,29 +4,37 @@ import { createOpeningLoop } from "./hooks/openingLoop.ts";
 import { showScreen, wireLoginModes } from "./screens/screens.ts";
 import { createCrabClickController } from "./state/crabClickState.ts";
 
+function requireElement(selector) {
+  const element = document.querySelector(selector);
+  if (!element) {
+    throw new Error(`Missing required element: ${selector}`);
+  }
+  return element;
+}
+
 const elements = {
-  openingScreen: document.querySelector("#openingScreen"),
-  loginScreen: document.querySelector("#loginScreen"),
-  characterScreen: document.querySelector("#characterScreen"),
-  miningScreen: document.querySelector("#miningScreen"),
-  opening01: document.querySelector("#opening01"),
-  opening02: document.querySelector("#opening02"),
-  openingLogoButton: document.querySelector("#openingLogoButton"),
-  loginForm: document.querySelector("#loginForm"),
-  forgotButton: document.querySelector("#forgotButton"),
-  passwordField: document.querySelector("#passwordField"),
-  signupButton: document.querySelector("#signupButton"),
-  signupCopy: document.querySelector("#signupCopy"),
-  twitchLoginButton: document.querySelector("#twitchLoginButton"),
-  characterVideo: document.querySelector("#characterVideo"),
-  diveInButton: document.querySelector("#diveInButton"),
-  sayHiVideo: document.querySelector("#sayHiVideo"),
-  idleVideo: document.querySelector("#idleVideo"),
-  miningActionVideo: document.querySelector("#miningActionVideo"),
-  mineButton: document.querySelector("#mineButton"),
-  tapFeedback: document.querySelector("#tapFeedback"),
-  totalMined: document.querySelector("#totalMined"),
-  srStatus: document.querySelector("#srStatus")
+  openingScreen: requireElement("#openingScreen"),
+  loginScreen: requireElement("#loginScreen"),
+  characterScreen: requireElement("#characterScreen"),
+  miningScreen: requireElement("#miningScreen"),
+  opening01: requireElement("#opening01"),
+  opening02: requireElement("#opening02"),
+  openingLogoButton: requireElement("#openingLogoButton"),
+  loginForm: requireElement("#loginForm"),
+  forgotButton: requireElement("#forgotButton"),
+  passwordField: requireElement("#passwordField"),
+  signupButton: requireElement("#signupButton"),
+  signupCopy: requireElement("#signupCopy"),
+  twitchLoginButton: requireElement("#twitchLoginButton"),
+  characterVideo: requireElement("#characterVideo"),
+  diveInButton: requireElement("#diveInButton"),
+  sayHiVideo: requireElement("#sayHiVideo"),
+  idleVideo: requireElement("#idleVideo"),
+  miningActionVideo: requireElement("#miningActionVideo"),
+  mineButton: requireElement("#mineButton"),
+  tapFeedback: requireElement("#tapFeedback"),
+  totalMined: requireElement("#totalMined"),
+  srStatus: requireElement("#srStatus")
 };
 
 const screens = {
