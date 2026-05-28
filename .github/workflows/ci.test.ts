@@ -782,6 +782,13 @@ async function runNotifyRebaseNeededWorkflow({
 
 test('frontend CI job runs the frontend test command', async () => {
   const workflow = await readFile(workflowPath, 'utf8')
+  const parsedWorkflow = parseYaml(workflowPath)
+  const frontendCheckout = parsedWorkflow.jobs.frontend.steps.find((step) =>
+    typeof step.uses === 'string' && step.uses.startsWith('actions/checkout@')
+  )
+
+  assert.ok(frontendCheckout, 'expected frontend job to checkout the repository')
+  assert.notEqual(frontendCheckout.with?.lfs, true)
 
   assert.match(
     workflow,
