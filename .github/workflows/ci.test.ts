@@ -788,7 +788,7 @@ test('frontend CI job runs the frontend test command', async () => {
   )
 
   assert.ok(frontendCheckout, 'expected frontend job to checkout the repository')
-  assert.notEqual(frontendCheckout.with?.lfs, true)
+  assert.equal(frontendCheckout.with?.lfs, true)
 
   assert.match(
     workflow,
