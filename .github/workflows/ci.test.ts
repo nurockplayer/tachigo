@@ -31,6 +31,7 @@ const closeIssueOnDevelopMergeWorkflowPath = path.join(currentDir, 'close-issue-
 const dependencyInventoryWorkflowPath = path.join(currentDir, 'dependency-inventory.yml')
 const notifyRebaseNeededWorkflowPath = path.join(currentDir, 'notify-rebase-needed.yml')
 const releasePrWorkflowPath = path.join(currentDir, 'release-pr.yml')
+const codeRabbitConfigPath = path.join(repoRoot, '.coderabbit.yaml')
 const claudePath = path.join(repoRoot, 'CLAUDE.md')
 const claudeConventionsPath = path.join(repoRoot, '.claude', 'rules', 'conventions.md')
 const prScopePolicyPath = path.join(repoRoot, 'docs', 'pr-scope-policy.md')
@@ -783,16 +784,15 @@ async function runNotifyRebaseNeededWorkflow({
 test('frontend CI job runs the frontend test command', async () => {
   const workflow = await readFile(workflowPath, 'utf8')
   const parsedWorkflow = parseYaml(workflowPath)
-  const frontendCheckout = parsedWorkflow.jobs.frontend.steps.find((step) =>
-    typeof step.uses === 'string' && step.uses.startsWith('actions/checkout@')
-  )
-
-  assert.ok(frontendCheckout, 'expected frontend job to checkout the repository')
-  assert.equal(frontendCheckout.with?.lfs, true)
+  const restoreAssetsStep = workflowJobStep(parsedWorkflow, 'frontend', 'Restore frontend LFS assets')
 
   assert.match(
     workflow,
     /frontend:\n[\s\S]*?- name: Test\n\s+run: docker compose run --no-deps --rm frontend pnpm test/,
+  )
+  assert.equal(
+    restoreAssetsStep.run.trimEnd(),
+    'git lfs fetch --exclude="" --include="apps/extension/src/assets/**/*.png,apps/extension/src/assets/**/*.jpg,apps/extension/src/assets/**/*.jpeg,apps/extension/src/assets/**/*.webp,apps/extension/src/assets/**/*.gif,apps/extension/src/assets/**/*.ttf,apps/extension/src/assets/**/*.otf,apps/extension/src/assets/**/*.woff,apps/extension/src/assets/**/*.woff2"\ngit lfs checkout apps/extension/src/assets',
   )
 
   assert.match(
@@ -1243,6 +1243,20 @@ test('autonomous work entrypoints require start-of-work delegation and point to 
   assert.match(workflow, /stale handle/)
   assert.match(workflow, /CodeRabbit rate limit/)
   assert.match(workflow, /chatgpt-codex-connector/)
+})
+
+test('CodeRabbit auto review stays behind the draft PR gate', async () => {
+  const config = parseYaml(codeRabbitConfigPath)
+  const draftAutoReadyDocs = await readFile(path.join(repoRoot, 'docs', 'draft-pr-auto-ready.md'), 'utf8')
+  const prScopePolicy = await readFile(prScopePolicyPath, 'utf8')
+
+  assert.equal(config.reviews.auto_review.enabled, true)
+  assert.equal(config.reviews.auto_review.drafts, false)
+  assert.deepEqual(config.reviews.auto_review.base_branches, ['.*'])
+  assert.match(draftAutoReadyDocs, /CodeRabbit auto review/)
+  assert.match(draftAutoReadyDocs, /Scope Police/)
+  assert.match(prScopePolicy, /READY=1/)
+  assert.match(prScopePolicy, /CodeRabbit/)
 })
 
 test('Codex issue template requires an autonomous worker delegation plan textarea', async () => {

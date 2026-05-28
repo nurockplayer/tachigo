@@ -157,7 +157,15 @@ their PR Risk Class is `R0` through `R3`:
 make pr-open TITLE="[type] ..." BODY_FILE=/tmp/pr_body.md AUTO_READY=1
 ```
 
-If opening a PR directly with `gh pr create`, use `--draft --label auto-ready`.
+`make pr-open` creates a draft PR by default. Use `READY=1` only when a human
+intentionally wants the PR to enter review immediately.
+
+If opening a PR directly with `gh pr create`, use `--draft --label auto-ready`
+for Codex task PRs.
+
+CodeRabbit auto review is configured with `reviews.auto_review.drafts: false`.
+Keeping Codex task PRs draft until Scope Police and required CI pass prevents
+review work from starting on PRs that the scope gate may close or block.
 
 Non-Codex tasks, human WIP drafts, `R4` PRs, and PRs that should not enter the
 review queue automatically should not use the `auto-ready` label.
