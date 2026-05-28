@@ -1,0 +1,43 @@
+name: CI app scope regression
+
+on:
+  pull_request:
+    branches: [main, develop]
+    paths:
+      - .github/workflows/ci.yml
+      - .github/workflows/ci-app-scope-regression.yml
+  workflow_dispatch:
+
+permissions:
+  contents: read
+
+jobs:
+  app-scope-regression:
+    timeout-minutes: 5
+    name: CI app scope regression
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@34e114876b0b11c390a56381ad16ebd13914f8d5 # v4
+
+      - name: Verify extension and dashboard routing stay separate
+        run: |
+          set -eu
+
+          workflow=.github/workflows/ci.yml
+
+          grep -q "extension: allFilePaths.some" "$workflow"
+          grep -q "dashboard: allFilePaths.some" "$workflow"
+          grep -q "runFrontend = runFullCi || (runCi && (touches.extension" "$workflow"
+          grep -q "runDashboard = runFullCi || (runCi && (touches.dashboard" "$workflow"
+          grep -q "run: docker compose run --no-deps --rm frontend pnpm test" "$workflow"
+          grep -q "run: docker compose run --no-deps --rm dashboard pnpm test" "$workflow"
+
+          if grep -q "runDashboard = runFullCi || (runCi && (touches.frontend" "$workflow"; then
+            echo "Dashboard routing must not depend on the generic frontend surface."
+            exit 1
+          fi
+
+          if grep -q "runFrontend = runFullCi || (runCi && (touches.dashboard" "$workflow"; then
+            echo "Extension/frontend routing must not depend on dashboard-only changes."
+            exit 1
+          fi

@@ -268,6 +268,10 @@ make pr-meta-check TITLE="[chore] Example title" BODY_FILE=/tmp/pr-body.md
 make pr-open TITLE="[chore] Example title" BODY_FILE=/tmp/pr-body.md
 ```
 
+`make pr-open` 預設建立 draft PR。若 reviewer 已準備好立即看、且接受
+CodeRabbit 可能會在 Scope Police 完成前開始 review，才使用 `READY=1` 建立
+ready PR。
+
 Codex task PR 預設應使用 auto-ready 流程：
 
 ```bash
@@ -279,6 +283,7 @@ make pr-open TITLE="[chore] Example title" BODY_FILE=/tmp/pr-body.md AUTO_READY=
 - `BASE`：預設 `develop`
 - `HEAD`：預設目前 branch
 - `DRAFT=1`：建立 draft PR
+- `READY=1`：建立 ready PR，會立即進入一般 review queue
 - `AUTO_READY=1`：建立 draft PR 並加上 `auto-ready` label，等 required
   checks 通過後由 workflow 自動轉成 Ready for review
 
