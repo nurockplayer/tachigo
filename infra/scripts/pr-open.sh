@@ -5,9 +5,10 @@ set -euo pipefail
 usage() {
   cat <<'EOF'
 Usage:
-  infra/scripts/pr-open.sh --title "<pr title>" --body-file <path> [--base develop] [--head <branch>] [--draft] [--auto-ready]
+  infra/scripts/pr-open.sh --title "<pr title>" --body-file <path> [--base develop] [--head <branch>] [--draft] [--ready] [--auto-ready]
 
-Runs local PR metadata checks, then opens a PR with gh.
+Runs local PR metadata checks, then opens a draft PR with gh.
+Use --ready only when the PR should enter review immediately.
 EOF
 }
 
@@ -49,6 +50,7 @@ main() {
   local base_branch="develop"
   local head_branch=""
   local draft=0
+  local ready=0
   local auto_ready=0
   local pr_output=""
   local pr_number=""
@@ -76,6 +78,10 @@ main() {
         draft=1
         shift
         ;;
+      --ready)
+        ready=1
+        shift
+        ;;
       --auto-ready)
         auto_ready=1
         shift
@@ -95,6 +101,14 @@ main() {
   [ -n "$title" ] || { echo "--title 為必填" >&2; exit 2; }
   [ -n "$body_file" ] || { echo "--body-file 為必填" >&2; exit 2; }
   [ -f "$body_file" ] || { echo "找不到 body file：$body_file" >&2; exit 2; }
+  if [ "$draft" -eq 1 ] && [ "$ready" -eq 1 ]; then
+    echo "--draft 與 --ready 不可同時使用" >&2
+    exit 2
+  fi
+  if [ "$auto_ready" -eq 1 ] && [ "$ready" -eq 1 ]; then
+    echo "--auto-ready 會建立 draft PR；不可搭配 --ready" >&2
+    exit 2
+  fi
 
   if [ -z "$head_branch" ]; then
     head_branch=$(git branch --show-current)
@@ -120,7 +134,7 @@ main() {
   "${metadata_cmd[@]}"
 
   local cmd=(gh pr create --base "$base_branch" --head "$head_branch" --title "$title" --body-file "$body_file")
-  if [ "$draft" -eq 1 ] || [ "$auto_ready" -eq 1 ]; then
+  if [ "$ready" -eq 0 ] || [ "$draft" -eq 1 ] || [ "$auto_ready" -eq 1 ]; then
     cmd+=(--draft)
   fi
   if [ "$auto_ready" -eq 1 ]; then

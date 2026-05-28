@@ -31,6 +31,7 @@ const closeIssueOnDevelopMergeWorkflowPath = path.join(currentDir, 'close-issue-
 const dependencyInventoryWorkflowPath = path.join(currentDir, 'dependency-inventory.yml')
 const notifyRebaseNeededWorkflowPath = path.join(currentDir, 'notify-rebase-needed.yml')
 const releasePrWorkflowPath = path.join(currentDir, 'release-pr.yml')
+const codeRabbitConfigPath = path.join(repoRoot, '.coderabbit.yaml')
 const claudePath = path.join(repoRoot, 'CLAUDE.md')
 const claudeConventionsPath = path.join(repoRoot, '.claude', 'rules', 'conventions.md')
 const prScopePolicyPath = path.join(repoRoot, 'docs', 'pr-scope-policy.md')
@@ -1229,6 +1230,20 @@ test('autonomous work entrypoints require start-of-work delegation and point to 
   assert.match(workflow, /stale handle/)
   assert.match(workflow, /CodeRabbit rate limit/)
   assert.match(workflow, /chatgpt-codex-connector/)
+})
+
+test('CodeRabbit auto review stays behind the draft PR gate', async () => {
+  const config = parseYaml(codeRabbitConfigPath)
+  const draftAutoReadyDocs = await readFile(path.join(repoRoot, 'docs', 'draft-pr-auto-ready.md'), 'utf8')
+  const prScopePolicy = await readFile(prScopePolicyPath, 'utf8')
+
+  assert.equal(config.reviews.auto_review.enabled, true)
+  assert.equal(config.reviews.auto_review.drafts, false)
+  assert.deepEqual(config.reviews.auto_review.base_branches, ['.*'])
+  assert.match(draftAutoReadyDocs, /CodeRabbit auto review/)
+  assert.match(draftAutoReadyDocs, /Scope Police/)
+  assert.match(prScopePolicy, /READY=1/)
+  assert.match(prScopePolicy, /CodeRabbit/)
 })
 
 test('Codex issue template requires an autonomous worker delegation plan textarea', async () => {
