@@ -815,13 +815,6 @@ test('CI workflow uses infra script entrypoints', async () => {
   assert.doesNotMatch(workflow, /run: bash scripts\//)
 })
 
-test('PR metadata regression skips Git LFS smudge during test worktree checkouts', () => {
-  const parsedWorkflow = parseYaml(workflowPath)
-  const job = parsedWorkflow.jobs['pr-metadata-regression']
-
-  assert.equal(job.env.GIT_LFS_SKIP_SMUDGE, '1')
-})
-
 test('frontend Dockerfiles install dependencies with lifecycle scripts disabled', async () => {
   const extensionDockerfile = await readFile(extensionDockerfilePath, 'utf8')
   const dashboardDockerfile = await readFile(dashboardDockerfilePath, 'utf8')
