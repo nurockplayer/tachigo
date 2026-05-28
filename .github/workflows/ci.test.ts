@@ -782,6 +782,13 @@ async function runNotifyRebaseNeededWorkflow({
 
 test('frontend CI job runs the frontend test command', async () => {
   const workflow = await readFile(workflowPath, 'utf8')
+  const parsedWorkflow = parseYaml(workflowPath)
+  const frontendCheckout = parsedWorkflow.jobs.frontend.steps.find((step) =>
+    typeof step.uses === 'string' && step.uses.startsWith('actions/checkout@')
+  )
+
+  assert.ok(frontendCheckout, 'expected frontend job to checkout the repository')
+  assert.notEqual(frontendCheckout.with?.lfs, true)
 
   assert.match(
     workflow,
@@ -806,6 +813,13 @@ test('CI workflow uses infra script entrypoints', async () => {
   assert.match(workflow, /run: bash infra\/scripts\/pr-open\.test\.sh/)
   assert.match(workflow, /run: bash infra\/scripts\/check-pr-commit-messages\.sh/)
   assert.doesNotMatch(workflow, /run: bash scripts\//)
+})
+
+test('PR metadata regression skips Git LFS smudge during test worktree checkouts', () => {
+  const parsedWorkflow = parseYaml(workflowPath)
+  const job = parsedWorkflow.jobs['pr-metadata-regression']
+
+  assert.equal(job.env.GIT_LFS_SKIP_SMUDGE, '1')
 })
 
 test('frontend Dockerfiles install dependencies with lifecycle scripts disabled', async () => {
