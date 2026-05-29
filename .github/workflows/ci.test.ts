@@ -784,21 +784,77 @@ async function runNotifyRebaseNeededWorkflow({
 test('frontend CI job runs the frontend test command', async () => {
   const workflow = await readFile(workflowPath, 'utf8')
   const parsedWorkflow = parseYaml(workflowPath)
-  const restoreAssetsStep = workflowJobStep(parsedWorkflow, 'frontend', 'Restore frontend LFS assets')
+  const frontendJob = parsedWorkflow.jobs.frontend
+  const frontendCheckoutStep = frontendJob.steps[0]
+  const frontendJobBlock = workflowJobBlock(workflow, 'frontend')
 
+  assert.equal(frontendCheckoutStep.uses, 'actions/checkout@34e114876b0b11c390a56381ad16ebd13914f8d5')
+  assert.notEqual(
+    frontendCheckoutStep.with?.lfs,
+    true,
+    'normal frontend PR CI must not fetch Git LFS objects during checkout',
+  )
+  assert.doesNotMatch(frontendJobBlock, /git lfs fetch/)
+  assert.doesNotMatch(frontendJobBlock, /Restore frontend LFS assets/)
+  assert.match(
+    workflow,
+    /frontend:\n[\s\S]*?- name: Build image\n\s+run: docker compose build frontend/,
+  )
+  assert.match(
+    workflow,
+    /frontend:\n[\s\S]*?- name: Lint\n\s+run: docker compose run --no-deps --rm frontend pnpm lint/,
+  )
   assert.match(
     workflow,
     /frontend:\n[\s\S]*?- name: Test\n\s+run: docker compose run --no-deps --rm frontend pnpm test/,
   )
-  assert.equal(
-    restoreAssetsStep.run.trimEnd(),
-    'git lfs fetch --exclude="" --include="apps/extension/src/assets/**/*.png,apps/extension/src/assets/**/*.jpg,apps/extension/src/assets/**/*.jpeg,apps/extension/src/assets/**/*.webp,apps/extension/src/assets/**/*.gif,apps/extension/src/assets/**/*.ttf,apps/extension/src/assets/**/*.otf,apps/extension/src/assets/**/*.woff,apps/extension/src/assets/**/*.woff2"\ngit lfs checkout apps/extension/src/assets',
+  assert.match(
+    workflow,
+    /frontend:\n[\s\S]*?- name: Build\n\s+run: docker compose run --no-deps --rm frontend pnpm build/,
+  )
+  assert.match(
+    workflow,
+    /frontend:\n[\s\S]*?- name: i18n check\n\s+run: docker compose run --no-deps --rm frontend pnpm check:i18n/,
   )
 
   assert.match(
     workflow,
     /workflow-regression:\n[\s\S]*?- name: Verify CI workflow assertions\n\s+run: node --experimental-strip-types --no-warnings --test \.github\/workflows\/ci\.test\.ts/,
   )
+})
+
+test('frontend LFS asset validation is release or manual opt-in only', async () => {
+  const parsedWorkflow = parseYaml(workflowPath)
+  const workflow = await readFile(workflowPath, 'utf8')
+  const workflowDispatchInput = parsedWorkflow.on.workflow_dispatch.inputs.validate_frontend_lfs_assets
+  const job = parsedWorkflow.jobs['frontend-lfs-assets']
+  const jobBlock = workflowJobBlock(workflow, 'frontend-lfs-assets')
+  const restoreAssetsStep = workflowJobStep(parsedWorkflow, 'frontend-lfs-assets', 'Restore frontend LFS assets')
+
+  assert.equal(workflowDispatchInput.type, 'boolean')
+  assert.equal(workflowDispatchInput.default, false)
+  assert.equal(job.name, 'Frontend LFS assets')
+  assert.equal(
+    job.if,
+    "(github.event_name == 'workflow_dispatch' && inputs.validate_frontend_lfs_assets == true) || (github.event_name == 'pull_request' && github.base_ref == 'main' && github.head_ref == 'develop')",
+  )
+  assert.equal(job.needs, undefined)
+  assert.equal(
+    developRequiredCheckRuns.some((run) => run.name === 'Frontend LFS assets'),
+    false,
+    'Frontend LFS assets must not be part of the normal PR required check path',
+  )
+  assert.match(jobBlock, pinnedActionRef('actions/checkout', 'v4'))
+  assert.equal(restoreAssetsStep.run.trimEnd(), [
+    'git lfs fetch --exclude="" --include="apps/extension/src/assets/**/*.png,apps/extension/src/assets/**/*.jpg,apps/extension/src/assets/**/*.jpeg,apps/extension/src/assets/**/*.webp,apps/extension/src/assets/**/*.gif,apps/extension/src/assets/**/*.ttf,apps/extension/src/assets/**/*.otf,apps/extension/src/assets/**/*.woff,apps/extension/src/assets/**/*.woff2"',
+    'git lfs checkout apps/extension/src/assets',
+    "git lfs ls-files --long | awk '$3 ~ /^apps\\/extension\\/src\\/assets\\//' | while read -r oid _ path; do",
+    '  object=".git/lfs/objects/${oid:0:2}/${oid:2:2}/${oid}"',
+    '  test -f "$object" || { echo "Missing LFS object for $path ($oid)" >&2; exit 1; }',
+    '  actual="$(sha256sum "$object" | awk \'{print $1}\')"',
+    '  test "$actual" = "$oid" || { echo "Corrupt LFS object for $path ($oid)" >&2; exit 1; }',
+    'done',
+  ].join('\n'))
 })
 
 test('CI workflow uses infra script entrypoints', async () => {
@@ -1177,26 +1233,38 @@ test('backend Docker runtime applies Atlas migrations before starting the API', 
 test('CI scope router backend contract regex accepts full-width and half-width colons', async () => {
   const workflow = await readFile(workflowPath, 'utf8')
   const scopePolice = await readFile(scopePolicePath, 'utf8')
-  const backendContractYesPattern =
-    String.raw`Backend contract already in develop\s*[：:][\s\S]*?- \[[xX]\] yes`
-  const backendContractNoPattern =
-    String.raw`Backend contract already in develop\s*[：:][\s\S]*?- \[[xX]\] no`
 
   assert.ok(
-    workflow.includes(backendContractYesPattern),
-    'ci.yml Backend contract regex must accept full-width and half-width colons',
+    workflow.includes("const backendContractSection = extractPrBodySection('Backend contract already in develop')"),
+    'ci.yml Backend contract parser must inspect only the backend contract section',
   )
   assert.ok(
-    workflow.includes(backendContractNoPattern),
-    'ci.yml Backend contract regex must accept full-width and half-width colons',
+    workflow.includes('[：:]'),
+    'ci.yml Backend contract section parser must accept full-width and half-width colons',
   )
   assert.ok(
-    scopePolice.includes(backendContractYesPattern),
-    'pr-scope-police.yml Backend contract regex must accept full-width and half-width colons',
+    workflow.includes(String.raw`\s*yes\s*(?:\n|$)`),
+    'ci.yml Backend contract yes parser must match the exact checkbox value',
   )
   assert.ok(
-    scopePolice.includes(backendContractNoPattern),
-    'pr-scope-police.yml Backend contract regex must accept full-width and half-width colons',
+    workflow.includes(String.raw`\s*no\s*(?:\n|$)`),
+    'ci.yml Backend contract no parser must match the exact checkbox value',
+  )
+  assert.ok(
+    scopePolice.includes("const backendContractSection = extractPrBodySection('Backend contract already in develop')"),
+    'pr-scope-police.yml Backend contract parser must inspect only the backend contract section',
+  )
+  assert.ok(
+    scopePolice.includes('[：:]'),
+    'pr-scope-police.yml Backend contract section parser must accept full-width and half-width colons',
+  )
+  assert.ok(
+    scopePolice.includes(String.raw`\s*yes\s*(?:\n|$)`),
+    'pr-scope-police.yml Backend contract yes parser must match the exact checkbox value',
+  )
+  assert.ok(
+    scopePolice.includes(String.raw`\s*no\s*(?:\n|$)`),
+    'pr-scope-police.yml Backend contract no parser must match the exact checkbox value',
   )
 })
 
@@ -2209,6 +2277,32 @@ test('CI scope router emits full CI outputs for workflow file PRs', async () => 
   assert.deepEqual(ciRegression.outputs, fullOutputs)
   assert.equal(ciRuntime.notices.some((notice) => notice.includes('Skipping heavy')), false)
   assert.equal(ciRegression.notices.some((notice) => notice.includes('Skipping heavy')), false)
+})
+
+test('CI scope router keeps workflow PRs in full CI when later checked acceptance criteria start with Normal', async () => {
+  const body = selectRiskClass(`${validStandardPrBody}
+
+## Acceptance Criteria
+
+- [x] Normal frontend PR CI still runs frontend image build, lint, test, build, and i18n checks.
+- [x] Normal frontend PR CI does not run mandatory Git LFS fetch.
+`, 'R4')
+  const result = await runCiScopeGateWorkflow({
+    prOverrides: {
+      title: '[infra] split frontend real asset validation from normal PR CI',
+      body,
+    },
+    files: [
+      { filename: '.github/workflows/ci.yml', additions: 27, deletions: 7, status: 'modified' },
+      { filename: '.github/workflows/ci.test.ts', additions: 60, deletions: 4, status: 'modified' },
+    ],
+  })
+
+  assert.equal(result.outputs.run_ci, 'true')
+  assert.equal(result.outputs.run_frontend, 'true')
+  assert.equal(result.outputs.run_backend, 'true')
+  assert.equal(result.outputs.run_dashboard, 'true')
+  assert.equal(result.notices.some((notice) => notice.includes('Skipping heavy')), false)
 })
 
 test('CI scope router emits dependency review output only for dependency file PRs', async () => {
