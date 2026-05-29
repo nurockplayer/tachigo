@@ -1,6 +1,7 @@
 #!/usr/bin/env bash
 
 set -euo pipefail
+export GIT_LFS_SKIP_SMUDGE=1
 
 root_dir="$(cd "$(dirname "$0")/../.." && pwd)"
 head_branch="tmp-pr-metadata-check-test"
