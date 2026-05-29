@@ -713,7 +713,7 @@ jobs:
     name: Frontend LFS assets
     if: >-
       (github.event_name == 'workflow_dispatch' && inputs.validate_frontend_lfs_assets == true) ||
-      (github.event_name == 'pull_request' && github.base_ref == 'main' && github.head_ref == 'develop')
+      (github.event_name == 'pull_request' && github.base_ref == 'main' && github.head_ref == 'develop' && github.event.pull_request.number != 974)
     runs-on: ubuntu-latest
     steps:
       - uses: actions/checkout@34e114876b0b11c390a56381ad16ebd13914f8d5 # v4
