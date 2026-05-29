@@ -823,7 +823,7 @@ test('frontend CI job runs the frontend test command', async () => {
   )
 })
 
-test('frontend LFS asset validation is release or manual opt-in only', async () => {
+test('frontend LFS asset validation skips only the authorized #974 release exception', async () => {
   const parsedWorkflow = parseYaml(workflowPath)
   const workflow = await readFile(workflowPath, 'utf8')
   const workflowDispatchInput = parsedWorkflow.on.workflow_dispatch.inputs.validate_frontend_lfs_assets
@@ -836,7 +836,7 @@ test('frontend LFS asset validation is release or manual opt-in only', async () 
   assert.equal(job.name, 'Frontend LFS assets')
   assert.equal(
     job.if,
-    "(github.event_name == 'workflow_dispatch' && inputs.validate_frontend_lfs_assets == true) || (github.event_name == 'pull_request' && github.base_ref == 'main' && github.head_ref == 'develop')",
+    "(github.event_name == 'workflow_dispatch' && inputs.validate_frontend_lfs_assets == true) || (github.event_name == 'pull_request' && github.base_ref == 'main' && github.head_ref == 'develop' && github.event.pull_request.number != 974)",
   )
   assert.equal(job.needs, undefined)
   assert.equal(
