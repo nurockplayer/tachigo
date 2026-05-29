@@ -533,6 +533,7 @@ type publicDrawView struct {
 // @Param        body body object{source=string} true "source must be twitch_api"
 // @Success      200  {object}  Response
 // @Failure      400  {object}  Response
+// @Failure      403  {object}  Response "Twitch token lacks required scopes; streamer must re-authorize"
 // @Router       /dashboard/raffles/{id}/snapshot [post]
 func (h *RaffleHandler) Snapshot(c *gin.Context) {
 	claims := middleware.MustClaims(c)

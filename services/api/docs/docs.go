@@ -1378,6 +1378,12 @@ const docTemplate = `{
                         "schema": {
                             "$ref": "#/definitions/handlers.Response"
                         }
+                    },
+                    "403": {
+                        "description": "Twitch token lacks required scopes; streamer must re-authorize",
+                        "schema": {
+                            "$ref": "#/definitions/handlers.Response"
+                        }
                     }
                 }
             }
