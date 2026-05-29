@@ -520,8 +520,17 @@ jobs:
             const dependsOnRaw = dependsOnMatch?.[1]?.trim()
             const dependsOnNone = dependsOnRaw?.toLowerCase() === 'none'
             const dependsOnPrMatch = dependsOnRaw?.match(/^#(\d+)$/)
-            const backendContractYes = /Backend contract already in develop\s*[：:][\s\S]*?- \[[xX]\] yes/i.test(body)
-            const backendContractNo = /Backend contract already in develop\s*[：:][\s\S]*?- \[[xX]\] no/i.test(body)
+            const extractPrBodySection = (heading) => {
+              const escapedHeading = heading.replace(/[.*+?^${}()|[\]\\]/g, '\\$&')
+              const match = body.match(new RegExp(
+                `(?:^|\\n)\\s*-?\\s*${escapedHeading}\\s*[：:]\\s*\\n([\\s\\S]*?)(?=\\n\\s*-?\\s*(?:[A-Z][A-Za-z ]+|[\\u4e00-\\u9fff][^\\n]*|##\\s+)|\\n*$)`,
+                'i',
+              ))
+              return match?.[1] || ''
+            }
+            const backendContractSection = extractPrBodySection('Backend contract already in develop')
+            const backendContractYes = /(?:^|\n)\s*-\s*\[[xX]\]\s*yes\s*(?:\n|$)/i.test(backendContractSection)
+            const backendContractNo = /(?:^|\n)\s*-\s*\[[xX]\]\s*no\s*(?:\n|$)/i.test(backendContractSection)
             const stackedOnDependency = /If no, this PR is:[\s\S]*?- \[[xX]\] stacked on dependency branch/i.test(body)
             const intentionallyBlocked = /If no, this PR is:[\s\S]*?- \[[xX]\] intentionally blocked until dependency merges/i.test(body)
 
