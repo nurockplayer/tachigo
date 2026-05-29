@@ -8,6 +8,12 @@ on:
   schedule:
     - cron: "17 2 * * 1"
   workflow_dispatch:
+    inputs:
+      validate_frontend_lfs_assets:
+        description: "Fetch and validate real frontend Git LFS assets"
+        required: false
+        type: boolean
+        default: false
 
 concurrency:
   group: "${{ github.workflow }}-${{ github.ref }}"
@@ -195,8 +201,17 @@ jobs:
             const dependsOnRaw = dependsOnMatch?.[1]?.trim()
             const dependsOnNone = dependsOnRaw?.toLowerCase() === 'none'
             const dependsOnPrMatch = dependsOnRaw?.match(/^#(\d+)$/)
-            const backendContractYes = /Backend contract already in develop\s*[：:][\s\S]*?- \[[xX]\] yes/i.test(body)
-            const backendContractNo = /Backend contract already in develop\s*[：:][\s\S]*?- \[[xX]\] no/i.test(body)
+            const extractPrBodySection = (heading) => {
+              const escapedHeading = heading.replace(/[.*+?^${}()|[\]\\]/g, '\\$&')
+              const match = body.match(new RegExp(
+                `(?:^|\\n)\\s*-?\\s*${escapedHeading}\\s*[：:]\\s*\\n([\\s\\S]*?)(?=\\n\\s*-?\\s*(?:[A-Z][A-Za-z ]+|[\\u4e00-\\u9fff][^\\n]*|##\\s+)|\\n*$)`,
+                'i',
+              ))
+              return match?.[1] || ''
+            }
+            const backendContractSection = extractPrBodySection('Backend contract already in develop')
+            const backendContractYes = /(?:^|\n)\s*-\s*\[[xX]\]\s*yes\s*(?:\n|$)/i.test(backendContractSection)
+            const backendContractNo = /(?:^|\n)\s*-\s*\[[xX]\]\s*no\s*(?:\n|$)/i.test(backendContractSection)
             const dependencyBlocked =
               titlePrefix === '[frontend]' &&
               Boolean(dependsOnPrMatch) &&
@@ -401,6 +416,8 @@ jobs:
     timeout-minutes: 5
     name: PR metadata check regression tests
     runs-on: ubuntu-latest
+    env:
+      GIT_LFS_SKIP_SMUDGE: "1"
     steps:
       - uses: actions/checkout@34e114876b0b11c390a56381ad16ebd13914f8d5 # v4
         with:
@@ -675,8 +692,6 @@ jobs:
     runs-on: ubuntu-latest
     steps:
       - uses: actions/checkout@34e114876b0b11c390a56381ad16ebd13914f8d5 # v4
-        with:
-          lfs: true
 
       - name: Build image
         run: docker compose build frontend
@@ -692,6 +707,27 @@ jobs:
 
       - name: i18n check
         run: docker compose run --no-deps --rm frontend pnpm check:i18n
+
+  frontend-lfs-assets:
+    timeout-minutes: 10
+    name: Frontend LFS assets
+    if: >-
+      (github.event_name == 'workflow_dispatch' && inputs.validate_frontend_lfs_assets == true) ||
+      (github.event_name == 'pull_request' && github.base_ref == 'main' && github.head_ref == 'develop' && github.event.pull_request.number != 974)
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@34e114876b0b11c390a56381ad16ebd13914f8d5 # v4
+
+      - name: Restore frontend LFS assets
+        run: |
+          git lfs fetch --exclude="" --include="apps/extension/src/assets/**/*.png,apps/extension/src/assets/**/*.jpg,apps/extension/src/assets/**/*.jpeg,apps/extension/src/assets/**/*.webp,apps/extension/src/assets/**/*.gif,apps/extension/src/assets/**/*.ttf,apps/extension/src/assets/**/*.otf,apps/extension/src/assets/**/*.woff,apps/extension/src/assets/**/*.woff2"
+          git lfs checkout apps/extension/src/assets
+          git lfs ls-files --long | awk '$3 ~ /^apps\/extension\/src\/assets\//' | while read -r oid _ path; do
+            object=".git/lfs/objects/${oid:0:2}/${oid:2:2}/${oid}"
+            test -f "$object" || { echo "Missing LFS object for $path ($oid)" >&2; exit 1; }
+            actual="$(sha256sum "$object" | awk '{print $1}')"
+            test "$actual" = "$oid" || { echo "Corrupt LFS object for $path ($oid)" >&2; exit 1; }
+          done
 
   dashboard:
     timeout-minutes: 15

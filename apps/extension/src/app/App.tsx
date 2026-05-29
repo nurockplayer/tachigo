@@ -19,6 +19,7 @@ import { markOnboardingComplete, shouldShowOnboarding } from './onboarding'
 import { useTwitch } from '../hooks/useTwitch'
 import { claimFromHudState } from './claimState'
 import { executeCouponRedeem, type CouponRedeemOutcome } from './couponRedeem'
+import { applyChatMessageToHudState } from './chatMessages'
 
 export default function App() {
   const { i18n } = useTranslation()
@@ -103,6 +104,24 @@ export default function App() {
 
     return () => window.clearTimeout(persistTimer)
   }, [currentLanguage, flags, hudState, isHydrated, redeemedCouponIds, tcgBalance])
+
+  useEffect(() => {
+    if (!isHydrated) {
+      return
+    }
+
+    const runtimeMessages = globalThis.chrome?.runtime?.onMessage
+    if (!runtimeMessages) {
+      return
+    }
+
+    const handleRuntimeMessage = (message: unknown) => {
+      setHudState((previousHudState) => applyChatMessageToHudState(previousHudState, message))
+    }
+
+    runtimeMessages.addListener(handleRuntimeMessage)
+    return () => runtimeMessages.removeListener(handleRuntimeMessage)
+  }, [isHydrated])
 
   const handleClaim = (cpcAmount: number) => {
     setHudState((previousHudState) => {

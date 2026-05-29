@@ -1,4 +1,4 @@
-.PHONY: setup dev up down logs pr-meta-check pr-open ai-readback ai-docs-build ai-test-backend ai-test-extension ai-test-dashboard ai-pr-check session-index session-find session-index-test supply-chain-check typescript-only-check developer-persistence-check
+.PHONY: setup dev up down logs pr-meta-check pr-open ai-readback ai-docs-build ai-test-backend ai-test-extension ai-test-dashboard ai-pr-check session-index session-find session-index-test supply-chain-check typescript-only-check developer-persistence-check kg-validate
 
 # ── Setup (run once after cloning) ────────────────────────────────────────────
 setup:
@@ -30,7 +30,7 @@ pr-meta-check:
 pr-open:
 	@test -n "$(TITLE)" || (echo "TITLE is required"; exit 2)
 	@test -n "$(BODY_FILE)" || (echo "BODY_FILE is required"; exit 2)
-	@./infra/scripts/pr-open.sh --title "$(TITLE)" --body-file "$(BODY_FILE)" --base "$(or $(BASE),develop)" $(if $(HEAD),--head "$(HEAD)",) $(if $(filter 1,$(DRAFT)),--draft,) $(if $(filter 1,$(AUTO_READY)),--auto-ready,)
+	@./infra/scripts/pr-open.sh --title "$(TITLE)" --body-file "$(BODY_FILE)" --base "$(or $(BASE),develop)" $(if $(HEAD),--head "$(HEAD)",) $(if $(filter 1,$(DRAFT)),--draft,) $(if $(filter 1,$(READY)),--ready,) $(if $(filter 1,$(AUTO_READY)),--auto-ready,)
 
 # ── AI-safe command surface ─────────────────────────────────────────────────
 ai-readback:
@@ -111,3 +111,7 @@ typescript-only-check:
 
 developer-persistence-check:
 	@bash infra/scripts/check-developer-persistence.sh
+
+# ── Repository knowledge graph ───────────────────────────────────────────────
+kg-validate:
+	@node --experimental-strip-types --no-warnings infra/scripts/kg/validate-kg.ts

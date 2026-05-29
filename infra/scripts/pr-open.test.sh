@@ -1,6 +1,7 @@
 #!/usr/bin/env bash
 
 set -euo pipefail
+export GIT_LFS_SKIP_SMUDGE=1
 
 root_dir="$(cd "$(dirname "$0")/../.." && pwd)"
 tmp_dir="$(mktemp -d)"
@@ -79,13 +80,46 @@ grep -q -- '--worktree '"$tmp_dir" "$tmp_dir/session-index.log"
       --body-file body.md
 )
 
-! grep -q -- '--draft' "$tmp_dir/gh-pr-create-default.log"
+grep -q -- '--draft' "$tmp_dir/gh-pr-create-default.log"
 ! grep -q -- '--label auto-ready' "$tmp_dir/gh-pr-create-default.log"
 grep -q -- '--title \[chore\] Test default PR' "$tmp_dir/pr-metadata-check-default.log"
 ! grep -q -- '--auto-ready' "$tmp_dir/pr-metadata-check-default.log"
 grep -q -- 'add --pr 566' "$tmp_dir/session-index-default.log"
 grep -q -- '--issue 420' "$tmp_dir/session-index-default.log"
 grep -q -- '--worktree '"$tmp_dir" "$tmp_dir/session-index-default.log"
+
+(
+  cd "$tmp_dir"
+
+  PATH="$tmp_dir/fakebin:$PATH" \
+    GH_PR_CREATE_LOG="$tmp_dir/gh-pr-create-ready.log" \
+    PR_METADATA_CHECK_LOG="$tmp_dir/pr-metadata-check-ready.log" \
+    SESSION_INDEX_LOG="$tmp_dir/session-index-ready.log" \
+    "$tmp_dir/infra/scripts/pr-open.sh" \
+      --title "[chore] Test explicit ready PR" \
+      --body-file body.md \
+      --ready
+)
+
+! grep -q -- '--draft' "$tmp_dir/gh-pr-create-ready.log"
+! grep -q -- '--label auto-ready' "$tmp_dir/gh-pr-create-ready.log"
+grep -q -- '--title \[chore\] Test explicit ready PR' "$tmp_dir/pr-metadata-check-ready.log"
+
+(
+  cd "$tmp_dir"
+
+  PATH="$tmp_dir/fakebin:$PATH" \
+    GH_PR_CREATE_LOG="$tmp_dir/gh-pr-create-conflict.log" \
+    PR_METADATA_CHECK_LOG="$tmp_dir/pr-metadata-check-conflict.log" \
+    SESSION_INDEX_LOG="$tmp_dir/session-index-conflict.log" \
+    "$tmp_dir/infra/scripts/pr-open.sh" \
+      --title "[chore] Test conflicting ready PR" \
+      --body-file body.md \
+      --auto-ready \
+      --ready \
+      2>"$tmp_dir/conflict.stderr" && exit 1
+  grep -q -- '--auto-ready 會建立 draft PR；不可搭配 --ready' "$tmp_dir/conflict.stderr"
+)
 
 (
   cd "$tmp_dir"

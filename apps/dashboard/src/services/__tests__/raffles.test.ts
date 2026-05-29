@@ -1,20 +1,22 @@
 import { describe, it, expect, vi, beforeEach } from 'vitest'
-import { listRaffles, createRaffle, listDraws, drawNext, importCSV, completeRaffle, setDiscordWebhook, activateRaffle } from '@/services/raffles'
+import { listRaffles, createRaffle, listDraws, drawNext, importCSV, completeRaffle, setDiscordWebhook, activateRaffle, listPrizeTiers, createPrizeTier, deletePrizeTier, drawFromTier } from '@/services/raffles'
 
 const getMock = vi.fn()
 const postMock = vi.fn()
 const patchMock = vi.fn()
+const deleteMock = vi.fn()
 
 vi.mock('@/services/api', () => ({
   default: {
     get: (...a: unknown[]) => getMock(...a),
     post: (...a: unknown[]) => postMock(...a),
     patch: (...a: unknown[]) => patchMock(...a),
+    delete: (...a: unknown[]) => deleteMock(...a),
   },
 }))
 
 const mockRaffle = { id: 'r1', user_id: 'u1', title: 'Test', status: 'draft' as const, created_at: '', updated_at: '' }
-beforeEach(() => { getMock.mockReset(); postMock.mockReset(); patchMock.mockReset() })
+beforeEach(() => { getMock.mockReset(); postMock.mockReset(); patchMock.mockReset(); deleteMock.mockReset() })
 
 describe('listRaffles', () => {
   it('returns raffles array', async () => {
@@ -106,5 +108,46 @@ describe('setDiscordWebhook', () => {
       '/api/v1/dashboard/raffles/r1/discord-webhook',
       { discord_webhook_url: '' },
     )
+  })
+})
+
+const mockPrizeTier = {
+  id: 't1',
+  raffle_id: 'r1',
+  name: '一等獎',
+  prize_description: 'Switch 主機',
+  winner_count: 2,
+  drawn_count: 0,
+  created_at: '2026-01-01T00:00:00Z',
+}
+
+describe('prize tiers', () => {
+  it('lists prize tiers for a raffle', async () => {
+    getMock.mockResolvedValue({ data: { success: true, data: { tiers: [mockPrizeTier] } } })
+    const result = await listPrizeTiers('r1')
+    expect(result).toEqual([mockPrizeTier])
+    expect(getMock).toHaveBeenCalledWith('/api/v1/dashboard/raffles/r1/prize-tiers')
+  })
+
+  it('creates a prize tier and returns the created tier', async () => {
+    const payload = { name: '一等獎', prize_description: 'Switch 主機', winner_count: 2 }
+    postMock.mockResolvedValue({ data: { success: true, data: { tier: mockPrizeTier } } })
+    const result = await createPrizeTier('r1', payload)
+    expect(result).toEqual(mockPrizeTier)
+    expect(postMock).toHaveBeenCalledWith('/api/v1/dashboard/raffles/r1/prize-tiers', payload)
+  })
+
+  it('deletes an empty prize tier', async () => {
+    deleteMock.mockResolvedValue({ data: { success: true, data: {} } })
+    await deletePrizeTier('r1', 't1')
+    expect(deleteMock).toHaveBeenCalledWith('/api/v1/dashboard/raffles/r1/prize-tiers/t1')
+  })
+
+  it('draws one winner from a prize tier', async () => {
+    const tierDraw = { ...mockDraw, prize_tier_id: 't1', prize_tier: mockPrizeTier }
+    postMock.mockResolvedValue({ data: { success: true, data: { draw: tierDraw } } })
+    const result = await drawFromTier('r1', 't1')
+    expect(result).toEqual(tierDraw)
+    expect(postMock).toHaveBeenCalledWith('/api/v1/dashboard/raffles/r1/prize-tiers/t1/draws', undefined)
   })
 })

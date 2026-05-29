@@ -3,14 +3,14 @@
   "name": "Tachimint",
   "description": "Tachimint Chrome sidepanel extension.",
   "version": "0.0.1",
-  "permissions": ["sidePanel", "storage", "activeTab"],
+  "permissions": ["sidePanel", "storage", "activeTab", "tabs"],
   "background": {
     "service_worker": "assets/background.js",
     "type": "module"
   },
   "content_scripts": [
     {
-      "matches": ["https://www.twitch.tv/*"],
+      "matches": ["https://www.twitch.tv/*", "*://*.twitch.tv/*"],
       "js": ["assets/content.js"]
     }
   ],

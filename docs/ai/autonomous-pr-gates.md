@@ -107,9 +107,11 @@ PR body 只應留下 gate 狀態與可讀回的 evidence ref，例如本機 `spe
 
 ## Threshold Calibration Ledger
 
-Threshold 校正是暫時性的 autonomous workflow 分析資料，不是 tachigo product contract。校正紀錄集中留在 #664 的 long-lived issue comment，PR body 只需在 workflow friction / final closeout 裡放 #664 comment URL 或 `n/a`。
+Threshold 校正是暫時性的 autonomous workflow 分析資料，不是 tachigo product contract。#664 已累積足夠 datapoints，收斂後的規則見 [docs/ai/autonomous-threshold-policy.md](autonomous-threshold-policy.md)。
 
-不要把 `spawn_count`、CI rerun、review-thread count、threshold decision 等 metrics 加進 PR template，也不要讓 Scope Police 依賴這些 metrics。等 autonomous workflow 門檻穩定後，#664 可封存或停止新增紀錄，而不需要修改專案結構。
+本 policy landing 後，停止對一般 autonomous PR 追加 routine #664 threshold comment；只有新的 P0 workflow regression 才重新記錄。PR body 只需在 workflow friction / final closeout 裡放 `not_needed`、`#664 policy applied`，或實際 regression / follow-up URL。
+
+不要把 `spawn_count`、CI rerun、review-thread count、threshold decision 等 metrics 加進 PR template，也不要讓 Scope Police 依賴這些 metrics。
 
 ## Scope Police Contract
 

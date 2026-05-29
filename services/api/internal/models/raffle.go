@@ -9,6 +9,7 @@ import (
 
 type RaffleStatus string
 type RaffleSource string
+type RaffleMode string
 
 const (
 	RaffleStatusDraft     RaffleStatus = "draft"
@@ -17,6 +18,9 @@ const (
 
 	RaffleSourceCSV       RaffleSource = "csv"
 	RaffleSourceTwitchAPI RaffleSource = "twitch_api"
+
+	RaffleModePublic      RaffleMode = "public"
+	RaffleModeSubscribers RaffleMode = "subscribers_only"
 )
 
 // Raffle represents a single raffle event owned by a streamer.
@@ -26,6 +30,9 @@ type Raffle struct {
 	Title             string       `gorm:"type:varchar(255);not null"                     json:"title"`
 	Status            RaffleStatus `gorm:"type:varchar(50);not null;default:'draft'"      json:"status"`
 	Source            RaffleSource `gorm:"type:varchar(50);not null;default:'csv'"        json:"source"`
+	Mode              RaffleMode   `gorm:"type:varchar(50);not null;default:'public'"     json:"mode"`
+	WinnerCount       int          `gorm:"not null;default:1"                             json:"winner_count"`
+	EntryOpen         bool         `gorm:"not null;default:false"                         json:"entry_open"`
 	ScheduledAt       *time.Time   `                          json:"scheduled_at"`
 	DiscordWebhookURL *string      `gorm:"type:varchar(512)"  json:"-"`
 	CreatedAt         time.Time    `                          json:"created_at"`
@@ -51,14 +58,17 @@ func (r *Raffle) BeforeCreate(tx *gorm.DB) error {
 // UserID is set by the service layer for users with a tachigo account; the
 // pointer allows nil in direct-insert test fixtures without a linked account.
 type RaffleEntry struct {
-	ID          uuid.UUID  `gorm:"type:uuid;primaryKey;default:gen_random_uuid();uniqueIndex:idx_entry_id_raffle,priority:1"                          json:"id"`
-	RaffleID    uuid.UUID  `gorm:"type:uuid;not null;uniqueIndex:idx_raffle_entry_twitch;uniqueIndex:idx_entry_id_raffle,priority:2"                json:"raffle_id"`
-	UserID      *uuid.UUID `gorm:"type:uuid;index"                                         json:"user_id"`
-	TwitchLogin string     `gorm:"type:varchar(255);not null;uniqueIndex:idx_raffle_entry_twitch" json:"twitch_login"`
-	DisplayName string     `gorm:"type:varchar(255)"                                       json:"display_name"`
-	CreatedAt   time.Time  `                                                               json:"created_at"`
-	Raffle      Raffle     `gorm:"foreignKey:RaffleID;constraint:OnUpdate:CASCADE,OnDelete:CASCADE" json:"-"`
-	User        *User      `gorm:"foreignKey:UserID;constraint:OnUpdate:CASCADE,OnDelete:SET NULL"  json:"-"`
+	ID               uuid.UUID  `gorm:"type:uuid;primaryKey;default:gen_random_uuid();uniqueIndex:idx_entry_id_raffle,priority:1"                          json:"id"`
+	RaffleID         uuid.UUID  `gorm:"type:uuid;not null;uniqueIndex:idx_raffle_entry_twitch;uniqueIndex:idx_entry_id_raffle,priority:2"                json:"raffle_id"`
+	UserID           *uuid.UUID `gorm:"type:uuid;index"                                         json:"user_id"`
+	TwitchLogin      string     `gorm:"type:varchar(255);not null;uniqueIndex:idx_raffle_entry_twitch" json:"twitch_login"`
+	DisplayName      string     `gorm:"type:varchar(255)"                                       json:"display_name"`
+	Source           string     `gorm:"type:varchar(50)"                                        json:"source,omitempty"`
+	Eligible         bool       `gorm:"not null;default:true"                                   json:"eligible"`
+	IneligibleReason string     `gorm:"type:varchar(255)"                                       json:"ineligible_reason,omitempty"`
+	CreatedAt        time.Time  `                                                               json:"created_at"`
+	Raffle           Raffle     `gorm:"foreignKey:RaffleID;constraint:OnUpdate:CASCADE,OnDelete:CASCADE" json:"-"`
+	User             *User      `gorm:"foreignKey:UserID;constraint:OnUpdate:CASCADE,OnDelete:SET NULL"  json:"-"`
 }
 
 func (e *RaffleEntry) BeforeCreate(tx *gorm.DB) error {

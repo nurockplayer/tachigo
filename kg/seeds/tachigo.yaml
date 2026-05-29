@@ -1,0 +1,182 @@
+nodes:
+  - kind: Feature
+    name: Watch Points
+    path: apps/extension
+    metadata:
+      description: Viewers earn off-chain points from watch heartbeat activity.
+  - kind: Feature
+    name: TACHI claim / spend flows
+    metadata:
+      description: Backend services track spendable balances and selected on-chain claim or spend flows.
+  - kind: Feature
+    name: tachiya store discount
+    metadata:
+      description: Tachigo loyalty tokens can be synced to tachiya discount flows.
+  - kind: Service
+    name: AuthService
+    path: services/api
+  - kind: Service
+    name: ExtensionService
+    path: services/api
+  - kind: Service
+    name: PointsService
+    path: services/api
+  - kind: Service
+    name: AgencyService
+    path: services/api
+  - kind: APIEndpoint
+    name: POST /api/v1/extension/auth/login
+    path: services/api
+  - kind: DatabaseTable
+    name: users
+  - kind: DatabaseTable
+    name: auth_providers
+  - kind: DatabaseTable
+    name: refresh_tokens
+  - kind: DatabaseTable
+    name: points_ledger
+  - kind: DatabaseTable
+    name: agencies
+  - kind: DatabaseTable
+    name: transactions
+  - kind: Document
+    name: README.md
+    path: README.md
+  - kind: Document
+    name: docs/architecture.md
+    path: docs/architecture.md
+  - kind: Document
+    name: docs/auth-architecture.md
+    path: docs/auth-architecture.md
+  - kind: ExternalSystem
+    name: Twitch
+  - kind: ExternalSystem
+    name: Google OAuth
+  - kind: ExternalSystem
+    name: Sepolia
+  - kind: ExternalSystem
+    name: Saleor
+  - kind: ExternalSystem
+    name: tachiya FastAPI
+
+edges:
+  - from:
+      kind: Feature
+      name: Watch Points
+    relation: IMPLEMENTED_BY
+    to:
+      kind: Service
+      name: ExtensionService
+    source: docs/architecture.md
+  - from:
+      kind: Feature
+      name: Watch Points
+    relation: IMPLEMENTED_BY
+    to:
+      kind: Service
+      name: PointsService
+    source: docs/architecture.md
+  - from:
+      kind: Feature
+      name: Watch Points
+    relation: WRITES
+    to:
+      kind: DatabaseTable
+      name: points_ledger
+    source: docs/architecture.md
+  - from:
+      kind: Service
+      name: ExtensionService
+    relation: DEPENDS_ON
+    to:
+      kind: ExternalSystem
+      name: Twitch
+    source: docs/architecture.md
+  - from:
+      kind: APIEndpoint
+      name: POST /api/v1/extension/auth/login
+    relation: EXPOSES
+    to:
+      kind: Service
+      name: ExtensionService
+    source: docs/auth-architecture.md
+  - from:
+      kind: Service
+      name: AuthService
+    relation: READS
+    to:
+      kind: DatabaseTable
+      name: users
+    source: docs/auth-architecture.md
+  - from:
+      kind: Service
+      name: AuthService
+    relation: WRITES
+    to:
+      kind: DatabaseTable
+      name: refresh_tokens
+    source: docs/auth-architecture.md
+  - from:
+      kind: Service
+      name: AuthService
+    relation: DEPENDS_ON
+    to:
+      kind: ExternalSystem
+      name: Google OAuth
+    source: docs/auth-architecture.md
+  - from:
+      kind: Service
+      name: AuthService
+    relation: DEPENDS_ON
+    to:
+      kind: ExternalSystem
+      name: Twitch
+    source: docs/auth-architecture.md
+  - from:
+      kind: Feature
+      name: TACHI claim / spend flows
+    relation: DEPENDS_ON
+    to:
+      kind: ExternalSystem
+      name: Sepolia
+    source: README.md
+  - from:
+      kind: Feature
+      name: TACHI claim / spend flows
+    relation: WRITES
+    to:
+      kind: DatabaseTable
+      name: transactions
+    source: docs/architecture.md
+  - from:
+      kind: Feature
+      name: tachiya store discount
+    relation: SYNC_WITH
+    to:
+      kind: ExternalSystem
+      name: tachiya FastAPI
+    source: docs/architecture.md
+  - from:
+      kind: Feature
+      name: tachiya store discount
+    relation: SYNC_WITH
+    to:
+      kind: ExternalSystem
+      name: Saleor
+    source: docs/architecture.md
+  - from:
+      kind: Service
+      name: AgencyService
+    relation: WRITES
+    to:
+      kind: DatabaseTable
+      name: agencies
+    source: docs/architecture.md
+  - from:
+      kind: Feature
+      name: Watch Points
+    relation: DOCUMENTED_BY
+    to:
+      kind: Document
+      name: docs/architecture.md
+    source: docs/architecture.md

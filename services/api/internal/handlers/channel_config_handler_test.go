@@ -313,6 +313,28 @@ func TestUpdateChannelConfig_RejectsInvalidBody(t *testing.T) {
 	}
 }
 
+func TestUpdateChannelConfig_RejectsOutOfRange(t *testing.T) {
+	env := newDashboardTestEnv(t)
+	token := env.tokenForRole(t, models.RoleAdmin)
+
+	testCases := []struct {
+		name string
+		body string
+	}{
+		{name: "multiplier above cap", body: `{"multiplier":11}`},
+		{name: "seconds_per_point above cap", body: `{"seconds_per_point":86401}`},
+	}
+
+	for _, tc := range testCases {
+		t.Run(tc.name, func(t *testing.T) {
+			w := updateChannelConfig(t, env.router, token, "channel_123", tc.body)
+			if w.Code != http.StatusBadRequest {
+				t.Fatalf("want 400, got %d: %s", w.Code, w.Body.String())
+			}
+		})
+	}
+}
+
 func TestUpdateChannelConfig_RejectsEmptyValues(t *testing.T) {
 	env := newDashboardTestEnv(t)
 	token := env.tokenForRole(t, models.RoleAdmin)

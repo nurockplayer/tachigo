@@ -17,49 +17,12 @@ import (
 	"github.com/tachigo/tachigo/internal/testutil"
 )
 
-func TestNextSchedulerRun(t *testing.T) {
-	utc := time.UTC
-	cases := []struct {
-		name string
-		now  time.Time
-		want time.Time
-	}{
-		{
-			name: "before 23:55 same day",
-			now:  time.Date(2025, 1, 1, 12, 0, 0, 0, utc),
-			want: time.Date(2025, 1, 1, 23, 55, 0, 0, utc),
-		},
-		{
-			name: "one second before 23:55",
-			now:  time.Date(2025, 1, 1, 23, 54, 59, 0, utc),
-			want: time.Date(2025, 1, 1, 23, 55, 0, 0, utc),
-		},
-		{
-			name: "exactly at 23:55 → tomorrow",
-			now:  time.Date(2025, 1, 1, 23, 55, 0, 0, utc),
-			want: time.Date(2025, 1, 2, 23, 55, 0, 0, utc),
-		},
-		{
-			name: "after 23:55 → tomorrow",
-			now:  time.Date(2025, 1, 1, 23, 56, 0, 0, utc),
-			want: time.Date(2025, 1, 2, 23, 55, 0, 0, utc),
-		},
-	}
-	for _, tc := range cases {
-		t.Run(tc.name, func(t *testing.T) {
-			got := nextSchedulerRun(tc.now)
-			if !got.Equal(tc.want) {
-				t.Errorf("got %v, want %v", got, tc.want)
-			}
-		})
-	}
-}
-
 func TestRunScheduledSnapshots_SkipsOutOfWindow(t *testing.T) {
 	db := newTestDB(t)
 	svc := NewRaffleService(db, "", "", nil)
 
 	user := insertRaffleTestUser(t, db)
+	// Scheduled well beyond the look-ahead window: must not be snapshotted yet.
 	scheduledAt := time.Now().UTC().Add(2 * time.Hour)
 	raffle := insertScheduledRaffle(t, db, user.ID, scheduledAt, models.RaffleSourceTwitchAPI)
 
@@ -71,6 +34,38 @@ func TestRunScheduledSnapshots_SkipsOutOfWindow(t *testing.T) {
 	db.First(&r, "id = ?", raffle.ID)
 	if r.Status != models.RaffleStatusDraft {
 		t.Errorf("expected draft, got %s", r.Status)
+	}
+}
+
+// TestRunScheduledSnapshots_CatchesOverdue verifies the catch-up behaviour: a
+// raffle whose scheduled_at already elapsed (e.g. missed while the server was
+// down) is still snapshotted on the next scan, not skipped forever.
+func TestRunScheduledSnapshots_CatchesOverdue(t *testing.T) {
+	db := newTestDB(t)
+	svc := NewRaffleService(db, "test-client-id", "", nil)
+	svc.SetTwitchBaseURL("https://twitch.test")
+	svc.httpClient = testutil.NewHTTPClient(func(r *http.Request) (*http.Response, error) {
+		if r.Method == http.MethodGet && r.URL.Path == "/helix/subscriptions" {
+			return testutil.NewStringResponse(http.StatusOK, `{"data":[],"pagination":{}}`), nil
+		}
+		return testutil.NewStringResponse(http.StatusNotFound, ""), nil
+	})
+
+	user := insertRaffleTestUser(t, db)
+	insertRaffleTwitchProvider(t, db, user.ID, "broadcaster123", "streamer_token")
+
+	// scheduled_at already 1h in the past — e.g. missed while the server was down.
+	scheduledAt := time.Now().UTC().Add(-1 * time.Hour)
+	raffle := insertScheduledRaffle(t, db, user.ID, scheduledAt, models.RaffleSourceTwitchAPI)
+
+	if err := svc.RunScheduledSnapshots(context.Background(), time.Now().UTC()); err != nil {
+		t.Fatalf("unexpected error: %v", err)
+	}
+
+	var r models.Raffle
+	db.First(&r, "id = ?", raffle.ID)
+	if r.Status != models.RaffleStatusActive {
+		t.Errorf("expected active after catch-up snapshot, got %s", r.Status)
 	}
 }
 

@@ -334,6 +334,7 @@ export function MarioHUD({ state, onStateChange, onNavigate }: MarioHUDProps) {
   const [floats, setFloats]               = useState<FloatItem[]>([]);
   const [balanceBump, setBalanceBump]     = useState(false);
   const [clickCount, setClickCount]       = useState(state?.clickCount ?? 0);
+  const chatCount                         = state?.chatCount ?? 0;
   const [showSuccess, setShowSuccess]     = useState(false);
   const [capyState, setCapyState]         = useState<'idle' | 'mining' | 'big-mining'>('idle');
   const [bgMusicOn, setBgMusicOn]         = useState(false);
@@ -436,8 +437,9 @@ export function MarioHUD({ state, onStateChange, onNavigate }: MarioHUDProps) {
       countdown,
       isWatching,
       clickCount,
+      chatCount,
     })
-  }, [clickCount, countdown, isWatching, onStateChange, points, totalPoints])
+  }, [chatCount, clickCount, countdown, isWatching, onStateChange, points, totalPoints])
 
   // ── Click handler (awards +1, 30 clicks per cycle) ───────
   const handleCapybaraClick = useCallback(() => {

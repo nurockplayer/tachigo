@@ -4,6 +4,7 @@ import { isAxiosError } from 'axios'
 import { Button } from '@/components/ui/button'
 import { Input } from '@/components/ui/input'
 import { Label } from '@/components/ui/label'
+import { apiBaseURL } from '@/services/api'
 
 const messages = {
   'zh-TW': {
@@ -119,11 +120,32 @@ export default function LoginPage() {
     }
   }
 
+  function handleTwitchLogin() {
+    window.location.href = `${apiBaseURL}/api/v1/auth/twitch?redirect_to=%2F`
+  }
+
   return (
     <div className="flex min-h-screen items-center justify-center bg-background">
       <div className="w-full max-w-sm rounded-lg border border-border bg-background p-8 shadow-sm">
         <h1 className="mb-6 text-2xl font-bold text-foreground">{t.title}</h1>
         {error && <p className="mb-4 text-sm text-destructive">{error}</p>}
+        <button
+          type="button"
+          data-testid="twitch-login-btn"
+          onClick={handleTwitchLogin}
+          className="mb-4 w-full rounded-lg border border-purple-500/40 bg-purple-500/10 py-2.5 text-sm font-semibold text-purple-400 transition-colors hover:bg-purple-500/20"
+        >
+          🎮 用 Twitch 帳號登入
+          <span className="ml-2 text-xs font-normal opacity-60">主播推薦使用</span>
+        </button>
+        <div className="relative mb-4">
+          <div className="absolute inset-0 flex items-center">
+            <span className="w-full border-t border-border" />
+          </div>
+          <div className="relative flex justify-center text-xs text-muted-foreground">
+            <span className="bg-background px-2">或</span>
+          </div>
+        </div>
         <form onSubmit={handleSubmit} className="space-y-4">
           <div className="space-y-1">
             <Label htmlFor="email">Email</Label>
