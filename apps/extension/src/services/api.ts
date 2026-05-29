@@ -28,6 +28,7 @@ const client = axios.create({
 })
 
 let extensionJwtForRecovery: string | null = null
+const authRecoveryRefreshes = new Map<string, Promise<string | null>>()
 
 function extractAccessToken(payload: unknown): string | null {
   if (!payload || typeof payload !== 'object') {
@@ -79,20 +80,39 @@ export async function loginWithTwitchExtension(extensionJwt: string): Promise<Ta
   return data
 }
 
-async function refreshAuthTokenFromExtensionJwt(): Promise<boolean> {
-  if (!extensionJwtForRecovery) {
-    return false
-  }
-
-  const loginResult = await loginWithTwitchExtension(extensionJwtForRecovery)
+async function performAuthTokenRefreshFromExtensionJwt(extensionJwt: string): Promise<string | null> {
+  const loginResult = await loginWithTwitchExtension(extensionJwt)
   const accessToken = extractAccessToken(loginResult)
   if (!accessToken) {
-    clearAuthToken()
-    return false
+    if (extensionJwtForRecovery === extensionJwt) {
+      clearAuthToken()
+    }
+    return null
   }
 
-  setAuthToken(accessToken)
-  return true
+  if (extensionJwtForRecovery === extensionJwt) {
+    setAuthToken(accessToken)
+  }
+  return accessToken
+}
+
+async function refreshAuthTokenFromExtensionJwt(): Promise<string | null> {
+  const extensionJwt = extensionJwtForRecovery
+  if (!extensionJwt) {
+    return null
+  }
+
+  let refresh = authRecoveryRefreshes.get(extensionJwt)
+  if (!refresh) {
+    refresh = performAuthTokenRefreshFromExtensionJwt(extensionJwt).finally(() => {
+      if (authRecoveryRefreshes.get(extensionJwt) === refresh) {
+        authRecoveryRefreshes.delete(extensionJwt)
+      }
+    })
+    authRecoveryRefreshes.set(extensionJwt, refresh)
+  }
+
+  return refresh
 }
 
 async function runWithAuthRecovery<T>(
@@ -107,12 +127,18 @@ async function runWithAuthRecovery<T>(
       throw error
     }
 
-    const recovered = await refreshAuthTokenFromExtensionJwt()
-    if (!recovered) {
+    const recoveredToken = await refreshAuthTokenFromExtensionJwt()
+    if (!recoveredToken) {
       throw error
     }
 
-    return execute(config)
+    return execute({
+      ...config,
+      headers: {
+        ...config?.headers,
+        Authorization: `Bearer ${recoveredToken}`,
+      },
+    })
   }
 }
 
