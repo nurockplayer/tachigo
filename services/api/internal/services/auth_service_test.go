@@ -1361,3 +1361,16 @@ func TestLogin_RefreshTokensTableGone_ReturnsError(t *testing.T) {
 		t.Fatal("want error when refresh_tokens table is gone, got nil")
 	}
 }
+
+// ─── OAuth config scopes ─────────────────────────────────────────────────────
+
+func TestTwitchOAuthConfig_ContainsChannelReadSubscriptions(t *testing.T) {
+	svc := NewAuthService(newTestDB(t), testConfig())
+	target := "channel:read:subscriptions"
+	for _, s := range svc.twitchOAuth.Scopes {
+		if s == target {
+			return
+		}
+	}
+	t.Errorf("twitchOAuth.Scopes does not contain %q; got: %v", target, svc.twitchOAuth.Scopes)
+}

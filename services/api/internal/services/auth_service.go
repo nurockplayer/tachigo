@@ -59,7 +59,7 @@ func NewAuthService(db *gorm.DB, cfg *config.Config) *AuthService {
 		ClientID:     cfg.OAuth.Twitch.ClientID,
 		ClientSecret: cfg.OAuth.Twitch.ClientSecret,
 		RedirectURL:  cfg.OAuth.Twitch.RedirectURL,
-		Scopes:       []string{"user:read:email"},
+		Scopes:       []string{"user:read:email", "channel:read:subscriptions"},
 		Endpoint: oauth2.Endpoint{
 			AuthURL:  "https://id.twitch.tv/oauth2/authorize",
 			TokenURL: "https://id.twitch.tv/oauth2/token",

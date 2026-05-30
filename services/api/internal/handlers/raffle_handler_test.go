@@ -1218,12 +1218,12 @@ func TestRaffle_Snapshot_TwitchScopeError(t *testing.T) {
 	req.Header.Set("Content-Type", "application/json")
 	req.Header.Set("Authorization", bearer(token))
 	env.router.ServeHTTP(w, req)
-	if w.Code != http.StatusBadRequest {
-		t.Fatalf("want 400 (scope error), got %d: %s", w.Code, w.Body.String())
+	if w.Code != http.StatusForbidden {
+		t.Fatalf("want 403 (scope error), got %d: %s", w.Code, w.Body.String())
 	}
 	resp := parseBody(t, w.Body.Bytes())
-	if msg, _ := resp["error"].(string); !strings.Contains(msg, "scope") {
-		t.Errorf("expected scope error message, got: %v", msg)
+	if code, _ := resp["code"].(string); code != "twitch_reauth_required" {
+		t.Errorf("expected code twitch_reauth_required, got: %v", code)
 	}
 }
 
