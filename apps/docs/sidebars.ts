@@ -70,6 +70,7 @@ const sidebars: SidebarsConfig = {
       items: [
         'atlas-migration-plan',
         'atlas-schema-reconciliation',
+        'deploy-workflow-planning',
         'non-web3-launch-readiness',
         'openapi-codegen-flow',
         'superpowers/specs/2026-05-14-project-atlas-design',

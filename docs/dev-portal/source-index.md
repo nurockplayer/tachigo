@@ -53,6 +53,7 @@ related_repos:
 |---|---|
 | [atlas-migration-plan.md](/tachigo/atlas-migration-plan) | #463 Atlas migration 拆分實作計畫；不得單獨視為已完成狀態 |
 | [atlas-schema-reconciliation.md](/tachigo/atlas-schema-reconciliation) | #463 baseline 前 schema reconciliation evidence / procedure |
+| [deploy-workflow-planning.md](/tachigo/deploy-workflow-planning) | #212 deploy workflow planning；正式 workflow 實作拆到 #1020 |
 | [non-web3-launch-readiness.md](/tachigo/non-web3-launch-readiness) | 暫時捨棄 Web3 上鏈部分後的上線距離、Codex 自動化能力與真人介入層級 snapshot |
 | [openapi-codegen-flow.md](/tachigo/openapi-codegen-flow) | #401 OpenAPI → TypeScript contracts / codegen rollout 計畫 |
 | [tachigo Dev Portal spec](/tachigo/superpowers/specs/2026-05-14-project-atlas-design) | #674 Dev Portal 設計規格；命名已避開 atlasgo tooling 混淆 |
