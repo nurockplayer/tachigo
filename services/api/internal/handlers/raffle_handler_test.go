@@ -1730,8 +1730,8 @@ func (e *raffleTestEnv) addBroadcasterTwitchProvider(t *testing.T, ownerEmail, b
 	}
 	id, _ := uuid.NewV7()
 	if err := e.db.Exec(
-		`INSERT INTO auth_providers (id, user_id, provider, provider_id, created_at, updated_at) VALUES (?, ?, 'twitch', ?, CURRENT_TIMESTAMP, CURRENT_TIMESTAMP)`,
-		id.String(), user.ID.String(), broadcasterID,
+		`INSERT INTO auth_providers (id, user_id, provider, provider_id, access_token, created_at, updated_at) VALUES (?, ?, 'twitch', ?, ?, CURRENT_TIMESTAMP, CURRENT_TIMESTAMP)`,
+		id.String(), user.ID.String(), broadcasterID, accessToken,
 	).Error; err != nil {
 		t.Fatalf("addBroadcasterTwitchProvider: %v", err)
 	}
