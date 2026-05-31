@@ -69,3 +69,14 @@ type PointsHistoryItem struct {
 type PointsHistoryResponse struct {
 	Transactions []PointsHistoryItem `json:"transactions"`
 }
+
+type WatchRequest struct {
+	ChannelID string `json:"channel_id"`
+}
+
+type WatchHeartbeatResponse struct {
+	Session          *models.WatchSession `json:"session"`
+	PointsEarned     int64                `json:"points_earned"`
+	SpendableBalance int64                `json:"spendable_balance"`
+	CumulativeTotal  int64                `json:"cumulative_total"`
+}

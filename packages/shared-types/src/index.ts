@@ -67,6 +67,17 @@ export interface HandlersWalletResponse {
   address?: string;
 }
 
+export interface HandlersWatchHeartbeatResponse {
+  cumulative_total?: number;
+  points_earned?: number;
+  session?: ModelsWatchSession;
+  spendable_balance?: number;
+}
+
+export interface HandlersWatchRequest {
+  channel_id?: string;
+}
+
 export interface HandlersClaimRequest {
   amount?: number;
 }
@@ -128,6 +139,19 @@ export interface ModelsUser {
 }
 
 export type ModelsUserRole = "viewer" | "streamer" | "agency" | "admin";
+
+export interface ModelsWatchSession {
+  accumulated_seconds?: number;
+  channel_id?: string;
+  created_at?: string;
+  ended_at?: string;
+  id?: string;
+  is_active?: boolean;
+  last_heartbeat_at?: string;
+  rewarded_seconds?: number;
+  updated_at?: string;
+  user_id?: string;
+}
 
 export interface ServicesAddressInput {
   address_line1: string;
@@ -395,6 +419,12 @@ export interface ApiOperations {
     };
     response: HandlersResponse & {
       data?: HandlersAuthResponse;
+    };
+  };
+  "POST /extension/watch/heartbeat": {
+    requestBody: HandlersWatchRequest;
+    response: HandlersResponse & {
+      data?: HandlersWatchHeartbeatResponse;
     };
   };
   "GET /metrics": {
