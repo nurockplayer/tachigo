@@ -107,13 +107,8 @@ func (s *ExtensionService) VerifyReceiptJWT(receiptStr string) (*ReceiptClaims, 
 	return claims, nil
 }
 
-// LoginWithExtension looks up an existing tachigo account by Twitch user ID and
-// issues a tachigo token pair. The viewer must have already signed up on tachigo
-// and linked their Twitch account — this endpoint does not create new accounts.
-//
-// Returns ErrInvalidExtJWT if the JWT is invalid or the viewer has not authorized
-// the Extension (UserID is empty). Returns ErrUserNotFound if no tachigo account
-// is linked to the Twitch identity.
+// lookupExtensionUserContext looks up an existing tachigo account by Twitch
+// user ID. It is used by write paths that must not create accounts implicitly.
 func (s *ExtensionService) lookupExtensionUserContext(ctx context.Context, claims *ExtensionClaims) (*models.User, error) {
 	if ctx == nil {
 		ctx = context.Background()
@@ -139,6 +134,17 @@ func (s *ExtensionService) lookupExtensionUserContext(ctx context.Context, claim
 	return &user, nil
 }
 
+func (s *ExtensionService) loginOrCreateExtensionUserContext(ctx context.Context, claims *ExtensionClaims) (*models.User, *TokenPair, error) {
+	if ctx == nil {
+		ctx = context.Background()
+	}
+	if claims.UserID == "" {
+		return nil, nil, ErrInvalidExtJWT
+	}
+
+	return s.authSvc.upsertOAuthUser(ctx, models.ProviderTwitch, claims.UserID, "", "", nil, nil)
+}
+
 func (s *ExtensionService) LoginWithExtension(extJWT string) (*models.User, *TokenPair, error) {
 	return s.LoginWithExtensionContext(context.Background(), extJWT)
 }
@@ -152,15 +158,11 @@ func (s *ExtensionService) LoginWithExtensionContext(ctx context.Context, extJWT
 	if err != nil {
 		return nil, nil, err
 	}
-	user, err := s.lookupExtensionUserContext(ctx, claims)
+	user, tokens, err := s.loginOrCreateExtensionUserContext(ctx, claims)
 	if err != nil {
 		return nil, nil, err
 	}
 
-	tokens, err := s.authSvc.issueTokenPairContext(ctx, user)
-	if err != nil {
-		return nil, nil, err
-	}
 	return user, tokens, nil
 }
 
