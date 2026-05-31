@@ -664,7 +664,10 @@ func (s *RaffleService) fetchTwitchSubscription(ctx context.Context, accessToken
 	}
 	defer resp.Body.Close()
 
-	if resp.StatusCode == http.StatusUnauthorized || resp.StatusCode == http.StatusForbidden {
+	if resp.StatusCode == http.StatusUnauthorized {
+		return false, ErrTwitchTokenMissing
+	}
+	if resp.StatusCode == http.StatusForbidden {
 		return false, ErrTwitchInsufficientScope
 	}
 	if resp.StatusCode == http.StatusNotFound {

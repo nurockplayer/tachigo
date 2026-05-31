@@ -64,9 +64,9 @@ type RaffleEntry struct {
 	UserID           *uuid.UUID `gorm:"type:uuid;index"                                         json:"user_id"`
 	TwitchLogin      string     `gorm:"type:varchar(255);not null;uniqueIndex:idx_raffle_entry_twitch" json:"twitch_login"`
 	DisplayName      string     `gorm:"type:varchar(255)"                                       json:"display_name"`
-	Source           string     `gorm:"type:varchar(50);not null;default:'csv'"                 json:"source"`
+	Source           string     `gorm:"type:varchar(50)"                                        json:"source,omitempty"`
 	Eligible         bool       `gorm:"not null;default:true"                                   json:"eligible"`
-	IneligibleReason string     `gorm:"type:varchar(100);not null;default:''"                  json:"ineligible_reason"`
+	IneligibleReason string     `gorm:"type:varchar(255)"                                       json:"ineligible_reason,omitempty"`
 	CreatedAt        time.Time  `                                                               json:"created_at"`
 	Raffle           Raffle     `gorm:"foreignKey:RaffleID;constraint:OnUpdate:CASCADE,OnDelete:CASCADE" json:"-"`
 	User             *User      `gorm:"foreignKey:UserID;constraint:OnUpdate:CASCADE,OnDelete:SET NULL"  json:"-"`

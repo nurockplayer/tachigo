@@ -280,15 +280,16 @@ func TestRaffle_Join_PublicMode(t *testing.T) {
 	env := newRaffleTestEnv(t)
 	env.registerStreamer(t, "join_host_public", "join_host_public@test.com", "pass1234")
 	env.createTwitchLinkedUser(t, "join_public_viewer")
-	twitchID := "twitch_id_join_public_viewer"
+	twitchUserID := "twitch_id_join_public_viewer"
 	raffleID := env.setupExtensionJoinRaffle(t, "join_host_public@test.com", string(models.RaffleModePublic), true)
 
-	w := env.postRaffleJoin(t, raffleID, twitchID)
+	w := env.postRaffleJoin(t, raffleID, twitchUserID)
 	if w.Code != http.StatusOK {
 		t.Fatalf("want 200, got %d: %s", w.Code, w.Body.String())
 	}
 	entry := parseBody(t, w.Body.Bytes())["data"].(map[string]interface{})["entry"].(map[string]interface{})
-	if entry["twitch_login"] != twitchID || entry["source"] != string(models.RaffleSourceExtensionButton) {
+	// twitch_login is temporarily set to twitchUserID until /helix/users integration
+	if entry["twitch_login"] != twitchUserID || entry["source"] != string(models.RaffleSourceExtensionButton) {
 		t.Fatalf("unexpected entry: %#v", entry)
 	}
 }
