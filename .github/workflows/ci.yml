@@ -258,8 +258,7 @@ jobs:
               /^\.github\/workflows\/ci\.yml$/,
             ]
             const ciWorkflowPaths = [
-              /^\.github\/workflows\/ci\.yml$/,
-              /^\.github\/workflows\/ci\.test\.ts$/,
+              /^\.github\/workflows\//,
             ]
             const dockerComposePaths = [/^docker-compose(?:\..+)?\.ya?ml$/]
             const frontendWorkspacePaths = [
