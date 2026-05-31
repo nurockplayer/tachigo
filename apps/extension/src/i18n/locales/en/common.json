@@ -65,6 +65,32 @@
     "header": "COUPON MARKET",
     "entry": "SHOP",
     "back": "‹ BACK",
+    "categories": {
+      "header": "REWARD COUNTER",
+      "eyebrow": "LUMI'S COUNTER",
+      "title": "Choose a reward shelf",
+      "subtitle": "Pick the Tachiya coupon card to open the market. Other shelves are preview slots for later drops.",
+      "active": "OPEN",
+      "locked": "LOCKED",
+      "cards": {
+        "tachiya": {
+          "title": "Tachiya Coupon",
+          "description": "Discount rewards for the current creator shop."
+        },
+        "recruit": {
+          "title": "Recruit",
+          "description": "Future character invitations and companions."
+        },
+        "gear": {
+          "title": "Gear",
+          "description": "Future equipment and mining upgrades."
+        },
+        "future": {
+          "title": "More Rewards",
+          "description": "Reserved for upcoming campaign rewards."
+        }
+      }
+    },
     "balanceLabel": "PLATFORM COIN",
     "subtitle": "Redeem your TCG for creator store discounts and shipping perks.",
     "featured": "FEATURED COUPON",

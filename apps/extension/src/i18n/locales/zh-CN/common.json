@@ -65,6 +65,32 @@
     "header": "Coupon 兑换商城",
     "entry": "商城",
     "back": "‹ 返回",
+    "categories": {
+      "header": "奖励柜台",
+      "eyebrow": "LUMI 的柜台",
+      "title": "选择奖励分类",
+      "subtitle": "点选 Tachiya Coupon 卡片进入商城。其他分类先作为后续掉落的预览位置。",
+      "active": "可进入",
+      "locked": "未开放",
+      "cards": {
+        "tachiya": {
+          "title": "Tachiya Coupon",
+          "description": "本期创作者商城可用的折扣奖励。"
+        },
+        "recruit": {
+          "title": "角色招募",
+          "description": "后续角色邀请与伙伴内容。"
+        },
+        "gear": {
+          "title": "装备",
+          "description": "后续装备与挖矿升级内容。"
+        },
+        "future": {
+          "title": "更多奖励",
+          "description": "保留给未来活动奖励。"
+        }
+      }
+    },
     "balanceLabel": "平台币余额",
     "subtitle": "使用 TCG 兑换创作者商城折扣码与免运福利。",
     "featured": "本期主打",
