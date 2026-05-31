@@ -1,4 +1,6 @@
 // @vitest-environment jsdom
+import '../../i18n'
+
 import { useState } from 'react'
 import { afterEach, expect, test, vi } from 'vitest'
 import { cleanup, fireEvent, render, screen, waitFor } from '@testing-library/react'

@@ -1,3 +1,5 @@
+import { useTranslation } from 'react-i18next'
+
 import type { SettingsState } from '../../extension/types'
 import type { AppLanguage } from '../../i18n'
 
@@ -51,6 +53,8 @@ function updateSetting<K extends keyof SettingsState>(
 }
 
 export function SettingsPanel({ currentLanguage, settings, onBack, onChangeLanguage, onChange }: SettingsPanelProps) {
+  const { t } = useTranslation()
+
   return (
     <div
       style={{
@@ -89,10 +93,10 @@ export function SettingsPanel({ currentLanguage, settings, onBack, onChangeLangu
               textTransform: 'uppercase',
             }}
           >
-            Control Deck
+            {t('settings.eyebrow')}
           </div>
           <h1 style={{ margin: 0, fontFamily: 'var(--pixel-font-family)', fontSize: 28, lineHeight: 1 }}>
-            Settings
+            {t('settings.title')}
           </h1>
         </header>
 
@@ -116,7 +120,7 @@ export function SettingsPanel({ currentLanguage, settings, onBack, onChangeLangu
               letterSpacing: 0,
             }}
           >
-            Language
+            {t('settings.language')}
           </legend>
           {languageOptions.map((language) => (
             <label
@@ -136,7 +140,7 @@ export function SettingsPanel({ currentLanguage, settings, onBack, onChangeLangu
 
         <section style={{ display: 'grid', alignContent: 'start', gap: 10 }}>
           <label style={toggleRowStyle}>
-            <span style={{ fontWeight: 800, fontSize: 13 }}>Sound</span>
+            <span style={{ fontWeight: 800, fontSize: 13 }}>{t('settings.sound')}</span>
             <input
               type="checkbox"
               checked={settings.soundEnabled}
@@ -144,7 +148,7 @@ export function SettingsPanel({ currentLanguage, settings, onBack, onChangeLangu
             />
           </label>
           <label style={toggleRowStyle}>
-            <span style={{ fontWeight: 800, fontSize: 13 }}>Effects</span>
+            <span style={{ fontWeight: 800, fontSize: 13 }}>{t('settings.effects')}</span>
             <input
               type="checkbox"
               checked={settings.effectsEnabled}
@@ -152,7 +156,7 @@ export function SettingsPanel({ currentLanguage, settings, onBack, onChangeLangu
             />
           </label>
           <label style={toggleRowStyle}>
-            <span style={{ fontWeight: 800, fontSize: 13 }}>HUD</span>
+            <span style={{ fontWeight: 800, fontSize: 13 }}>{t('settings.hud')}</span>
             <input
               type="checkbox"
               checked={settings.hudVisible}
@@ -181,7 +185,7 @@ export function SettingsPanel({ currentLanguage, settings, onBack, onChangeLangu
               letterSpacing: 0,
             }}
           >
-            Screen
+            {t('settings.screen')}
           </legend>
           <label style={{ display: 'flex', alignItems: 'center', gap: 10, fontSize: 13, fontWeight: 800 }}>
             <input
@@ -190,7 +194,7 @@ export function SettingsPanel({ currentLanguage, settings, onBack, onChangeLangu
               checked={settings.screenMode === 'compact'}
               onChange={() => onChange(updateSetting(settings, 'screenMode', 'compact'))}
             />
-            Compact
+            {t('settings.screenModes.compact')}
           </label>
           <label style={{ display: 'flex', alignItems: 'center', gap: 10, fontSize: 13, fontWeight: 800 }}>
             <input
@@ -199,12 +203,12 @@ export function SettingsPanel({ currentLanguage, settings, onBack, onChangeLangu
               checked={settings.screenMode === 'focus'}
               onChange={() => onChange(updateSetting(settings, 'screenMode', 'focus'))}
             />
-            Focus
+            {t('settings.screenModes.focus')}
           </label>
         </fieldset>
 
         <button type="button" onClick={onBack} style={{ ...panelButtonStyle, alignSelf: 'end' }}>
-          Back
+          {t('settings.back')}
         </button>
       </div>
     </div>
