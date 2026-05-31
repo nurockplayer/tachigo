@@ -6,6 +6,8 @@ import "github.com/tachigo/tachigo/internal/models"
 func AtlasSchemaModels() []any {
 	return []any{
 		&models.User{},
+		&models.UserCharacter{},
+		&models.StreamerFamiliarity{},
 		&models.AuthProvider{},
 		&models.ShippingAddress{},
 		&models.RefreshToken{},
