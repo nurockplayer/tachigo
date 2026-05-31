@@ -8,19 +8,20 @@ import (
 )
 
 type RaffleStatus string
-type RaffleSource string
 type RaffleMode string
+type RaffleSource string
 
 const (
 	RaffleStatusDraft     RaffleStatus = "draft"
 	RaffleStatusActive    RaffleStatus = "active"
 	RaffleStatusCompleted RaffleStatus = "completed"
 
-	RaffleSourceCSV       RaffleSource = "csv"
-	RaffleSourceTwitchAPI RaffleSource = "twitch_api"
-
 	RaffleModePublic      RaffleMode = "public"
 	RaffleModeSubscribers RaffleMode = "subscribers_only"
+
+	RaffleSourceCSV             RaffleSource = "csv"
+	RaffleSourceTwitchAPI       RaffleSource = "twitch_api"
+	RaffleSourceExtensionButton RaffleSource = "extension_button"
 )
 
 // Raffle represents a single raffle event owned by a streamer.
@@ -31,8 +32,8 @@ type Raffle struct {
 	Status            RaffleStatus `gorm:"type:varchar(50);not null;default:'draft'"      json:"status"`
 	Source            RaffleSource `gorm:"type:varchar(50);not null;default:'csv'"        json:"source"`
 	Mode              RaffleMode   `gorm:"type:varchar(50);not null;default:'public'"     json:"mode"`
-	WinnerCount       int          `gorm:"not null;default:1"                             json:"winner_count"`
 	EntryOpen         bool         `gorm:"not null;default:false"                         json:"entry_open"`
+	WinnerCount       int          `gorm:"not null;default:1"                             json:"winner_count"`
 	ScheduledAt       *time.Time   `                          json:"scheduled_at"`
 	DiscordWebhookURL *string      `gorm:"type:varchar(512)"  json:"-"`
 	CreatedAt         time.Time    `                          json:"created_at"`
@@ -63,9 +64,9 @@ type RaffleEntry struct {
 	UserID           *uuid.UUID `gorm:"type:uuid;index"                                         json:"user_id"`
 	TwitchLogin      string     `gorm:"type:varchar(255);not null;uniqueIndex:idx_raffle_entry_twitch" json:"twitch_login"`
 	DisplayName      string     `gorm:"type:varchar(255)"                                       json:"display_name"`
-	Source           string     `gorm:"type:varchar(50)"                                        json:"source,omitempty"`
+	Source           string     `gorm:"type:varchar(50);not null;default:'csv'"                 json:"source"`
 	Eligible         bool       `gorm:"not null;default:true"                                   json:"eligible"`
-	IneligibleReason string     `gorm:"type:varchar(255)"                                       json:"ineligible_reason,omitempty"`
+	IneligibleReason string     `gorm:"type:varchar(100);not null;default:''"                  json:"ineligible_reason"`
 	CreatedAt        time.Time  `                                                               json:"created_at"`
 	Raffle           Raffle     `gorm:"foreignKey:RaffleID;constraint:OnUpdate:CASCADE,OnDelete:CASCADE" json:"-"`
 	User             *User      `gorm:"foreignKey:UserID;constraint:OnUpdate:CASCADE,OnDelete:SET NULL"  json:"-"`
@@ -87,12 +88,12 @@ func (e *RaffleEntry) BeforeCreate(tx *gorm.DB) error {
 // ClaimTokenRaw is a transient field populated only when a draw is first created;
 // it is never persisted and carries the raw token for the HTTP response and email.
 type RaffleDraw struct {
-	ID             uuid.UUID   `gorm:"type:uuid;primaryKey;default:gen_random_uuid()"        json:"id"`
-	RaffleID       uuid.UUID   `gorm:"type:uuid;not null;uniqueIndex:idx_raffle_draw_entry"  json:"raffle_id"`
-	EntryID        uuid.UUID   `gorm:"type:uuid;not null;uniqueIndex:idx_raffle_draw_entry"  json:"entry_id"`
-	ClaimToken     string      `gorm:"type:varchar(255);not null;uniqueIndex"                json:"-"`
-	ClaimTokenRaw  string      `gorm:"-"                                                     json:"claim_token,omitempty"`
-	ClaimExpiresAt time.Time   `                                                             json:"claim_expires_at"`
+	ID             uuid.UUID        `gorm:"type:uuid;primaryKey;default:gen_random_uuid()"        json:"id"`
+	RaffleID       uuid.UUID        `gorm:"type:uuid;not null;uniqueIndex:idx_raffle_draw_entry"  json:"raffle_id"`
+	EntryID        uuid.UUID        `gorm:"type:uuid;not null;uniqueIndex:idx_raffle_draw_entry"  json:"entry_id"`
+	ClaimToken     string           `gorm:"type:varchar(255);not null;uniqueIndex"                json:"-"`
+	ClaimTokenRaw  string           `gorm:"-"                                                     json:"claim_token,omitempty"`
+	ClaimExpiresAt time.Time        `                                                             json:"claim_expires_at"`
 	DrawnAt        time.Time        `                                                             json:"drawn_at"`
 	PrizeTierID    *uuid.UUID       `gorm:"type:uuid"              json:"prize_tier_id,omitempty"`
 	PrizeTier      *RafflePrizeTier `gorm:"foreignKey:PrizeTierID" json:"prize_tier,omitempty"`

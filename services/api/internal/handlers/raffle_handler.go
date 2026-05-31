@@ -15,6 +15,7 @@ import (
 
 type RaffleHandler struct {
 	raffleSvc *services.RaffleService
+	extSvc    *services.ExtensionService
 }
 
 const (
@@ -22,8 +23,8 @@ const (
 	maxRaffleCSVImportRequestBytes = maxRaffleCSVFileBytes + 64*1024
 )
 
-func NewRaffleHandler(svc *services.RaffleService) *RaffleHandler {
-	return &RaffleHandler{raffleSvc: svc}
+func NewRaffleHandler(svc *services.RaffleService, extSvc *services.ExtensionService) *RaffleHandler {
+	return &RaffleHandler{raffleSvc: svc, extSvc: extSvc}
 }
 
 // ── Dashboard endpoints (JWT + RoleStreamer) ──────────────────────────────────
@@ -533,7 +534,6 @@ type publicDrawView struct {
 // @Param        body body object{source=string} true "source must be twitch_api"
 // @Success      200  {object}  Response
 // @Failure      400  {object}  Response
-// @Failure      403  {object}  Response "Twitch token lacks required scopes; streamer must re-authorize"
 // @Router       /dashboard/raffles/{id}/snapshot [post]
 func (h *RaffleHandler) Snapshot(c *gin.Context) {
 	claims := middleware.MustClaims(c)
@@ -571,11 +571,7 @@ func (h *RaffleHandler) Snapshot(c *gin.Context) {
 		case errors.Is(err, services.ErrTwitchTokenMissing):
 			badRequest(c, "no twitch access token: streamer must log in via twitch")
 		case errors.Is(err, services.ErrTwitchInsufficientScope):
-			c.JSON(http.StatusForbidden, gin.H{
-				"success": false,
-				"code":    "twitch_reauth_required",
-				"error":   "twitch token lacks required scopes; streamer must re-authorize",
-			})
+			badRequest(c, "insufficient twitch scope: requires channel:read:subscriptions")
 		case errors.Is(err, services.ErrUnsupportedRaffleSource):
 			badRequest(c, "raffle source must be twitch_api to use snapshot sync")
 		default:
@@ -796,4 +792,67 @@ func (h *RaffleHandler) GetResult(c *gin.Context) {
 		views[i].Entry.DisplayName = d.Entry.DisplayName
 	}
 	ok(c, gin.H{"draws": views})
+}
+
+// Join godoc
+// @Summary      Join a raffle from Twitch Extension
+// @Tags         raffles
+// @Accept       json
+// @Produce      json
+// @Param        id   path string true "Raffle ID"
+// @Param        body body object{extension_jwt=string} true "Extension JWT"
+// @Success      200  {object}  Response
+// @Failure      400  {object}  Response
+// @Failure      403  {object}  Response
+// @Failure      409  {object}  Response
+// @Router       /extension/raffles/{id}/join [post]
+func (h *RaffleHandler) Join(c *gin.Context) {
+	raffleID, err := uuid.Parse(c.Param("id"))
+	if err != nil {
+		badRequest(c, "invalid raffle id")
+		return
+	}
+
+	var body struct {
+		ExtensionJWT string `json:"extension_jwt" binding:"required"`
+	}
+	if err := c.ShouldBindJSON(&body); err != nil {
+		badRequest(c, err.Error())
+		return
+	}
+	if h.extSvc == nil {
+		internal(c)
+		return
+	}
+	claims, err := h.extSvc.VerifyExtJWT(body.ExtensionJWT)
+	if err != nil {
+		unauthorized(c, "invalid extension jwt")
+		return
+	}
+
+	entry, err := h.raffleSvc.JoinRaffle(c.Request.Context(), raffleID, claims.UserID)
+	if err != nil {
+		switch {
+		case errors.Is(err, services.ErrEntryNotOpen):
+			badRequest(c, "raffle entry not open")
+		case errors.Is(err, services.ErrAlreadyJoined):
+			conflict(c, "already joined")
+		case errors.Is(err, services.ErrNotSubscriber):
+			c.JSON(http.StatusForbidden, gin.H{
+				"success": false,
+				"error":   "not a subscriber",
+				"code":    "not_subscriber",
+				"data":    gin.H{"entry": entry},
+			})
+		case errors.Is(err, services.ErrRaffleNotFound), errors.Is(err, services.ErrUserNotFound):
+			notFound(c, "not found")
+		case errors.Is(err, services.ErrTwitchTokenMissing), errors.Is(err, services.ErrTwitchInsufficientScope):
+			badRequest(c, err.Error())
+		default:
+			log.Printf("raffle join: %v", err)
+			internal(c)
+		}
+		return
+	}
+	ok(c, gin.H{"entry": entry})
 }

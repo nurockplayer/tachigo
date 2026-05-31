@@ -4,6 +4,7 @@ import (
 	"bytes"
 	"context"
 	"crypto/sha256"
+	"encoding/base64"
 	"encoding/hex"
 	"encoding/json"
 	"fmt"
@@ -85,6 +86,7 @@ type raffleTestEnv struct {
 	db        *gorm.DB
 	authSvc   *services.AuthService
 	raffleSvc *services.RaffleService
+	extSvc    *services.ExtensionService
 	router    *gin.Engine
 }
 
@@ -113,11 +115,25 @@ func newRaffleTestEnv(t *testing.T) *raffleTestEnv {
 	if err := migrateTestDB(db); err != nil {
 		t.Fatalf("migrate: %v", err)
 	}
+	for _, stmt := range []string{
+		`ALTER TABLE raffles ADD COLUMN mode TEXT NOT NULL DEFAULT 'public'`,
+		`ALTER TABLE raffles ADD COLUMN entry_open INTEGER NOT NULL DEFAULT 0`,
+		`ALTER TABLE raffles ADD COLUMN winner_count INTEGER NOT NULL DEFAULT 1`,
+		`ALTER TABLE raffle_entries ADD COLUMN source TEXT NOT NULL DEFAULT 'csv'`,
+		`ALTER TABLE raffle_entries ADD COLUMN eligible INTEGER NOT NULL DEFAULT 1`,
+		`ALTER TABLE raffle_entries ADD COLUMN ineligible_reason TEXT NOT NULL DEFAULT ''`,
+	} {
+		if err := db.Exec(stmt).Error; err != nil {
+			t.Fatalf("extend raffle test schema: %v", err)
+		}
+	}
 
 	cfg := testConfig()
+	cfg.OAuth.Twitch.ExtensionSecret = base64.StdEncoding.EncodeToString([]byte(extHandlerSecretRaw))
 	authSvc := services.NewAuthService(db, cfg)
 	raffleSvc := services.NewRaffleService(db, "", "", nil)
-	raffleH := handlers.NewRaffleHandler(raffleSvc)
+	extSvc := services.NewExtensionService(db, cfg, authSvc, services.NewPointsService(db, services.NewWatchService(db)))
+	raffleH := handlers.NewRaffleHandler(raffleSvc, extSvc)
 
 	r := gin.New()
 	r.Use(gin.Recovery())
@@ -132,6 +148,7 @@ func newRaffleTestEnv(t *testing.T) *raffleTestEnv {
 
 	// Extension result
 	v1.GET("/extension/raffles/:id/result", raffleH.GetResult)
+	v1.POST("/extension/raffles/:id/join", raffleH.Join)
 
 	// Dashboard raffle routes (streamer role)
 	dash := v1.Group("/dashboard")
@@ -163,7 +180,7 @@ func newRaffleTestEnv(t *testing.T) *raffleTestEnv {
 		middleware.RequireRole(models.RoleStreamer),
 		raffleH.DrawFromTier)
 
-	return &raffleTestEnv{db: db, authSvc: authSvc, raffleSvc: raffleSvc, router: r}
+	return &raffleTestEnv{db: db, authSvc: authSvc, raffleSvc: raffleSvc, extSvc: extSvc, router: r}
 }
 
 // registerStreamer creates a streamer-role user and returns an access token.
@@ -185,6 +202,52 @@ func (e *raffleTestEnv) registerStreamer(t *testing.T, username, email, password
 		t.Fatalf("login: %v", err)
 	}
 	return tokens.AccessToken
+}
+
+func (e *raffleTestEnv) setupExtensionJoinRaffle(t *testing.T, ownerEmail, mode string, entryOpen bool) string {
+	t.Helper()
+	var ownerID string
+	if err := e.db.Raw("SELECT id FROM users WHERE email = ?", ownerEmail).Scan(&ownerID).Error; err != nil || ownerID == "" {
+		t.Fatalf("setupExtensionJoinRaffle: get owner: %v", err)
+	}
+	raffleID, _ := uuid.NewV7()
+	if err := e.db.Exec(
+		`INSERT INTO raffles (id, user_id, title, status, source, mode, entry_open, winner_count, created_at, updated_at)
+		 VALUES (?, ?, 'extension raffle', 'active', 'extension_button', ?, ?, 1, CURRENT_TIMESTAMP, CURRENT_TIMESTAMP)`,
+		raffleID.String(), ownerID, mode, entryOpen,
+	).Error; err != nil {
+		t.Fatalf("setupExtensionJoinRaffle: insert raffle: %v", err)
+	}
+	return raffleID.String()
+}
+
+func (e *raffleTestEnv) addBroadcasterTwitchProvider(t *testing.T, ownerEmail, broadcasterID, accessToken string) {
+	t.Helper()
+	var ownerID string
+	if err := e.db.Raw("SELECT id FROM users WHERE email = ?", ownerEmail).Scan(&ownerID).Error; err != nil || ownerID == "" {
+		t.Fatalf("addBroadcasterTwitchProvider: get owner: %v", err)
+	}
+	provID, _ := uuid.NewV7()
+	expiresAt := time.Now().Add(time.Hour)
+	if err := e.db.Exec(
+		`INSERT INTO auth_providers (id, user_id, provider, provider_id, access_token, token_expires_at, created_at, updated_at)
+		 VALUES (?, ?, 'twitch', ?, ?, ?, CURRENT_TIMESTAMP, CURRENT_TIMESTAMP)`,
+		provID.String(), ownerID, broadcasterID, accessToken, expiresAt,
+	).Error; err != nil {
+		t.Fatalf("addBroadcasterTwitchProvider: insert auth_provider: %v", err)
+	}
+}
+
+func (e *raffleTestEnv) postRaffleJoin(t *testing.T, raffleID, twitchID string) *httptest.ResponseRecorder {
+	t.Helper()
+	body, _ := json.Marshal(map[string]string{
+		"extension_jwt": signExtJWTForHandler(t, twitchID, "channel-1"),
+	})
+	w := httptest.NewRecorder()
+	req, _ := http.NewRequest(http.MethodPost, "/api/v1/extension/raffles/"+raffleID+"/join", bytes.NewReader(body))
+	req.Header.Set("Content-Type", "application/json")
+	e.router.ServeHTTP(w, req)
+	return w
 }
 
 // createTwitchLinkedUser registers a tachigo user and links a Twitch login so
@@ -225,6 +288,100 @@ func (e *raffleTestEnv) loginUser(t *testing.T, twitchLogin string) string {
 }
 
 // ── Tests ──────────────────────────────────────────────────────────────────────
+
+func TestRaffle_Join_PublicMode(t *testing.T) {
+	env := newRaffleTestEnv(t)
+	env.registerStreamer(t, "join_host_public", "join_host_public@test.com", "pass1234")
+	env.createTwitchLinkedUser(t, "join_public_viewer")
+	twitchID := "twitch_id_join_public_viewer"
+	raffleID := env.setupExtensionJoinRaffle(t, "join_host_public@test.com", string(models.RaffleModePublic), true)
+
+	w := env.postRaffleJoin(t, raffleID, twitchID)
+	if w.Code != http.StatusOK {
+		t.Fatalf("want 200, got %d: %s", w.Code, w.Body.String())
+	}
+	entry := parseBody(t, w.Body.Bytes())["data"].(map[string]interface{})["entry"].(map[string]interface{})
+	if entry["twitch_login"] != twitchID || entry["source"] != string(models.RaffleSourceExtensionButton) {
+		t.Fatalf("unexpected entry: %#v", entry)
+	}
+}
+
+func TestRaffle_Join_SubscribersOnlySubscriber(t *testing.T) {
+	env := newRaffleTestEnv(t)
+	env.registerStreamer(t, "join_host_sub", "join_host_sub@test.com", "pass1234")
+	env.createTwitchLinkedUser(t, "join_sub_viewer")
+	twitchID := "twitch_id_join_sub_viewer"
+	env.addBroadcasterTwitchProvider(t, "join_host_sub@test.com", "broadcaster-1", "fake-token")
+	env.raffleSvc.SetTwitchBaseURL("https://twitch.test")
+	env.raffleSvc.SetHTTPClient(testutil.NewHTTPClient(func(r *http.Request) (*http.Response, error) {
+		if r.Method == http.MethodGet && r.URL.Path == "/helix/subscriptions" {
+			return testutil.NewStringResponse(http.StatusOK, twitchSubsJSON([]map[string]string{{
+				"user_id": twitchID, "user_login": "join_sub_viewer", "user_name": "Join Sub Viewer",
+			}}, "")), nil
+		}
+		return testutil.NewStringResponse(http.StatusNotFound, ""), nil
+	}))
+	raffleID := env.setupExtensionJoinRaffle(t, "join_host_sub@test.com", string(models.RaffleModeSubscribers), true)
+
+	w := env.postRaffleJoin(t, raffleID, twitchID)
+	if w.Code != http.StatusOK {
+		t.Fatalf("want 200, got %d: %s", w.Code, w.Body.String())
+	}
+}
+
+func TestRaffle_Join_SubscribersOnlyNotSubscriber(t *testing.T) {
+	env := newRaffleTestEnv(t)
+	env.registerStreamer(t, "join_host_nonsub", "join_host_nonsub@test.com", "pass1234")
+	env.createTwitchLinkedUser(t, "join_nonsub_viewer")
+	twitchID := "twitch_id_join_nonsub_viewer"
+	env.addBroadcasterTwitchProvider(t, "join_host_nonsub@test.com", "broadcaster-1", "fake-token")
+	env.raffleSvc.SetTwitchBaseURL("https://twitch.test")
+	env.raffleSvc.SetHTTPClient(testutil.NewHTTPClient(func(r *http.Request) (*http.Response, error) {
+		if r.Method == http.MethodGet && r.URL.Path == "/helix/subscriptions" {
+			return testutil.NewStringResponse(http.StatusOK, twitchSubsJSON(nil, "")), nil
+		}
+		return testutil.NewStringResponse(http.StatusNotFound, ""), nil
+	}))
+	raffleID := env.setupExtensionJoinRaffle(t, "join_host_nonsub@test.com", string(models.RaffleModeSubscribers), true)
+
+	w := env.postRaffleJoin(t, raffleID, twitchID)
+	if w.Code != http.StatusForbidden {
+		t.Fatalf("want 403, got %d: %s", w.Code, w.Body.String())
+	}
+	resp := parseBody(t, w.Body.Bytes())
+	if resp["code"] != "not_subscriber" {
+		t.Fatalf("want code not_subscriber, got %#v", resp)
+	}
+}
+
+func TestRaffle_Join_Duplicate(t *testing.T) {
+	env := newRaffleTestEnv(t)
+	env.registerStreamer(t, "join_host_dup", "join_host_dup@test.com", "pass1234")
+	env.createTwitchLinkedUser(t, "join_dup_viewer")
+	twitchID := "twitch_id_join_dup_viewer"
+	raffleID := env.setupExtensionJoinRaffle(t, "join_host_dup@test.com", string(models.RaffleModePublic), true)
+
+	if w := env.postRaffleJoin(t, raffleID, twitchID); w.Code != http.StatusOK {
+		t.Fatalf("first join want 200, got %d: %s", w.Code, w.Body.String())
+	}
+	w := env.postRaffleJoin(t, raffleID, twitchID)
+	if w.Code != http.StatusConflict {
+		t.Fatalf("second join want 409, got %d: %s", w.Code, w.Body.String())
+	}
+}
+
+func TestRaffle_Join_EntryClosed(t *testing.T) {
+	env := newRaffleTestEnv(t)
+	env.registerStreamer(t, "join_host_closed", "join_host_closed@test.com", "pass1234")
+	env.createTwitchLinkedUser(t, "join_closed_viewer")
+	twitchID := "twitch_id_join_closed_viewer"
+	raffleID := env.setupExtensionJoinRaffle(t, "join_host_closed@test.com", string(models.RaffleModePublic), false)
+
+	w := env.postRaffleJoin(t, raffleID, twitchID)
+	if w.Code != http.StatusBadRequest {
+		t.Fatalf("want 400, got %d: %s", w.Code, w.Body.String())
+	}
+}
 
 func TestRaffle_Create(t *testing.T) {
 	env := newRaffleTestEnv(t)
@@ -1218,12 +1375,12 @@ func TestRaffle_Snapshot_TwitchScopeError(t *testing.T) {
 	req.Header.Set("Content-Type", "application/json")
 	req.Header.Set("Authorization", bearer(token))
 	env.router.ServeHTTP(w, req)
-	if w.Code != http.StatusForbidden {
-		t.Fatalf("want 403 (scope error), got %d: %s", w.Code, w.Body.String())
+	if w.Code != http.StatusBadRequest {
+		t.Fatalf("want 400 (scope error), got %d: %s", w.Code, w.Body.String())
 	}
 	resp := parseBody(t, w.Body.Bytes())
-	if code, _ := resp["code"].(string); code != "twitch_reauth_required" {
-		t.Errorf("expected code twitch_reauth_required, got: %v", code)
+	if msg, _ := resp["error"].(string); !strings.Contains(msg, "scope") {
+		t.Errorf("expected scope error message, got: %v", msg)
 	}
 }
 
