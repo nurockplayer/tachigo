@@ -115,19 +115,6 @@ func newRaffleTestEnv(t *testing.T) *raffleTestEnv {
 	if err := migrateTestDB(db); err != nil {
 		t.Fatalf("migrate: %v", err)
 	}
-	for _, stmt := range []string{
-		`ALTER TABLE raffles ADD COLUMN mode TEXT NOT NULL DEFAULT 'public'`,
-		`ALTER TABLE raffles ADD COLUMN entry_open INTEGER NOT NULL DEFAULT 0`,
-		`ALTER TABLE raffles ADD COLUMN winner_count INTEGER NOT NULL DEFAULT 1`,
-		`ALTER TABLE raffle_entries ADD COLUMN source TEXT NOT NULL DEFAULT 'csv'`,
-		`ALTER TABLE raffle_entries ADD COLUMN eligible INTEGER NOT NULL DEFAULT 1`,
-		`ALTER TABLE raffle_entries ADD COLUMN ineligible_reason TEXT NOT NULL DEFAULT ''`,
-	} {
-		if err := db.Exec(stmt).Error; err != nil {
-			t.Fatalf("extend raffle test schema: %v", err)
-		}
-	}
-
 	cfg := testConfig()
 	cfg.OAuth.Twitch.ExtensionSecret = base64.StdEncoding.EncodeToString([]byte(extHandlerSecretRaw))
 	authSvc := services.NewAuthService(db, cfg)
