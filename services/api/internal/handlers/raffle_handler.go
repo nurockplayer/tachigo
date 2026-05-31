@@ -808,6 +808,7 @@ func (h *RaffleHandler) GetResult(c *gin.Context) {
 // @Param        body body object{extension_jwt=string} true "Extension JWT"
 // @Success      200  {object}  Response
 // @Failure      400  {object}  Response
+// @Failure      401  {object}  Response
 // @Failure      403  {object}  Response
 // @Failure      409  {object}  Response
 // @Router       /extension/raffles/{id}/join [post]

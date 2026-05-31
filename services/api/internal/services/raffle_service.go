@@ -753,9 +753,8 @@ func (s *RaffleService) JoinRaffle(ctx context.Context, raffleID uuid.UUID, twit
 			return nil, err
 		}
 		if !ok {
-			entry.Eligible = false
-			entry.IneligibleReason = "not_subscriber"
-			joinErr = ErrNotSubscriber
+			// 非訂閱者不寫入 DB，直接拒絕
+			return nil, ErrNotSubscriber
 		}
 	}
 
