@@ -102,6 +102,22 @@ definitions:
       address:
         type: string
     type: object
+  handlers.WatchHeartbeatResponse:
+    properties:
+      cumulative_total:
+        type: integer
+      points_earned:
+        type: integer
+      session:
+        $ref: '#/definitions/models.WatchSession'
+      spendable_balance:
+        type: integer
+    type: object
+  handlers.WatchRequest:
+    properties:
+      channel_id:
+        type: string
+    type: object
   handlers.claimRequest:
     properties:
       amount:
@@ -230,6 +246,29 @@ definitions:
     - RoleStreamer
     - RoleAgency
     - RoleAdmin
+  models.WatchSession:
+    properties:
+      accumulated_seconds:
+        type: integer
+      channel_id:
+        type: string
+      created_at:
+        type: string
+      ended_at:
+        type: string
+      id:
+        type: string
+      is_active:
+        type: boolean
+      last_heartbeat_at:
+        type: string
+      rewarded_seconds:
+        type: integer
+      updated_at:
+        type: string
+      user_id:
+        type: string
+    type: object
   services.AddressInput:
     properties:
       address_line1:
@@ -1333,6 +1372,46 @@ paths:
       summary: Complete a T-point transaction
       tags:
       - extension
+  /extension/watch/heartbeat:
+    post:
+      consumes:
+      - application/json
+      parameters:
+      - description: Watch heartbeat request
+        in: body
+        name: request
+        required: true
+        schema:
+          $ref: '#/definitions/handlers.WatchRequest'
+      produces:
+      - application/json
+      responses:
+        "200":
+          description: OK
+          schema:
+            allOf:
+            - $ref: '#/definitions/handlers.Response'
+            - properties:
+                data:
+                  $ref: '#/definitions/handlers.WatchHeartbeatResponse'
+              type: object
+        "400":
+          description: Bad Request
+          schema:
+            $ref: '#/definitions/handlers.Response'
+        "401":
+          description: Unauthorized
+          schema:
+            $ref: '#/definitions/handlers.Response'
+        "500":
+          description: Internal Server Error
+          schema:
+            $ref: '#/definitions/handlers.Response'
+      security:
+      - BearerAuth: []
+      summary: Record extension watch heartbeat
+      tags:
+      - extension-watch
   /metrics:
     get:
       description: 'Operational endpoint exposed at root /metrics when ENABLE_METRICS=true.

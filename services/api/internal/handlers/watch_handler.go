@@ -51,7 +51,18 @@ func (h *WatchHandler) StartSession(c *gin.Context) {
 	ok(c, session)
 }
 
-// Heartbeat handles POST /extension/watch/heartbeat
+// Heartbeat godoc
+// @Summary      Record extension watch heartbeat
+// @Tags         extension-watch
+// @Accept       json
+// @Produce      json
+// @Param        request body WatchRequest true "Watch heartbeat request"
+// @Success      200 {object} Response{data=WatchHeartbeatResponse}
+// @Failure      400 {object} Response
+// @Failure      401 {object} Response
+// @Failure      500 {object} Response
+// @Security     BearerAuth
+// @Router       /extension/watch/heartbeat [post]
 func (h *WatchHandler) Heartbeat(c *gin.Context) {
 	claims := middleware.MustClaims(c)
 	var body watchBody
@@ -88,11 +99,11 @@ func (h *WatchHandler) Heartbeat(c *gin.Context) {
 		return
 	}
 
-	ok(c, gin.H{
-		"session":           result.Session,
-		"points_earned":     result.PointsEarned,
-		"spendable_balance": spendable,
-		"cumulative_total":  cumulative,
+	ok(c, WatchHeartbeatResponse{
+		Session:          result.Session,
+		PointsEarned:     result.PointsEarned,
+		SpendableBalance: spendable,
+		CumulativeTotal:  cumulative,
 	})
 }
 
