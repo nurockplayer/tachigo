@@ -119,7 +119,7 @@ func newRaffleTestEnv(t *testing.T) *raffleTestEnv {
 	cfg.OAuth.Twitch.ExtensionSecret = base64.StdEncoding.EncodeToString([]byte(extHandlerSecretRaw))
 	authSvc := services.NewAuthService(db, cfg)
 	raffleSvc := services.NewRaffleService(db, "", "", nil)
-	extSvc := services.NewExtensionService(db, cfg)
+	extSvc := services.NewExtensionService(db, cfg, authSvc, nil)
 	raffleH := handlers.NewRaffleHandler(raffleSvc, extSvc)
 
 	r := gin.New()
