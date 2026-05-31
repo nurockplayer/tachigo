@@ -122,6 +122,7 @@ func TestMigration023AddsOceanCharacterSchema(t *testing.T) {
 	for _, want := range []string{
 		"ADD COLUMN IF NOT EXISTS active_character",
 		"ADD COLUMN IF NOT EXISTS switch_cooldown_until",
+		"conrelid = 'users'::regclass",
 		"CREATE TABLE IF NOT EXISTS user_characters",
 		"chk_user_characters_character",
 		"chk_user_characters_stage",
