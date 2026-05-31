@@ -76,8 +76,28 @@ func newRBACTestEnv(t *testing.T) *rbacEnv {
 			middleware.RequireRole(models.RoleAgency, models.RoleAdmin),
 			func(c *gin.Context) { c.JSON(501, gin.H{"error": "not implemented"}) },
 		)
+		dashboard.GET("/streamers/:streamer_id/stats",
+			middleware.RequireRole(models.RoleAdmin, models.RoleStreamer, models.RoleAgency),
+			func(c *gin.Context) { c.JSON(501, gin.H{"error": "not implemented"}) },
+		)
+		dashboard.POST("/streamers/register",
+			middleware.RequireRole(models.RoleStreamer),
+			func(c *gin.Context) { c.JSON(501, gin.H{"error": "not implemented"}) },
+		)
+		dashboard.GET("/streamers/channels",
+			middleware.RequireRole(models.RoleStreamer),
+			func(c *gin.Context) { c.JSON(501, gin.H{"error": "not implemented"}) },
+		)
+		dashboard.GET("/channels/:channel_id/stats",
+			middleware.RequireRole(models.RoleAdmin, models.RoleStreamer),
+			func(c *gin.Context) { c.JSON(501, gin.H{"error": "not implemented"}) },
+		)
 		dashboard.GET("/channels/:channel_id/config",
 			middleware.RequireRole(models.RoleAdmin, models.RoleStreamer, models.RoleAgency),
+			func(c *gin.Context) { c.JSON(501, gin.H{"error": "not implemented"}) },
+		)
+		dashboard.PUT("/channels/:channel_id/config",
+			middleware.RequireRole(models.RoleAdmin, models.RoleStreamer),
 			func(c *gin.Context) { c.JSON(501, gin.H{"error": "not implemented"}) },
 		)
 	}
@@ -174,6 +194,24 @@ func eventOperatorRBACCases() []rbacMatrixCase {
 	}
 }
 
+func streamerOnlyRBACCases() []rbacMatrixCase {
+	return []rbacMatrixCase{
+		{name: "viewer forbidden", role: models.RoleViewer, want: http.StatusForbidden},
+		{name: "streamer allowed", role: models.RoleStreamer, want: http.StatusNotImplemented},
+		{name: "agency forbidden", role: models.RoleAgency, want: http.StatusForbidden},
+		{name: "admin forbidden", role: models.RoleAdmin, want: http.StatusForbidden},
+	}
+}
+
+func adminStreamerRBACCases() []rbacMatrixCase {
+	return []rbacMatrixCase{
+		{name: "viewer forbidden", role: models.RoleViewer, want: http.StatusForbidden},
+		{name: "streamer allowed", role: models.RoleStreamer, want: http.StatusNotImplemented},
+		{name: "agency forbidden", role: models.RoleAgency, want: http.StatusForbidden},
+		{name: "admin allowed", role: models.RoleAdmin, want: http.StatusNotImplemented},
+	}
+}
+
 func dashboardOperatorRBACCases() []rbacMatrixCase {
 	return []rbacMatrixCase{
 		{name: "viewer forbidden", role: models.RoleViewer, want: http.StatusForbidden},
@@ -235,11 +273,46 @@ func centralizedRBACMatrixRoutes() []rbacMatrixRoute {
 			cases:       agencyOperatorRBACCases(),
 		},
 		{
+			name:        "streamer stats allows dashboard operators",
+			method:      http.MethodGet,
+			routePath:   "/api/v1/dashboard/streamers/:streamer_id/stats",
+			requestPath: "/api/v1/dashboard/streamers/streamer_1/stats",
+			cases:       dashboardOperatorRBACCases(),
+		},
+		{
+			name:        "streamer self-register is streamer only",
+			method:      http.MethodPost,
+			routePath:   "/api/v1/dashboard/streamers/register",
+			requestPath: "/api/v1/dashboard/streamers/register",
+			cases:       streamerOnlyRBACCases(),
+		},
+		{
+			name:        "streamer channels list is streamer only",
+			method:      http.MethodGet,
+			routePath:   "/api/v1/dashboard/streamers/channels",
+			requestPath: "/api/v1/dashboard/streamers/channels",
+			cases:       streamerOnlyRBACCases(),
+		},
+		{
+			name:        "channel stats allows admin or streamer only",
+			method:      http.MethodGet,
+			routePath:   "/api/v1/dashboard/channels/:channel_id/stats",
+			requestPath: "/api/v1/dashboard/channels/ch_ctx/stats",
+			cases:       adminStreamerRBACCases(),
+		},
+		{
 			name:        "channel config read allows dashboard operators",
 			method:      http.MethodGet,
 			routePath:   "/api/v1/dashboard/channels/:channel_id/config",
 			requestPath: "/api/v1/dashboard/channels/ch_ctx/config",
 			cases:       dashboardOperatorRBACCases(),
+		},
+		{
+			name:        "channel config update allows admin or streamer only",
+			method:      http.MethodPut,
+			routePath:   "/api/v1/dashboard/channels/:channel_id/config",
+			requestPath: "/api/v1/dashboard/channels/ch_ctx/config",
+			cases:       adminStreamerRBACCases(),
 		},
 		{
 			name:        "create event allows event operators",
