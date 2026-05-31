@@ -2,18 +2,25 @@ import { AccountPanel } from '../components/AccountPanel'
 import { ClaimPanel } from '../components/ClaimPanel'
 import { CouponShopPanel } from '../components/CouponShopPanel'
 import { RaffleResultPanel } from '../components/RaffleResultPanel'
+import { SettingsPanel } from '../components/SettingsPanel'
 import { PlaceholderSurface } from './PlaceholderSurface'
 import { useNavigation } from './useNavigation'
 import type { CouponRedeemOutcome } from '../couponRedeem'
 import type { Overlay } from './types'
+import type { SettingsState } from '../../extension/types'
+import type { AppLanguage } from '../../i18n'
 
 interface OverlayHostProps {
   cpcBalance: number
+  currentLanguage: AppLanguage
   tcgBalance: number
   redeemedCouponIds: string[]
+  settings: SettingsState
   voucherCodes: Record<string, string>
+  onChangeLanguage: (language: AppLanguage) => void
   onClaim: (cpcAmount: number) => void
   onCouponRedeem: (couponId: string, cost: number) => Promise<CouponRedeemOutcome>
+  onSettingsChange: (settings: SettingsState) => void
 }
 
 const menuEntries: Array<{
@@ -166,11 +173,15 @@ const menuButtonStyle = {
 
 export function OverlayHost({
   cpcBalance,
+  currentLanguage,
   tcgBalance,
   redeemedCouponIds,
+  settings,
   voucherCodes,
+  onChangeLanguage,
   onClaim,
   onCouponRedeem,
+  onSettingsChange,
 }: OverlayHostProps) {
   const { state, popOverlay } = useNavigation()
 
@@ -215,6 +226,14 @@ export function OverlayHost({
             <MenuOverlay />
           ) : entry.kind === 'account' ? (
             <AccountPanel onBack={popOverlay} />
+          ) : entry.kind === 'settings' ? (
+            <SettingsPanel
+              currentLanguage={currentLanguage}
+              settings={settings}
+              onBack={popOverlay}
+              onChangeLanguage={onChangeLanguage}
+              onChange={onSettingsChange}
+            />
           ) : (
             <PlaceholderSurface
               eyebrow="Dev-only"

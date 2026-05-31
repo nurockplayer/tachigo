@@ -320,11 +320,13 @@ function SpinningCoin({ onClick, ariaLabel }: { onClick: () => void; ariaLabel: 
 // ─── Main HUD Component ───────────────────────────────────────
 interface MarioHUDProps {
   state?: HudDemoState
+  soundEnabled?: boolean
+  effectsEnabled?: boolean
   onStateChange?: (state: HudDemoState) => void
   onNavigate?: (screen: 'claim' | 'coupon') => void
 }
 
-export function MarioHUD({ state, onStateChange, onNavigate }: MarioHUDProps) {
+export function MarioHUD({ state, soundEnabled = true, effectsEnabled = true, onStateChange, onNavigate }: MarioHUDProps) {
   const { t } = useTranslation()
   const { playMiningClick, playRewardComplete, playMaxClicks, playToggleWatch, startBgMusic, stopBgMusic, bridgeStatus } = useSound()
   const [points, setPoints]               = useState(state?.points ?? 0);
@@ -353,15 +355,23 @@ export function MarioHUD({ state, onStateChange, onNavigate }: MarioHUDProps) {
     n >= 10000 ? (n / 1000).toFixed(1) + 'K' : n.toLocaleString();
 
   const triggerBalancePop = useCallback(() => {
+    if (!effectsEnabled) {
+      return
+    }
+
     setBalanceBump(true);
     const id = setTimeout(() => {
       setBalanceBump(false);
       timeoutRefs.current = timeoutRefs.current.filter(t => t !== id);
     }, 420);
     timeoutRefs.current.push(id);
-  }, []);
+  }, [effectsEnabled]);
 
   const spawnFloat = useCallback((amount: number) => {
+    if (!effectsEnabled) {
+      return
+    }
+
     const floatItemId = ++floatId.current;
     const offsetX = (Math.random() - 0.5) * 40;
     setFloats(f => [...f, { id: floatItemId, amount, offsetX }]);
@@ -370,7 +380,7 @@ export function MarioHUD({ state, onStateChange, onNavigate }: MarioHUDProps) {
       timeoutRefs.current = timeoutRefs.current.filter(t => t !== id);
     }, 1600);
     timeoutRefs.current.push(id);
-  }, []);
+  }, [effectsEnabled]);
 
   const awardPoints = useCallback(
     (amount: number) => {
@@ -378,6 +388,10 @@ export function MarioHUD({ state, onStateChange, onNavigate }: MarioHUDProps) {
       setTotalPoints(p => p + amount);
       triggerBalancePop();
       spawnFloat(amount);
+
+      if (!effectsEnabled) {
+        return
+      }
 
       // Success animation
       setShowSuccess(true);
@@ -404,7 +418,7 @@ export function MarioHUD({ state, onStateChange, onNavigate }: MarioHUDProps) {
         timeoutRefs.current.push(capyId);
       }
     },
-    [triggerBalancePop, spawnFloat]
+    [effectsEnabled, triggerBalancePop, spawnFloat]
   );
 
   // ── Passive countdown (60s cycle, awards +100 when complete) ────
@@ -414,7 +428,7 @@ export function MarioHUD({ state, onStateChange, onNavigate }: MarioHUDProps) {
       setCountdown(c => {
         if (c <= 1) {
           awardPoints(100);
-          playRewardComplete();
+          if (soundEnabled) playRewardComplete();
           setClickCount(0);
           return CYCLE;
         }
@@ -422,13 +436,13 @@ export function MarioHUD({ state, onStateChange, onNavigate }: MarioHUDProps) {
       });
     }, 1000);
     return () => clearInterval(tick);
-  }, [isWatching, awardPoints, playRewardComplete]);
+  }, [isWatching, awardPoints, playRewardComplete, soundEnabled]);
 
   // ── 背景音樂：watching 且 bgMusicOn 時才播放 ─────────────
   useEffect(() => {
-    if (isWatching && bgMusicOn) startBgMusic();
+    if (soundEnabled && isWatching && bgMusicOn) startBgMusic();
     else stopBgMusic();
-  }, [isWatching, bgMusicOn, startBgMusic, stopBgMusic]);
+  }, [isWatching, bgMusicOn, soundEnabled, startBgMusic, stopBgMusic]);
 
   useEffect(() => {
     onStateChange?.({
@@ -445,15 +459,16 @@ export function MarioHUD({ state, onStateChange, onNavigate }: MarioHUDProps) {
   const handleCapybaraClick = useCallback(() => {
     if (!isWatching) return;
     if (clickCount >= MAX_CLICKS_PER_CYCLE) {
-      playMaxClicks();
+      if (soundEnabled) playMaxClicks();
       return;
     }
-    playMiningClick();
+    if (soundEnabled) playMiningClick();
     awardPoints(1);
     setClickCount(c => c + 1);
-  }, [isWatching, clickCount, awardPoints, playMiningClick, playMaxClicks]);
+  }, [isWatching, clickCount, awardPoints, playMiningClick, playMaxClicks, soundEnabled]);
 
   const progress = (CYCLE - countdown) / CYCLE;
+  const bgMusicActive = soundEnabled && bgMusicOn;
 
   // ─────────────────────────────────────────────────────────
   return (
@@ -471,7 +486,7 @@ export function MarioHUD({ state, onStateChange, onNavigate }: MarioHUDProps) {
       }}
     >
       {/* ── Float layer ── */}
-      {floats.map(f => (
+      {effectsEnabled && floats.map(f => (
         <div
           key={f.id}
           style={{
@@ -538,7 +553,10 @@ export function MarioHUD({ state, onStateChange, onNavigate }: MarioHUDProps) {
 
         {/* Demo toggle */}
         <button
-          onClick={() => { playToggleWatch(); setIsWatching(w => !w); }}
+          onClick={() => {
+            if (soundEnabled) playToggleWatch();
+            setIsWatching(w => !w);
+          }}
           style={{
             padding: '2px 6px',
             borderRadius: 2,
@@ -639,8 +657,8 @@ export function MarioHUD({ state, onStateChange, onNavigate }: MarioHUDProps) {
         <ClickableCapybara
           onClick={handleCapybaraClick}
           isIdle={!isWatching}
-          isSuccess={showSuccess}
-          animState={capyState}
+          isSuccess={effectsEnabled && showSuccess}
+          animState={effectsEnabled ? capyState : 'idle'}
           size={180}
         />
 
@@ -746,20 +764,21 @@ export function MarioHUD({ state, onStateChange, onNavigate }: MarioHUDProps) {
             {t('hud.bgmLabel')}
           </span>
           <button
+            disabled={!soundEnabled}
             onClick={() => setBgMusicOn(v => !v)}
             style={{
               padding: '3px 8px',
               borderRadius: 2,
-              border: `1px solid ${bgMusicOn ? '#9146FF' : 'rgba(145,70,255,0.2)'}`,
-              background: bgMusicOn ? 'rgba(145,70,255,0.15)' : 'transparent',
-              color: bgMusicOn ? '#9146FF' : '#444',
+              border: `1px solid ${bgMusicActive ? '#9146FF' : 'rgba(145,70,255,0.2)'}`,
+              background: bgMusicActive ? 'rgba(145,70,255,0.15)' : 'transparent',
+              color: bgMusicActive ? '#9146FF' : '#444',
               fontSize: 7,
-              cursor: 'pointer',
+              cursor: soundEnabled ? 'pointer' : 'default',
               fontFamily: 'var(--pixel-font-family)',
               letterSpacing: '0.08em',
             }}
           >
-            {bgMusicOn ? t('hud.bgmOn') : t('hud.bgmOff')}
+            {bgMusicActive ? t('hud.bgmOn') : t('hud.bgmOff')}
           </button>
         </div>
       </div>
