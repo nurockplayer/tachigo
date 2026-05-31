@@ -227,17 +227,18 @@ func TestRecoverOAuthProviderConflictReturnsExistingAccount(t *testing.T) {
 	}
 }
 
-func TestUpsertOAuthUser_DuplicateUsernameCreateReturnsStableError(t *testing.T) {
+func TestUpsertOAuthUser_DuplicateUsernameCreatesUserWithoutUsername(t *testing.T) {
 	db := newTestDB(t)
 	svc := NewAuthService(db, testConfig())
 
 	takenUsername := "oauth-taken"
 	existingEmail := "oauth-taken@example.com"
-	if err := db.Create(&models.User{
+	seededUser := models.User{
 		Username: &takenUsername,
 		Email:    &existingEmail,
 		Role:     models.RoleViewer,
-	}).Error; err != nil {
+	}
+	if err := db.Create(&seededUser).Error; err != nil {
 		t.Fatalf("seed user: %v", err)
 	}
 
@@ -250,14 +251,28 @@ func TestUpsertOAuthUser_DuplicateUsernameCreateReturnsStableError(t *testing.T)
 		nil,
 		&oauth2.Token{AccessToken: "google-access-token"},
 	)
-	if !errors.Is(err, ErrUsernameExists) {
-		t.Fatalf("want ErrUsernameExists, got %v (user=%#v tokens=%#v)", err, user, tokens)
+	if err != nil {
+		t.Fatalf("upsertOAuthUser: %v", err)
+	}
+	if user == nil || tokens == nil || tokens.RefreshToken == "" {
+		t.Fatalf("expected user and tokens, got user=%#v tokens=%#v", user, tokens)
+	}
+	if user.Username != nil {
+		t.Fatalf("expected OAuth-created user to leave colliding username unset, got %q", *user.Username)
 	}
 
 	var providerCount int64
 	db.Model(&models.AuthProvider{}).Where("provider_id = ?", "google-duplicate-username").Count(&providerCount)
-	if providerCount != 0 {
-		t.Fatalf("auth provider should not be created after username conflict, got %d rows", providerCount)
+	if providerCount != 1 {
+		t.Fatalf("expected auth provider to be created with nil username user, got %d rows", providerCount)
+	}
+
+	var provider models.AuthProvider
+	if err := db.Where("provider_id = ?", "google-duplicate-username").First(&provider).Error; err != nil {
+		t.Fatalf("load auth provider: %v", err)
+	}
+	if provider.UserID == uuid.Nil || provider.UserID == seededUser.ID {
+		t.Fatalf("expected provider to link a new user, got user_id=%s seeded_user_id=%s", provider.UserID, seededUser.ID)
 	}
 }
 
