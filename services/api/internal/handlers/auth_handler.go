@@ -211,6 +211,7 @@ func (h *AuthHandler) TwitchLogin(c *gin.Context) {
 // @Success      302
 // @Failure      400  {object}  Response
 // @Failure      401  {object}  Response
+// @Failure      409  {object}  Response
 // @Router       /auth/twitch/callback [get]
 func (h *AuthHandler) TwitchCallback(c *gin.Context) {
 	if err := validateOAuthState(c); err != nil {
@@ -226,7 +227,7 @@ func (h *AuthHandler) TwitchCallback(c *gin.Context) {
 	code := c.Query("code")
 	user, tokens, err := h.auth.TwitchCallback(c.Request.Context(), code)
 	if err != nil {
-		internal(c)
+		h.handleOAuthCallbackError(c, err)
 		return
 	}
 
@@ -259,6 +260,7 @@ func (h *AuthHandler) GoogleLogin(c *gin.Context) {
 // @Success      200  {object}  Response{data=AuthResponse}
 // @Failure      400  {object}  Response
 // @Failure      401  {object}  Response
+// @Failure      409  {object}  Response
 // @Router       /auth/google/callback [get]
 func (h *AuthHandler) GoogleCallback(c *gin.Context) {
 	if err := validateOAuthState(c); err != nil {
@@ -271,7 +273,7 @@ func (h *AuthHandler) GoogleCallback(c *gin.Context) {
 	code := c.Query("code")
 	user, tokens, err := h.auth.GoogleCallback(c.Request.Context(), code)
 	if err != nil {
-		internal(c)
+		h.handleOAuthCallbackError(c, err)
 		return
 	}
 
@@ -488,6 +490,14 @@ func (h *AuthHandler) refreshTokenFromRequest(c *gin.Context) (string, error) {
 		return "", errors.New("refresh token is required")
 	}
 	return body.RefreshToken, nil
+}
+
+func (h *AuthHandler) handleOAuthCallbackError(c *gin.Context, err error) {
+	if errors.Is(err, services.ErrEmailExists) {
+		conflict(c, "email already registered")
+		return
+	}
+	internal(c)
 }
 
 func (h *AuthHandler) setRefreshCookie(c *gin.Context, refreshToken string) {
