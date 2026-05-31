@@ -82,9 +82,17 @@ func (h *WatchHandler) Heartbeat(c *gin.Context) {
 		}
 	}
 
+	spendable, cumulative, err := h.watchSvc.GetBalanceContext(c.Request.Context(), userID, body.ChannelID)
+	if err != nil {
+		internal(c)
+		return
+	}
+
 	ok(c, gin.H{
-		"session":       result.Session,
-		"points_earned": result.PointsEarned,
+		"session":           result.Session,
+		"points_earned":     result.PointsEarned,
+		"spendable_balance": spendable,
+		"cumulative_total":  cumulative,
 	})
 }
 
