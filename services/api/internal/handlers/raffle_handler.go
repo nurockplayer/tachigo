@@ -15,6 +15,7 @@ import (
 
 type RaffleHandler struct {
 	raffleSvc *services.RaffleService
+	extSvc    *services.ExtensionService
 }
 
 const (
@@ -22,8 +23,8 @@ const (
 	maxRaffleCSVImportRequestBytes = maxRaffleCSVFileBytes + 64*1024
 )
 
-func NewRaffleHandler(svc *services.RaffleService) *RaffleHandler {
-	return &RaffleHandler{raffleSvc: svc}
+func NewRaffleHandler(svc *services.RaffleService, extSvc *services.ExtensionService) *RaffleHandler {
+	return &RaffleHandler{raffleSvc: svc, extSvc: extSvc}
 }
 
 // ── Dashboard endpoints (JWT + RoleStreamer) ──────────────────────────────────
@@ -796,4 +797,67 @@ func (h *RaffleHandler) GetResult(c *gin.Context) {
 		views[i].Entry.DisplayName = d.Entry.DisplayName
 	}
 	ok(c, gin.H{"draws": views})
+}
+
+// Join godoc
+// @Summary      Join a raffle from Twitch Extension
+// @Tags         raffles
+// @Accept       json
+// @Produce      json
+// @Param        id   path string true "Raffle ID"
+// @Param        body body object{extension_jwt=string} true "Extension JWT"
+// @Success      200  {object}  Response
+// @Failure      400  {object}  Response
+// @Failure      403  {object}  Response
+// @Failure      409  {object}  Response
+// @Router       /extension/raffles/{id}/join [post]
+func (h *RaffleHandler) Join(c *gin.Context) {
+	raffleID, err := uuid.Parse(c.Param("id"))
+	if err != nil {
+		badRequest(c, "invalid raffle id")
+		return
+	}
+
+	var body struct {
+		ExtensionJWT string `json:"extension_jwt" binding:"required"`
+	}
+	if err := c.ShouldBindJSON(&body); err != nil {
+		badRequest(c, err.Error())
+		return
+	}
+	if h.extSvc == nil {
+		internal(c)
+		return
+	}
+	claims, err := h.extSvc.VerifyExtJWT(body.ExtensionJWT)
+	if err != nil {
+		unauthorized(c, "invalid extension jwt")
+		return
+	}
+
+	entry, err := h.raffleSvc.JoinRaffle(c.Request.Context(), raffleID, claims.UserID)
+	if err != nil {
+		switch {
+		case errors.Is(err, services.ErrEntryNotOpen):
+			badRequest(c, "raffle entry not open")
+		case errors.Is(err, services.ErrAlreadyJoined):
+			conflict(c, "already joined")
+		case errors.Is(err, services.ErrNotSubscriber):
+			c.JSON(http.StatusForbidden, gin.H{
+				"success": false,
+				"error":   "not a subscriber",
+				"code":    "not_subscriber",
+				"data":    gin.H{"entry": entry},
+			})
+		case errors.Is(err, services.ErrRaffleNotFound), errors.Is(err, services.ErrViewerNotLinked):
+			notFound(c, "not found")
+		case errors.Is(err, services.ErrTwitchTokenMissing), errors.Is(err, services.ErrTwitchInsufficientScope):
+			badRequest(c, err.Error())
+		default:
+			log.Printf("raffle join: %v", err)
+			internal(c)
+		}
+		return
+	}
+	ok(c, gin.H{"entry": entry})
 }
