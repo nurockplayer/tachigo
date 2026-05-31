@@ -29,6 +29,7 @@ const sidebars: SidebarsConfig = {
       items: [
         'architecture',
         'auth-architecture',
+        'dashboard-auth-session',
         'sequence-diagram',
         'watch-to-points-design',
         'tokenomics',
