@@ -127,6 +127,8 @@ func migratePGTestDB(db *gorm.DB) error {
 			role TEXT NOT NULL DEFAULT 'viewer' CHECK (role IN ('viewer', 'streamer', 'agency', 'admin')),
 			is_active BOOLEAN NOT NULL DEFAULT TRUE,
 			email_verified BOOLEAN NOT NULL DEFAULT FALSE,
+			active_character TEXT NOT NULL DEFAULT 'crab' CHECK (active_character IN ('crab', 'dolphin', 'turtle', 'whale', 'capybara')),
+			switch_cooldown_until TIMESTAMPTZ,
 			created_at TIMESTAMPTZ,
 			updated_at TIMESTAMPTZ,
 			deleted_at TIMESTAMPTZ
