@@ -7,8 +7,8 @@ The graph is meant for architecture navigation, PR impact analysis, AI coding
 assistant context, documentation sync checks, and future GraphRAG support. The
 first source of truth is `kg/seeds/tachigo.yaml`.
 
-Generated files under `kg/generated/` are future artifacts and should not be
-edited by hand once introduced.
+Generated files under `kg/generated/` are local derived artifacts and should not
+be edited by hand. Regenerate them from the seed when needed.
 
 ## First Phase
 
@@ -16,10 +16,12 @@ The first phase is intentionally deterministic and dependency-free:
 
 - seed file: `kg/seeds/tachigo.yaml`
 - validator: `infra/scripts/kg/validate-kg.ts`
+- JSON exporter: `infra/scripts/kg/export-json.ts`
 - local command: `make kg-validate`
+- local JSON export command: `make kg-export-json`
 
-This PR does not add JSON export, Mermaid export, impact analysis, CI wiring,
-LLM extraction, embeddings, Neo4j, pgvector, runtime APIs, or production DB
+This phase does not add Mermaid export, impact analysis, CI wiring, LLM
+extraction, embeddings, Neo4j, pgvector, runtime APIs, or production DB
 migrations. Those are future phases.
 
 ## Node Kinds
@@ -119,17 +121,62 @@ Kinds: APIEndpoint=1, DatabaseTable=6, Document=3, ExternalSystem=5, Feature=3, 
 Relations: DEPENDS_ON=4, DOCUMENTED_BY=1, EXPOSES=1, IMPLEMENTED_BY=2, READS=1, SYNC_WITH=2, WRITES=4
 ```
 
+## Export JSON
+
+Run:
+
+```bash
+make kg-export-json
+```
+
+This validates `kg/seeds/tachigo.yaml` before writing normalized JSON to:
+
+```txt
+kg/generated/tachigo.graph.json
+```
+
+The exported JSON includes stable `id` values for nodes and edges:
+
+```json
+{
+  "version": 1,
+  "generatedAt": "2026-05-31T00:00:00.000Z",
+  "nodes": [
+    {
+      "id": "Feature:Watch Points",
+      "kind": "Feature",
+      "name": "Watch Points",
+      "path": "apps/extension",
+      "metadata": {}
+    }
+  ],
+  "edges": [
+    {
+      "id": "Feature:Watch Points-IMPLEMENTED_BY-Service:ExtensionService",
+      "from": "Feature:Watch Points",
+      "to": "Service:ExtensionService",
+      "relation": "IMPLEMENTED_BY",
+      "source": "docs/architecture.md",
+      "metadata": {}
+    }
+  ]
+}
+```
+
+Generated JSON files under `kg/generated/` are ignored by git because
+`generatedAt` changes on each export. Regenerate them locally from the seed
+instead of editing or reviewing them by hand.
+
 ## Future Phases
 
 Future work should stay issue-first and small:
 
-1. Export normalized JSON into `kg/generated/tachigo.graph.json`.
-2. Export Mermaid into `kg/generated/tachigo.mmd`.
-3. Add deterministic `impact --files` analysis.
-4. Add lightweight CI validation once the seed and validator stabilize.
-5. Add deterministic code-aware extractors for Go routes, GORM models,
+1. Export Mermaid into `kg/generated/tachigo.mmd`.
+2. Add deterministic `impact --files` analysis.
+3. Add lightweight CI validation once the seed and validator stabilize.
+4. Add deterministic code-aware extractors for Go routes, GORM models,
    migrations, frontend routes, and contract surfaces.
-6. Only after the deterministic graph proves useful, evaluate embeddings or
+5. Only after the deterministic graph proves useful, evaluate embeddings or
    GraphRAG.
 
 ## Non-Goals

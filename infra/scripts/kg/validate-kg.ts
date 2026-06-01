@@ -276,7 +276,17 @@ async function main() {
   console.log(`Relations: ${countBy(graph.edges.map((edge) => edge.relation))}`)
 }
 
-main().catch((error) => {
-  console.error(error.message)
-  process.exitCode = 1
-})
+module.exports = {
+  defaultSeedPath,
+  edgeIdentity,
+  identity,
+  parseSeedYaml,
+  validateGraph,
+}
+
+if (require.main === module) {
+  main().catch((error) => {
+    console.error(error.message)
+    process.exitCode = 1
+  })
+}
