@@ -156,6 +156,15 @@ interface PointBalanceResponse {
   cumulativeTotal: number
 }
 
+export interface CurrentAccount {
+  id: string
+  username: string | null
+  email: string | null
+  role: string
+  isActive: boolean | null
+  emailVerified: boolean | null
+}
+
 export interface RedeemCouponResponse {
   balance: number
   voucher_code: string
@@ -225,6 +234,34 @@ function parseTachiBalanceFromPayload(payload: unknown): number {
   return value
 }
 
+function parseCurrentAccountFromPayload(payload: unknown): CurrentAccount {
+  if (!payload || typeof payload !== 'object') {
+    throw new Error('Invalid account response')
+  }
+
+  // eslint-disable-next-line @typescript-eslint/no-explicit-any
+  const raw = payload as any
+  const user = raw.data?.user ?? raw.user ?? raw.data
+  if (!user || typeof user !== 'object') {
+    throw new Error('Account response missing user')
+  }
+
+  const id = user.id
+  const role = user.role
+  if (typeof id !== 'string' || typeof role !== 'string') {
+    throw new Error('Account response missing id or role')
+  }
+
+  return {
+    id,
+    username: typeof user.username === 'string' ? user.username : null,
+    email: typeof user.email === 'string' ? user.email : null,
+    role,
+    isActive: typeof user.is_active === 'boolean' ? user.is_active : null,
+    emailVerified: typeof user.email_verified === 'boolean' ? user.email_verified : null,
+  }
+}
+
 interface ClickResponse {
   balance: number
   delta: number
@@ -241,6 +278,12 @@ export async function getPointBalance(channelId: string): Promise<PointBalanceRe
   }))
 
   return parsePointBalanceFromPayload(data)
+}
+
+export async function getCurrentAccount(): Promise<CurrentAccount> {
+  const { data } = await runWithAuthRecovery((config) => client.get('/api/v1/users/me', config))
+
+  return parseCurrentAccountFromPayload(data)
 }
 
 export async function sendClick(channelId: string): Promise<ClickResponse> {

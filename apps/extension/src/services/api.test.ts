@@ -339,6 +339,113 @@ test('claimPoints claims viewer points then refreshes tachi balance', async () =
   )
 })
 
+test('getCurrentAccount fetches the current account profile through auth recovery', async () => {
+  let accountReads = 0
+
+  await withApiServer(
+    (requests) => async (req, res) => {
+      const body = await readJsonBody(req)
+      requests.push({
+        method: req.method ?? 'GET',
+        url: req.url ?? '/',
+        authorization: req.headers.authorization,
+        body,
+      })
+
+      if (req.method === 'POST' && req.url === '/api/v1/extension/auth/login') {
+        res.writeHead(200, { 'Content-Type': 'application/json' })
+        res.end(JSON.stringify({ success: true, data: { tokens: { access_token: 'refreshed-access-token' } } }))
+        return
+      }
+
+      if (req.method === 'GET' && req.url === '/api/v1/users/me') {
+        accountReads += 1
+        if (accountReads === 1) {
+          res.writeHead(401, { 'Content-Type': 'application/json' })
+          res.end(JSON.stringify({ success: false, error: 'expired' }))
+          return
+        }
+
+        res.writeHead(200, { 'Content-Type': 'application/json' })
+        res.end(
+          JSON.stringify({
+            success: true,
+            data: {
+              user: {
+                id: 'user-1',
+                username: 'mika',
+                email: 'mika@example.com',
+                role: 'streamer',
+                is_active: true,
+                email_verified: false,
+              },
+            },
+          }),
+        )
+        return
+      }
+
+      res.writeHead(404, { 'Content-Type': 'application/json' })
+      res.end(JSON.stringify({ success: false, error: 'not found' }))
+    },
+    async (baseUrl, requests) => {
+      const originalBaseUrl = process.env.VITE_TACHIGO_API_URL
+      process.env.VITE_TACHIGO_API_URL = baseUrl
+
+      try {
+        vi.resetModules()
+        const api = await import('./api.ts')
+
+        api.setExtensionJwtForRecovery('extension-jwt')
+        api.setAuthToken('expired-access-token')
+
+        assert.deepEqual(await api.getCurrentAccount(), {
+          id: 'user-1',
+          username: 'mika',
+          email: 'mika@example.com',
+          role: 'streamer',
+          isActive: true,
+          emailVerified: false,
+        })
+        assert.deepEqual(
+          requests.map(({ method, url, authorization, body }) => ({
+            method,
+            url,
+            authorization,
+            body,
+          })),
+          [
+            {
+              method: 'GET',
+              url: '/api/v1/users/me',
+              authorization: 'Bearer expired-access-token',
+              body: null,
+            },
+            {
+              method: 'POST',
+              url: '/api/v1/extension/auth/login',
+              authorization: 'Bearer expired-access-token',
+              body: { extension_jwt: 'extension-jwt' },
+            },
+            {
+              method: 'GET',
+              url: '/api/v1/users/me',
+              authorization: 'Bearer refreshed-access-token',
+              body: null,
+            },
+          ],
+        )
+      } finally {
+        if (originalBaseUrl === undefined) {
+          delete process.env.VITE_TACHIGO_API_URL
+        } else {
+          process.env.VITE_TACHIGO_API_URL = originalBaseUrl
+        }
+      }
+    },
+  )
+})
+
 test('sendHeartbeat re-authenticates after 401 and falls back to previous balance when balance read fails', async () => {
   let heartbeatAttempts = 0
 

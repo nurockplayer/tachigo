@@ -1,3 +1,4 @@
+import { AccountPanel } from '../components/AccountPanel'
 import { ClaimPanel } from '../components/ClaimPanel'
 import { CouponShopPanel } from '../components/CouponShopPanel'
 import { RaffleResultPanel } from '../components/RaffleResultPanel'
@@ -212,6 +213,8 @@ export function OverlayHost({
             )
           ) : entry.kind === 'menu' ? (
             <MenuOverlay />
+          ) : entry.kind === 'account' ? (
+            <AccountPanel onBack={popOverlay} />
           ) : (
             <PlaceholderSurface
               eyebrow="Dev-only"

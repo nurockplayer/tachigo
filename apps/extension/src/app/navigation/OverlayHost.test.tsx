@@ -1,10 +1,17 @@
 // @vitest-environment jsdom
-import { afterEach, expect, test } from 'vitest'
-import { cleanup, fireEvent, render, screen } from '@testing-library/react'
+import { afterEach, expect, test, vi } from 'vitest'
+import { cleanup, fireEvent, render, screen, waitFor } from '@testing-library/react'
 
 import { NavigationProvider } from './NavigationProvider'
 import { OverlayHost } from './OverlayHost'
 import { useNavigation } from './useNavigation'
+import { getCurrentAccount } from '../../services/api'
+
+vi.mock('../../services/api', () => ({
+  getCurrentAccount: vi.fn(),
+}))
+
+const getCurrentAccountMock = vi.mocked(getCurrentAccount)
 
 function Harness() {
   const { state, pushOverlay } = useNavigation()
@@ -30,6 +37,7 @@ function Harness() {
 
 afterEach(() => {
   cleanup()
+  getCurrentAccountMock.mockReset()
 })
 
 test('menu hub exposes all MVP destination buttons and opens a panel', () => {
@@ -48,4 +56,53 @@ test('menu hub exposes all MVP destination buttons and opens a panel', () => {
   fireEvent.click(screen.getByRole('button', { name: 'Settings' }))
 
   expect(screen.getByLabelText('top overlay').textContent).toBe('settings')
+})
+
+test('account overlay renders current account details and closes with back', async () => {
+  getCurrentAccountMock.mockResolvedValue({
+    id: 'user-1',
+    username: 'mika',
+    email: 'mika@example.com',
+    role: 'streamer',
+    isActive: true,
+    emailVerified: false,
+  })
+
+  render(
+    <NavigationProvider>
+      <Harness />
+    </NavigationProvider>,
+  )
+
+  fireEvent.click(screen.getByRole('button', { name: 'open menu' }))
+  fireEvent.click(screen.getByRole('button', { name: 'Account' }))
+
+  expect(screen.getAllByRole('status').some((node) => node.textContent?.includes('Loading account'))).toBe(true)
+  expect(await screen.findByText('mika')).toBeTruthy()
+  expect(screen.getByText('mika@example.com')).toBeTruthy()
+  expect(screen.getByText('streamer')).toBeTruthy()
+  expect(screen.getByText('Active')).toBeTruthy()
+  expect(screen.getByText('Email not verified')).toBeTruthy()
+
+  fireEvent.click(screen.getByRole('button', { name: 'Back' }))
+
+  await waitFor(() => {
+    expect(screen.getByLabelText('top overlay').textContent).toBe('menu')
+  })
+})
+
+test('account overlay renders an error state when the current account fetch fails', async () => {
+  getCurrentAccountMock.mockRejectedValue(new Error('network down'))
+
+  render(
+    <NavigationProvider>
+      <Harness />
+    </NavigationProvider>,
+  )
+
+  fireEvent.click(screen.getByRole('button', { name: 'open menu' }))
+  fireEvent.click(screen.getByRole('button', { name: 'Account' }))
+
+  expect((await screen.findByRole('alert')).textContent).toContain('Could not load account')
+  expect(screen.getAllByRole('button', { name: 'Close' }).length).toBeGreaterThan(0)
 })
