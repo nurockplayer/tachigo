@@ -37,6 +37,7 @@ related_repos:
 |---|---|
 | [architecture.md](/tachigo/architecture) | 系統整體架構與主要資料流 |
 | [auth-architecture.md](/tachigo/auth-architecture) | Auth 現況與 migration guardrails |
+| [dashboard-auth-session.md](/tachigo/dashboard-auth-session) | Dashboard auth/session restore 與 frontend RBAC 邊界現況 |
 | [backend-permissions.md](/tachigo/backend-permissions) | Backend role / permission 現況與變更 guardrails |
 | [auto-merge-policy.md](/tachigo/auto-merge-policy) | Auto-merge 與 approve 語義 |
 | [ci-app-scope-policy.md](/tachigo/ci-app-scope-policy) | Extension / Dashboard / Backend / Contracts 的 CI app-scope routing policy |
