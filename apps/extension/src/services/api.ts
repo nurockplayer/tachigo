@@ -200,6 +200,14 @@ function parsePointBalanceFromPayload(payload: unknown): PointBalanceResponse {
   return { spendableBalance, cumulativeTotal }
 }
 
+function parseOptionalPointBalanceFromPayload(payload: unknown): PointBalanceResponse | null {
+  try {
+    return parsePointBalanceFromPayload(payload)
+  } catch {
+    return null
+  }
+}
+
 function parseTachiBalanceFromPayload(payload: unknown): number {
   if (!payload || typeof payload !== 'object') {
     throw new Error('Invalid tachi balance response')
@@ -307,6 +315,14 @@ export async function sendHeartbeat(
     client.post('/api/v1/extension/watch/heartbeat', {
       channel_id: channelId,
     }, config))
+
+  const heartbeatBalance = parseOptionalPointBalanceFromPayload(heartbeatResponse.data)
+  if (heartbeatBalance) {
+    return {
+      balance: heartbeatBalance.spendableBalance,
+      cumulativeTotal: heartbeatBalance.cumulativeTotal,
+    }
+  }
 
   try {
     const pointBalance = await getPointBalance(channelId)
