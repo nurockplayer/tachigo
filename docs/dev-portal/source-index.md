@@ -39,6 +39,7 @@ related_repos:
 | [auth-architecture.md](/tachigo/auth-architecture) | Auth 現況與 migration guardrails |
 | [backend-permissions.md](/tachigo/backend-permissions) | Backend role / permission 現況與變更 guardrails |
 | [auto-merge-policy.md](/tachigo/auto-merge-policy) | Auto-merge 與 approve 語義 |
+| [ci-app-scope-policy.md](/tachigo/ci-app-scope-policy) | Extension / Dashboard / Backend / Contracts 的 CI app-scope routing policy |
 | [dependabot-update-policy.md](/tachigo/dependabot-update-policy) | Dependabot 更新政策 |
 | [draft-pr-auto-ready.md](/tachigo/draft-pr-auto-ready) | Draft PR auto-ready 現行流程 |
 | [pr-scope-policy.md](/tachigo/pr-scope-policy) | PR scope 與 required checks policy |
