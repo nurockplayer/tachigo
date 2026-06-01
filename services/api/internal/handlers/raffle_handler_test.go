@@ -1778,8 +1778,7 @@ func TestRaffle_Join_PublicMode(t *testing.T) {
 		t.Fatalf("want 200, got %d: %s", w.Code, w.Body.String())
 	}
 	entry := parseBody(t, w.Body.Bytes())["data"].(map[string]interface{})["entry"].(map[string]interface{})
-	// twitch_login is temporarily set to twitchUserID until /helix/users integration
-	if entry["twitch_login"] != twitchUserID || entry["source"] != string(models.RaffleSourceExtensionButton) {
+	if entry["twitch_login"] != "join_public_viewer" || entry["source"] != string(models.RaffleSourceExtensionButton) {
 		t.Fatalf("unexpected entry: %#v", entry)
 	}
 }
