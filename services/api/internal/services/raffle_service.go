@@ -706,6 +706,7 @@ func (s *RaffleService) JoinRaffle(ctx context.Context, raffleID uuid.UUID, twit
 	var viewerAP models.AuthProvider
 	if err := db.
 		Joins("JOIN users ON users.id = auth_providers.user_id AND users.deleted_at IS NULL").
+		Preload("User").
 		Where("auth_providers.provider = ? AND auth_providers.provider_id = ?", models.ProviderTwitch, twitchUserID).
 		First(&viewerAP).Error; err != nil {
 		if errors.Is(err, gorm.ErrRecordNotFound) {
@@ -715,16 +716,19 @@ func (s *RaffleService) JoinRaffle(ctx context.Context, raffleID uuid.UUID, twit
 	}
 
 	uid := viewerAP.UserID
+	twitchLogin := twitchUserID
+	if viewerAP.User.Username != nil {
+		twitchLogin = *viewerAP.User.Username
+	}
 	entry := &models.RaffleEntry{
 		RaffleID:    raffleID,
 		UserID:      &uid,
-		TwitchLogin: twitchUserID,
-		DisplayName: twitchUserID,
+		TwitchLogin: twitchLogin,
+		DisplayName: twitchLogin,
 		Source:      string(models.RaffleSourceExtensionButton),
 		Eligible:    true,
 	}
 
-	var joinErr error
 	if raffle.Mode == models.RaffleModeSubscribers {
 		var broadcasterAP models.AuthProvider
 		if err := db.Where("user_id = ? AND provider = ?", raffle.UserID, models.ProviderTwitch).First(&broadcasterAP).Error; err != nil {
@@ -768,7 +772,7 @@ func (s *RaffleService) JoinRaffle(ctx context.Context, raffleID uuid.UUID, twit
 	if res.RowsAffected == 0 {
 		return nil, ErrAlreadyJoined
 	}
-	return entry, joinErr
+	return entry, nil
 }
 
 func (s *RaffleService) fetchTwitchSubsPage(ctx context.Context, accessToken, broadcasterID, cursor string) ([]twitchSubscription, string, error) {
