@@ -10,22 +10,22 @@ importers:
     dependencies:
       '@hookform/resolvers':
         specifier: ^5.4.0
-        version: 5.4.0(react-hook-form@7.76.1(react@19.2.5))
+        version: 5.4.0(react-hook-form@7.76.1(react@19.2.7))
       '@radix-ui/react-slot':
         specifier: ^1.2.3
-        version: 1.2.4(@types/react@19.2.14)(react@19.2.5)
+        version: 1.2.4(@types/react@19.2.14)(react@19.2.7)
       '@refinedev/core':
         specifier: ^5.0.0
-        version: 5.0.12(@tanstack/react-query@5.100.6(react@19.2.5))(@types/react-dom@19.2.3(@types/react@19.2.14))(@types/react@19.2.14)(react-dom@19.2.6(react@19.2.5))(react@19.2.5)
+        version: 5.0.12(@tanstack/react-query@5.100.6(react@19.2.7))(@types/react-dom@19.2.3(@types/react@19.2.14))(@types/react@19.2.14)(react-dom@19.2.6(react@19.2.7))(react@19.2.7)
       '@refinedev/react-hook-form':
         specifier: ^5.0.0
-        version: 5.0.4(@refinedev/core@5.0.12(@tanstack/react-query@5.100.6(react@19.2.5))(@types/react-dom@19.2.3(@types/react@19.2.14))(@types/react@19.2.14)(react-dom@19.2.6(react@19.2.5))(react@19.2.5))(@types/react-dom@19.2.3(@types/react@19.2.14))(@types/react@19.2.14)(react-dom@19.2.6(react@19.2.5))(react-hook-form@7.76.1(react@19.2.5))(react@19.2.5)
+        version: 5.0.4(@refinedev/core@5.0.12(@tanstack/react-query@5.100.6(react@19.2.7))(@types/react-dom@19.2.3(@types/react@19.2.14))(@types/react@19.2.14)(react-dom@19.2.6(react@19.2.7))(react@19.2.7))(@types/react-dom@19.2.3(@types/react@19.2.14))(@types/react@19.2.14)(react-dom@19.2.6(react@19.2.7))(react-hook-form@7.76.1(react@19.2.7))(react@19.2.7)
       '@refinedev/react-router':
         specifier: ^2.0.0
-        version: 2.0.4(@refinedev/core@5.0.12(@tanstack/react-query@5.100.6(react@19.2.5))(@types/react-dom@19.2.3(@types/react@19.2.14))(@types/react@19.2.14)(react-dom@19.2.6(react@19.2.5))(react@19.2.5))(@types/react-dom@19.2.3(@types/react@19.2.14))(@types/react@19.2.14)(react-dom@19.2.6(react@19.2.5))(react-router@7.15.1(react-dom@19.2.6(react@19.2.5))(react@19.2.5))(react@19.2.5)
+        version: 2.0.4(@refinedev/core@5.0.12(@tanstack/react-query@5.100.6(react@19.2.7))(@types/react-dom@19.2.3(@types/react@19.2.14))(@types/react@19.2.14)(react-dom@19.2.6(react@19.2.7))(react@19.2.7))(@types/react-dom@19.2.3(@types/react@19.2.14))(@types/react@19.2.14)(react-dom@19.2.6(react@19.2.7))(react-router@7.15.1(react-dom@19.2.6(react@19.2.7))(react@19.2.7))(react@19.2.7)
       '@refinedev/simple-rest':
         specifier: ^6.0.0
-        version: 6.0.1(@refinedev/core@5.0.12(@tanstack/react-query@5.100.6(react@19.2.5))(@types/react-dom@19.2.3(@types/react@19.2.14))(@types/react@19.2.14)(react-dom@19.2.6(react@19.2.5))(react@19.2.5))
+        version: 6.0.1(@refinedev/core@5.0.12(@tanstack/react-query@5.100.6(react@19.2.7))(@types/react-dom@19.2.3(@types/react@19.2.14))(@types/react@19.2.14)(react-dom@19.2.6(react@19.2.7))(react@19.2.7))
       '@tailwindcss/postcss':
         specifier: ^4.3.0
         version: 4.3.0
@@ -40,19 +40,19 @@ importers:
         version: 2.1.1
       lucide-react:
         specifier: ^1.16.0
-        version: 1.16.0(react@19.2.5)
+        version: 1.16.0(react@19.2.7)
       react:
-        specifier: ^19.2.5
-        version: 19.2.5
+        specifier: ^19.2.6
+        version: 19.2.7
       react-dom:
         specifier: ^19.2.6
-        version: 19.2.6(react@19.2.5)
+        version: 19.2.6(react@19.2.7)
       react-hook-form:
         specifier: ^7.76.1
-        version: 7.76.1(react@19.2.5)
+        version: 7.76.1(react@19.2.7)
       react-router:
         specifier: ^7.15.1
-        version: 7.15.1(react-dom@19.2.6(react@19.2.5))(react@19.2.5)
+        version: 7.15.1(react-dom@19.2.6(react@19.2.7))(react@19.2.7)
       tailwind-merge:
         specifier: ^3.6.0
         version: 3.6.0
@@ -65,7 +65,7 @@ importers:
         version: 10.0.1(eslint@10.4.0(jiti@2.7.0))
       '@testing-library/react':
         specifier: ^16.3.2
-        version: 16.3.2(@testing-library/dom@10.4.1)(@types/react-dom@19.2.3(@types/react@19.2.14))(@types/react@19.2.14)(react-dom@19.2.6(react@19.2.5))(react@19.2.5)
+        version: 16.3.2(@testing-library/dom@10.4.1)(@types/react-dom@19.2.3(@types/react@19.2.14))(@types/react@19.2.14)(react-dom@19.2.6(react@19.2.7))(react@19.2.7)
       '@types/node':
         specifier: ^25.6.0
         version: 25.9.1
@@ -1491,8 +1491,8 @@ packages:
       react-dom:
         optional: true
 
-  react@19.2.5:
-    resolution: {integrity: sha512-llUJLzz1zTUBrskt2pwZgLq59AemifIftw4aB7JxOqf1HY2FDaGDxgwpAPVzHU1kdWabH7FauP4i1oEeer2WCA==}
+  react@19.2.7:
+    resolution: {integrity: sha512-HNe9WslTbXmFK8o8cmwgAeJFSBvt1bPdHCVKtaaV+WlAN36mpT4hcRpwbf3fY56ar2oIXzsBpOAiIRHAdY0OlQ==}
     engines: {node: '>=0.10.0'}
 
   require-from-string@2.0.2:
@@ -2001,10 +2001,10 @@ snapshots:
 
   '@exodus/bytes@1.15.0': {}
 
-  '@hookform/resolvers@5.4.0(react-hook-form@7.76.1(react@19.2.5))':
+  '@hookform/resolvers@5.4.0(react-hook-form@7.76.1(react@19.2.7))':
     dependencies:
       '@standard-schema/utils': 0.3.0
-      react-hook-form: 7.76.1(react@19.2.5)
+      react-hook-form: 7.76.1(react@19.2.7)
 
   '@humanfs/core@0.19.2':
     dependencies:
@@ -2050,23 +2050,23 @@ snapshots:
 
   '@oxc-project/types@0.132.0': {}
 
-  '@radix-ui/react-compose-refs@1.1.2(@types/react@19.2.14)(react@19.2.5)':
+  '@radix-ui/react-compose-refs@1.1.2(@types/react@19.2.14)(react@19.2.7)':
     dependencies:
-      react: 19.2.5
+      react: 19.2.7
     optionalDependencies:
       '@types/react': 19.2.14
 
-  '@radix-ui/react-slot@1.2.4(@types/react@19.2.14)(react@19.2.5)':
+  '@radix-ui/react-slot@1.2.4(@types/react@19.2.14)(react@19.2.7)':
     dependencies:
-      '@radix-ui/react-compose-refs': 1.1.2(@types/react@19.2.14)(react@19.2.5)
-      react: 19.2.5
+      '@radix-ui/react-compose-refs': 1.1.2(@types/react@19.2.14)(react@19.2.7)
+      react: 19.2.7
     optionalDependencies:
       '@types/react': 19.2.14
 
-  '@refinedev/core@5.0.12(@tanstack/react-query@5.100.6(react@19.2.5))(@types/react-dom@19.2.3(@types/react@19.2.14))(@types/react@19.2.14)(react-dom@19.2.6(react@19.2.5))(react@19.2.5)':
+  '@refinedev/core@5.0.12(@tanstack/react-query@5.100.6(react@19.2.7))(@types/react-dom@19.2.3(@types/react@19.2.14))(@types/react@19.2.14)(react-dom@19.2.6(react@19.2.7))(react@19.2.7)':
     dependencies:
-      '@refinedev/devtools-internal': 2.0.2(@types/react-dom@19.2.3(@types/react@19.2.14))(@types/react@19.2.14)(react-dom@19.2.6(react@19.2.5))(react@19.2.5)
-      '@tanstack/react-query': 5.100.6(react@19.2.5)
+      '@refinedev/devtools-internal': 2.0.2(@types/react-dom@19.2.3(@types/react@19.2.14))(@types/react@19.2.14)(react-dom@19.2.6(react@19.2.7))(react@19.2.7)
+      '@tanstack/react-query': 5.100.6(react@19.2.7)
       '@types/react': 19.2.14
       '@types/react-dom': 19.2.3(@types/react@19.2.14)
       lodash: 4.18.1
@@ -2074,54 +2074,54 @@ snapshots:
       papaparse: 5.5.3
       pluralize: 8.0.0
       qs: 6.15.1
-      react: 19.2.5
-      react-dom: 19.2.6(react@19.2.5)
+      react: 19.2.7
+      react-dom: 19.2.6(react@19.2.7)
       tslib: 2.8.1
       warn-once: 0.1.1
 
-  '@refinedev/devtools-internal@2.0.2(@types/react-dom@19.2.3(@types/react@19.2.14))(@types/react@19.2.14)(react-dom@19.2.6(react@19.2.5))(react@19.2.5)':
+  '@refinedev/devtools-internal@2.0.2(@types/react-dom@19.2.3(@types/react@19.2.14))(@types/react@19.2.14)(react-dom@19.2.6(react@19.2.7))(react@19.2.7)':
     dependencies:
-      '@refinedev/devtools-shared': 2.0.2(@types/react-dom@19.2.3(@types/react@19.2.14))(@types/react@19.2.14)(react-dom@19.2.6(react@19.2.5))(react@19.2.5)
-      '@tanstack/react-query': 5.100.6(react@19.2.5)
+      '@refinedev/devtools-shared': 2.0.2(@types/react-dom@19.2.3(@types/react@19.2.14))(@types/react@19.2.14)(react-dom@19.2.6(react@19.2.7))(react@19.2.7)
+      '@tanstack/react-query': 5.100.6(react@19.2.7)
       '@types/react': 19.2.14
       '@types/react-dom': 19.2.3(@types/react@19.2.14)
       error-stack-parser: 2.1.4
-      react: 19.2.5
-      react-dom: 19.2.6(react@19.2.5)
+      react: 19.2.7
+      react-dom: 19.2.6(react@19.2.7)
 
-  '@refinedev/devtools-shared@2.0.2(@types/react-dom@19.2.3(@types/react@19.2.14))(@types/react@19.2.14)(react-dom@19.2.6(react@19.2.5))(react@19.2.5)':
+  '@refinedev/devtools-shared@2.0.2(@types/react-dom@19.2.3(@types/react@19.2.14))(@types/react@19.2.14)(react-dom@19.2.6(react@19.2.7))(react@19.2.7)':
     dependencies:
-      '@tanstack/react-query': 5.100.6(react@19.2.5)
+      '@tanstack/react-query': 5.100.6(react@19.2.7)
       '@types/react': 19.2.14
       '@types/react-dom': 19.2.3(@types/react@19.2.14)
       error-stack-parser: 2.1.4
-      react: 19.2.5
-      react-dom: 19.2.6(react@19.2.5)
+      react: 19.2.7
+      react-dom: 19.2.6(react@19.2.7)
 
-  '@refinedev/react-hook-form@5.0.4(@refinedev/core@5.0.12(@tanstack/react-query@5.100.6(react@19.2.5))(@types/react-dom@19.2.3(@types/react@19.2.14))(@types/react@19.2.14)(react-dom@19.2.6(react@19.2.5))(react@19.2.5))(@types/react-dom@19.2.3(@types/react@19.2.14))(@types/react@19.2.14)(react-dom@19.2.6(react@19.2.5))(react-hook-form@7.76.1(react@19.2.5))(react@19.2.5)':
+  '@refinedev/react-hook-form@5.0.4(@refinedev/core@5.0.12(@tanstack/react-query@5.100.6(react@19.2.7))(@types/react-dom@19.2.3(@types/react@19.2.14))(@types/react@19.2.14)(react-dom@19.2.6(react@19.2.7))(react@19.2.7))(@types/react-dom@19.2.3(@types/react@19.2.14))(@types/react@19.2.14)(react-dom@19.2.6(react@19.2.7))(react-hook-form@7.76.1(react@19.2.7))(react@19.2.7)':
     dependencies:
-      '@refinedev/core': 5.0.12(@tanstack/react-query@5.100.6(react@19.2.5))(@types/react-dom@19.2.3(@types/react@19.2.14))(@types/react@19.2.14)(react-dom@19.2.6(react@19.2.5))(react@19.2.5)
+      '@refinedev/core': 5.0.12(@tanstack/react-query@5.100.6(react@19.2.7))(@types/react-dom@19.2.3(@types/react@19.2.14))(@types/react@19.2.14)(react-dom@19.2.6(react@19.2.7))(react@19.2.7)
       '@types/react': 19.2.14
       '@types/react-dom': 19.2.3(@types/react@19.2.14)
       lodash: 4.18.1
       lodash-es: 4.18.1
-      react: 19.2.5
-      react-dom: 19.2.6(react@19.2.5)
-      react-hook-form: 7.76.1(react@19.2.5)
+      react: 19.2.7
+      react-dom: 19.2.6(react@19.2.7)
+      react-hook-form: 7.76.1(react@19.2.7)
 
-  '@refinedev/react-router@2.0.4(@refinedev/core@5.0.12(@tanstack/react-query@5.100.6(react@19.2.5))(@types/react-dom@19.2.3(@types/react@19.2.14))(@types/react@19.2.14)(react-dom@19.2.6(react@19.2.5))(react@19.2.5))(@types/react-dom@19.2.3(@types/react@19.2.14))(@types/react@19.2.14)(react-dom@19.2.6(react@19.2.5))(react-router@7.15.1(react-dom@19.2.6(react@19.2.5))(react@19.2.5))(react@19.2.5)':
+  '@refinedev/react-router@2.0.4(@refinedev/core@5.0.12(@tanstack/react-query@5.100.6(react@19.2.7))(@types/react-dom@19.2.3(@types/react@19.2.14))(@types/react@19.2.14)(react-dom@19.2.6(react@19.2.7))(react@19.2.7))(@types/react-dom@19.2.3(@types/react@19.2.14))(@types/react@19.2.14)(react-dom@19.2.6(react@19.2.7))(react-router@7.15.1(react-dom@19.2.6(react@19.2.7))(react@19.2.7))(react@19.2.7)':
     dependencies:
-      '@refinedev/core': 5.0.12(@tanstack/react-query@5.100.6(react@19.2.5))(@types/react-dom@19.2.3(@types/react@19.2.14))(@types/react@19.2.14)(react-dom@19.2.6(react@19.2.5))(react@19.2.5)
+      '@refinedev/core': 5.0.12(@tanstack/react-query@5.100.6(react@19.2.7))(@types/react-dom@19.2.3(@types/react@19.2.14))(@types/react@19.2.14)(react-dom@19.2.6(react@19.2.7))(react@19.2.7)
       '@types/react': 19.2.14
       '@types/react-dom': 19.2.3(@types/react@19.2.14)
       qs: 6.15.1
-      react: 19.2.5
-      react-dom: 19.2.6(react@19.2.5)
-      react-router: 7.15.1(react-dom@19.2.6(react@19.2.5))(react@19.2.5)
+      react: 19.2.7
+      react-dom: 19.2.6(react@19.2.7)
+      react-router: 7.15.1(react-dom@19.2.6(react@19.2.7))(react@19.2.7)
 
-  '@refinedev/simple-rest@6.0.1(@refinedev/core@5.0.12(@tanstack/react-query@5.100.6(react@19.2.5))(@types/react-dom@19.2.3(@types/react@19.2.14))(@types/react@19.2.14)(react-dom@19.2.6(react@19.2.5))(react@19.2.5))':
+  '@refinedev/simple-rest@6.0.1(@refinedev/core@5.0.12(@tanstack/react-query@5.100.6(react@19.2.7))(@types/react-dom@19.2.3(@types/react@19.2.14))(@types/react@19.2.14)(react-dom@19.2.6(react@19.2.7))(react@19.2.7))':
     dependencies:
-      '@refinedev/core': 5.0.12(@tanstack/react-query@5.100.6(react@19.2.5))(@types/react-dom@19.2.3(@types/react@19.2.14))(@types/react@19.2.14)(react-dom@19.2.6(react@19.2.5))(react@19.2.5)
+      '@refinedev/core': 5.0.12(@tanstack/react-query@5.100.6(react@19.2.7))(@types/react-dom@19.2.3(@types/react@19.2.14))(@types/react@19.2.14)(react-dom@19.2.6(react@19.2.7))(react@19.2.7)
       axios: 1.16.1
       query-string: 7.1.3
     transitivePeerDependencies:
@@ -2256,10 +2256,10 @@ snapshots:
 
   '@tanstack/query-core@5.100.6': {}
 
-  '@tanstack/react-query@5.100.6(react@19.2.5)':
+  '@tanstack/react-query@5.100.6(react@19.2.7)':
     dependencies:
       '@tanstack/query-core': 5.100.6
-      react: 19.2.5
+      react: 19.2.7
 
   '@testing-library/dom@10.4.1':
     dependencies:
@@ -2272,12 +2272,12 @@ snapshots:
       picocolors: 1.1.1
       pretty-format: 27.5.1
 
-  '@testing-library/react@16.3.2(@testing-library/dom@10.4.1)(@types/react-dom@19.2.3(@types/react@19.2.14))(@types/react@19.2.14)(react-dom@19.2.6(react@19.2.5))(react@19.2.5)':
+  '@testing-library/react@16.3.2(@testing-library/dom@10.4.1)(@types/react-dom@19.2.3(@types/react@19.2.14))(@types/react@19.2.14)(react-dom@19.2.6(react@19.2.7))(react@19.2.7)':
     dependencies:
       '@babel/runtime': 7.29.2
       '@testing-library/dom': 10.4.1
-      react: 19.2.5
-      react-dom: 19.2.6(react@19.2.5)
+      react: 19.2.7
+      react-dom: 19.2.6(react@19.2.7)
     optionalDependencies:
       '@types/react': 19.2.14
       '@types/react-dom': 19.2.3(@types/react@19.2.14)
@@ -2956,9 +2956,9 @@ snapshots:
     dependencies:
       yallist: 3.1.1
 
-  lucide-react@1.16.0(react@19.2.5):
+  lucide-react@1.16.0(react@19.2.7):
     dependencies:
-      react: 19.2.5
+      react: 19.2.7
 
   lz-string@1.5.0: {}
 
@@ -3072,26 +3072,26 @@ snapshots:
       split-on-first: 1.1.0
       strict-uri-encode: 2.0.0
 
-  react-dom@19.2.6(react@19.2.5):
+  react-dom@19.2.6(react@19.2.7):
     dependencies:
-      react: 19.2.5
+      react: 19.2.7
       scheduler: 0.27.0
 
-  react-hook-form@7.76.1(react@19.2.5):
+  react-hook-form@7.76.1(react@19.2.7):
     dependencies:
-      react: 19.2.5
+      react: 19.2.7
 
   react-is@17.0.2: {}
 
-  react-router@7.15.1(react-dom@19.2.6(react@19.2.5))(react@19.2.5):
+  react-router@7.15.1(react-dom@19.2.6(react@19.2.7))(react@19.2.7):
     dependencies:
       cookie: 1.1.1
-      react: 19.2.5
+      react: 19.2.7
       set-cookie-parser: 2.7.2
     optionalDependencies:
-      react-dom: 19.2.6(react@19.2.5)
+      react-dom: 19.2.6(react@19.2.7)
 
-  react@19.2.5: {}
+  react@19.2.7: {}
 
   require-from-string@2.0.2: {}
 
