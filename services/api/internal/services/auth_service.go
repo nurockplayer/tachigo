@@ -532,7 +532,11 @@ func (s *AuthService) upsertOAuthUser(
 		return nil, nil, recoverErr
 	}
 
-	return nil, nil, s.mapOAuthUserUniqueError(ctx, username, email, err)
+	mappedErr := s.mapOAuthUserUniqueError(ctx, username, email, err)
+	if username != "" && errors.Is(mappedErr, ErrUsernameExists) {
+		return s.upsertOAuthUser(ctx, provider, providerID, "", email, avatarURL, token)
+	}
+	return nil, nil, mappedErr
 }
 
 func (s *AuthService) upsertOAuthUserInTransaction(
