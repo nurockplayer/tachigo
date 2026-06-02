@@ -395,3 +395,15 @@ export async function getRaffleResult(raffleId: string): Promise<RaffleResultDra
   )
   return data.data.draws
 }
+
+export async function joinRaffle(raffleId: string): Promise<{ status: number }> {
+  try {
+    await client.post(`/api/v1/extension/raffles/${raffleId}/join`)
+    return { status: 200 }
+  } catch (err) {
+    if (axios.isAxiosError(err)) {
+      return { status: err.response?.status ?? 500 }
+    }
+    return { status: 500 }
+  }
+}
