@@ -106,6 +106,8 @@ export interface ModelsAuthProvider {
   user_id?: string;
 }
 
+export type ModelsCharacterKind = "crab" | "dolphin" | "turtle" | "whale" | "capybara";
+
 export type ModelsProviderType = "twitch" | "google" | "web3" | "email";
 
 export interface ModelsShippingAddress {
@@ -125,6 +127,7 @@ export interface ModelsShippingAddress {
 }
 
 export interface ModelsUser {
+  active_character?: ModelsCharacterKind;
   addresses?: Array<ModelsShippingAddress>;
   auth_providers?: Array<ModelsAuthProvider>;
   avatar_url?: string;
@@ -134,6 +137,7 @@ export interface ModelsUser {
   id?: string;
   is_active?: boolean;
   role?: ModelsUserRole;
+  switch_cooldown_until?: string;
   updated_at?: string;
   username?: string;
 }
@@ -373,6 +377,30 @@ export interface ApiOperations {
     response: HandlersResponse;
   };
   "POST /dashboard/raffles/{id}/entries/import-csv": {
+    pathParams: {
+      id: string;
+    };
+    response: HandlersResponse;
+  };
+  "PATCH /dashboard/raffles/{id}/entry": {
+    requestBody: {
+      entry_open?: boolean;
+    };
+    pathParams: {
+      id: string;
+    };
+    response: HandlersResponse;
+  };
+  "GET /dashboard/raffles/{id}/entry-stats": {
+    pathParams: {
+      id: string;
+    };
+    response: HandlersResponse;
+  };
+  "PATCH /dashboard/raffles/{id}/mode": {
+    requestBody: {
+      mode?: string;
+    };
     pathParams: {
       id: string;
     };
