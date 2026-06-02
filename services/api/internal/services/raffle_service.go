@@ -1224,6 +1224,115 @@ func (s *RaffleService) DrawFromTierContext(ctx context.Context, raffleID, tierI
 	return result, nil
 }
 
+// EntryStats holds aggregated entry statistics for a raffle.
+type EntryStats struct {
+	EligibleCount     int64            `json:"eligible_count"`
+	IneligibleCount   int64            `json:"ineligible_count"`
+	IneligibleReasons map[string]int64 `json:"ineligible_reasons"`
+	TotalJoined       int64            `json:"total_joined"`
+}
+
+func (s *RaffleService) SetMode(raffleID, userID uuid.UUID, mode models.RaffleMode) (*models.Raffle, error) {
+	return s.SetModeContext(context.Background(), raffleID, userID, mode)
+}
+
+func (s *RaffleService) SetModeContext(ctx context.Context, raffleID, userID uuid.UUID, mode models.RaffleMode) (*models.Raffle, error) {
+	if ctx == nil {
+		ctx = context.Background()
+	}
+	raffle, err := s.GetByIDContext(ctx, raffleID, userID)
+	if err != nil {
+		return nil, err
+	}
+	res := s.db.WithContext(ctx).Model(&models.Raffle{}).
+		Where("id = ? AND status = ?", raffle.ID, models.RaffleStatusDraft).
+		Update("mode", mode)
+	if res.Error != nil {
+		return nil, res.Error
+	}
+	if res.RowsAffected == 0 {
+		return nil, ErrRaffleNotDraft
+	}
+	raffle.Mode = mode
+	return raffle, nil
+}
+
+func (s *RaffleService) SetEntryOpen(raffleID, userID uuid.UUID, open bool) (*models.Raffle, error) {
+	return s.SetEntryOpenContext(context.Background(), raffleID, userID, open)
+}
+
+func (s *RaffleService) SetEntryOpenContext(ctx context.Context, raffleID, userID uuid.UUID, open bool) (*models.Raffle, error) {
+	if ctx == nil {
+		ctx = context.Background()
+	}
+	raffle, err := s.GetByIDContext(ctx, raffleID, userID)
+	if err != nil {
+		return nil, err
+	}
+	res := s.db.WithContext(ctx).Model(&models.Raffle{}).
+		Where("id = ? AND status = ?", raffle.ID, models.RaffleStatusActive).
+		Update("entry_open", open)
+	if res.Error != nil {
+		return nil, res.Error
+	}
+	if res.RowsAffected == 0 {
+		return nil, ErrRaffleNotActive
+	}
+	raffle.EntryOpen = open
+	return raffle, nil
+}
+
+func (s *RaffleService) GetEntryStats(raffleID, userID uuid.UUID) (*EntryStats, error) {
+	return s.GetEntryStatsContext(context.Background(), raffleID, userID)
+}
+
+func (s *RaffleService) GetEntryStatsContext(ctx context.Context, raffleID, userID uuid.UUID) (*EntryStats, error) {
+	if ctx == nil {
+		ctx = context.Background()
+	}
+	if _, err := s.GetByIDContext(ctx, raffleID, userID); err != nil {
+		return nil, err
+	}
+
+	var total int64
+	if err := s.db.WithContext(ctx).Model(&models.RaffleEntry{}).
+		Where("raffle_id = ?", raffleID).Count(&total).Error; err != nil {
+		return nil, err
+	}
+
+	var eligible int64
+	if err := s.db.WithContext(ctx).Model(&models.RaffleEntry{}).
+		Where("raffle_id = ? AND eligible = ?", raffleID, true).Count(&eligible).Error; err != nil {
+		return nil, err
+	}
+
+	type reasonCount struct {
+		IneligibleReason string
+		Count            int64
+	}
+	var rows []reasonCount
+	if err := s.db.WithContext(ctx).Model(&models.RaffleEntry{}).
+		Select("ineligible_reason, count(*) as count").
+		Where("raffle_id = ? AND eligible = ?", raffleID, false).
+		Group("ineligible_reason").Scan(&rows).Error; err != nil {
+		return nil, err
+	}
+
+	reasons := make(map[string]int64)
+	for _, r := range rows {
+		if r.IneligibleReason != "" {
+			reasons[r.IneligibleReason] = r.Count
+		}
+	}
+
+	return &EntryStats{
+		EligibleCount:     eligible,
+		IneligibleCount:   total - eligible,
+		IneligibleReasons: reasons,
+		TotalJoined:       total,
+	}, nil
+}
+
 func raffleWinnerEmailBody(expiresAt time.Time, claimLink string) string {
 	expiry := expiresAt.UTC().Format("2006-01-02 15:04 UTC")
 	return fmt.Sprintf(`<!DOCTYPE html>

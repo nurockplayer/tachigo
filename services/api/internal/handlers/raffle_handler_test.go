@@ -162,6 +162,15 @@ func newRaffleTestEnv(t *testing.T) *raffleTestEnv {
 	dash.POST("/raffles/:id/prize-tiers/:tier_id/draws",
 		middleware.RequireRole(models.RoleStreamer),
 		raffleH.DrawFromTier)
+	dash.PATCH("/raffles/:id/mode",
+		middleware.RequireRole(models.RoleStreamer),
+		raffleH.SetMode)
+	dash.PATCH("/raffles/:id/entry",
+		middleware.RequireRole(models.RoleStreamer),
+		raffleH.SetEntryOpen)
+	dash.GET("/raffles/:id/entry-stats",
+		middleware.RequireRole(models.RoleStreamer),
+		raffleH.GetEntryStats)
 
 	return &raffleTestEnv{db: db, authSvc: authSvc, raffleSvc: raffleSvc, router: r}
 }
@@ -1670,6 +1679,470 @@ func TestPrizeTierHandler_DeleteTier_WithDrawsFails(t *testing.T) {
 	env.router.ServeHTTP(w, req)
 	if w.Code != http.StatusConflict {
 		t.Fatalf("delete with draws: want 409, got %d — %s", w.Code, w.Body.String())
+	}
+}
+
+// ── SetMode ──────────────────────────────────────────────────────────────────
+
+func TestRaffle_SetMode_Success(t *testing.T) {
+	env := newRaffleTestEnv(t)
+	token := env.registerStreamer(t, "modehost1", "modehost1@test.com", "pass1234")
+
+	body, _ := json.Marshal(map[string]string{"title": "Mode Test"})
+	w := httptest.NewRecorder()
+	req, _ := http.NewRequest(http.MethodPost, "/api/v1/dashboard/raffles", bytes.NewReader(body))
+	req.Header.Set("Content-Type", "application/json")
+	req.Header.Set("Authorization", bearer(token))
+	env.router.ServeHTTP(w, req)
+	raffleID := parseBody(t, w.Body.Bytes())["data"].(map[string]interface{})["raffle"].(map[string]interface{})["id"].(string)
+
+	modeBody, _ := json.Marshal(map[string]string{"mode": "subscribers_only"})
+	w = httptest.NewRecorder()
+	req, _ = http.NewRequest(http.MethodPatch, "/api/v1/dashboard/raffles/"+raffleID+"/mode", bytes.NewReader(modeBody))
+	req.Header.Set("Content-Type", "application/json")
+	req.Header.Set("Authorization", bearer(token))
+	env.router.ServeHTTP(w, req)
+
+	if w.Code != http.StatusOK {
+		t.Fatalf("want 200, got %d: %s", w.Code, w.Body.String())
+	}
+	raffle := parseBody(t, w.Body.Bytes())["data"].(map[string]interface{})["raffle"].(map[string]interface{})
+	if raffle["mode"] != "subscribers_only" {
+		t.Errorf("want mode=subscribers_only, got %v", raffle["mode"])
+	}
+}
+
+func TestRaffle_SetMode_InvalidMode(t *testing.T) {
+	env := newRaffleTestEnv(t)
+	token := env.registerStreamer(t, "modehost2", "modehost2@test.com", "pass1234")
+
+	body, _ := json.Marshal(map[string]string{"title": "Mode Invalid"})
+	w := httptest.NewRecorder()
+	req, _ := http.NewRequest(http.MethodPost, "/api/v1/dashboard/raffles", bytes.NewReader(body))
+	req.Header.Set("Content-Type", "application/json")
+	req.Header.Set("Authorization", bearer(token))
+	env.router.ServeHTTP(w, req)
+	raffleID := parseBody(t, w.Body.Bytes())["data"].(map[string]interface{})["raffle"].(map[string]interface{})["id"].(string)
+
+	modeBody, _ := json.Marshal(map[string]string{"mode": "invalid_mode"})
+	w = httptest.NewRecorder()
+	req, _ = http.NewRequest(http.MethodPatch, "/api/v1/dashboard/raffles/"+raffleID+"/mode", bytes.NewReader(modeBody))
+	req.Header.Set("Content-Type", "application/json")
+	req.Header.Set("Authorization", bearer(token))
+	env.router.ServeHTTP(w, req)
+
+	if w.Code != http.StatusBadRequest {
+		t.Fatalf("want 400, got %d: %s", w.Code, w.Body.String())
+	}
+}
+
+func TestRaffle_SetMode_Conflict_WhenNotDraft(t *testing.T) {
+	env := newRaffleTestEnv(t)
+	token := env.registerStreamer(t, "modehost3", "modehost3@test.com", "pass1234")
+
+	body, _ := json.Marshal(map[string]string{"title": "Mode Active Test"})
+	w := httptest.NewRecorder()
+	req, _ := http.NewRequest(http.MethodPost, "/api/v1/dashboard/raffles", bytes.NewReader(body))
+	req.Header.Set("Content-Type", "application/json")
+	req.Header.Set("Authorization", bearer(token))
+	env.router.ServeHTTP(w, req)
+	raffleID := parseBody(t, w.Body.Bytes())["data"].(map[string]interface{})["raffle"].(map[string]interface{})["id"].(string)
+
+	// activate
+	w = httptest.NewRecorder()
+	req, _ = http.NewRequest(http.MethodPost, "/api/v1/dashboard/raffles/"+raffleID+"/activate", nil)
+	req.Header.Set("Authorization", bearer(token))
+	env.router.ServeHTTP(w, req)
+	if w.Code != http.StatusOK {
+		t.Fatalf("activate: want 200, got %d", w.Code)
+	}
+
+	modeBody, _ := json.Marshal(map[string]string{"mode": "subscribers_only"})
+	w = httptest.NewRecorder()
+	req, _ = http.NewRequest(http.MethodPatch, "/api/v1/dashboard/raffles/"+raffleID+"/mode", bytes.NewReader(modeBody))
+	req.Header.Set("Content-Type", "application/json")
+	req.Header.Set("Authorization", bearer(token))
+	env.router.ServeHTTP(w, req)
+
+	if w.Code != http.StatusConflict {
+		t.Fatalf("want 409, got %d: %s", w.Code, w.Body.String())
+	}
+}
+
+func TestRaffle_SetMode_NotFound(t *testing.T) {
+	env := newRaffleTestEnv(t)
+	token := env.registerStreamer(t, "modehost4", "modehost4@test.com", "pass1234")
+
+	modeBody, _ := json.Marshal(map[string]string{"mode": "public"})
+	w := httptest.NewRecorder()
+	req, _ := http.NewRequest(http.MethodPatch, "/api/v1/dashboard/raffles/00000000-0000-0000-0000-000000000001/mode", bytes.NewReader(modeBody))
+	req.Header.Set("Content-Type", "application/json")
+	req.Header.Set("Authorization", bearer(token))
+	env.router.ServeHTTP(w, req)
+
+	if w.Code != http.StatusNotFound {
+		t.Fatalf("want 404, got %d: %s", w.Code, w.Body.String())
+	}
+}
+
+func TestRaffle_SetMode_Forbidden(t *testing.T) {
+	env := newRaffleTestEnv(t)
+	owner := env.registerStreamer(t, "modeowner", "modeowner@test.com", "pass1234")
+	other := env.registerStreamer(t, "modeother", "modeother@test.com", "pass1234")
+
+	body, _ := json.Marshal(map[string]string{"title": "Mode Forbidden"})
+	w := httptest.NewRecorder()
+	req, _ := http.NewRequest(http.MethodPost, "/api/v1/dashboard/raffles", bytes.NewReader(body))
+	req.Header.Set("Content-Type", "application/json")
+	req.Header.Set("Authorization", bearer(owner))
+	env.router.ServeHTTP(w, req)
+	raffleID := parseBody(t, w.Body.Bytes())["data"].(map[string]interface{})["raffle"].(map[string]interface{})["id"].(string)
+
+	modeBody, _ := json.Marshal(map[string]string{"mode": "subscribers_only"})
+	w = httptest.NewRecorder()
+	req, _ = http.NewRequest(http.MethodPatch, "/api/v1/dashboard/raffles/"+raffleID+"/mode", bytes.NewReader(modeBody))
+	req.Header.Set("Content-Type", "application/json")
+	req.Header.Set("Authorization", bearer(other))
+	env.router.ServeHTTP(w, req)
+
+	if w.Code != http.StatusForbidden {
+		t.Fatalf("want 403, got %d: %s", w.Code, w.Body.String())
+	}
+}
+
+func TestRaffle_SetMode_UsesRequestContext(t *testing.T) {
+	env := newRaffleTestEnv(t)
+	token := env.registerStreamer(t, "modectx", "modectx@test.com", "pass1234")
+
+	body, _ := json.Marshal(map[string]string{"title": "Mode Context"})
+	w := httptest.NewRecorder()
+	req, _ := http.NewRequest(http.MethodPost, "/api/v1/dashboard/raffles", bytes.NewReader(body))
+	req.Header.Set("Content-Type", "application/json")
+	req.Header.Set("Authorization", bearer(token))
+	env.router.ServeHTTP(w, req)
+	raffleID := parseBody(t, w.Body.Bytes())["data"].(map[string]interface{})["raffle"].(map[string]interface{})["id"].(string)
+
+	type ctxKey struct{}
+	countFn := installRaffleHandlerDBContextProbeForTables(t, env.db, ctxKey{}, "mode-ctx-val", "raffles")
+
+	modeBody, _ := json.Marshal(map[string]string{"mode": "subscribers_only"})
+	w = httptest.NewRecorder()
+	req, _ = http.NewRequest(http.MethodPatch, "/api/v1/dashboard/raffles/"+raffleID+"/mode", bytes.NewReader(modeBody))
+	req.Header.Set("Content-Type", "application/json")
+	req.Header.Set("Authorization", bearer(token))
+	req = req.WithContext(context.WithValue(req.Context(), ctxKey{}, "mode-ctx-val"))
+	env.router.ServeHTTP(w, req)
+
+	if w.Code != http.StatusOK {
+		t.Fatalf("want 200, got %d: %s", w.Code, w.Body.String())
+	}
+	if countFn() == 0 {
+		t.Error("SetMode did not propagate request context to DB queries")
+	}
+}
+
+// ── SetEntryOpen ─────────────────────────────────────────────────────────────
+
+func TestRaffle_SetEntryOpen_Success(t *testing.T) {
+	env := newRaffleTestEnv(t)
+	token := env.registerStreamer(t, "entryhost1", "entryhost1@test.com", "pass1234")
+
+	body, _ := json.Marshal(map[string]string{"title": "Entry Open Test"})
+	w := httptest.NewRecorder()
+	req, _ := http.NewRequest(http.MethodPost, "/api/v1/dashboard/raffles", bytes.NewReader(body))
+	req.Header.Set("Content-Type", "application/json")
+	req.Header.Set("Authorization", bearer(token))
+	env.router.ServeHTTP(w, req)
+	raffleID := parseBody(t, w.Body.Bytes())["data"].(map[string]interface{})["raffle"].(map[string]interface{})["id"].(string)
+
+	// activate
+	w = httptest.NewRecorder()
+	req, _ = http.NewRequest(http.MethodPost, "/api/v1/dashboard/raffles/"+raffleID+"/activate", nil)
+	req.Header.Set("Authorization", bearer(token))
+	env.router.ServeHTTP(w, req)
+	if w.Code != http.StatusOK {
+		t.Fatalf("activate: want 200, got %d", w.Code)
+	}
+
+	entryBody, _ := json.Marshal(map[string]bool{"entry_open": true})
+	w = httptest.NewRecorder()
+	req, _ = http.NewRequest(http.MethodPatch, "/api/v1/dashboard/raffles/"+raffleID+"/entry", bytes.NewReader(entryBody))
+	req.Header.Set("Content-Type", "application/json")
+	req.Header.Set("Authorization", bearer(token))
+	env.router.ServeHTTP(w, req)
+
+	if w.Code != http.StatusOK {
+		t.Fatalf("want 200, got %d: %s", w.Code, w.Body.String())
+	}
+	raffle := parseBody(t, w.Body.Bytes())["data"].(map[string]interface{})["raffle"].(map[string]interface{})
+	if raffle["entry_open"] != true {
+		t.Errorf("want entry_open=true, got %v", raffle["entry_open"])
+	}
+}
+
+func TestRaffle_SetEntryOpen_MissingField(t *testing.T) {
+	env := newRaffleTestEnv(t)
+	token := env.registerStreamer(t, "entryhost2", "entryhost2@test.com", "pass1234")
+
+	body, _ := json.Marshal(map[string]string{"title": "Entry Missing"})
+	w := httptest.NewRecorder()
+	req, _ := http.NewRequest(http.MethodPost, "/api/v1/dashboard/raffles", bytes.NewReader(body))
+	req.Header.Set("Content-Type", "application/json")
+	req.Header.Set("Authorization", bearer(token))
+	env.router.ServeHTTP(w, req)
+	raffleID := parseBody(t, w.Body.Bytes())["data"].(map[string]interface{})["raffle"].(map[string]interface{})["id"].(string)
+
+	w = httptest.NewRecorder()
+	req, _ = http.NewRequest(http.MethodPatch, "/api/v1/dashboard/raffles/"+raffleID+"/entry", bytes.NewReader([]byte(`{}`)))
+	req.Header.Set("Content-Type", "application/json")
+	req.Header.Set("Authorization", bearer(token))
+	env.router.ServeHTTP(w, req)
+
+	if w.Code != http.StatusBadRequest {
+		t.Fatalf("want 400, got %d: %s", w.Code, w.Body.String())
+	}
+}
+
+func TestRaffle_SetEntryOpen_Conflict_WhenNotActive(t *testing.T) {
+	env := newRaffleTestEnv(t)
+	token := env.registerStreamer(t, "entryhost3", "entryhost3@test.com", "pass1234")
+
+	body, _ := json.Marshal(map[string]string{"title": "Entry Draft Test"})
+	w := httptest.NewRecorder()
+	req, _ := http.NewRequest(http.MethodPost, "/api/v1/dashboard/raffles", bytes.NewReader(body))
+	req.Header.Set("Content-Type", "application/json")
+	req.Header.Set("Authorization", bearer(token))
+	env.router.ServeHTTP(w, req)
+	raffleID := parseBody(t, w.Body.Bytes())["data"].(map[string]interface{})["raffle"].(map[string]interface{})["id"].(string)
+
+	entryBody, _ := json.Marshal(map[string]bool{"entry_open": true})
+	w = httptest.NewRecorder()
+	req, _ = http.NewRequest(http.MethodPatch, "/api/v1/dashboard/raffles/"+raffleID+"/entry", bytes.NewReader(entryBody))
+	req.Header.Set("Content-Type", "application/json")
+	req.Header.Set("Authorization", bearer(token))
+	env.router.ServeHTTP(w, req)
+
+	if w.Code != http.StatusConflict {
+		t.Fatalf("want 409, got %d: %s", w.Code, w.Body.String())
+	}
+}
+
+func TestRaffle_SetEntryOpen_NotFound(t *testing.T) {
+	env := newRaffleTestEnv(t)
+	token := env.registerStreamer(t, "entryhost4", "entryhost4@test.com", "pass1234")
+
+	entryBody, _ := json.Marshal(map[string]bool{"entry_open": true})
+	w := httptest.NewRecorder()
+	req, _ := http.NewRequest(http.MethodPatch, "/api/v1/dashboard/raffles/00000000-0000-0000-0000-000000000002/entry", bytes.NewReader(entryBody))
+	req.Header.Set("Content-Type", "application/json")
+	req.Header.Set("Authorization", bearer(token))
+	env.router.ServeHTTP(w, req)
+
+	if w.Code != http.StatusNotFound {
+		t.Fatalf("want 404, got %d: %s", w.Code, w.Body.String())
+	}
+}
+
+func TestRaffle_SetEntryOpen_Forbidden(t *testing.T) {
+	env := newRaffleTestEnv(t)
+	owner := env.registerStreamer(t, "entryowner", "entryowner@test.com", "pass1234")
+	other := env.registerStreamer(t, "entryother", "entryother@test.com", "pass1234")
+
+	body, _ := json.Marshal(map[string]string{"title": "Entry Forbidden"})
+	w := httptest.NewRecorder()
+	req, _ := http.NewRequest(http.MethodPost, "/api/v1/dashboard/raffles", bytes.NewReader(body))
+	req.Header.Set("Content-Type", "application/json")
+	req.Header.Set("Authorization", bearer(owner))
+	env.router.ServeHTTP(w, req)
+	raffleID := parseBody(t, w.Body.Bytes())["data"].(map[string]interface{})["raffle"].(map[string]interface{})["id"].(string)
+
+	entryBody, _ := json.Marshal(map[string]bool{"entry_open": true})
+	w = httptest.NewRecorder()
+	req, _ = http.NewRequest(http.MethodPatch, "/api/v1/dashboard/raffles/"+raffleID+"/entry", bytes.NewReader(entryBody))
+	req.Header.Set("Content-Type", "application/json")
+	req.Header.Set("Authorization", bearer(other))
+	env.router.ServeHTTP(w, req)
+
+	if w.Code != http.StatusForbidden {
+		t.Fatalf("want 403, got %d: %s", w.Code, w.Body.String())
+	}
+}
+
+func TestRaffle_SetEntryOpen_UsesRequestContext(t *testing.T) {
+	env := newRaffleTestEnv(t)
+	token := env.registerStreamer(t, "entryctx", "entryctx@test.com", "pass1234")
+
+	body, _ := json.Marshal(map[string]string{"title": "Entry Ctx"})
+	w := httptest.NewRecorder()
+	req, _ := http.NewRequest(http.MethodPost, "/api/v1/dashboard/raffles", bytes.NewReader(body))
+	req.Header.Set("Content-Type", "application/json")
+	req.Header.Set("Authorization", bearer(token))
+	env.router.ServeHTTP(w, req)
+	raffleID := parseBody(t, w.Body.Bytes())["data"].(map[string]interface{})["raffle"].(map[string]interface{})["id"].(string)
+
+	w = httptest.NewRecorder()
+	req, _ = http.NewRequest(http.MethodPost, "/api/v1/dashboard/raffles/"+raffleID+"/activate", nil)
+	req.Header.Set("Authorization", bearer(token))
+	env.router.ServeHTTP(w, req)
+
+	type ctxKey struct{}
+	countFn := installRaffleHandlerDBContextProbeForTables(t, env.db, ctxKey{}, "entry-ctx-val", "raffles")
+
+	entryBody, _ := json.Marshal(map[string]bool{"entry_open": true})
+	w = httptest.NewRecorder()
+	req, _ = http.NewRequest(http.MethodPatch, "/api/v1/dashboard/raffles/"+raffleID+"/entry", bytes.NewReader(entryBody))
+	req.Header.Set("Content-Type", "application/json")
+	req.Header.Set("Authorization", bearer(token))
+	req = req.WithContext(context.WithValue(req.Context(), ctxKey{}, "entry-ctx-val"))
+	env.router.ServeHTTP(w, req)
+
+	if w.Code != http.StatusOK {
+		t.Fatalf("want 200, got %d: %s", w.Code, w.Body.String())
+	}
+	if countFn() == 0 {
+		t.Error("SetEntryOpen did not propagate request context to DB queries")
+	}
+}
+
+// ── GetEntryStats ─────────────────────────────────────────────────────────────
+
+func TestRaffle_GetEntryStats_Empty(t *testing.T) {
+	env := newRaffleTestEnv(t)
+	token := env.registerStreamer(t, "statshost1", "statshost1@test.com", "pass1234")
+
+	body, _ := json.Marshal(map[string]string{"title": "Stats Empty"})
+	w := httptest.NewRecorder()
+	req, _ := http.NewRequest(http.MethodPost, "/api/v1/dashboard/raffles", bytes.NewReader(body))
+	req.Header.Set("Content-Type", "application/json")
+	req.Header.Set("Authorization", bearer(token))
+	env.router.ServeHTTP(w, req)
+	raffleID := parseBody(t, w.Body.Bytes())["data"].(map[string]interface{})["raffle"].(map[string]interface{})["id"].(string)
+
+	w = httptest.NewRecorder()
+	req, _ = http.NewRequest(http.MethodGet, "/api/v1/dashboard/raffles/"+raffleID+"/entry-stats", nil)
+	req.Header.Set("Authorization", bearer(token))
+	env.router.ServeHTTP(w, req)
+
+	if w.Code != http.StatusOK {
+		t.Fatalf("want 200, got %d: %s", w.Code, w.Body.String())
+	}
+	stats := parseBody(t, w.Body.Bytes())["data"].(map[string]interface{})["stats"].(map[string]interface{})
+	if stats["total_joined"].(float64) != 0 {
+		t.Errorf("want total_joined=0, got %v", stats["total_joined"])
+	}
+	if stats["eligible_count"].(float64) != 0 {
+		t.Errorf("want eligible_count=0, got %v", stats["eligible_count"])
+	}
+	if stats["ineligible_count"].(float64) != 0 {
+		t.Errorf("want ineligible_count=0, got %v", stats["ineligible_count"])
+	}
+}
+
+func TestRaffle_GetEntryStats_WithEntries(t *testing.T) {
+	env := newRaffleTestEnv(t)
+	token := env.registerStreamer(t, "statshost2", "statshost2@test.com", "pass1234")
+
+	body, _ := json.Marshal(map[string]string{"title": "Stats With Entries"})
+	w := httptest.NewRecorder()
+	req, _ := http.NewRequest(http.MethodPost, "/api/v1/dashboard/raffles", bytes.NewReader(body))
+	req.Header.Set("Content-Type", "application/json")
+	req.Header.Set("Authorization", bearer(token))
+	env.router.ServeHTTP(w, req)
+	raffleID := parseBody(t, w.Body.Bytes())["data"].(map[string]interface{})["raffle"].(map[string]interface{})["id"].(string)
+	raffleUUID, _ := uuid.Parse(raffleID)
+
+	// Insert 2 eligible + 1 ineligible entry directly
+	_ = env.db.Exec(`INSERT INTO raffle_entries (id, raffle_id, twitch_login, display_name, eligible, ineligible_reason, created_at) VALUES (?, ?, 'user1', 'User1', 1, '', CURRENT_TIMESTAMP)`, uuid.New(), raffleUUID)
+	_ = env.db.Exec(`INSERT INTO raffle_entries (id, raffle_id, twitch_login, display_name, eligible, ineligible_reason, created_at) VALUES (?, ?, 'user2', 'User2', 1, '', CURRENT_TIMESTAMP)`, uuid.New(), raffleUUID)
+	_ = env.db.Exec(`INSERT INTO raffle_entries (id, raffle_id, twitch_login, display_name, eligible, ineligible_reason, created_at) VALUES (?, ?, 'user3', 'User3', 0, 'not_subscriber', CURRENT_TIMESTAMP)`, uuid.New(), raffleUUID)
+
+	w = httptest.NewRecorder()
+	req, _ = http.NewRequest(http.MethodGet, "/api/v1/dashboard/raffles/"+raffleID+"/entry-stats", nil)
+	req.Header.Set("Authorization", bearer(token))
+	env.router.ServeHTTP(w, req)
+
+	if w.Code != http.StatusOK {
+		t.Fatalf("want 200, got %d: %s", w.Code, w.Body.String())
+	}
+	stats := parseBody(t, w.Body.Bytes())["data"].(map[string]interface{})["stats"].(map[string]interface{})
+	if stats["total_joined"].(float64) != 3 {
+		t.Errorf("want total_joined=3, got %v", stats["total_joined"])
+	}
+	if stats["eligible_count"].(float64) != 2 {
+		t.Errorf("want eligible_count=2, got %v", stats["eligible_count"])
+	}
+	if stats["ineligible_count"].(float64) != 1 {
+		t.Errorf("want ineligible_count=1, got %v", stats["ineligible_count"])
+	}
+	reasons := stats["ineligible_reasons"].(map[string]interface{})
+	if reasons["not_subscriber"].(float64) != 1 {
+		t.Errorf("want ineligible_reasons.not_subscriber=1, got %v", reasons["not_subscriber"])
+	}
+}
+
+func TestRaffle_GetEntryStats_NotFound(t *testing.T) {
+	env := newRaffleTestEnv(t)
+	token := env.registerStreamer(t, "statshost3", "statshost3@test.com", "pass1234")
+
+	w := httptest.NewRecorder()
+	req, _ := http.NewRequest(http.MethodGet, "/api/v1/dashboard/raffles/00000000-0000-0000-0000-000000000003/entry-stats", nil)
+	req.Header.Set("Authorization", bearer(token))
+	env.router.ServeHTTP(w, req)
+
+	if w.Code != http.StatusNotFound {
+		t.Fatalf("want 404, got %d: %s", w.Code, w.Body.String())
+	}
+}
+
+func TestRaffle_GetEntryStats_Forbidden(t *testing.T) {
+	env := newRaffleTestEnv(t)
+	owner := env.registerStreamer(t, "statsowner", "statsowner@test.com", "pass1234")
+	other := env.registerStreamer(t, "statsother", "statsother@test.com", "pass1234")
+
+	body, _ := json.Marshal(map[string]string{"title": "Stats Forbidden"})
+	w := httptest.NewRecorder()
+	req, _ := http.NewRequest(http.MethodPost, "/api/v1/dashboard/raffles", bytes.NewReader(body))
+	req.Header.Set("Content-Type", "application/json")
+	req.Header.Set("Authorization", bearer(owner))
+	env.router.ServeHTTP(w, req)
+	raffleID := parseBody(t, w.Body.Bytes())["data"].(map[string]interface{})["raffle"].(map[string]interface{})["id"].(string)
+
+	w = httptest.NewRecorder()
+	req, _ = http.NewRequest(http.MethodGet, "/api/v1/dashboard/raffles/"+raffleID+"/entry-stats", nil)
+	req.Header.Set("Authorization", bearer(other))
+	env.router.ServeHTTP(w, req)
+
+	if w.Code != http.StatusForbidden {
+		t.Fatalf("want 403, got %d: %s", w.Code, w.Body.String())
+	}
+}
+
+func TestRaffle_GetEntryStats_UsesRequestContext(t *testing.T) {
+	env := newRaffleTestEnv(t)
+	token := env.registerStreamer(t, "statsctx", "statsctx@test.com", "pass1234")
+
+	body, _ := json.Marshal(map[string]string{"title": "Stats Ctx"})
+	w := httptest.NewRecorder()
+	req, _ := http.NewRequest(http.MethodPost, "/api/v1/dashboard/raffles", bytes.NewReader(body))
+	req.Header.Set("Content-Type", "application/json")
+	req.Header.Set("Authorization", bearer(token))
+	env.router.ServeHTTP(w, req)
+	raffleID := parseBody(t, w.Body.Bytes())["data"].(map[string]interface{})["raffle"].(map[string]interface{})["id"].(string)
+
+	type ctxKey struct{}
+	countFn := installRaffleHandlerDBContextProbeForTables(t, env.db, ctxKey{}, "stats-ctx-val", "raffle_entries")
+
+	w = httptest.NewRecorder()
+	req, _ = http.NewRequest(http.MethodGet, "/api/v1/dashboard/raffles/"+raffleID+"/entry-stats", nil)
+	req.Header.Set("Authorization", bearer(token))
+	req = req.WithContext(context.WithValue(req.Context(), ctxKey{}, "stats-ctx-val"))
+	env.router.ServeHTTP(w, req)
+
+	if w.Code != http.StatusOK {
+		t.Fatalf("want 200, got %d: %s", w.Code, w.Body.String())
+	}
+	if countFn() == 0 {
+		t.Error("GetEntryStats did not propagate request context to DB queries")
 	}
 }
 
