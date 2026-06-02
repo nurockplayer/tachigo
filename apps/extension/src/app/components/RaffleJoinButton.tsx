@@ -34,6 +34,11 @@ const buttonStyle = {
   padding: '10px 14px',
 } satisfies CSSProperties
 
+/**
+ * Displays a raffle join button for the Twitch Extension panel.
+ * Manages join state locally; renders nothing until the backend session is ready
+ * or when the raffle is not active.
+ */
 export function RaffleJoinButton({ raffleId, entryOpen, raffleActive }: RaffleJoinButtonProps) {
   const { backendReady } = useTwitch()
   const [joined, setJoined] = useState(false)

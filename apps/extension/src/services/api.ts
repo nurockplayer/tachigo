@@ -396,11 +396,18 @@ export async function getRaffleResult(raffleId: string): Promise<RaffleResultDra
   return data.data.draws
 }
 
+/**
+ * Join a raffle as the currently authenticated Extension viewer.
+ * Always resolves (never throws); returns the HTTP status code so callers
+ * can switch on 200 (joined), 403 (not eligible), 409 (already joined).
+ * Network errors and unexpected failures return status 500.
+ */
 export async function joinRaffle(raffleId: string): Promise<{ status: number }> {
   try {
     await client.post(`/api/v1/extension/raffles/${raffleId}/join`)
     return { status: 200 }
   } catch (err) {
+    // err.response is undefined on network errors; fall back to 500.
     if (axios.isAxiosError(err)) {
       return { status: err.response?.status ?? 500 }
     }
