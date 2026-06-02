@@ -405,6 +405,15 @@ export interface ApiOperations {
       data?: HandlersAuthResponse;
     };
   };
+  "POST /extension/raffles/{id}/join": {
+    requestBody: {
+      extension_jwt?: string;
+    };
+    pathParams: {
+      id: string;
+    };
+    response: HandlersResponse;
+  };
   "GET /extension/raffles/{id}/result": {
     pathParams: {
       id: string;

@@ -104,7 +104,7 @@ func New(
 	claimH := handlers.NewClaimHandler(claimSvc)
 	spendH := handlers.NewSpendHandler(spendSvc)
 	airdropH := handlers.NewAirdropHandler(airdropSvc, agencySvc, streamerSvc)
-	raffleH := handlers.NewRaffleHandler(raffleSvc)
+	raffleH := handlers.NewRaffleHandler(raffleSvc, extSvc)
 
 	r.GET("/health", healthHandler(db))
 	r.GET("/readyz", readinessHandler(db))
@@ -163,6 +163,7 @@ func New(
 
 		// Raffle result — public read (no auth required)
 		ext.GET("/raffles/:id/result", raffleH.GetResult)
+		ext.POST("/raffles/:id/join", raffleH.Join)
 
 		// Watch-time points (requires tachigo JWT — viewer must log in first)
 		watch := ext.Group("/watch")

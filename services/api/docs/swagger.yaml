@@ -1303,6 +1303,51 @@ paths:
       summary: '[Deprecated] Complete a Bits transaction'
       tags:
       - extension
+  /extension/raffles/{id}/join:
+    post:
+      consumes:
+      - application/json
+      parameters:
+      - description: Raffle ID
+        in: path
+        name: id
+        required: true
+        type: string
+      - description: Extension JWT
+        in: body
+        name: body
+        required: true
+        schema:
+          properties:
+            extension_jwt:
+              type: string
+          type: object
+      produces:
+      - application/json
+      responses:
+        "200":
+          description: OK
+          schema:
+            $ref: '#/definitions/handlers.Response'
+        "400":
+          description: Bad Request
+          schema:
+            $ref: '#/definitions/handlers.Response'
+        "401":
+          description: Unauthorized
+          schema:
+            $ref: '#/definitions/handlers.Response'
+        "403":
+          description: Forbidden
+          schema:
+            $ref: '#/definitions/handlers.Response'
+        "409":
+          description: Conflict
+          schema:
+            $ref: '#/definitions/handlers.Response'
+      summary: Join a raffle from Twitch Extension
+      tags:
+      - raffles
   /extension/raffles/{id}/result:
     get:
       parameters:

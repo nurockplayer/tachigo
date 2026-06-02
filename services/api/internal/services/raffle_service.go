@@ -44,6 +44,11 @@ var (
 	ErrPrizeTierExhausted    = errors.New("prize tier winner count reached")
 	ErrPrizeTierInvalidCount = errors.New("winner_count must be at least 1")
 	ErrRaffleNotActive       = errors.New("raffle is not active")
+
+	ErrEntryNotOpen    = errors.New("raffle entry not open")
+	ErrAlreadyJoined   = errors.New("already joined")
+	ErrNotSubscriber   = errors.New("not a subscriber")
+	ErrViewerNotLinked = errors.New("viewer has no linked tachigo account")
 )
 
 const claimTokenTTL = 7 * 24 * time.Hour
@@ -636,6 +641,138 @@ type twitchSubsPage struct {
 	Pagination struct {
 		Cursor string `json:"cursor"`
 	} `json:"pagination"`
+}
+
+func (s *RaffleService) fetchTwitchSubscription(ctx context.Context, accessToken, broadcasterID, userID string) (bool, error) {
+	endpoint, err := url.Parse(strings.TrimRight(s.twitchBaseURL, "/") + "/helix/subscriptions")
+	if err != nil {
+		return false, err
+	}
+	q := endpoint.Query()
+	q.Set("broadcaster_id", broadcasterID)
+	q.Set("user_id", userID)
+	endpoint.RawQuery = q.Encode()
+
+	req, err := http.NewRequestWithContext(ctx, http.MethodGet, endpoint.String(), nil)
+	if err != nil {
+		return false, err
+	}
+	req.Header.Set("Authorization", "Bearer "+accessToken)
+	req.Header.Set("Client-Id", s.twitchClientID)
+
+	resp, err := s.httpClient.Do(req)
+	if err != nil {
+		return false, err
+	}
+	defer resp.Body.Close()
+
+	if resp.StatusCode == http.StatusUnauthorized {
+		return false, ErrTwitchTokenMissing
+	}
+	if resp.StatusCode == http.StatusForbidden {
+		return false, ErrTwitchInsufficientScope
+	}
+	if resp.StatusCode == http.StatusNotFound {
+		return false, nil
+	}
+	if resp.StatusCode != http.StatusOK {
+		return false, fmt.Errorf("twitch api: unexpected status %d", resp.StatusCode)
+	}
+
+	var page twitchSubsPage
+	if err := json.NewDecoder(resp.Body).Decode(&page); err != nil {
+		return false, err
+	}
+	return len(page.Data) > 0, nil
+}
+
+func (s *RaffleService) JoinRaffle(ctx context.Context, raffleID uuid.UUID, twitchUserID string) (*models.RaffleEntry, error) {
+	if ctx == nil {
+		ctx = context.Background()
+	}
+	db := s.db.WithContext(ctx)
+
+	var raffle models.Raffle
+	if err := db.First(&raffle, "id = ?", raffleID).Error; err != nil {
+		if errors.Is(err, gorm.ErrRecordNotFound) {
+			return nil, ErrRaffleNotFound
+		}
+		return nil, err
+	}
+	if !raffle.EntryOpen {
+		return nil, ErrEntryNotOpen
+	}
+
+	var viewerAP models.AuthProvider
+	if err := db.
+		Joins("JOIN users ON users.id = auth_providers.user_id AND users.deleted_at IS NULL").
+		Preload("User").
+		Where("auth_providers.provider = ? AND auth_providers.provider_id = ?", models.ProviderTwitch, twitchUserID).
+		First(&viewerAP).Error; err != nil {
+		if errors.Is(err, gorm.ErrRecordNotFound) {
+			return nil, ErrViewerNotLinked
+		}
+		return nil, err
+	}
+
+	uid := viewerAP.UserID
+	twitchLogin := twitchUserID
+	if viewerAP.User.Username != nil {
+		twitchLogin = *viewerAP.User.Username
+	}
+	entry := &models.RaffleEntry{
+		RaffleID:    raffleID,
+		UserID:      &uid,
+		TwitchLogin: twitchLogin,
+		DisplayName: twitchLogin,
+		Source:      string(models.RaffleSourceExtensionButton),
+		Eligible:    true,
+	}
+
+	if raffle.Mode == models.RaffleModeSubscribers {
+		var broadcasterAP models.AuthProvider
+		if err := db.Where("user_id = ? AND provider = ?", raffle.UserID, models.ProviderTwitch).First(&broadcasterAP).Error; err != nil {
+			if errors.Is(err, gorm.ErrRecordNotFound) {
+				return nil, ErrTwitchTokenMissing
+			}
+			return nil, err
+		}
+		accessToken, err := s.decryptedProviderAccessToken(&broadcasterAP)
+		if err != nil {
+			return nil, err
+		}
+		if accessToken == "" {
+			s.clearProviderTokensContext(ctx, broadcasterAP.ID)
+			return nil, ErrTwitchTokenMissing
+		}
+		if broadcasterAP.TokenExpiresAt != nil && time.Now().After(*broadcasterAP.TokenExpiresAt) {
+			s.clearProviderTokensContext(ctx, broadcasterAP.ID)
+			return nil, ErrTwitchTokenMissing
+		}
+		ok, err := s.fetchTwitchSubscription(ctx, accessToken, broadcasterAP.ProviderID, twitchUserID)
+		if err != nil {
+			if errors.Is(err, ErrTwitchInsufficientScope) {
+				s.clearProviderTokensContext(ctx, broadcasterAP.ID)
+			}
+			return nil, err
+		}
+		if !ok {
+			// 非訂閱者不寫入 DB，直接拒絕
+			return nil, ErrNotSubscriber
+		}
+	}
+
+	res := db.Clauses(clause.OnConflict{
+		Columns:   []clause.Column{{Name: "raffle_id"}, {Name: "twitch_login"}},
+		DoNothing: true,
+	}).Create(entry)
+	if res.Error != nil {
+		return nil, res.Error
+	}
+	if res.RowsAffected == 0 {
+		return nil, ErrAlreadyJoined
+	}
+	return entry, nil
 }
 
 func (s *RaffleService) fetchTwitchSubsPage(ctx context.Context, accessToken, broadcasterID, cursor string) ([]twitchSubscription, string, error) {
