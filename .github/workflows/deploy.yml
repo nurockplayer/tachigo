@@ -197,11 +197,18 @@ jobs:
       - name: Build dashboard image
         run: docker compose build dashboard
 
-      - name: Build production dashboard artifact
+      - name: Build dashboard artifact
+        env:
+          DASHBOARD_API_URL: ${{ vars.DASHBOARD_API_URL }}
         run: |
+          : "${DASHBOARD_API_URL:?DASHBOARD_API_URL environment variable is required}"
           docker rm -f tachigo-dashboard-package >/dev/null 2>&1 || true
           trap 'docker rm -f tachigo-dashboard-package >/dev/null 2>&1 || true' EXIT
-          docker compose run --name tachigo-dashboard-package --no-deps dashboard pnpm package:production
+          docker compose run \
+            --name tachigo-dashboard-package \
+            --no-deps \
+            -e VITE_TACHIGO_API_URL="$DASHBOARD_API_URL" \
+            dashboard sh -lc 'pnpm build && pnpm package:readback'
           rm -rf apps/dashboard/dist
           docker cp tachigo-dashboard-package:/app/dist apps/dashboard/dist
           docker rm -f tachigo-dashboard-package >/dev/null
@@ -209,29 +216,37 @@ jobs:
       - name: Record dashboard deployment handoff
         env:
           DEPLOYMENT_SHA: ${{ inputs.deploy_sha }}
+          DASHBOARD_API_URL: ${{ vars.DASHBOARD_API_URL }}
           CLOUDFLARE_PAGES_PROJECT: ${{ vars.CLOUDFLARE_PAGES_PROJECT }}
           DASHBOARD_PUBLIC_URL: ${{ vars.DASHBOARD_PUBLIC_URL }}
         run: |
+          : "${DASHBOARD_API_URL:?DASHBOARD_API_URL environment variable is required}"
           : "${CLOUDFLARE_PAGES_PROJECT:?CLOUDFLARE_PAGES_PROJECT environment variable is required}"
           : "${DASHBOARD_PUBLIC_URL:?DASHBOARD_PUBLIC_URL environment variable is required}"
           {
             echo "## Dashboard deployment handoff"
             echo ""
             echo "- Deployment SHA: $DEPLOYMENT_SHA"
+            echo "- Dashboard API URL: $DASHBOARD_API_URL"
             echo "- Artifact: apps/dashboard/dist"
             echo "- Cloudflare Pages project: $CLOUDFLARE_PAGES_PROJECT"
             echo "- Public URL: $DASHBOARD_PUBLIC_URL"
             echo ""
-            echo "Upload apps/dashboard/dist to the approved Cloudflare Pages project, then run the smoke readback below."
+            echo "Upload apps/dashboard/dist to the approved Cloudflare Pages project for this environment."
             echo "This workflow intentionally avoids adding a new third-party deploy action until maintainers approve the Cloudflare credential path."
           } >> "$GITHUB_STEP_SUMMARY"
 
-      - name: Run dashboard smoke readback
+      - name: Record dashboard smoke readback contract
         env:
+          DEPLOYMENT_SHA: ${{ inputs.deploy_sha }}
           DASHBOARD_PUBLIC_URL: ${{ vars.DASHBOARD_PUBLIC_URL }}
         run: |
           : "${DASHBOARD_PUBLIC_URL:?DASHBOARD_PUBLIC_URL environment variable is required}"
-          base_url="${DASHBOARD_PUBLIC_URL%/}"
-          curl -fsS "$base_url/" >/tmp/dashboard-index.html
-          grep -Eq '<script|/assets/' /tmp/dashboard-index.html
-          printf 'dashboard smoke passed for %s\n' "$base_url"
+          {
+            echo "## Dashboard smoke readback contract"
+            echo ""
+            echo "- Public URL: ${DASHBOARD_PUBLIC_URL%/}"
+            echo "- Deployment SHA: $DEPLOYMENT_SHA"
+            echo "- Run the dashboard smoke readback only after the manual Cloudflare Pages upload reports this deployment SHA."
+            echo "- Verify the public page loads and references bundled assets from apps/dashboard/dist."
+          } >> "$GITHUB_STEP_SUMMARY"

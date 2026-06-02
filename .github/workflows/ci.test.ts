@@ -3015,13 +3015,17 @@ test('staged deploy workflow preserves dashboard artifact and smoke contracts', 
   const dashboardBlock = workflowJobBlock(workflow, 'dashboard')
 
   assert.match(dashboardBlock, /docker compose build dashboard/)
-  assert.match(dashboardBlock, /docker compose run --name tachigo-dashboard-package --no-deps dashboard pnpm package:production/)
+  assert.match(dashboardBlock, /DASHBOARD_API_URL environment variable is required/)
+  assert.match(dashboardBlock, /-e VITE_TACHIGO_API_URL="\$DASHBOARD_API_URL"/)
+  assert.match(dashboardBlock, /dashboard sh -lc 'pnpm build && pnpm package:readback'/)
+  assert.doesNotMatch(dashboardBlock, /pnpm package:production/)
   assert.match(dashboardBlock, /docker cp tachigo-dashboard-package:\/app\/dist apps\/dashboard\/dist/)
   assert.match(dashboardBlock, /CLOUDFLARE_PAGES_PROJECT environment variable is required/)
   assert.match(dashboardBlock, /DASHBOARD_PUBLIC_URL environment variable is required/)
   assert.match(dashboardBlock, /Upload apps\/dashboard\/dist to the approved Cloudflare Pages project/)
   assert.match(dashboardBlock, /This workflow intentionally avoids adding a new third-party deploy action/)
-  assert.match(dashboardBlock, /curl -fsS "\$base_url\/" >\/tmp\/dashboard-index\.html/)
+  assert.match(dashboardBlock, /Run the dashboard smoke readback only after the manual Cloudflare Pages upload reports this deployment SHA/)
+  assert.doesNotMatch(dashboardBlock, /curl -fsS/)
 })
 
 test('release cadence documentation matches the automated gate', async () => {
