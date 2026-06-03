@@ -52,7 +52,7 @@ async function readJsonBody(req: http.IncomingMessage): Promise<unknown> {
   return JSON.parse(Buffer.concat(chunks).toString('utf8'))
 }
 
-test('sendHeartbeat starts a watch session, sends heartbeat, then refreshes point balance', async () => {
+test('sendHeartbeat returns heartbeat balance without refreshing point balance', async () => {
   await withApiServer(
     (requests) => async (req, res) => {
       const body = await readJsonBody(req)
@@ -71,16 +71,14 @@ test('sendHeartbeat starts a watch session, sends heartbeat, then refreshes poin
 
       if (req.method === 'POST' && req.url === '/api/v1/extension/watch/heartbeat') {
         res.writeHead(200, { 'Content-Type': 'application/json' })
-        res.end(JSON.stringify({ success: true, data: { points_earned: 2 } }))
-        return
-      }
-
-      if (req.method === 'GET' && req.url === '/api/v1/users/me/points?channel_id=channel-123') {
-        res.writeHead(200, { 'Content-Type': 'application/json' })
         res.end(
           JSON.stringify({
             success: true,
-            data: { spendable_balance: 42, cumulative_total: 77 },
+            data: {
+              points_earned: 2,
+              spendable_balance: 42,
+              cumulative_total: 77,
+            },
           }),
         )
         return
@@ -121,12 +119,6 @@ test('sendHeartbeat starts a watch session, sends heartbeat, then refreshes poin
               authorization: 'Bearer tachigo-access-token',
               body: { channel_id: 'channel-123' },
             },
-            {
-              method: 'GET',
-              url: '/api/v1/users/me/points?channel_id=channel-123',
-              authorization: 'Bearer tachigo-access-token',
-              body: null,
-            },
           ],
         )
       } finally {
@@ -140,7 +132,7 @@ test('sendHeartbeat starts a watch session, sends heartbeat, then refreshes poin
   )
 })
 
-test('sendHeartbeat falls back when point balance response is missing cumulative total', async () => {
+test('sendHeartbeat falls back when heartbeat and point balance responses miss cumulative total', async () => {
   await withApiServer(
     (requests) => async (req, res) => {
       const body = await readJsonBody(req)
@@ -172,7 +164,7 @@ test('sendHeartbeat falls back when point balance response is missing cumulative
       res.writeHead(404, { 'Content-Type': 'application/json' })
       res.end(JSON.stringify({ success: false, error: 'not found' }))
     },
-    async (baseUrl) => {
+    async (baseUrl, requests) => {
       const originalBaseUrl = process.env.VITE_TACHIGO_API_URL
       process.env.VITE_TACHIGO_API_URL = baseUrl
 
@@ -184,6 +176,14 @@ test('sendHeartbeat falls back when point balance response is missing cumulative
         const result = await api.sendHeartbeat('channel-123', 40)
 
         assert.deepEqual(result, { balance: 42, cumulativeTotal: null })
+        assert.deepEqual(
+          requests.map(({ method, url }) => ({ method, url })),
+          [
+            { method: 'POST', url: '/api/v1/extension/watch/start' },
+            { method: 'POST', url: '/api/v1/extension/watch/heartbeat' },
+            { method: 'GET', url: '/api/v1/users/me/points?channel_id=channel-123' },
+          ],
+        )
       } finally {
         if (originalBaseUrl === undefined) {
           delete process.env.VITE_TACHIGO_API_URL
@@ -327,6 +327,203 @@ test('claimPoints claims viewer points then refreshes tachi balance', async () =
               body: null,
             },
           ],
+        )
+      } finally {
+        if (originalBaseUrl === undefined) {
+          delete process.env.VITE_TACHIGO_API_URL
+        } else {
+          process.env.VITE_TACHIGO_API_URL = originalBaseUrl
+        }
+      }
+    },
+  )
+})
+
+test('getCurrentAccount fetches the current account profile through auth recovery', async () => {
+  let accountReads = 0
+
+  await withApiServer(
+    (requests) => async (req, res) => {
+      const body = await readJsonBody(req)
+      requests.push({
+        method: req.method ?? 'GET',
+        url: req.url ?? '/',
+        authorization: req.headers.authorization,
+        body,
+      })
+
+      if (req.method === 'POST' && req.url === '/api/v1/extension/auth/login') {
+        res.writeHead(200, { 'Content-Type': 'application/json' })
+        res.end(JSON.stringify({ success: true, data: { tokens: { access_token: 'refreshed-access-token' } } }))
+        return
+      }
+
+      if (req.method === 'GET' && req.url === '/api/v1/users/me') {
+        accountReads += 1
+        if (accountReads === 1) {
+          res.writeHead(401, { 'Content-Type': 'application/json' })
+          res.end(JSON.stringify({ success: false, error: 'expired' }))
+          return
+        }
+
+        res.writeHead(200, { 'Content-Type': 'application/json' })
+        res.end(
+          JSON.stringify({
+            success: true,
+            data: {
+              user: {
+                id: 'user-1',
+                username: 'mika',
+                email: 'mika@example.com',
+                role: 'streamer',
+                is_active: true,
+                email_verified: false,
+              },
+            },
+          }),
+        )
+        return
+      }
+
+      res.writeHead(404, { 'Content-Type': 'application/json' })
+      res.end(JSON.stringify({ success: false, error: 'not found' }))
+    },
+    async (baseUrl, requests) => {
+      const originalBaseUrl = process.env.VITE_TACHIGO_API_URL
+      process.env.VITE_TACHIGO_API_URL = baseUrl
+
+      try {
+        vi.resetModules()
+        const api = await import('./api.ts')
+
+        api.setExtensionJwtForRecovery('extension-jwt')
+        api.setAuthToken('expired-access-token')
+
+        assert.deepEqual(await api.getCurrentAccount(), {
+          id: 'user-1',
+          username: 'mika',
+          email: 'mika@example.com',
+          role: 'streamer',
+          isActive: true,
+          emailVerified: false,
+        })
+        assert.deepEqual(
+          requests.map(({ method, url, authorization, body }) => ({
+            method,
+            url,
+            authorization,
+            body,
+          })),
+          [
+            {
+              method: 'GET',
+              url: '/api/v1/users/me',
+              authorization: 'Bearer expired-access-token',
+              body: null,
+            },
+            {
+              method: 'POST',
+              url: '/api/v1/extension/auth/login',
+              authorization: 'Bearer expired-access-token',
+              body: { extension_jwt: 'extension-jwt' },
+            },
+            {
+              method: 'GET',
+              url: '/api/v1/users/me',
+              authorization: 'Bearer refreshed-access-token',
+              body: null,
+            },
+          ],
+        )
+      } finally {
+        if (originalBaseUrl === undefined) {
+          delete process.env.VITE_TACHIGO_API_URL
+        } else {
+          process.env.VITE_TACHIGO_API_URL = originalBaseUrl
+        }
+      }
+    },
+  )
+})
+
+test('redeemCoupon refreshes the Tachigo token without sending the extension JWT as bearer auth', async () => {
+  let redeemAttempts = 0
+
+  await withApiServer(
+    (requests) => async (req, res) => {
+      const body = await readJsonBody(req)
+      requests.push({
+        method: req.method ?? 'GET',
+        url: req.url ?? '/',
+        authorization: req.headers.authorization,
+        body,
+      })
+
+      if (req.method === 'POST' && req.url === '/api/v1/extension/auth/login') {
+        res.writeHead(200, { 'Content-Type': 'application/json' })
+        res.end(JSON.stringify({ success: true, data: { tokens: { access_token: 'tachigo-access-token' } } }))
+        return
+      }
+
+      if (req.method === 'POST' && req.url === '/spend/redeem') {
+        redeemAttempts += 1
+        if (redeemAttempts === 1) {
+          res.writeHead(401, { 'Content-Type': 'application/json' })
+          res.end(JSON.stringify({ success: false, error: 'missing tachigo token' }))
+          return
+        }
+
+        res.writeHead(200, { 'Content-Type': 'application/json' })
+        res.end(JSON.stringify({ success: true, data: { balance: 90, voucher_code: 'ABC' } }))
+        return
+      }
+
+      res.writeHead(404, { 'Content-Type': 'application/json' })
+      res.end(JSON.stringify({ success: false, error: 'not found' }))
+    },
+    async (baseUrl, requests) => {
+      const originalBaseUrl = process.env.VITE_TACHIGO_API_URL
+      process.env.VITE_TACHIGO_API_URL = baseUrl
+
+      try {
+        vi.resetModules()
+        const api = await import('./api.ts')
+
+        api.setExtensionJwtForRecovery('extension-jwt')
+        const result = await api.redeemCoupon('tachiya95', 10)
+
+        assert.deepEqual(result, { balance: 90, voucher_code: 'ABC' })
+        assert.deepEqual(
+          requests.map(({ method, url, authorization, body }) => ({
+            method,
+            url,
+            authorization,
+            body,
+          })),
+          [
+            {
+              method: 'POST',
+              url: '/spend/redeem',
+              authorization: undefined,
+              body: { coupon_id: 'tachiya95', amount: 10 },
+            },
+            {
+              method: 'POST',
+              url: '/api/v1/extension/auth/login',
+              authorization: undefined,
+              body: { extension_jwt: 'extension-jwt' },
+            },
+            {
+              method: 'POST',
+              url: '/spend/redeem',
+              authorization: 'Bearer tachigo-access-token',
+              body: { coupon_id: 'tachiya95', amount: 10 },
+            },
+          ],
+        )
+        assert.equal(
+          requests.some(({ authorization }) => authorization === 'Bearer extension-jwt'),
+          false,
         )
       } finally {
         if (originalBaseUrl === undefined) {

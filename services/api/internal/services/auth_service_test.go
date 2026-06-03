@@ -85,6 +85,7 @@ func TestOAuthUser_PersistsOnlyEncryptedTwitchAccessToken(t *testing.T) {
 		"twitch-broadcaster-1",
 		"twitch-user",
 		"twitch-user@example.com",
+		false,
 		nil,
 		&oauth2.Token{
 			AccessToken:  "plain-access-token",
@@ -142,6 +143,7 @@ func TestOAuthUser_DoesNotPersistUnusedGoogleTokens(t *testing.T) {
 		"google-user-1",
 		"google-user",
 		"google-user@example.com",
+		true,
 		nil,
 		&oauth2.Token{
 			AccessToken:  "google-access-token",
@@ -165,6 +167,182 @@ func TestOAuthUser_DoesNotPersistUnusedGoogleTokens(t *testing.T) {
 	}
 	if ap.TokenExpiresAt != nil {
 		t.Fatalf("google token expiry should not be persisted, got %v", ap.TokenExpiresAt)
+	}
+}
+
+func TestUpsertOAuthUser_UnverifiedProviderEmailMatchingExistingUserDoesNotLinkOrIssueTokens(t *testing.T) {
+	db := newTestDB(t)
+	svc := NewAuthService(db, testConfig())
+
+	email := "existing-oauth@example.com"
+	username := "existing-oauth"
+	if err := db.Create(&models.User{
+		Email:    &email,
+		Username: &username,
+		Role:     models.RoleViewer,
+	}).Error; err != nil {
+		t.Fatalf("seed user: %v", err)
+	}
+
+	user, tokens, err := svc.upsertOAuthUser(
+		context.Background(),
+		models.ProviderGoogle,
+		"google-unverified-existing",
+		"google-user",
+		email,
+		false,
+		nil,
+		&oauth2.Token{AccessToken: "google-access-token"},
+	)
+	if !errors.Is(err, ErrEmailExists) {
+		t.Fatalf("want ErrEmailExists, got %v (user=%#v tokens=%#v)", err, user, tokens)
+	}
+
+	var providerCount int64
+	if err := db.Model(&models.AuthProvider{}).
+		Where("provider = ? AND provider_id = ?", models.ProviderGoogle, "google-unverified-existing").
+		Count(&providerCount).Error; err != nil {
+		t.Fatalf("count auth providers: %v", err)
+	}
+	if providerCount != 0 {
+		t.Fatalf("auth provider should not be created, got %d rows", providerCount)
+	}
+
+	var tokenCount int64
+	if err := db.Model(&models.RefreshToken{}).Count(&tokenCount).Error; err != nil {
+		t.Fatalf("count refresh tokens: %v", err)
+	}
+	if tokenCount != 0 {
+		t.Fatalf("refresh token should not be created, got %d rows", tokenCount)
+	}
+}
+
+func TestUpsertOAuthUser_VerifiedProviderEmailMatchingExistingUserLinksAccount(t *testing.T) {
+	db := newTestDB(t)
+	svc := NewAuthService(db, testConfig())
+
+	email := "verified-existing@example.com"
+	username := "verified-existing"
+	existingUser := models.User{
+		Email:    &email,
+		Username: &username,
+		Role:     models.RoleViewer,
+	}
+	if err := db.Create(&existingUser).Error; err != nil {
+		t.Fatalf("seed user: %v", err)
+	}
+
+	user, tokens, err := svc.upsertOAuthUser(
+		context.Background(),
+		models.ProviderGoogle,
+		"google-verified-existing",
+		"google-user",
+		email,
+		true,
+		nil,
+		&oauth2.Token{AccessToken: "google-access-token"},
+	)
+	if err != nil {
+		t.Fatalf("upsertOAuthUser: %v", err)
+	}
+	if user == nil || user.ID != existingUser.ID {
+		t.Fatalf("expected existing user %s, got %#v", existingUser.ID, user)
+	}
+	if tokens == nil || tokens.AccessToken == "" || tokens.RefreshToken == "" {
+		t.Fatalf("expected token pair, got %#v", tokens)
+	}
+
+	var providerCount int64
+	if err := db.Model(&models.AuthProvider{}).
+		Where("user_id = ? AND provider = ? AND provider_id = ?", existingUser.ID, models.ProviderGoogle, "google-verified-existing").
+		Count(&providerCount).Error; err != nil {
+		t.Fatalf("count auth providers: %v", err)
+	}
+	if providerCount != 1 {
+		t.Fatalf("expected linked auth provider, got %d rows", providerCount)
+	}
+}
+
+func TestUpsertOAuthUser_LocalVerifiedEmailStillRejectsUnverifiedProviderLink(t *testing.T) {
+	db := newTestDB(t)
+	svc := NewAuthService(db, testConfig())
+
+	email := "local-verified@example.com"
+	username := "local-verified"
+	existingUser := models.User{
+		Email:         &email,
+		Username:      &username,
+		Role:          models.RoleViewer,
+		EmailVerified: true,
+	}
+	if err := db.Create(&existingUser).Error; err != nil {
+		t.Fatalf("seed user: %v", err)
+	}
+
+	user, tokens, err := svc.upsertOAuthUser(
+		context.Background(),
+		models.ProviderTwitch,
+		"twitch-local-verified",
+		"twitch-user",
+		email,
+		false,
+		nil,
+		&oauth2.Token{AccessToken: "twitch-access-token"},
+	)
+	if !errors.Is(err, ErrEmailExists) {
+		t.Fatalf("want ErrEmailExists, got %v (user=%#v tokens=%#v)", err, user, tokens)
+	}
+
+	var providerCount int64
+	if err := db.Model(&models.AuthProvider{}).
+		Where("user_id = ? AND provider = ? AND provider_id = ?", existingUser.ID, models.ProviderTwitch, "twitch-local-verified").
+		Count(&providerCount).Error; err != nil {
+		t.Fatalf("count auth providers: %v", err)
+	}
+	if providerCount != 0 {
+		t.Fatalf("auth provider should not be created, got %d rows", providerCount)
+	}
+
+	var tokenCount int64
+	if err := db.Model(&models.RefreshToken{}).Count(&tokenCount).Error; err != nil {
+		t.Fatalf("count refresh tokens: %v", err)
+	}
+	if tokenCount != 0 {
+		t.Fatalf("refresh token should not be created, got %d rows", tokenCount)
+	}
+}
+
+func TestUpsertOAuthUser_NewVerifiedGoogleUserPersistsEmailVerifiedTrue(t *testing.T) {
+	db := newTestDB(t)
+	svc := NewAuthService(db, testConfig())
+
+	email := "new-verified-google@example.com"
+	user, tokens, err := svc.upsertOAuthUser(
+		context.Background(),
+		models.ProviderGoogle,
+		"google-new-verified",
+		"new-verified-google",
+		email,
+		true,
+		nil,
+		&oauth2.Token{AccessToken: "google-access-token"},
+	)
+	if err != nil {
+		t.Fatalf("upsertOAuthUser: %v", err)
+	}
+	if user == nil || tokens == nil {
+		t.Fatalf("expected user and tokens, got user=%#v tokens=%#v", user, tokens)
+	}
+	if !user.EmailVerified {
+		t.Fatalf("returned user should be email verified")
+	}
+
+	var persisted models.User
+	if err := db.First(&persisted, "id = ?", user.ID).Error; err != nil {
+		t.Fatalf("load user: %v", err)
+	}
+	if !persisted.EmailVerified {
+		t.Fatalf("persisted user should be email verified")
 	}
 }
 
@@ -227,17 +405,18 @@ func TestRecoverOAuthProviderConflictReturnsExistingAccount(t *testing.T) {
 	}
 }
 
-func TestUpsertOAuthUser_DuplicateUsernameCreateReturnsStableError(t *testing.T) {
+func TestUpsertOAuthUser_DuplicateUsernameCreatesUserWithoutUsername(t *testing.T) {
 	db := newTestDB(t)
 	svc := NewAuthService(db, testConfig())
 
 	takenUsername := "oauth-taken"
 	existingEmail := "oauth-taken@example.com"
-	if err := db.Create(&models.User{
+	seededUser := models.User{
 		Username: &takenUsername,
 		Email:    &existingEmail,
 		Role:     models.RoleViewer,
-	}).Error; err != nil {
+	}
+	if err := db.Create(&seededUser).Error; err != nil {
 		t.Fatalf("seed user: %v", err)
 	}
 
@@ -247,17 +426,32 @@ func TestUpsertOAuthUser_DuplicateUsernameCreateReturnsStableError(t *testing.T)
 		"google-duplicate-username",
 		takenUsername,
 		"oauth-new@example.com",
+		true,
 		nil,
 		&oauth2.Token{AccessToken: "google-access-token"},
 	)
-	if !errors.Is(err, ErrUsernameExists) {
-		t.Fatalf("want ErrUsernameExists, got %v (user=%#v tokens=%#v)", err, user, tokens)
+	if err != nil {
+		t.Fatalf("upsertOAuthUser: %v", err)
+	}
+	if user == nil || tokens == nil || tokens.RefreshToken == "" {
+		t.Fatalf("expected user and tokens, got user=%#v tokens=%#v", user, tokens)
+	}
+	if user.Username != nil {
+		t.Fatalf("expected OAuth-created user to leave colliding username unset, got %q", *user.Username)
 	}
 
 	var providerCount int64
 	db.Model(&models.AuthProvider{}).Where("provider_id = ?", "google-duplicate-username").Count(&providerCount)
-	if providerCount != 0 {
-		t.Fatalf("auth provider should not be created after username conflict, got %d rows", providerCount)
+	if providerCount != 1 {
+		t.Fatalf("expected auth provider to be created with nil username user, got %d rows", providerCount)
+	}
+
+	var provider models.AuthProvider
+	if err := db.Where("provider_id = ?", "google-duplicate-username").First(&provider).Error; err != nil {
+		t.Fatalf("load auth provider: %v", err)
+	}
+	if provider.UserID == uuid.Nil || provider.UserID == seededUser.ID {
+		t.Fatalf("expected provider to link a new user, got user_id=%s seeded_user_id=%s", provider.UserID, seededUser.ID)
 	}
 }
 
@@ -1061,6 +1255,7 @@ func TestUpsertOAuthUser_ExistingProviderSaveFailureReturnsError(t *testing.T) {
 		"google-existing-provider",
 		"existing-user",
 		"existing@example.com",
+		true,
 		nil,
 		&oauth2.Token{
 			AccessToken:  "new-access-token",
@@ -1360,4 +1555,17 @@ func TestLogin_RefreshTokensTableGone_ReturnsError(t *testing.T) {
 	if err == nil {
 		t.Fatal("want error when refresh_tokens table is gone, got nil")
 	}
+}
+
+// ─── OAuth config scopes ─────────────────────────────────────────────────────
+
+func TestTwitchOAuthConfig_ContainsChannelReadSubscriptions(t *testing.T) {
+	svc := NewAuthService(newTestDB(t), testConfig())
+	target := "channel:read:subscriptions"
+	for _, s := range svc.twitchOAuth.Scopes {
+		if s == target {
+			return
+		}
+	}
+	t.Errorf("twitchOAuth.Scopes does not contain %q; got: %v", target, svc.twitchOAuth.Scopes)
 }

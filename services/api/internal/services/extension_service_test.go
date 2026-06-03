@@ -5,6 +5,7 @@ import (
 	"encoding/base64"
 	"errors"
 	"fmt"
+	"sync"
 	"testing"
 	"time"
 
@@ -218,6 +219,28 @@ func TestCompleteTPointTransactionContext_UsesRequestContextForPointsWriteAndTok
 	}
 }
 
+func TestCompleteTPointTransaction_DoesNotAutoCreateExtensionUser(t *testing.T) {
+	svc, _ := newExtSvc(t)
+	twitchID := "twitch-tpoint-unlinked"
+	extJWT := makeExtJWT(t, twitchID, "channel-tpoint-unlinked")
+	receipt := makeReceiptJWT(t, "tx-unlinked-001", twitchID, "TPOINT100", 100, "bits")
+
+	_, _, err := svc.CompleteTPointTransaction(extJWT, receipt, "TPOINT100")
+	if !errors.Is(err, ErrUserNotFound) {
+		t.Fatalf("want ErrUserNotFound, got %v", err)
+	}
+
+	var providerCount int64
+	if err := svc.db.Model(&models.AuthProvider{}).
+		Where("provider = ? AND provider_id = ?", models.ProviderTwitch, twitchID).
+		Count(&providerCount).Error; err != nil {
+		t.Fatalf("count auth providers: %v", err)
+	}
+	if providerCount != 0 {
+		t.Fatalf("want no auth provider, got %d", providerCount)
+	}
+}
+
 func TestLoginWithExtensionContext_UsesRequestContextForUserLookupAndTokenIssue(t *testing.T) {
 	svc, _ := newExtSvc(t)
 	_, twitchID := seedTwitchUser(t, svc.db)
@@ -284,6 +307,143 @@ func TestLoginWithExtensionContext_UsesRequestContextForUserLookupAndTokenIssue(
 	}
 	if !seenRefreshTokenWrite {
 		t.Fatal("expected extension login refresh token write to carry request context")
+	}
+}
+
+func TestLoginWithExtension_CreatesAccountForNewTwitchUser(t *testing.T) {
+	svc, _ := newExtSvc(t)
+	twitchID := "twitch-new-user"
+	extJWT := makeExtJWT(t, twitchID, "channel-login-create")
+
+	user, tokens, err := svc.LoginWithExtension(extJWT)
+	if err != nil {
+		t.Fatalf("LoginWithExtension: %v", err)
+	}
+	if user == nil {
+		t.Fatal("expected user")
+	}
+	if tokens == nil {
+		t.Fatal("expected tokens")
+	}
+	if user.Role != models.RoleViewer {
+		t.Fatalf("want viewer role, got %q", user.Role)
+	}
+	if user.Username != nil {
+		t.Fatalf("extension auto-created user must not derive username from Twitch id, got %q", *user.Username)
+	}
+
+	var provider models.AuthProvider
+	if err := svc.db.Where("provider = ? AND provider_id = ?", models.ProviderTwitch, twitchID).First(&provider).Error; err != nil {
+		t.Fatalf("load auth provider: %v", err)
+	}
+	if provider.UserID != user.ID {
+		t.Fatalf("provider user_id mismatch: want %s, got %s", user.ID, provider.UserID)
+	}
+
+	var userCount int64
+	if err := svc.db.Model(&models.User{}).Where("id = ?", user.ID).Count(&userCount).Error; err != nil {
+		t.Fatalf("count user: %v", err)
+	}
+	if userCount != 1 {
+		t.Fatalf("want one user, got %d", userCount)
+	}
+
+	var refreshCount int64
+	if err := svc.db.Model(&models.RefreshToken{}).Where("user_id = ?", user.ID).Count(&refreshCount).Error; err != nil {
+		t.Fatalf("count refresh tokens: %v", err)
+	}
+	if refreshCount != 1 {
+		t.Fatalf("want one refresh token, got %d", refreshCount)
+	}
+}
+
+func TestLoginWithExtension_EmptyUserIDReturnsInvalidJWTAndDoesNotCreateAccount(t *testing.T) {
+	svc, _ := newExtSvc(t)
+	extJWT := makeExtJWT(t, "", "channel-login-empty-user")
+
+	_, _, err := svc.LoginWithExtension(extJWT)
+	if !errors.Is(err, ErrInvalidExtJWT) {
+		t.Fatalf("want ErrInvalidExtJWT, got %v", err)
+	}
+
+	var userCount int64
+	if err := svc.db.Model(&models.User{}).Count(&userCount).Error; err != nil {
+		t.Fatalf("count users: %v", err)
+	}
+	if userCount != 0 {
+		t.Fatalf("want no users, got %d", userCount)
+	}
+
+	var providerCount int64
+	if err := svc.db.Model(&models.AuthProvider{}).Count(&providerCount).Error; err != nil {
+		t.Fatalf("count auth providers: %v", err)
+	}
+	if providerCount != 0 {
+		t.Fatalf("want no auth providers, got %d", providerCount)
+	}
+}
+
+func TestLoginWithExtension_ConcurrentFirstLoginCreatesOneProvider(t *testing.T) {
+	svc, _ := newExtSvc(t)
+	sqlDB, err := svc.db.DB()
+	if err != nil {
+		t.Fatalf("db handle: %v", err)
+	}
+	sqlDB.SetMaxOpenConns(1)
+	sqlDB.SetMaxIdleConns(1)
+
+	twitchID := "twitch-concurrent-user"
+	extJWT := makeExtJWT(t, twitchID, "channel-login-concurrent")
+
+	type result struct {
+		user *models.User
+		err  error
+	}
+	results := make([]result, 5)
+	var wg sync.WaitGroup
+	for i := range results {
+		wg.Add(1)
+		go func(idx int) {
+			defer wg.Done()
+			user, _, err := svc.LoginWithExtension(extJWT)
+			results[idx] = result{user: user, err: err}
+		}(i)
+	}
+	wg.Wait()
+
+	var wantUserID uuid.UUID
+	for i, result := range results {
+		if result.err != nil {
+			t.Fatalf("login %d: %v", i, result.err)
+		}
+		if result.user == nil {
+			t.Fatalf("login %d: expected user", i)
+		}
+		if wantUserID == uuid.Nil {
+			wantUserID = result.user.ID
+			continue
+		}
+		if result.user.ID != wantUserID {
+			t.Fatalf("login %d returned user %s, want %s", i, result.user.ID, wantUserID)
+		}
+	}
+
+	var providerCount int64
+	if err := svc.db.Model(&models.AuthProvider{}).
+		Where("provider = ? AND provider_id = ?", models.ProviderTwitch, twitchID).
+		Count(&providerCount).Error; err != nil {
+		t.Fatalf("count auth providers: %v", err)
+	}
+	if providerCount != 1 {
+		t.Fatalf("want one provider, got %d", providerCount)
+	}
+
+	var userCount int64
+	if err := svc.db.Model(&models.User{}).Count(&userCount).Error; err != nil {
+		t.Fatalf("count users: %v", err)
+	}
+	if userCount != 1 {
+		t.Fatalf("want one user, got %d", userCount)
 	}
 }
 

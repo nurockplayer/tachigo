@@ -53,6 +53,7 @@ node_modules/
 .gocache/
 .go-build-cache/
 .wrangler/
+kg/generated/*.json
 
 # IDE
 .vscode/

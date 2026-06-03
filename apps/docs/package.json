@@ -27,7 +27,7 @@
     "@fontsource/inter": "5.2.8",
     "@fontsource/jetbrains-mono": "5.2.8",
     "@mdx-js/react": "3.1.1",
-    "@mermaid-js/layout-elk": "0.1.9",
+    "@mermaid-js/layout-elk": "0.2.1",
     "clsx": "2.1.1",
     "fast-glob": "3.3.3",
     "gray-matter": "4.0.3",

@@ -865,6 +865,25 @@ func (mockTwitchRoundTripper) RoundTrip(req *http.Request) (*http.Response, erro
 	}, nil
 }
 
+type mockGoogleRoundTripper struct{}
+
+func (mockGoogleRoundTripper) RoundTrip(req *http.Request) (*http.Response, error) {
+	var body string
+	switch {
+	case strings.Contains(req.URL.Host, "oauth2.googleapis.com"):
+		body = `{"access_token":"mock-google-token","token_type":"Bearer","expires_in":3600}`
+	case strings.Contains(req.URL.Host, "www.googleapis.com"):
+		body = `{"sub":"google-user-1","name":"Mock Google User","email":"mock@example.com","email_verified":false,"picture":"https://example.com/avatar.png"}`
+	default:
+		return nil, fmt.Errorf("unexpected Google OAuth request: %s", req.URL)
+	}
+	return &http.Response{
+		StatusCode: http.StatusOK,
+		Body:       io.NopCloser(strings.NewReader(body)),
+		Header:     make(http.Header),
+	}, nil
+}
+
 // ─── TwitchCallback redirect ─────────────────────────────────────────────────
 
 func TestTwitchCallback_WithRedirectCookie_Redirects(t *testing.T) {
@@ -938,6 +957,48 @@ func TestTwitchCallback_WithoutRedirectCookie_ReturnsJSON(t *testing.T) {
 	resp := parseBody(t, w.Body.Bytes())
 	if resp["success"] != true {
 		t.Errorf("want success: true")
+	}
+}
+
+func TestTwitchCallback_UnverifiedProviderEmailMatchingExistingUser_ReturnsConflict(t *testing.T) {
+	env := newTestEnv(t)
+	env.registerUser(t, "existing-oauth", "mock@example.com", "password123")
+	httpClient := &http.Client{Transport: mockTwitchRoundTripper{}}
+	ctx := context.WithValue(context.Background(), oauth2.HTTPClient, httpClient)
+
+	state := "twitch-conflict-state"
+	req := httptest.NewRequest(http.MethodGet, "/api/v1/auth/twitch/callback?code=mockcode&state="+state, nil).WithContext(ctx)
+	req.AddCookie(&http.Cookie{Name: "oauth_state", Value: state, Path: "/"})
+	w := httptest.NewRecorder()
+	env.router.ServeHTTP(w, req)
+
+	if w.Code != http.StatusConflict {
+		t.Fatalf("want 409, got %d: %s", w.Code, w.Body.String())
+	}
+	resp := parseBody(t, w.Body.Bytes())
+	if resp["error"] != "email already registered" {
+		t.Fatalf("want email already registered, got %#v", resp["error"])
+	}
+}
+
+func TestGoogleCallback_UnverifiedProviderEmailMatchingExistingUser_ReturnsConflict(t *testing.T) {
+	env := newTestEnv(t)
+	env.registerUser(t, "existing-google", "mock@example.com", "password123")
+	httpClient := &http.Client{Transport: mockGoogleRoundTripper{}}
+	ctx := context.WithValue(context.Background(), oauth2.HTTPClient, httpClient)
+
+	state := "google-conflict-state"
+	req := httptest.NewRequest(http.MethodGet, "/api/v1/auth/google/callback?code=mockcode&state="+state, nil).WithContext(ctx)
+	req.AddCookie(&http.Cookie{Name: "oauth_state", Value: state, Path: "/"})
+	w := httptest.NewRecorder()
+	env.router.ServeHTTP(w, req)
+
+	if w.Code != http.StatusConflict {
+		t.Fatalf("want 409, got %d: %s", w.Code, w.Body.String())
+	}
+	resp := parseBody(t, w.Body.Bytes())
+	if resp["error"] != "email already registered" {
+		t.Fatalf("want email already registered, got %#v", resp["error"])
 	}
 }
 

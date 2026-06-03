@@ -104,6 +104,21 @@ func (e *watchEnv) watchTimeSeconds(t *testing.T, userID uuid.UUID, channelID st
 	return total
 }
 
+func (e *watchEnv) setActiveSessionCounters(t *testing.T, userID uuid.UUID, channelID string, accumulated, rewarded int64) {
+	t.Helper()
+	if err := e.db.Exec(
+		`UPDATE watch_sessions
+		 SET accumulated_seconds = ?, rewarded_seconds = ?
+		 WHERE user_id = ? AND channel_id = ? AND is_active = 1`,
+		accumulated,
+		rewarded,
+		userID,
+		channelID,
+	).Error; err != nil {
+		t.Fatalf("set active session counters: %v", err)
+	}
+}
+
 // heartbeatRequest sends POST /api/v1/extension/watch/heartbeat with the given token and channel.
 func heartbeatRequest(t *testing.T, router http.Handler, token, channelID string) *httptest.ResponseRecorder {
 	t.Helper()
@@ -136,6 +151,41 @@ func TestWatchHandler_Heartbeat_AccumulatesWatchTime(t *testing.T) {
 	secs := e.watchTimeSeconds(t, userID, channelID)
 	if secs <= 0 {
 		t.Fatalf("expected watch_time_stats to be > 0, got %d", secs)
+	}
+}
+
+func TestWatchHandler_Heartbeat_ReturnsLatestBalance(t *testing.T) {
+	e := newWatchTestEnv(t)
+	channelID := "ch_test_balance"
+
+	userID, token := e.registerViewer(t, "balance")
+	e.seedActiveSession(t, userID, channelID, 30)
+	e.setActiveSessionCounters(t, userID, channelID, 45, 0)
+
+	w := heartbeatRequest(t, e.router, token, channelID)
+	if w.Code != http.StatusOK {
+		t.Fatalf("expected 200, got %d: %s", w.Code, w.Body.String())
+	}
+
+	var resp struct {
+		Success bool `json:"success"`
+		Data    struct {
+			PointsEarned     int64 `json:"points_earned"`
+			SpendableBalance int64 `json:"spendable_balance"`
+			CumulativeTotal  int64 `json:"cumulative_total"`
+		} `json:"data"`
+	}
+	if err := json.Unmarshal(w.Body.Bytes(), &resp); err != nil {
+		t.Fatalf("decode response: %v", err)
+	}
+	if !resp.Success {
+		t.Fatalf("expected success=true, got false")
+	}
+	if resp.Data.PointsEarned != 1 {
+		t.Fatalf("expected points_earned=1, got %d", resp.Data.PointsEarned)
+	}
+	if resp.Data.SpendableBalance != 1 || resp.Data.CumulativeTotal != 1 {
+		t.Fatalf("expected latest balance 1/1, got spendable=%d cumulative=%d", resp.Data.SpendableBalance, resp.Data.CumulativeTotal)
 	}
 }
 

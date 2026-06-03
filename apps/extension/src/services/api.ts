@@ -156,6 +156,15 @@ interface PointBalanceResponse {
   cumulativeTotal: number
 }
 
+export interface CurrentAccount {
+  id: string
+  username: string | null
+  email: string | null
+  role: string
+  isActive: boolean | null
+  emailVerified: boolean | null
+}
+
 export interface RedeemCouponResponse {
   balance: number
   voucher_code: string
@@ -200,6 +209,14 @@ function parsePointBalanceFromPayload(payload: unknown): PointBalanceResponse {
   return { spendableBalance, cumulativeTotal }
 }
 
+function parseOptionalPointBalanceFromPayload(payload: unknown): PointBalanceResponse | null {
+  try {
+    return parsePointBalanceFromPayload(payload)
+  } catch {
+    return null
+  }
+}
+
 function parseTachiBalanceFromPayload(payload: unknown): number {
   if (!payload || typeof payload !== 'object') {
     throw new Error('Invalid tachi balance response')
@@ -215,6 +232,34 @@ function parseTachiBalanceFromPayload(payload: unknown): number {
   }
 
   return value
+}
+
+function parseCurrentAccountFromPayload(payload: unknown): CurrentAccount {
+  if (!payload || typeof payload !== 'object') {
+    throw new Error('Invalid account response')
+  }
+
+  // eslint-disable-next-line @typescript-eslint/no-explicit-any
+  const raw = payload as any
+  const user = raw.data?.user ?? raw.user ?? raw.data
+  if (!user || typeof user !== 'object') {
+    throw new Error('Account response missing user')
+  }
+
+  const id = user.id
+  const role = user.role
+  if (typeof id !== 'string' || typeof role !== 'string') {
+    throw new Error('Account response missing id or role')
+  }
+
+  return {
+    id,
+    username: typeof user.username === 'string' ? user.username : null,
+    email: typeof user.email === 'string' ? user.email : null,
+    role,
+    isActive: typeof user.is_active === 'boolean' ? user.is_active : null,
+    emailVerified: typeof user.email_verified === 'boolean' ? user.email_verified : null,
+  }
 }
 
 interface ClickResponse {
@@ -233,6 +278,12 @@ export async function getPointBalance(channelId: string): Promise<PointBalanceRe
   }))
 
   return parsePointBalanceFromPayload(data)
+}
+
+export async function getCurrentAccount(): Promise<CurrentAccount> {
+  const { data } = await runWithAuthRecovery((config) => client.get('/api/v1/users/me', config))
+
+  return parseCurrentAccountFromPayload(data)
 }
 
 export async function sendClick(channelId: string): Promise<ClickResponse> {
@@ -265,22 +316,13 @@ export async function claimPoints(amount = 0): Promise<TachiBalanceResponse> {
 export async function redeemCoupon(
   couponId: string,
   amount: number,
-  token: string,
 ): Promise<RedeemCouponResponse> {
   try {
     const { data } = await runWithAuthRecovery((config) =>
       client.post<{ success: boolean; data: RedeemCouponResponse }>(
         '/spend/redeem',
         { coupon_id: couponId, amount },
-        {
-          ...config,
-          headers: client.defaults.headers.common.Authorization
-            ? config?.headers
-            : {
-                ...config?.headers,
-                Authorization: `Bearer ${token}`,
-              },
-        },
+        config,
       ),
     )
     return data.data
@@ -307,6 +349,14 @@ export async function sendHeartbeat(
     client.post('/api/v1/extension/watch/heartbeat', {
       channel_id: channelId,
     }, config))
+
+  const heartbeatBalance = parseOptionalPointBalanceFromPayload(heartbeatResponse.data)
+  if (heartbeatBalance) {
+    return {
+      balance: heartbeatBalance.spendableBalance,
+      cumulativeTotal: heartbeatBalance.cumulativeTotal,
+    }
+  }
 
   try {
     const pointBalance = await getPointBalance(channelId)
@@ -335,4 +385,23 @@ export async function getRaffleResult(raffleId: string): Promise<RaffleResultDra
     `/api/v1/extension/raffles/${raffleId}/result`,
   )
   return data.data.draws
+}
+
+/**
+ * Join a raffle as the currently authenticated Extension viewer.
+ * Always resolves (never throws); returns the HTTP status code so callers
+ * can switch on 200 (joined), 403 (not eligible), 409 (already joined).
+ * Network errors and unexpected failures return status 500.
+ */
+export async function joinRaffle(raffleId: string): Promise<{ status: number }> {
+  try {
+    await client.post(`/api/v1/extension/raffles/${raffleId}/join`)
+    return { status: 200 }
+  } catch (err) {
+    // err.response is undefined on network errors; fall back to 500.
+    if (axios.isAxiosError(err)) {
+      return { status: err.response?.status ?? 500 }
+    }
+    return { status: 500 }
+  }
 }

@@ -113,6 +113,20 @@
       }
     }
   },
+  "settings": {
+    "eyebrow": "控制面板",
+    "title": "设置",
+    "language": "语言",
+    "sound": "音效",
+    "effects": "特效",
+    "hud": "HUD",
+    "screen": "画面",
+    "screenModes": {
+      "compact": "精简",
+      "focus": "专注"
+    },
+    "back": "返回"
+  },
   "raffle_result": {
     "title": "抽奖结果",
     "loading": "加载中...",

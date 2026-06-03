@@ -143,6 +143,12 @@ const docTemplate = `{
                         "schema": {
                             "$ref": "#/definitions/handlers.Response"
                         }
+                    },
+                    "409": {
+                        "description": "Conflict",
+                        "schema": {
+                            "$ref": "#/definitions/handlers.Response"
+                        }
                     }
                 }
             }
@@ -584,6 +590,12 @@ const docTemplate = `{
                     },
                     "401": {
                         "description": "Unauthorized",
+                        "schema": {
+                            "$ref": "#/definitions/handlers.Response"
+                        }
+                    },
+                    "409": {
+                        "description": "Conflict",
                         "schema": {
                             "$ref": "#/definitions/handlers.Response"
                         }
@@ -1326,6 +1338,199 @@ const docTemplate = `{
                 }
             }
         },
+        "/dashboard/raffles/{id}/entry": {
+            "patch": {
+                "security": [
+                    {
+                        "BearerAuth": []
+                    }
+                ],
+                "consumes": [
+                    "application/json"
+                ],
+                "produces": [
+                    "application/json"
+                ],
+                "tags": [
+                    "raffles"
+                ],
+                "summary": "Open or close raffle entry (Dashboard)",
+                "parameters": [
+                    {
+                        "type": "string",
+                        "description": "Raffle ID",
+                        "name": "id",
+                        "in": "path",
+                        "required": true
+                    },
+                    {
+                        "description": "entry_open flag",
+                        "name": "body",
+                        "in": "body",
+                        "required": true,
+                        "schema": {
+                            "type": "object",
+                            "properties": {
+                                "entry_open": {
+                                    "type": "boolean"
+                                }
+                            }
+                        }
+                    }
+                ],
+                "responses": {
+                    "200": {
+                        "description": "OK",
+                        "schema": {
+                            "$ref": "#/definitions/handlers.Response"
+                        }
+                    },
+                    "400": {
+                        "description": "Bad Request",
+                        "schema": {
+                            "$ref": "#/definitions/handlers.Response"
+                        }
+                    },
+                    "403": {
+                        "description": "Forbidden",
+                        "schema": {
+                            "$ref": "#/definitions/handlers.Response"
+                        }
+                    },
+                    "404": {
+                        "description": "Not Found",
+                        "schema": {
+                            "$ref": "#/definitions/handlers.Response"
+                        }
+                    },
+                    "409": {
+                        "description": "Conflict",
+                        "schema": {
+                            "$ref": "#/definitions/handlers.Response"
+                        }
+                    }
+                }
+            }
+        },
+        "/dashboard/raffles/{id}/entry-stats": {
+            "get": {
+                "security": [
+                    {
+                        "BearerAuth": []
+                    }
+                ],
+                "produces": [
+                    "application/json"
+                ],
+                "tags": [
+                    "raffles"
+                ],
+                "summary": "Get entry statistics for a raffle (Dashboard)",
+                "parameters": [
+                    {
+                        "type": "string",
+                        "description": "Raffle ID",
+                        "name": "id",
+                        "in": "path",
+                        "required": true
+                    }
+                ],
+                "responses": {
+                    "200": {
+                        "description": "OK",
+                        "schema": {
+                            "$ref": "#/definitions/handlers.Response"
+                        }
+                    },
+                    "403": {
+                        "description": "Forbidden",
+                        "schema": {
+                            "$ref": "#/definitions/handlers.Response"
+                        }
+                    },
+                    "404": {
+                        "description": "Not Found",
+                        "schema": {
+                            "$ref": "#/definitions/handlers.Response"
+                        }
+                    }
+                }
+            }
+        },
+        "/dashboard/raffles/{id}/mode": {
+            "patch": {
+                "security": [
+                    {
+                        "BearerAuth": []
+                    }
+                ],
+                "consumes": [
+                    "application/json"
+                ],
+                "produces": [
+                    "application/json"
+                ],
+                "tags": [
+                    "raffles"
+                ],
+                "summary": "Set raffle mode (Dashboard)",
+                "parameters": [
+                    {
+                        "type": "string",
+                        "description": "Raffle ID",
+                        "name": "id",
+                        "in": "path",
+                        "required": true
+                    },
+                    {
+                        "description": "mode: public | subscribers_only",
+                        "name": "body",
+                        "in": "body",
+                        "required": true,
+                        "schema": {
+                            "type": "object",
+                            "properties": {
+                                "mode": {
+                                    "type": "string"
+                                }
+                            }
+                        }
+                    }
+                ],
+                "responses": {
+                    "200": {
+                        "description": "OK",
+                        "schema": {
+                            "$ref": "#/definitions/handlers.Response"
+                        }
+                    },
+                    "400": {
+                        "description": "Bad Request",
+                        "schema": {
+                            "$ref": "#/definitions/handlers.Response"
+                        }
+                    },
+                    "403": {
+                        "description": "Forbidden",
+                        "schema": {
+                            "$ref": "#/definitions/handlers.Response"
+                        }
+                    },
+                    "404": {
+                        "description": "Not Found",
+                        "schema": {
+                            "$ref": "#/definitions/handlers.Response"
+                        }
+                    },
+                    "409": {
+                        "description": "Conflict",
+                        "schema": {
+                            "$ref": "#/definitions/handlers.Response"
+                        }
+                    }
+                }
+            }
+        },
         "/dashboard/raffles/{id}/snapshot": {
             "post": {
                 "security": [
@@ -1375,6 +1580,12 @@ const docTemplate = `{
                     },
                     "400": {
                         "description": "Bad Request",
+                        "schema": {
+                            "$ref": "#/definitions/handlers.Response"
+                        }
+                    },
+                    "403": {
+                        "description": "Twitch token lacks required scopes; streamer must re-authorize",
                         "schema": {
                             "$ref": "#/definitions/handlers.Response"
                         }
@@ -1520,6 +1731,75 @@ const docTemplate = `{
                 }
             }
         },
+        "/extension/raffles/{id}/join": {
+            "post": {
+                "consumes": [
+                    "application/json"
+                ],
+                "produces": [
+                    "application/json"
+                ],
+                "tags": [
+                    "raffles"
+                ],
+                "summary": "Join a raffle from Twitch Extension",
+                "parameters": [
+                    {
+                        "type": "string",
+                        "description": "Raffle ID",
+                        "name": "id",
+                        "in": "path",
+                        "required": true
+                    },
+                    {
+                        "description": "Extension JWT",
+                        "name": "body",
+                        "in": "body",
+                        "required": true,
+                        "schema": {
+                            "type": "object",
+                            "properties": {
+                                "extension_jwt": {
+                                    "type": "string"
+                                }
+                            }
+                        }
+                    }
+                ],
+                "responses": {
+                    "200": {
+                        "description": "OK",
+                        "schema": {
+                            "$ref": "#/definitions/handlers.Response"
+                        }
+                    },
+                    "400": {
+                        "description": "Bad Request",
+                        "schema": {
+                            "$ref": "#/definitions/handlers.Response"
+                        }
+                    },
+                    "401": {
+                        "description": "Unauthorized",
+                        "schema": {
+                            "$ref": "#/definitions/handlers.Response"
+                        }
+                    },
+                    "403": {
+                        "description": "Forbidden",
+                        "schema": {
+                            "$ref": "#/definitions/handlers.Response"
+                        }
+                    },
+                    "409": {
+                        "description": "Conflict",
+                        "schema": {
+                            "$ref": "#/definitions/handlers.Response"
+                        }
+                    }
+                }
+            }
+        },
         "/extension/raffles/{id}/result": {
             "get": {
                 "produces": [
@@ -1622,6 +1902,74 @@ const docTemplate = `{
                     },
                     "409": {
                         "description": "Conflict",
+                        "schema": {
+                            "$ref": "#/definitions/handlers.Response"
+                        }
+                    }
+                }
+            }
+        },
+        "/extension/watch/heartbeat": {
+            "post": {
+                "security": [
+                    {
+                        "BearerAuth": []
+                    }
+                ],
+                "consumes": [
+                    "application/json"
+                ],
+                "produces": [
+                    "application/json"
+                ],
+                "tags": [
+                    "extension-watch"
+                ],
+                "summary": "Record extension watch heartbeat",
+                "parameters": [
+                    {
+                        "description": "Watch heartbeat request",
+                        "name": "request",
+                        "in": "body",
+                        "required": true,
+                        "schema": {
+                            "$ref": "#/definitions/handlers.WatchRequest"
+                        }
+                    }
+                ],
+                "responses": {
+                    "200": {
+                        "description": "OK",
+                        "schema": {
+                            "allOf": [
+                                {
+                                    "$ref": "#/definitions/handlers.Response"
+                                },
+                                {
+                                    "type": "object",
+                                    "properties": {
+                                        "data": {
+                                            "$ref": "#/definitions/handlers.WatchHeartbeatResponse"
+                                        }
+                                    }
+                                }
+                            ]
+                        }
+                    },
+                    "400": {
+                        "description": "Bad Request",
+                        "schema": {
+                            "$ref": "#/definitions/handlers.Response"
+                        }
+                    },
+                    "401": {
+                        "description": "Unauthorized",
+                        "schema": {
+                            "$ref": "#/definitions/handlers.Response"
+                        }
+                    },
+                    "500": {
+                        "description": "Internal Server Error",
                         "schema": {
                             "$ref": "#/definitions/handlers.Response"
                         }
@@ -2607,6 +2955,31 @@ const docTemplate = `{
                 }
             }
         },
+        "handlers.WatchHeartbeatResponse": {
+            "type": "object",
+            "properties": {
+                "cumulative_total": {
+                    "type": "integer"
+                },
+                "points_earned": {
+                    "type": "integer"
+                },
+                "session": {
+                    "$ref": "#/definitions/models.WatchSession"
+                },
+                "spendable_balance": {
+                    "type": "integer"
+                }
+            }
+        },
+        "handlers.WatchRequest": {
+            "type": "object",
+            "properties": {
+                "channel_id": {
+                    "type": "string"
+                }
+            }
+        },
         "handlers.claimRequest": {
             "type": "object",
             "properties": {
@@ -2677,6 +3050,23 @@ const docTemplate = `{
                 }
             }
         },
+        "models.CharacterKind": {
+            "type": "string",
+            "enum": [
+                "crab",
+                "dolphin",
+                "turtle",
+                "whale",
+                "capybara"
+            ],
+            "x-enum-varnames": [
+                "CharacterCrab",
+                "CharacterDolphin",
+                "CharacterTurtle",
+                "CharacterWhale",
+                "CharacterCapybara"
+            ]
+        },
         "models.ProviderType": {
             "type": "string",
             "enum": [
@@ -2739,6 +3129,9 @@ const docTemplate = `{
         "models.User": {
             "type": "object",
             "properties": {
+                "active_character": {
+                    "$ref": "#/definitions/models.CharacterKind"
+                },
                 "addresses": {
                     "type": "array",
                     "items": {
@@ -2772,6 +3165,9 @@ const docTemplate = `{
                 "role": {
                     "$ref": "#/definitions/models.UserRole"
                 },
+                "switch_cooldown_until": {
+                    "type": "string"
+                },
                 "updated_at": {
                     "type": "string"
                 },
@@ -2794,6 +3190,41 @@ const docTemplate = `{
                 "RoleAgency",
                 "RoleAdmin"
             ]
+        },
+        "models.WatchSession": {
+            "type": "object",
+            "properties": {
+                "accumulated_seconds": {
+                    "type": "integer"
+                },
+                "channel_id": {
+                    "type": "string"
+                },
+                "created_at": {
+                    "type": "string"
+                },
+                "ended_at": {
+                    "type": "string"
+                },
+                "id": {
+                    "type": "string"
+                },
+                "is_active": {
+                    "type": "boolean"
+                },
+                "last_heartbeat_at": {
+                    "type": "string"
+                },
+                "rewarded_seconds": {
+                    "type": "integer"
+                },
+                "updated_at": {
+                    "type": "string"
+                },
+                "user_id": {
+                    "type": "string"
+                }
+            }
         },
         "services.AddressInput": {
             "type": "object",

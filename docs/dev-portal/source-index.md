@@ -37,8 +37,10 @@ related_repos:
 |---|---|
 | [architecture.md](/tachigo/architecture) | 系統整體架構與主要資料流 |
 | [auth-architecture.md](/tachigo/auth-architecture) | Auth 現況與 migration guardrails |
+| [dashboard-auth-session.md](/tachigo/dashboard-auth-session) | Dashboard auth/session restore 與 frontend RBAC 邊界現況 |
 | [backend-permissions.md](/tachigo/backend-permissions) | Backend role / permission 現況與變更 guardrails |
 | [auto-merge-policy.md](/tachigo/auto-merge-policy) | Auto-merge 與 approve 語義 |
+| [ci-app-scope-policy.md](/tachigo/ci-app-scope-policy) | Extension / Dashboard / Backend / Contracts 的 CI app-scope routing policy |
 | [dependabot-update-policy.md](/tachigo/dependabot-update-policy) | Dependabot 更新政策 |
 | [draft-pr-auto-ready.md](/tachigo/draft-pr-auto-ready) | Draft PR auto-ready 現行流程 |
 | [pr-scope-policy.md](/tachigo/pr-scope-policy) | PR scope 與 required checks policy |
@@ -53,6 +55,7 @@ related_repos:
 |---|---|
 | [atlas-migration-plan.md](/tachigo/atlas-migration-plan) | #463 Atlas migration 拆分實作計畫；不得單獨視為已完成狀態 |
 | [atlas-schema-reconciliation.md](/tachigo/atlas-schema-reconciliation) | #463 baseline 前 schema reconciliation evidence / procedure |
+| [deploy-workflow-planning.md](/tachigo/deploy-workflow-planning) | #212 deploy workflow planning；正式 workflow 實作拆到 #1020 |
 | [non-web3-launch-readiness.md](/tachigo/non-web3-launch-readiness) | 暫時捨棄 Web3 上鏈部分後的上線距離、Codex 自動化能力與真人介入層級 snapshot |
 | [openapi-codegen-flow.md](/tachigo/openapi-codegen-flow) | #401 OpenAPI → TypeScript contracts / codegen rollout 計畫 |
 | [tachigo Dev Portal spec](/tachigo/superpowers/specs/2026-05-14-project-atlas-design) | #674 Dev Portal 設計規格；命名已避開 atlasgo tooling 混淆 |

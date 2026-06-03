@@ -1,4 +1,4 @@
-h1:AIsVTzb6FUCPAEMxGkX7Mbw8CY2Yajo+CFuUYJOnP20=
+h1:FNaHR8K+IG3HBneCIjR/+9iUaJiTXRQhZoOOaQttbDk=
 001_init.sql h1:RXDyJb8ZsPCAiihSRadGfVmeVroOZ5Icv6TbGfg13yw=
 002_email_auth.sql h1:knuWN3/aXOfTZYjSa/JE/C6mMfJYcOBse+S8H8Oxcow=
 003_watch_points.sql h1:TZ7OpuYOFatMiffwJv4Tzq+JXP9G3BYUmHK89xEfZEM=
@@ -21,3 +21,4 @@ h1:AIsVTzb6FUCPAEMxGkX7Mbw8CY2Yajo+CFuUYJOnP20=
 020_atlas_reconcile_current_schema.sql h1:ILRmsZcmeBBzeU6qDFiRjqTXUHgQG7LPB20Mg67or68=
 021_raffle_prize_tiers.sql h1:crrIPEjm9r59KoUwgdhwWlUrrq+OIUoQTvVhqf5jnHM=
 022_raffle_mode_fields.sql h1:xLoRRPQJiaG+7NgYPuHgzIcFPviyMS/Zls3wODqLewU=
+023_user_characters_streamer_familiarity.sql h1:6AZb6gLvlPIdnQPk5a30wpYVlAsUEeG7KMzTJpSKlIw=

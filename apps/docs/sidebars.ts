@@ -29,6 +29,7 @@ const sidebars: SidebarsConfig = {
       items: [
         'architecture',
         'auth-architecture',
+        'dashboard-auth-session',
         'sequence-diagram',
         'watch-to-points-design',
         'tokenomics',
@@ -70,6 +71,7 @@ const sidebars: SidebarsConfig = {
       items: [
         'atlas-migration-plan',
         'atlas-schema-reconciliation',
+        'deploy-workflow-planning',
         'non-web3-launch-readiness',
         'openapi-codegen-flow',
         'superpowers/specs/2026-05-14-project-atlas-design',

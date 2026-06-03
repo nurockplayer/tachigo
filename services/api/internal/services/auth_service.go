@@ -59,7 +59,7 @@ func NewAuthService(db *gorm.DB, cfg *config.Config) *AuthService {
 		ClientID:     cfg.OAuth.Twitch.ClientID,
 		ClientSecret: cfg.OAuth.Twitch.ClientSecret,
 		RedirectURL:  cfg.OAuth.Twitch.RedirectURL,
-		Scopes:       []string{"user:read:email"},
+		Scopes:       []string{"user:read:email", "channel:read:subscriptions"},
 		Endpoint: oauth2.Endpoint{
 			AuthURL:  "https://id.twitch.tv/oauth2/authorize",
 			TokenURL: "https://id.twitch.tv/oauth2/token",
@@ -283,7 +283,7 @@ func (s *AuthService) TwitchCallback(ctx context.Context, code string) (*models.
 		return nil, nil, err
 	}
 
-	return s.upsertOAuthUser(ctx, models.ProviderTwitch, info.ID, info.Login, info.Email, info.ProfileURL, token)
+	return s.upsertOAuthUser(ctx, models.ProviderTwitch, info.ID, info.Login, info.Email, false, info.ProfileURL, token)
 }
 
 // ─── Google OAuth ────────────────────────────────────────────────────────────
@@ -303,7 +303,7 @@ func (s *AuthService) GoogleCallback(ctx context.Context, code string) (*models.
 		return nil, nil, err
 	}
 
-	return s.upsertOAuthUser(ctx, models.ProviderGoogle, info.Sub, info.Name, info.Email, &info.Picture, token)
+	return s.upsertOAuthUser(ctx, models.ProviderGoogle, info.Sub, info.Name, info.Email, info.EmailVerified, &info.Picture, token)
 }
 
 // ─── Web3 / SIWE ─────────────────────────────────────────────────────────────
@@ -393,7 +393,7 @@ func (s *AuthService) Web3VerifyContext(ctx context.Context, input Web3VerifyInp
 		txSvc := *s
 		txSvc.db = tx
 		var err error
-		user, tokens, err = txSvc.upsertOAuthUser(ctx, models.ProviderWeb3, checksumAddr, "", "", nil, nil)
+		user, tokens, err = txSvc.upsertOAuthUser(ctx, models.ProviderWeb3, checksumAddr, "", "", false, nil, nil)
 		return err
 	}); err != nil {
 		return nil, nil, err
@@ -499,16 +499,18 @@ func (s *AuthService) issueTokenPairContext(ctx context.Context, user *models.Us
 // ─── OAuth upsert helper ─────────────────────────────────────────────────────
 
 type googleUserInfo struct {
-	Sub     string `json:"sub"`
-	Name    string `json:"name"`
-	Email   string `json:"email"`
-	Picture string `json:"picture"`
+	Sub           string `json:"sub"`
+	Name          string `json:"name"`
+	Email         string `json:"email"`
+	EmailVerified bool   `json:"email_verified"`
+	Picture       string `json:"picture"`
 }
 
 func (s *AuthService) upsertOAuthUser(
 	ctx context.Context,
 	provider models.ProviderType,
 	providerID, username, email string,
+	providerEmailVerified bool,
 	avatarURL *string,
 	token *oauth2.Token,
 ) (*models.User, *TokenPair, error) {
@@ -516,7 +518,7 @@ func (s *AuthService) upsertOAuthUser(
 		ctx = context.Background()
 	}
 
-	user, tokens, err := s.upsertOAuthUserInTransaction(s.db.WithContext(ctx), provider, providerID, username, email, avatarURL, token)
+	user, tokens, err := s.upsertOAuthUserInTransaction(s.db.WithContext(ctx), provider, providerID, username, email, providerEmailVerified, avatarURL, token)
 	if err == nil {
 		return user, tokens, nil
 	}
@@ -532,20 +534,25 @@ func (s *AuthService) upsertOAuthUser(
 		return nil, nil, recoverErr
 	}
 
-	return nil, nil, s.mapOAuthUserUniqueError(ctx, username, email, err)
+	mappedErr := s.mapOAuthUserUniqueError(ctx, username, email, err)
+	if username != "" && errors.Is(mappedErr, ErrUsernameExists) {
+		return s.upsertOAuthUser(ctx, provider, providerID, "", email, providerEmailVerified, avatarURL, token)
+	}
+	return nil, nil, mappedErr
 }
 
 func (s *AuthService) upsertOAuthUserInTransaction(
 	db *gorm.DB,
 	provider models.ProviderType,
 	providerID, username, email string,
+	providerEmailVerified bool,
 	avatarURL *string,
 	token *oauth2.Token,
 ) (*models.User, *TokenPair, error) {
 	var user *models.User
 	var tokens *TokenPair
 	err := db.Transaction(func(tx *gorm.DB) error {
-		txUser, txTokens, err := s.upsertOAuthUserTx(tx, provider, providerID, username, email, avatarURL, token)
+		txUser, txTokens, err := s.upsertOAuthUserTx(tx, provider, providerID, username, email, providerEmailVerified, avatarURL, token)
 		if err != nil {
 			return err
 		}
@@ -560,6 +567,7 @@ func (s *AuthService) upsertOAuthUserTx(
 	tx *gorm.DB,
 	provider models.ProviderType,
 	providerID, username, email string,
+	providerEmailVerified bool,
 	avatarURL *string,
 	token *oauth2.Token,
 ) (*models.User, *TokenPair, error) {
@@ -578,11 +586,15 @@ func (s *AuthService) upsertOAuthUserTx(
 		if err != nil && !errors.Is(err, gorm.ErrRecordNotFound) {
 			return nil, nil, err
 		}
+		if err == nil && !providerEmailVerified {
+			return nil, nil, ErrEmailExists
+		}
 	}
 
 	if user.ID == uuid.Nil {
 		if email != "" {
 			user.Email = &email
+			user.EmailVerified = providerEmailVerified
 		}
 		if username != "" {
 			user.Username = &username

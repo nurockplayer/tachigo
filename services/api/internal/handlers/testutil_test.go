@@ -28,6 +28,9 @@ func migrateTestDB(db *gorm.DB) error {
 			role TEXT NOT NULL DEFAULT 'viewer',
 			is_active INTEGER NOT NULL DEFAULT 1,
 			email_verified INTEGER NOT NULL DEFAULT 0,
+			active_character TEXT NOT NULL DEFAULT 'crab'
+				CHECK (active_character IN ('crab', 'dolphin', 'turtle', 'whale', 'capybara')),
+			switch_cooldown_until DATETIME,
 			created_at DATETIME,
 			updated_at DATETIME,
 			deleted_at DATETIME

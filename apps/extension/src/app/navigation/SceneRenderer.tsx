@@ -4,13 +4,14 @@ import { EntryScene } from '../components/EntryScene'
 import { LoadingScreen } from '../components/LoadingScreen'
 import { LoginScreen } from '../components/LoginScreen'
 import { MarioHUD } from '../components/MarioHUD'
-import type { HudDemoState } from '../../extension/types'
+import { defaultSettingsState, type HudDemoState, type SettingsState } from '../../extension/types'
 import { PlaceholderSurface } from './PlaceholderSurface'
 import { useNavigation } from './useNavigation'
 import type { OverlayEntry } from './types'
 
 interface SceneRendererProps {
   hudState: HudDemoState
+  settings?: SettingsState
   onHudStateChange: Dispatch<SetStateAction<HudDemoState>>
 }
 
@@ -27,7 +28,7 @@ function createHudOverlay(screen: HudNavigationTarget): OverlayEntry {
   }
 }
 
-export function SceneRenderer({ hudState, onHudStateChange }: SceneRendererProps) {
+export function SceneRenderer({ hudState, settings = defaultSettingsState, onHudStateChange }: SceneRendererProps) {
   const { state, goScene, pushOverlay, setFlag } = useNavigation()
 
   switch (state.scene) {
@@ -53,9 +54,21 @@ export function SceneRenderer({ hudState, onHudStateChange }: SceneRendererProps
         />
       )
     case 'mining':
+      if (!settings.hudVisible) {
+        return (
+          <PlaceholderSurface
+            eyebrow="Settings"
+            title="HUD Hidden"
+            body="The mining HUD is hidden by your display setting."
+          />
+        )
+      }
+
       return (
         <MarioHUD
           state={hudState}
+          effectsEnabled={settings.effectsEnabled}
+          soundEnabled={settings.soundEnabled}
           onStateChange={onHudStateChange}
           onNavigate={(screen) => pushOverlay(createHudOverlay(screen))}
         />
