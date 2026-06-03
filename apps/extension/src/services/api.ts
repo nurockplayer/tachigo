@@ -316,22 +316,13 @@ export async function claimPoints(amount = 0): Promise<TachiBalanceResponse> {
 export async function redeemCoupon(
   couponId: string,
   amount: number,
-  token: string,
 ): Promise<RedeemCouponResponse> {
   try {
     const { data } = await runWithAuthRecovery((config) =>
       client.post<{ success: boolean; data: RedeemCouponResponse }>(
         '/spend/redeem',
         { coupon_id: couponId, amount },
-        {
-          ...config,
-          headers: client.defaults.headers.common.Authorization
-            ? config?.headers
-            : {
-                ...config?.headers,
-                Authorization: `Bearer ${token}`,
-              },
-        },
+        config,
       ),
     )
     return data.data
