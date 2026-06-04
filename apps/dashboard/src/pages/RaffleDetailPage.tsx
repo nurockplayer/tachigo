@@ -96,8 +96,7 @@ function formatRelativeTime(dateStr: string): string {
 }
 
 function getEntryStatsTotal(stats: RaffleEntryStats): number {
-  const maybeTotalCount = (stats as RaffleEntryStats & { total_count?: number }).total_count
-  return typeof maybeTotalCount === 'number' ? maybeTotalCount : stats.total_entries
+  return stats.total_joined
 }
 
 function isInsufficientScopeError(error: unknown): boolean {
@@ -926,9 +925,9 @@ export default function RaffleDetailPage() {
                 </div>
                 <div style={{ borderRadius: 8, background: 'rgba(255,255,255,.04)', padding: 8 }}>
                   <p style={{ fontSize: 10, color: 'rgba(148,210,255,.5)', marginBottom: 3 }}>排除人數</p>
-                  <p data-testid="excluded-count" style={{ fontSize: 20, fontWeight: 800, color: '#fca5a5' }}>{entryStats.excluded_count}</p>
+                  <p data-testid="excluded-count" style={{ fontSize: 20, fontWeight: 800, color: '#fca5a5' }}>{entryStats.ineligible_count}</p>
                   <div data-testid="excluded-breakdown" style={{ marginTop: 4, display: 'flex', flexDirection: 'column', gap: 2 }}>
-                    {Object.entries(entryStats.excluded_by_reason).map(([reason, count]) => (
+                    {Object.entries(entryStats.ineligible_reasons).map(([reason, count]) => (
                       <span key={reason} style={{ fontSize: 10, color: 'rgba(226,232,240,.65)' }}>{formatExcludedReason(reason)} {count} 人</span>
                     ))}
                   </div>

@@ -19,9 +19,9 @@ export interface Raffle {
 
 export interface RaffleEntryStats {
   eligible_count: number
-  excluded_count: number
-  excluded_by_reason: Record<string, number>
-  total_entries: number
+  ineligible_count: number
+  ineligible_reasons: Record<string, number>
+  total_joined: number
 }
 
 export interface RaffleEntry {
