@@ -1,7 +1,8 @@
-import { render, screen } from '@testing-library/react'
+import { render, screen, fireEvent, waitFor } from '@testing-library/react'
 import { describe, it, expect, vi, beforeEach } from 'vitest'
 import { RaffleDrawSession } from '../RaffleDrawSession'
 import type { RafflePrizeTier } from '@/services/raffles'
+import * as rafflesService from '@/services/raffles'
 
 vi.mock('@/services/raffles', () => ({
   drawFromTier: vi.fn(),
@@ -27,5 +28,71 @@ describe('RaffleDrawSession', () => {
   it('顯示輪次進度（第 1 / 2 輪）', () => {
     render(<RaffleDrawSession raffleId="r1" tiers={mockTiers} />)
     expect(screen.getByTestId('round-progress').textContent).toContain('第 1 / 2 輪')
+  })
+
+  it('按下「抽這一輪」後顯示得獎者名稱', async () => {
+    vi.mocked(rafflesService.drawFromTier).mockResolvedValueOnce({
+      id: 'd1', raffle_id: 'r1', entry_id: 'e1',
+      claim_token: '', claim_expires_at: '', drawn_at: '',
+      entry: { id: 'e1', raffle_id: 'r1', twitch_login: 'viewer1', display_name: 'Viewer One', created_at: '' },
+      prize_tier_id: 't1',
+    } as any)
+
+    const { container: _container } = render(<RaffleDrawSession raffleId="r1" tiers={mockTiers} />)
+    fireEvent.click(screen.getByTestId('draw-round-button'))
+
+    await waitFor(() => {
+      expect(screen.getByTestId('winner-name')).not.toBeNull()
+      expect(screen.getByTestId('winner-name').textContent).toContain('Viewer One')
+    })
+    expect(screen.getByTestId('next-round-button').textContent).toContain('繼續下一輪')
+  })
+
+  it('按下「繼續下一輪」後推進到第二輪', async () => {
+    vi.mocked(rafflesService.drawFromTier).mockResolvedValueOnce({
+      id: 'd1', raffle_id: 'r1', entry_id: 'e1',
+      claim_token: '', claim_expires_at: '', drawn_at: '',
+      entry: { id: 'e1', raffle_id: 'r1', twitch_login: 'viewer1', display_name: 'Viewer One', created_at: '' },
+      prize_tier_id: 't1',
+    } as any)
+
+    render(<RaffleDrawSession raffleId="r1" tiers={mockTiers} />)
+    fireEvent.click(screen.getByTestId('draw-round-button'))
+    await waitFor(() => screen.getByTestId('next-round-button'))
+    fireEvent.click(screen.getByTestId('next-round-button'))
+
+    expect(screen.getByTestId('current-tier-name').textContent).toContain('二等獎')
+    expect(screen.getByTestId('round-progress').textContent).toContain('第 2 / 2 輪')
+  })
+
+  it('最後一輪結束後顯示完成畫面', async () => {
+    const singleTier: RafflePrizeTier[] = [
+      { id: 't1', raffle_id: 'r1', name: '唯一獎', prize_description: '', winner_count: 1, drawn_count: 0, position: 0, created_at: '' },
+    ]
+    vi.mocked(rafflesService.drawFromTier).mockResolvedValueOnce({
+      id: 'd1', raffle_id: 'r1', entry_id: 'e1',
+      claim_token: '', claim_expires_at: '', drawn_at: '',
+      entry: { id: 'e1', raffle_id: 'r1', twitch_login: 'winner', display_name: 'Winner', created_at: '' },
+      prize_tier_id: 't1',
+    } as any)
+
+    render(<RaffleDrawSession raffleId="r1" tiers={singleTier} />)
+    fireEvent.click(screen.getByTestId('draw-round-button'))
+    await waitFor(() => screen.getByTestId('next-round-button'))
+    fireEvent.click(screen.getByTestId('next-round-button'))
+
+    expect(screen.getByTestId('session-complete')).not.toBeNull()
+  })
+
+  it('API 失敗時顯示錯誤訊息，回到 round_ready', async () => {
+    vi.mocked(rafflesService.drawFromTier).mockRejectedValueOnce(new Error('network error'))
+
+    const { container } = render(<RaffleDrawSession raffleId="r1" tiers={mockTiers} />)
+    fireEvent.click(screen.getByTestId('draw-round-button'))
+
+    await waitFor(() => {
+      expect(screen.getByTestId('draw-round-button')).not.toBeNull()
+      expect(container.textContent).toContain('抽獎失敗，請再試一次')
+    })
   })
 })
