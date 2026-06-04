@@ -2,8 +2,9 @@ import { useOne } from '@refinedev/core'
 import { useCallback, useEffect, useRef, useState } from 'react'
 import { useNavigate, useParams } from 'react-router'
 import { Skeleton } from '@/components/ui/skeleton'
-import { activateRaffle, completeRaffle, createPrizeTier, deletePrizeTier, drawFromTier, drawNext, importCSV, listDraws, listPrizeTiers, setDiscordWebhook } from '@/services/raffles'
-import type { Raffle, RaffleDraw, RafflePrizeTier, RaffleStatus } from '@/services/raffles'
+import { apiBaseURL } from '@/services/api'
+import { activateRaffle, completeRaffle, createPrizeTier, deletePrizeTier, drawFromTier, drawNext, getRaffleEntryStats, importCSV, listDraws, listPrizeTiers, setDiscordWebhook, setRaffleEntryOpen, setRaffleMode } from '@/services/raffles'
+import type { Raffle, RaffleDraw, RaffleEntryStats, RaffleMode, RafflePrizeTier, RaffleStatus } from '@/services/raffles'
 import gachaBg from '../assets/raffle-bg.jpg.png'
 
 const OCEAN_KEYFRAMES = `
@@ -92,6 +93,38 @@ function formatRelativeTime(dateStr: string): string {
   if (mins < 60) return `${mins} 分鐘前`
 
   return date.toLocaleString('zh-TW')
+}
+
+function getEntryStatsTotal(stats: RaffleEntryStats): number {
+  const maybeTotalCount = (stats as RaffleEntryStats & { total_count?: number }).total_count
+  return typeof maybeTotalCount === 'number' ? maybeTotalCount : stats.total_entries
+}
+
+function isInsufficientScopeError(error: unknown): boolean {
+  const response = (error as { response?: { status?: number; data?: unknown } })?.response
+  if (response?.status !== 403) return false
+  if (typeof response.data === 'string') return response.data.includes('insufficient_scope')
+  return JSON.stringify(response?.data ?? '').includes('insufficient_scope')
+}
+
+function formatExcludedReason(reason: string): string {
+  if (reason === 'not_subscriber') return '非訂閱者'
+  if (reason === 'duplicate') return '重複報名'
+  if (reason === 'already_drawn') return '已中獎'
+  if (reason === 'missing_twitch_id') return '缺少 Twitch ID'
+  if (reason === 'missing_subscription') return '缺少訂閱紀錄'
+  if (reason === 'subscription_expired') return '訂閱已失效'
+  if (reason === 'subscription_inactive') return '訂閱未啟用'
+  if (reason === 'banned') return '已封鎖'
+  if (reason === 'not_following') return '未追蹤'
+  if (reason === 'manual_exclusion') return '手動排除'
+  if (reason === 'invalid_entry') return '報名資料無效'
+  if (reason === 'missing_display_name') return '缺少顯示名稱'
+  if (reason === 'outside_entry_window') return '不在報名時間內'
+  if (reason === 'raffle_completed') return '活動已結束'
+  if (reason === 'raffle_not_active') return '活動尚未啟用'
+  if (reason === 'unknown_viewer') return '未知觀眾'
+  return reason
 }
 
 function StatCard({
@@ -574,12 +607,22 @@ export default function RaffleDetailPage() {
   const [newTier, setNewTier] = useState({ name: '', prize_description: '', winner_count: 1 })
   const [addingTier, setAddingTier] = useState(false)
   const [addTierError, setAddTierError] = useState<string | null>(null)
+  const [mode, setMode] = useState<RaffleMode>(raffle?.mode ?? 'public')
+  const [entryOpen, setEntryOpen] = useState<boolean>(raffle?.entry_open ?? false)
+  const [entryStats, setEntryStats] = useState<RaffleEntryStats | null>(null)
+  const [reauthRequired, setReauthRequired] = useState(false)
 
   const pendingTimers = useRef<number[]>([])
 
   useEffect(() => {
     return () => { pendingTimers.current.forEach(id => window.clearTimeout(id)) }
   }, [])
+
+  useEffect(() => {
+    if (!raffle) return
+    setMode(raffle.mode ?? 'public')
+    setEntryOpen(raffle.entry_open ?? false)
+  }, [raffle])
 
   const effectiveStatus = localCompleted ? 'completed' : localActivated ? 'active' : (raffle?.status ?? '')
 
@@ -606,6 +649,34 @@ export default function RaffleDetailPage() {
 
   useEffect(() => {
     if (!raffleId) return
+    const controller = new AbortController()
+
+    async function fetchEntryStats() {
+      try {
+        const result = await getRaffleEntryStats(raffleId, controller.signal)
+        setEntryStats(result)
+        setReauthRequired(false)
+      } catch (error: unknown) {
+        if (controller.signal.aborted) return
+        if (mode === 'subscribers_only' && isInsufficientScopeError(error)) {
+          setReauthRequired(true)
+        }
+      }
+    }
+
+    void fetchEntryStats()
+    const timerId = window.setInterval(() => {
+      void fetchEntryStats()
+    }, 10000)
+
+    return () => {
+      window.clearInterval(timerId)
+      controller.abort()
+    }
+  }, [mode, raffleId])
+
+  useEffect(() => {
+    if (!raffleId) return
     const initialLoadId = window.setTimeout(() => {
       void fetchDraws()
       void fetchTiers()
@@ -624,6 +695,34 @@ export default function RaffleDetailPage() {
       window.clearInterval(timerId)
     }
   }, [effectiveStatus, fetchDraws, fetchTiers, raffleId])
+
+  async function handleModeChange(nextMode: RaffleMode) {
+    if (!raffleId || nextMode === mode) return
+    try {
+      await setRaffleMode(raffleId, nextMode)
+      setMode(nextMode)
+      setReauthRequired(false)
+    } catch (error: unknown) {
+      if (nextMode === 'subscribers_only' && isInsufficientScopeError(error)) {
+        setMode(nextMode)
+        setReauthRequired(true)
+      }
+    }
+  }
+
+  async function handleEntryOpenToggle() {
+    if (!raffleId) return
+    const nextEntryOpen = !entryOpen
+    try {
+      await setRaffleEntryOpen(raffleId, nextEntryOpen)
+      setEntryOpen(nextEntryOpen)
+      setReauthRequired(false)
+    } catch (error: unknown) {
+      if (mode === 'subscribers_only' && isInsufficientScopeError(error)) {
+        setReauthRequired(true)
+      }
+    }
+  }
 
   async function handleDraw() {
     if (!raffleId || drawing) return
@@ -777,6 +876,72 @@ export default function RaffleDetailPage() {
             locked={effectiveStatus !== 'draft'}
             onSuccess={(result) => { setTotalEntries(prev => (prev ?? 0) + result.imported); setExhausted(false) }}
           />
+
+          <section data-testid="raffle-entry-controls" style={{ border: '1px solid rgba(80,160,255,.18)', borderRadius: 10, background: 'rgba(255,255,255,.035)', padding: 12, display: 'flex', flexDirection: 'column', gap: 10 }}>
+            <div style={{ display: 'flex', flexWrap: 'wrap', justifyContent: 'space-between', gap: 10, alignItems: 'center' }}>
+              <div style={{ display: 'flex', flexDirection: 'column', gap: 6 }}>
+                <span style={{ fontSize: 11, color: 'rgba(148,210,255,.6)', letterSpacing: '.06em' }}>報名資格</span>
+                <div style={{ display: 'flex', gap: 10, flexWrap: 'wrap' }}>
+                  <label style={{ display: 'flex', alignItems: 'center', gap: 5, fontSize: 12, color: mode === 'public' ? '#e0f2fe' : 'rgba(148,210,255,.55)' }}>
+                    <input
+                      data-testid="raffle-mode-public"
+                      type="radio"
+                      name="raffle-mode"
+                      value="public"
+                      checked={mode === 'public'}
+                      onChange={() => { void handleModeChange('public') }}
+                    />
+                    全體觀眾
+                  </label>
+                  <label style={{ display: 'flex', alignItems: 'center', gap: 5, fontSize: 12, color: mode === 'subscribers_only' ? '#e0f2fe' : 'rgba(148,210,255,.55)' }}>
+                    <input
+                      data-testid="raffle-mode-subscribers"
+                      type="radio"
+                      name="raffle-mode"
+                      value="subscribers_only"
+                      checked={mode === 'subscribers_only'}
+                      onChange={() => { void handleModeChange('subscribers_only') }}
+                    />
+                    訂閱者專屬
+                  </label>
+                </div>
+              </div>
+              <button
+                data-testid="entry-open-toggle"
+                onClick={() => { void handleEntryOpenToggle() }}
+                style={{ border: entryOpen ? '1px solid rgba(248,113,113,.35)' : '1px solid rgba(34,197,94,.35)', background: entryOpen ? 'rgba(248,113,113,.1)' : 'rgba(34,197,94,.1)', color: entryOpen ? '#fca5a5' : '#86efac', borderRadius: 8, padding: '7px 12px', fontSize: 12, fontWeight: 700, cursor: 'pointer' }}
+              >
+                {entryOpen ? '截止報名' : '開放報名'}
+              </button>
+            </div>
+            {reauthRequired && mode === 'subscribers_only' && (
+              <p data-testid="twitch-reauth-prompt" style={{ border: '1px solid rgba(251,191,36,.25)', borderRadius: 8, background: 'rgba(251,191,36,.08)', padding: '8px 10px', fontSize: 12, color: '#fde68a' }}>
+                請重新授權 Twitch
+                <a href={`${apiBaseURL}/api/v1/auth/twitch?redirect_to=%2F`} style={{ marginLeft: 8, color: '#7dd3fc', textDecoration: 'underline' }}>重新授權</a>
+              </p>
+            )}
+            {entryStats && (
+              <div data-testid="entry-stats-panel" style={{ display: 'grid', gridTemplateColumns: 'repeat(3,1fr)', gap: 8 }}>
+                <div style={{ borderRadius: 8, background: 'rgba(255,255,255,.04)', padding: 8 }}>
+                  <p style={{ fontSize: 10, color: 'rgba(148,210,255,.5)', marginBottom: 3 }}>合格候選人數</p>
+                  <p data-testid="eligible-count" style={{ fontSize: 20, fontWeight: 800, color: '#86efac' }}>{entryStats.eligible_count}</p>
+                </div>
+                <div style={{ borderRadius: 8, background: 'rgba(255,255,255,.04)', padding: 8 }}>
+                  <p style={{ fontSize: 10, color: 'rgba(148,210,255,.5)', marginBottom: 3 }}>排除人數</p>
+                  <p data-testid="excluded-count" style={{ fontSize: 20, fontWeight: 800, color: '#fca5a5' }}>{entryStats.excluded_count}</p>
+                  <div data-testid="excluded-breakdown" style={{ marginTop: 4, display: 'flex', flexDirection: 'column', gap: 2 }}>
+                    {Object.entries(entryStats.excluded_by_reason).map(([reason, count]) => (
+                      <span key={reason} style={{ fontSize: 10, color: 'rgba(226,232,240,.65)' }}>{formatExcludedReason(reason)} {count} 人</span>
+                    ))}
+                  </div>
+                </div>
+                <div style={{ borderRadius: 8, background: 'rgba(255,255,255,.04)', padding: 8 }}>
+                  <p style={{ fontSize: 10, color: 'rgba(148,210,255,.5)', marginBottom: 3 }}>總報名人數</p>
+                  <p data-testid="total-count" style={{ fontSize: 20, fontWeight: 800, color: '#93c5fd' }}>{getEntryStatsTotal(entryStats)}</p>
+                </div>
+              </div>
+            )}
+          </section>
 
           {effectiveStatus === 'draft' && (
             <>
