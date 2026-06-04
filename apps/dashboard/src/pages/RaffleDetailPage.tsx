@@ -1,6 +1,7 @@
 import { useOne } from '@refinedev/core'
 import { useCallback, useEffect, useRef, useState } from 'react'
 import { useNavigate, useParams } from 'react-router'
+import { RaffleDrawSession } from '@/components/raffle/RaffleDrawSession'
 import { Skeleton } from '@/components/ui/skeleton'
 import { apiBaseURL } from '@/services/api'
 import { activateRaffle, completeRaffle, createPrizeTier, deletePrizeTier, drawFromTier, drawNext, getRaffleEntryStats, importCSV, listDraws, listPrizeTiers, setDiscordWebhook, setRaffleEntryOpen, setRaffleMode } from '@/services/raffles'
@@ -1039,8 +1040,15 @@ export default function RaffleDetailPage() {
         </div>
       </div>
 
-      {/* Prize Tiers */}
-      {effectiveStatus === 'active' && (
+      {/* Draw Session (active only) */}
+      {effectiveStatus === 'active' && tiers.length > 0 && (
+        <div style={{ maxWidth: 1300, margin: '0 auto 2rem', padding: '0 16px' }}>
+          <RaffleDrawSession raffleId={raffleId ?? ''} tiers={tiers} />
+        </div>
+      )}
+
+      {/* Prize Tiers (draft only) */}
+      {effectiveStatus === 'draft' && (
         <div data-testid="prize-tiers-section" style={{ maxWidth: 1300, margin: '0 auto 2rem', padding: '0 16px' }}>
           <div style={{ ...glassStyle, padding: '16px 20px' }}>
             <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', marginBottom: 12 }}>
