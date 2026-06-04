@@ -21,6 +21,14 @@ vi.mock('@/services/raffles', async (importOriginal) => {
     createPrizeTier: vi.fn().mockResolvedValue({}),
     deletePrizeTier: vi.fn().mockResolvedValue(undefined),
     drawFromTier: vi.fn().mockResolvedValue({}),
+    setRaffleMode: vi.fn().mockResolvedValue({}),
+    setRaffleEntryOpen: vi.fn().mockResolvedValue({}),
+    getRaffleEntryStats: vi.fn().mockResolvedValue({
+      eligible_count: 0,
+      excluded_count: 0,
+      excluded_by_reason: {},
+      total_entries: 0,
+    }),
   }
 })
 
@@ -91,7 +99,16 @@ beforeEach(() => {
   vi.mocked(rafflesService.createPrizeTier).mockResolvedValue(mockPrizeTier)
   vi.mocked(rafflesService.deletePrizeTier).mockResolvedValue(undefined)
   vi.mocked(rafflesService.drawFromTier).mockResolvedValue(mockDraw)
+  vi.mocked(rafflesService.setRaffleMode).mockResolvedValue(mockRaffle)
+  vi.mocked(rafflesService.setRaffleEntryOpen).mockResolvedValue(mockRaffle)
+  vi.mocked(rafflesService.getRaffleEntryStats).mockResolvedValue({
+    eligible_count: 0,
+    excluded_count: 0,
+    excluded_by_reason: {},
+    total_entries: 0,
+  })
 })
+
 afterEach(() => {
   vi.restoreAllMocks()
   document.body.innerHTML = ''
@@ -661,6 +678,58 @@ describe('RaffleDetailPage — winner modal', () => {
       closeBtn!.dispatchEvent(new MouseEvent('click', { bubbles: true }))
     })
     expect(container.textContent).not.toContain('恭喜中獎')
+    cleanup(root, container)
+  })
+})
+
+describe('RaffleDetailPage functional layer', () => {
+  it('mode switch calls setRaffleMode and updates UI', async () => {
+    const modeMock = vi.mocked(rafflesService.setRaffleMode).mockResolvedValue({ ...mockRaffle, mode: 'subscribers_only' })
+    const dp = createMockDataProvider({
+      getOne: { raffles: vi.fn().mockResolvedValue({ ...mockRaffle, mode: 'public', entry_open: false } as BaseRecord) },
+    })
+    const { container, root } = await renderAt('r1', dp)
+    await waitFor(() => expect(container.querySelector('[data-testid="raffle-mode-subscribers"]')).toBeTruthy())
+
+    const subscribers = container.querySelector('[data-testid="raffle-mode-subscribers"]') as HTMLInputElement
+    await act(async () => {
+      subscribers.dispatchEvent(new MouseEvent('click', { bubbles: true }))
+    })
+
+    await waitFor(() => expect(modeMock).toHaveBeenCalledWith('r1', 'subscribers_only'))
+    expect(subscribers.checked).toBe(true)
+    cleanup(root, container)
+  })
+
+  it('entry open/close button calls setRaffleEntryOpen and reflects state', async () => {
+    const entryOpenMock = vi.mocked(rafflesService.setRaffleEntryOpen).mockResolvedValue({ ...mockRaffle, entry_open: true })
+    const dp = createMockDataProvider({
+      getOne: { raffles: vi.fn().mockResolvedValue({ ...mockRaffle, mode: 'public', entry_open: false } as BaseRecord) },
+    })
+    const { container, root } = await renderAt('r1', dp)
+    await waitFor(() => expect(container.querySelector('[data-testid="entry-open-toggle"]')?.textContent).toContain('開放報名'))
+
+    await act(async () => {
+      container.querySelector('[data-testid="entry-open-toggle"]')!
+        .dispatchEvent(new MouseEvent('click', { bubbles: true }))
+    })
+
+    await waitFor(() => expect(entryOpenMock).toHaveBeenCalledWith('r1', true))
+    expect(container.querySelector('[data-testid="entry-open-toggle"]')?.textContent).toContain('截止報名')
+    cleanup(root, container)
+  })
+
+  it('subscribers_only + 403 insufficient_scope shows re-auth prompt', async () => {
+    vi.mocked(rafflesService.getRaffleEntryStats).mockRejectedValue({
+      response: { status: 403, data: { error: 'insufficient_scope' } },
+    })
+    const dp = createMockDataProvider({
+      getOne: { raffles: vi.fn().mockResolvedValue({ ...mockRaffle, mode: 'subscribers_only', entry_open: false } as BaseRecord) },
+    })
+    const { container, root } = await renderAt('r1', dp)
+
+    await waitFor(() => expect(container.querySelector('[data-testid="twitch-reauth-prompt"]')?.textContent).toContain('請重新授權 Twitch'))
+    expect(container.querySelector('[data-testid="twitch-reauth-prompt"] a')?.getAttribute('href')).toContain('/api/v1/auth/twitch')
     cleanup(root, container)
   })
 })
