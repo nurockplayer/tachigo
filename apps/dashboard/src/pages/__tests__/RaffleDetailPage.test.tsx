@@ -25,9 +25,9 @@ vi.mock('@/services/raffles', async (importOriginal) => {
     setRaffleEntryOpen: vi.fn().mockResolvedValue({}),
     getRaffleEntryStats: vi.fn().mockResolvedValue({
       eligible_count: 0,
-      excluded_count: 0,
-      excluded_by_reason: {},
-      total_entries: 0,
+      ineligible_count: 0,
+      ineligible_reasons: {},
+      total_joined: 0,
     }),
   }
 })
@@ -103,9 +103,9 @@ beforeEach(() => {
   vi.mocked(rafflesService.setRaffleEntryOpen).mockResolvedValue(mockRaffle)
   vi.mocked(rafflesService.getRaffleEntryStats).mockResolvedValue({
     eligible_count: 0,
-    excluded_count: 0,
-    excluded_by_reason: {},
-    total_entries: 0,
+    ineligible_count: 0,
+    ineligible_reasons: {},
+    total_joined: 0,
   })
 })
 
