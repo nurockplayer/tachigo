@@ -78,9 +78,47 @@ describe('RaffleDrawSession', () => {
 
     render(<RaffleDrawSession raffleId="r1" tiers={singleTier} />)
     fireEvent.click(screen.getByTestId('draw-round-button'))
-    await waitFor(() => screen.getByTestId('next-round-button'))
+    await waitFor(() => expect(screen.getByTestId('next-round-button').textContent).toContain('完成抽獎'))
     fireEvent.click(screen.getByTestId('next-round-button'))
 
+    expect(screen.getByTestId('session-complete')).not.toBeNull()
+  })
+
+  it('winner_count: 2 的輪次：第一次抽完按鈕顯示「繼續抽本輪」，第二次抽完才顯示完成', async () => {
+    const twoWinnerTier: RafflePrizeTier[] = [
+      { id: 't1', raffle_id: 'r1', name: '一等獎', prize_description: 'Switch', winner_count: 2, drawn_count: 0, position: 0, created_at: '' },
+    ]
+    const mockEntry = { id: 'e1', raffle_id: 'r1', twitch_login: 'viewer1', display_name: 'Viewer One', created_at: '' }
+    vi.mocked(rafflesService.drawFromTier)
+      .mockResolvedValueOnce({
+        id: 'd1', raffle_id: 'r1', entry_id: 'e1',
+        claim_token: '', claim_expires_at: '', drawn_at: '',
+        entry: mockEntry,
+        prize_tier_id: 't1',
+      } as any)
+      .mockResolvedValueOnce({
+        id: 'd2', raffle_id: 'r1', entry_id: 'e2',
+        claim_token: '', claim_expires_at: '', drawn_at: '',
+        entry: { ...mockEntry, id: 'e2', twitch_login: 'viewer2', display_name: 'Viewer Two' },
+        prize_tier_id: 't1',
+      } as any)
+
+    render(<RaffleDrawSession raffleId="r1" tiers={twoWinnerTier} />)
+
+    // 第一次抽
+    fireEvent.click(screen.getByTestId('draw-round-button'))
+    await waitFor(() => expect(screen.getByTestId('next-round-button').textContent).toContain('繼續抽本輪'))
+
+    // 點「繼續抽本輪」→ 回到 round_ready
+    fireEvent.click(screen.getByTestId('next-round-button'))
+    await waitFor(() => expect(screen.getByTestId('draw-round-button')).not.toBeNull())
+
+    // 第二次抽
+    fireEvent.click(screen.getByTestId('draw-round-button'))
+    await waitFor(() => expect(screen.getByTestId('next-round-button').textContent).toContain('完成抽獎'))
+
+    // 點「完成抽獎」→ session_complete
+    fireEvent.click(screen.getByTestId('next-round-button'))
     expect(screen.getByTestId('session-complete')).not.toBeNull()
   })
 

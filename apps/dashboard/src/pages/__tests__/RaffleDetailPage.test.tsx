@@ -62,6 +62,7 @@ const mockPrizeTier: rafflesService.RafflePrizeTier = {
   prize_description: 'Switch 主機',
   winner_count: 2,
   drawn_count: 0,
+  position: 0,
   created_at: '2026-01-01T00:00:00Z',
 }
 async function renderAt(raffleId: string, dp: ReturnType<typeof createMockDataProvider>) {
