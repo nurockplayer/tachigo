@@ -607,22 +607,19 @@ export default function RaffleDetailPage() {
   const [newTier, setNewTier] = useState({ name: '', prize_description: '', winner_count: 1 })
   const [addingTier, setAddingTier] = useState(false)
   const [addTierError, setAddTierError] = useState<string | null>(null)
-  const [mode, setMode] = useState<RaffleMode>(raffle?.mode ?? 'public')
-  const [entryOpen, setEntryOpen] = useState<boolean>(raffle?.entry_open ?? false)
+  const [modeOverride, setModeOverride] = useState<RaffleMode | null>(null)
+  const [entryOpenOverride, setEntryOpenOverride] = useState<boolean | null>(null)
   const [entryStats, setEntryStats] = useState<RaffleEntryStats | null>(null)
   const [reauthRequired, setReauthRequired] = useState(false)
+
+  const mode: RaffleMode = modeOverride ?? raffle?.mode ?? 'public'
+  const entryOpen: boolean = entryOpenOverride ?? raffle?.entry_open ?? false
 
   const pendingTimers = useRef<number[]>([])
 
   useEffect(() => {
     return () => { pendingTimers.current.forEach(id => window.clearTimeout(id)) }
   }, [])
-
-  useEffect(() => {
-    if (!raffle) return
-    setMode(raffle.mode ?? 'public')
-    setEntryOpen(raffle.entry_open ?? false)
-  }, [raffle])
 
   const effectiveStatus = localCompleted ? 'completed' : localActivated ? 'active' : (raffle?.status ?? '')
 
@@ -649,11 +646,12 @@ export default function RaffleDetailPage() {
 
   useEffect(() => {
     if (!raffleId) return
+    const id = raffleId
     const controller = new AbortController()
 
     async function fetchEntryStats() {
       try {
-        const result = await getRaffleEntryStats(raffleId, controller.signal)
+        const result = await getRaffleEntryStats(id, controller.signal)
         setEntryStats(result)
         setReauthRequired(false)
       } catch (error: unknown) {
@@ -700,11 +698,11 @@ export default function RaffleDetailPage() {
     if (!raffleId || nextMode === mode) return
     try {
       await setRaffleMode(raffleId, nextMode)
-      setMode(nextMode)
+      setModeOverride(nextMode)
       setReauthRequired(false)
     } catch (error: unknown) {
       if (nextMode === 'subscribers_only' && isInsufficientScopeError(error)) {
-        setMode(nextMode)
+        setModeOverride(nextMode)
         setReauthRequired(true)
       }
     }
@@ -715,7 +713,7 @@ export default function RaffleDetailPage() {
     const nextEntryOpen = !entryOpen
     try {
       await setRaffleEntryOpen(raffleId, nextEntryOpen)
-      setEntryOpen(nextEntryOpen)
+      setEntryOpenOverride(nextEntryOpen)
       setReauthRequired(false)
     } catch (error: unknown) {
       if (mode === 'subscribers_only' && isInsufficientScopeError(error)) {
