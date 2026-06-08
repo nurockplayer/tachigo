@@ -611,6 +611,9 @@ export default function RaffleDetailPage() {
   const [reauthRequired, setReauthRequired] = useState(false)
   const [controlError, setControlError] = useState<string | null>(null)
 
+  const modeRequestSeq = useRef(0)
+  const entryOpenRequestSeq = useRef(0)
+
   const mode: RaffleMode = modeOverride ?? raffle?.mode ?? 'public'
   const entryOpen: boolean = entryOpenOverride ?? raffle?.entry_open ?? false
 
@@ -648,9 +651,14 @@ export default function RaffleDetailPage() {
     const id = raffleId
     const controller = new AbortController()
 
+    let inFlight = false
+
     async function fetchEntryStats() {
+      if (inFlight) return
+      inFlight = true
       try {
         const result = await getRaffleEntryStats(id, controller.signal)
+        if (controller.signal.aborted) return
         setEntryStats(result)
         setReauthRequired(false)
       } catch (error: unknown) {
@@ -658,6 +666,8 @@ export default function RaffleDetailPage() {
         if (mode === 'subscribers_only' && isInsufficientScopeError(error)) {
           setReauthRequired(true)
         }
+      } finally {
+        inFlight = false
       }
     }
 
@@ -696,11 +706,14 @@ export default function RaffleDetailPage() {
   async function handleModeChange(nextMode: RaffleMode) {
     if (!raffleId || nextMode === mode) return
     setControlError(null)
+    const seq = ++modeRequestSeq.current
     try {
       await setRaffleMode(raffleId, nextMode)
+      if (modeRequestSeq.current !== seq) return
       setModeOverride(nextMode)
       setReauthRequired(false)
     } catch (error: unknown) {
+      if (modeRequestSeq.current !== seq) return
       if (nextMode === 'subscribers_only' && isInsufficientScopeError(error)) {
         setReauthRequired(true)
       } else {
@@ -713,11 +726,14 @@ export default function RaffleDetailPage() {
     if (!raffleId) return
     const nextEntryOpen = !entryOpen
     setControlError(null)
+    const seq = ++entryOpenRequestSeq.current
     try {
       await setRaffleEntryOpen(raffleId, nextEntryOpen)
+      if (entryOpenRequestSeq.current !== seq) return
       setEntryOpenOverride(nextEntryOpen)
       setReauthRequired(false)
     } catch (error: unknown) {
+      if (entryOpenRequestSeq.current !== seq) return
       if (mode === 'subscribers_only' && isInsufficientScopeError(error)) {
         setReauthRequired(true)
       } else {
