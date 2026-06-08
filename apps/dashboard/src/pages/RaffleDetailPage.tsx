@@ -17,11 +17,10 @@ const OCEAN_KEYFRAMES = `
   90%{transform:translateX(3px)}
 }
 @keyframes oceanPopout {
-  0%{transform:translateX(-50%) translateY(0) scale(0);opacity:0}
-  25%{transform:translateX(-50%) translateY(0) scale(1.4);opacity:1}
-  60%{transform:translateX(-50%) translateY(38px) scale(1.1);opacity:1}
-  85%{transform:translateX(-50%) translateY(70px) scale(.8);opacity:.6}
-  100%{transform:translateX(-50%) translateY(100px) scale(0);opacity:0}
+  0%{transform:translateX(-50%) translateY(34px) scale(.3);opacity:0}
+  45%{transform:translateX(-50%) translateY(-16px) scale(1.3);opacity:1}
+  72%{transform:translateX(-50%) translateY(6px) scale(1.05);opacity:1}
+  100%{transform:translateX(-50%) translateY(0) scale(1);opacity:1}
 }
 @keyframes oceanTwinkle {
   0%,100%{opacity:1;transform:scale(1)}
@@ -50,6 +49,33 @@ const OCEAN_KEYFRAMES = `
 @keyframes oceanLiveDot {
   0%,100%{opacity:1}
   50%{opacity:.25}
+}
+@keyframes oceanGoldBurst {
+  0%{transform:translate(-50%,50%) scale(.2);opacity:0}
+  35%{transform:translate(-50%,50%) scale(1.5);opacity:1}
+  100%{transform:translate(-50%,50%) scale(2.6);opacity:0}
+}
+@keyframes oceanGoldRayRotate {
+  0%{transform:translate(-50%,50%) rotate(0deg) scale(.7);opacity:0}
+  30%{opacity:1}
+  100%{transform:translate(-50%,50%) rotate(220deg) scale(1.3);opacity:0}
+}
+@keyframes oceanCapsuleHalfTop {
+  0%{transform:translate(-50%,0) rotate(0deg);opacity:1}
+  100%{transform:translate(-130%,-46px) rotate(-65deg);opacity:0}
+}
+@keyframes oceanCapsuleHalfBottom {
+  0%{transform:translate(-50%,0) rotate(0deg);opacity:1}
+  100%{transform:translate(30%,40px) rotate(65deg);opacity:0}
+}
+@keyframes oceanGoldSparkle {
+  0%{transform:scale(0);opacity:0}
+  40%{transform:scale(1.3);opacity:1}
+  100%{transform:scale(.2);opacity:0}
+}
+@keyframes oceanGoldGlowPulse {
+  0%,100%{opacity:.5;transform:scale(1)}
+  50%{opacity:.85;transform:scale(1.08)}
 }
 `
 
@@ -397,12 +423,89 @@ function DiscordWebhookPanel({ raffleId }: { raffleId: string }) {
   )
 }
 
+function CapsuleOpenBurst({ color }: { color: string | null }) {
+  const sparkleCount = 10
+  const haloColor = color ?? 'linear-gradient(135deg,#fde68a,#f59e0b)'
+  const ballBottom = '22%'
+  const ballRadius = 22
+  // 球體裂開的接縫位於球心，也就是底邊往上半徑的高度 — 特效以此為中心施放
+  const seam = `calc(${ballBottom} + ${ballRadius}px)`
+  return (
+    <div data-testid="capsule-open-burst" style={{ position: 'absolute', inset: 0, pointerEvents: 'none' }}>
+      {/* 放射狀金色光暈爆發（從裂開接縫正中央炸開） */}
+      <div
+        style={{
+          position: 'absolute', bottom: seam, left: '50%',
+          width: 150, height: 150, borderRadius: '50%',
+          background: 'radial-gradient(circle, rgba(255,255,255,1) 0%, rgba(255,244,214,.85) 32%, rgba(251,191,36,.6) 56%, rgba(251,191,36,0) 76%)',
+          animation: 'oceanGoldBurst .8s ease-out forwards',
+        }}
+      />
+      {/* 旋轉光芒環 */}
+      <div
+        style={{
+          position: 'absolute', bottom: seam, left: '50%',
+          width: 210, height: 210, borderRadius: '50%',
+          background: 'conic-gradient(from 0deg, rgba(255,238,180,0) 0deg, rgba(255,238,180,.85) 14deg, rgba(255,238,180,0) 30deg, rgba(255,238,180,0) 110deg, rgba(255,238,180,.75) 124deg, rgba(255,238,180,0) 142deg, rgba(255,238,180,0) 230deg, rgba(255,238,180,.8) 244deg, rgba(255,238,180,0) 262deg)',
+          animation: 'oceanGoldRayRotate 1s ease-out forwards',
+        }}
+      />
+      {/* 彈出來的扭蛋本體沿著球心接縫裂開成上下兩半（沿用同一顆球的顏色，疊上金色光澤） */}
+      <div
+        style={{
+          position: 'absolute', bottom: seam, left: '50%',
+          width: ballRadius * 2, height: ballRadius, borderRadius: `${ballRadius}px ${ballRadius}px 0 0`,
+          background: `linear-gradient(180deg,rgba(255,250,235,.7),rgba(255,250,235,0) 65%), ${haloColor}`,
+          border: '1.5px solid rgba(255,255,255,.6)', borderBottom: 'none',
+          boxShadow: '0 0 26px rgba(255,225,140,1), inset 0 6px 12px rgba(255,250,235,.8)',
+          animation: 'oceanCapsuleHalfTop .6s ease-out forwards',
+        }}
+      />
+      <div
+        style={{
+          position: 'absolute', bottom: ballBottom, left: '50%',
+          width: ballRadius * 2, height: ballRadius, borderRadius: `0 0 ${ballRadius}px ${ballRadius}px`,
+          background: `linear-gradient(0deg,rgba(255,250,235,.7),rgba(255,250,235,0) 65%), ${haloColor}`,
+          border: '1.5px solid rgba(255,255,255,.6)', borderTop: 'none',
+          boxShadow: '0 0 26px rgba(255,225,140,1), inset 0 -6px 12px rgba(255,250,235,.8)',
+          animation: 'oceanCapsuleHalfBottom .6s ease-out forwards',
+        }}
+      />
+      {/* 散落的金色粒子（從接縫處向外飛散） */}
+      {Array.from({ length: sparkleCount }).map((_, i) => {
+        const angle = (i / sparkleCount) * Math.PI * 2
+        const dist = 46 + (i % 3) * 16
+        const x = Math.cos(angle) * dist
+        const y = Math.sin(angle) * dist * .65
+        return (
+          <div
+            key={i}
+            style={{
+              position: 'absolute',
+              bottom: `calc(${seam} - ${y}px)`,
+              left: `calc(50% + ${x}px)`,
+              width: 5, height: 5, borderRadius: '50%',
+              background: 'radial-gradient(circle,#fffceb,#fbbf24)',
+              boxShadow: '0 0 8px rgba(251,191,36,.95)',
+              animation: `oceanGoldSparkle .8s ease-out ${i * 0.04}s forwards`,
+            }}
+          />
+        )
+      })}
+    </div>
+  )
+}
+
 interface OceanGachaMachineProps {
   shaking: boolean
   popBallColor: string | null
+  opening: boolean
+  modalWinner: string | null
+  modalPrize: { name: string; description: string } | null
+  onCloseModal: () => void
 }
 
-function OceanGachaMachine({ shaking, popBallColor }: OceanGachaMachineProps) {
+function OceanGachaMachine({ shaking, popBallColor, opening, modalWinner, modalPrize, onCloseModal }: OceanGachaMachineProps) {
   return (
     <div style={{ position: 'relative', width: '100%' }}>
       <img
@@ -417,7 +520,7 @@ function OceanGachaMachine({ shaking, popBallColor }: OceanGachaMachineProps) {
           animation: shaking ? 'oceanShake .5s ease-in-out' : undefined,
         }}
       />
-      {popBallColor !== null && (
+      {popBallColor !== null && !opening && (
         <div
           style={{
             position: 'absolute',
@@ -429,11 +532,18 @@ function OceanGachaMachine({ shaking, popBallColor }: OceanGachaMachineProps) {
             boxShadow: '0 0 24px rgba(255,220,60,.95),inset 4px 4px 9px rgba(255,255,255,.3)',
             bottom: '22%',
             left: '50%',
-            animation: 'oceanPopout 1.2s cubic-bezier(.22,.68,0,1.15) forwards',
+            animation: 'oceanPopout .7s cubic-bezier(.22,.68,0,1.15) forwards',
             pointerEvents: 'none',
           }}
         />
       )}
+      {opening && <CapsuleOpenBurst color={popBallColor} />}
+      <PrizeRevealModal
+        winner={modalWinner}
+        prizeName={modalPrize?.name}
+        prizeDescription={modalPrize?.description}
+        onClose={onCloseModal}
+      />
     </div>
   )
 }
@@ -494,21 +604,24 @@ function ChatPanel() {
   )
 }
 
-interface WinnerModalProps {
-  name: string | null
+interface PrizeRevealModalProps {
+  winner: string | null
+  prizeName?: string
+  prizeDescription?: string
   onClose: () => void
 }
 
-function WinnerModal({ name, onClose }: WinnerModalProps) {
-  if (name === null) return null
+function PrizeRevealModal({ winner, prizeName, prizeDescription, onClose }: PrizeRevealModalProps) {
+  if (winner === null) return null
   return (
     <div
       onClick={onClose}
       style={{
-        position: 'fixed', inset: 0, zIndex: 50,
+        position: 'absolute', inset: 0, zIndex: 50,
         display: 'flex', alignItems: 'center', justifyContent: 'center',
         background: 'rgba(0,0,0,.65)',
         backdropFilter: 'blur(4px)',
+        borderRadius: 12,
         animation: 'oceanModalIn .4s ease forwards',
       }}
     >
@@ -527,7 +640,13 @@ function WinnerModal({ name, onClose }: WinnerModalProps) {
       >
         <div style={{ fontSize: 52, marginBottom: 10 }}>🎉</div>
         <div style={{ fontSize: 13, color: 'rgba(148,210,255,.6)', letterSpacing: '.1em', marginBottom: 8 }}>恭喜中獎！</div>
-        <div style={{ fontSize: 'clamp(24px,4vw,38px)', fontWeight: 900, textShadow: '0 0 20px rgba(56,189,248,.9)' }}>{name}</div>
+        {prizeName && (
+          <div style={{ fontSize: 16, fontWeight: 700, color: '#fde68a', marginBottom: 4 }}>{prizeName}</div>
+        )}
+        {prizeDescription && (
+          <div style={{ fontSize: 12, color: 'rgba(253,230,138,.7)', marginBottom: 8 }}>{prizeDescription}</div>
+        )}
+        <div style={{ fontSize: 'clamp(24px,4vw,38px)', fontWeight: 900, textShadow: '0 0 20px rgba(56,189,248,.9)' }}>{winner}</div>
         <button
           onClick={onClose}
           style={{
@@ -566,7 +685,9 @@ export default function RaffleDetailPage() {
   const [activateError, setActivateError] = useState<string | null>(null)
   const [shaking, setShaking] = useState(false)
   const [popBallColor, setPopBallColor] = useState<string | null>(null)
+  const [opening, setOpening] = useState(false)
   const [modalWinner, setModalWinner] = useState<string | null>(null)
+  const [modalPrize, setModalPrize] = useState<{ name: string; description: string } | null>(null)
   const [tiers, setTiers] = useState<RafflePrizeTier[]>([])
   const [tierDrawing, setTierDrawing] = useState<Record<string, boolean>>({})
   const [tierExhausted, setTierExhausted] = useState<Record<string, boolean>>({})
@@ -632,11 +753,22 @@ export default function RaffleDetailPage() {
     setShaking(true)
     pendingTimers.current.push(window.setTimeout(() => setShaking(false), 550))
 
+    const popDelay = 350
+    const openDelay = 950
+    const revealDelay = 1650
+
     pendingTimers.current.push(window.setTimeout(() => {
       const color = BALL_COLORS[Math.floor(Math.random() * BALL_COLORS.length)]
       setPopBallColor(color)
-      pendingTimers.current.push(window.setTimeout(() => setPopBallColor(null), 1200))
-    }, 400))
+    }, popDelay))
+
+    pendingTimers.current.push(window.setTimeout(() => setOpening(true), openDelay))
+
+    function finishDraw() {
+      setOpening(false)
+      setPopBallColor(null)
+      setDrawing(false)
+    }
 
     try {
       await drawNext(raffleId)
@@ -646,20 +778,24 @@ export default function RaffleDetailPage() {
         : null
       if (latest) {
         const name = latest.entry.display_name || latest.entry.twitch_login
+        const prize = latest.prize_tier
+          ? { name: latest.prize_tier.name, description: latest.prize_tier.prize_description }
+          : null
         pendingTimers.current.push(window.setTimeout(() => {
           setModalWinner(name)
-          setDrawing(false)
-        }, 900))
+          setModalPrize(prize)
+          finishDraw()
+        }, revealDelay))
       } else {
-        setDrawing(false)
+        finishDraw()
       }
       setExhausted(false)
     } catch (error: unknown) {
+      finishDraw()
       if (error && typeof error === 'object' && 'response' in error) {
         const response = (error as { response?: { status?: number } }).response
         if (response?.status === 409) setExhausted(true)
       }
-      setDrawing(false)
     }
   }
 
@@ -842,7 +978,14 @@ export default function RaffleDetailPage() {
 
         {/* Center: Gacha machine + draw button */}
         <div style={{ flex: 1, minWidth: 0, display: 'flex', flexDirection: 'column', alignItems: 'center', gap: 14 }}>
-          <OceanGachaMachine shaking={shaking} popBallColor={popBallColor} />
+          <OceanGachaMachine
+            shaking={shaking}
+            popBallColor={popBallColor}
+            opening={opening}
+            modalWinner={modalWinner}
+            modalPrize={modalPrize}
+            onCloseModal={() => { setModalWinner(null); setModalPrize(null) }}
+          />
           <button
             data-testid="draw-btn"
             disabled={effectiveStatus === 'completed' || exhausted || remaining === 0 || drawing}
@@ -944,8 +1087,6 @@ export default function RaffleDetailPage() {
           </div>
         </div>
       )}
-
-      <WinnerModal name={modalWinner} onClose={() => setModalWinner(null)} />
     </div>
   )
 }
