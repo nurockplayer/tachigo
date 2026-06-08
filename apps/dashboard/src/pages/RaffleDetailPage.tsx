@@ -96,10 +96,6 @@ function formatRelativeTime(dateStr: string): string {
   return date.toLocaleString('zh-TW')
 }
 
-function getEntryStatsTotal(stats: RaffleEntryStats): number {
-  return stats.total_joined
-}
-
 function isInsufficientScopeError(error: unknown): boolean {
   const response = (error as { response?: { status?: number; data?: unknown } })?.response
   if (response?.status !== 403) return false
@@ -107,24 +103,27 @@ function isInsufficientScopeError(error: unknown): boolean {
   return JSON.stringify(response?.data ?? '').includes('insufficient_scope')
 }
 
+const EXCLUDED_REASON_LABELS: Record<string, string> = {
+  not_subscriber: '非訂閱者',
+  duplicate: '重複報名',
+  already_drawn: '已中獎',
+  missing_twitch_id: '缺少 Twitch ID',
+  missing_subscription: '缺少訂閱紀錄',
+  subscription_expired: '訂閱已失效',
+  subscription_inactive: '訂閱未啟用',
+  banned: '已封鎖',
+  not_following: '未追蹤',
+  manual_exclusion: '手動排除',
+  invalid_entry: '報名資料無效',
+  missing_display_name: '缺少顯示名稱',
+  outside_entry_window: '不在報名時間內',
+  raffle_completed: '活動已結束',
+  raffle_not_active: '活動尚未啟用',
+  unknown_viewer: '未知觀眾',
+}
+
 function formatExcludedReason(reason: string): string {
-  if (reason === 'not_subscriber') return '非訂閱者'
-  if (reason === 'duplicate') return '重複報名'
-  if (reason === 'already_drawn') return '已中獎'
-  if (reason === 'missing_twitch_id') return '缺少 Twitch ID'
-  if (reason === 'missing_subscription') return '缺少訂閱紀錄'
-  if (reason === 'subscription_expired') return '訂閱已失效'
-  if (reason === 'subscription_inactive') return '訂閱未啟用'
-  if (reason === 'banned') return '已封鎖'
-  if (reason === 'not_following') return '未追蹤'
-  if (reason === 'manual_exclusion') return '手動排除'
-  if (reason === 'invalid_entry') return '報名資料無效'
-  if (reason === 'missing_display_name') return '缺少顯示名稱'
-  if (reason === 'outside_entry_window') return '不在報名時間內'
-  if (reason === 'raffle_completed') return '活動已結束'
-  if (reason === 'raffle_not_active') return '活動尚未啟用'
-  if (reason === 'unknown_viewer') return '未知觀眾'
-  return reason
+  return EXCLUDED_REASON_LABELS[reason] ?? reason
 }
 
 function StatCard({
@@ -611,6 +610,7 @@ export default function RaffleDetailPage() {
   const [entryOpenOverride, setEntryOpenOverride] = useState<boolean | null>(null)
   const [entryStats, setEntryStats] = useState<RaffleEntryStats | null>(null)
   const [reauthRequired, setReauthRequired] = useState(false)
+  const [controlError, setControlError] = useState<string | null>(null)
 
   const mode: RaffleMode = modeOverride ?? raffle?.mode ?? 'public'
   const entryOpen: boolean = entryOpenOverride ?? raffle?.entry_open ?? false
@@ -696,14 +696,16 @@ export default function RaffleDetailPage() {
 
   async function handleModeChange(nextMode: RaffleMode) {
     if (!raffleId || nextMode === mode) return
+    setControlError(null)
     try {
       await setRaffleMode(raffleId, nextMode)
       setModeOverride(nextMode)
       setReauthRequired(false)
     } catch (error: unknown) {
       if (nextMode === 'subscribers_only' && isInsufficientScopeError(error)) {
-        setModeOverride(nextMode)
         setReauthRequired(true)
+      } else {
+        setControlError('切換報名資格失敗，請稍後再試')
       }
     }
   }
@@ -711,6 +713,7 @@ export default function RaffleDetailPage() {
   async function handleEntryOpenToggle() {
     if (!raffleId) return
     const nextEntryOpen = !entryOpen
+    setControlError(null)
     try {
       await setRaffleEntryOpen(raffleId, nextEntryOpen)
       setEntryOpenOverride(nextEntryOpen)
@@ -718,6 +721,8 @@ export default function RaffleDetailPage() {
     } catch (error: unknown) {
       if (mode === 'subscribers_only' && isInsufficientScopeError(error)) {
         setReauthRequired(true)
+      } else {
+        setControlError('切換報名狀態失敗，請稍後再試')
       }
     }
   }
@@ -918,6 +923,9 @@ export default function RaffleDetailPage() {
                 <a href={`${apiBaseURL}/api/v1/auth/twitch?redirect_to=%2F`} style={{ marginLeft: 8, color: '#7dd3fc', textDecoration: 'underline' }}>重新授權</a>
               </p>
             )}
+            {controlError && (
+              <p data-testid="raffle-entry-controls-error" style={{ fontSize: 11, color: '#f87171' }}>{controlError}</p>
+            )}
             {entryStats && (
               <div data-testid="entry-stats-panel" style={{ display: 'grid', gridTemplateColumns: 'repeat(3,1fr)', gap: 8 }}>
                 <div style={{ borderRadius: 8, background: 'rgba(255,255,255,.04)', padding: 8 }}>
@@ -935,7 +943,7 @@ export default function RaffleDetailPage() {
                 </div>
                 <div style={{ borderRadius: 8, background: 'rgba(255,255,255,.04)', padding: 8 }}>
                   <p style={{ fontSize: 10, color: 'rgba(148,210,255,.5)', marginBottom: 3 }}>總報名人數</p>
-                  <p data-testid="total-count" style={{ fontSize: 20, fontWeight: 800, color: '#93c5fd' }}>{getEntryStatsTotal(entryStats)}</p>
+                  <p data-testid="total-count" style={{ fontSize: 20, fontWeight: 800, color: '#93c5fd' }}>{entryStats.total_joined}</p>
                 </div>
               </div>
             )}
