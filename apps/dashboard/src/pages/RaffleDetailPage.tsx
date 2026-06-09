@@ -617,7 +617,7 @@ function PrizeRevealModal({ winner, prizeName, prizeDescription, onClose }: Priz
     <div
       onClick={onClose}
       style={{
-        position: 'absolute', inset: 0, zIndex: 50,
+        position: 'fixed', inset: 0, zIndex: 50,
         display: 'flex', alignItems: 'center', justifyContent: 'center',
         background: 'rgba(0,0,0,.65)',
         backdropFilter: 'blur(4px)',
@@ -747,7 +747,7 @@ export default function RaffleDetailPage() {
   }, [effectiveStatus, fetchDraws, fetchTiers, raffleId])
 
   async function handleDraw() {
-    if (!raffleId || drawing) return
+    if (!raffleId || drawing || modalWinner !== null) return
     setDrawing(true)
 
     setShaking(true)
@@ -762,9 +762,11 @@ export default function RaffleDetailPage() {
       setPopBallColor(color)
     }, popDelay))
 
-    pendingTimers.current.push(window.setTimeout(() => setOpening(true), openDelay))
+    const openTimerId = window.setTimeout(() => setOpening(true), openDelay)
+    pendingTimers.current.push(openTimerId)
 
     function finishDraw() {
+      window.clearTimeout(openTimerId)
       setOpening(false)
       setPopBallColor(null)
       setDrawing(false)
