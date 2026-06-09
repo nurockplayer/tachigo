@@ -731,7 +731,6 @@ export default function RaffleDetailPage() {
       await setRaffleEntryOpen(raffleId, nextEntryOpen)
       if (entryOpenRequestSeq.current !== seq) return
       setEntryOpenOverride(nextEntryOpen)
-      setReauthRequired(false)
     } catch (error: unknown) {
       if (entryOpenRequestSeq.current !== seq) return
       if (mode === 'subscribers_only' && isInsufficientScopeError(error)) {
