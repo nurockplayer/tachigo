@@ -608,8 +608,11 @@ export default function RaffleDetailPage() {
   const [modeOverride, setModeOverride] = useState<RaffleMode | null>(null)
   const [entryOpenOverride, setEntryOpenOverride] = useState<boolean | null>(null)
   const [entryStats, setEntryStats] = useState<RaffleEntryStats | null>(null)
-  const [reauthRequired, setReauthRequired] = useState(false)
+  const [statsReauthRequired, setStatsReauthRequired] = useState(false)
+  const [controlReauthRequired, setControlReauthRequired] = useState(false)
   const [controlError, setControlError] = useState<string | null>(null)
+  const [modeChanging, setModeChanging] = useState(false)
+  const [entryOpenChanging, setEntryOpenChanging] = useState(false)
 
   const modeRequestSeq = useRef(0)
   const entryOpenRequestSeq = useRef(0)
@@ -660,11 +663,11 @@ export default function RaffleDetailPage() {
         const result = await getRaffleEntryStats(id, controller.signal)
         if (controller.signal.aborted) return
         setEntryStats(result)
-        setReauthRequired(false)
+        setStatsReauthRequired(false)
       } catch (error: unknown) {
         if (controller.signal.aborted) return
         if (mode === 'subscribers_only' && isInsufficientScopeError(error)) {
-          setReauthRequired(true)
+          setStatsReauthRequired(true)
         }
       } finally {
         inFlight = false
@@ -704,26 +707,30 @@ export default function RaffleDetailPage() {
   }, [effectiveStatus, fetchDraws, fetchTiers, raffleId])
 
   async function handleModeChange(nextMode: RaffleMode) {
-    if (!raffleId || nextMode === mode) return
+    if (!raffleId || nextMode === mode || modeChanging) return
+    setModeChanging(true)
     setControlError(null)
     const seq = ++modeRequestSeq.current
     try {
       await setRaffleMode(raffleId, nextMode)
       if (modeRequestSeq.current !== seq) return
       setModeOverride(nextMode)
-      setReauthRequired(false)
+      setControlReauthRequired(false)
     } catch (error: unknown) {
       if (modeRequestSeq.current !== seq) return
       if (nextMode === 'subscribers_only' && isInsufficientScopeError(error)) {
-        setReauthRequired(true)
+        setControlReauthRequired(true)
       } else {
         setControlError('切換報名資格失敗，請稍後再試')
       }
+    } finally {
+      setModeChanging(false)
     }
   }
 
   async function handleEntryOpenToggle() {
-    if (!raffleId) return
+    if (!raffleId || entryOpenChanging) return
+    setEntryOpenChanging(true)
     const nextEntryOpen = !entryOpen
     setControlError(null)
     const seq = ++entryOpenRequestSeq.current
@@ -731,13 +738,16 @@ export default function RaffleDetailPage() {
       await setRaffleEntryOpen(raffleId, nextEntryOpen)
       if (entryOpenRequestSeq.current !== seq) return
       setEntryOpenOverride(nextEntryOpen)
+      setControlReauthRequired(false)
     } catch (error: unknown) {
       if (entryOpenRequestSeq.current !== seq) return
       if (mode === 'subscribers_only' && isInsufficientScopeError(error)) {
-        setReauthRequired(true)
+        setControlReauthRequired(true)
       } else {
         setControlError('切換報名狀態失敗，請稍後再試')
       }
+    } finally {
+      setEntryOpenChanging(false)
     }
   }
 
@@ -906,6 +916,7 @@ export default function RaffleDetailPage() {
                       name="raffle-mode"
                       value="public"
                       checked={mode === 'public'}
+                      disabled={modeChanging}
                       onChange={() => { void handleModeChange('public') }}
                     />
                     全體觀眾
@@ -917,6 +928,7 @@ export default function RaffleDetailPage() {
                       name="raffle-mode"
                       value="subscribers_only"
                       checked={mode === 'subscribers_only'}
+                      disabled={modeChanging}
                       onChange={() => { void handleModeChange('subscribers_only') }}
                     />
                     訂閱者專屬
@@ -926,15 +938,16 @@ export default function RaffleDetailPage() {
               <button
                 data-testid="entry-open-toggle"
                 onClick={() => { void handleEntryOpenToggle() }}
-                style={{ border: entryOpen ? '1px solid rgba(248,113,113,.35)' : '1px solid rgba(34,197,94,.35)', background: entryOpen ? 'rgba(248,113,113,.1)' : 'rgba(34,197,94,.1)', color: entryOpen ? '#fca5a5' : '#86efac', borderRadius: 8, padding: '7px 12px', fontSize: 12, fontWeight: 700, cursor: 'pointer' }}
+                disabled={entryOpenChanging}
+                style={{ border: entryOpen ? '1px solid rgba(248,113,113,.35)' : '1px solid rgba(34,197,94,.35)', background: entryOpen ? 'rgba(248,113,113,.1)' : 'rgba(34,197,94,.1)', color: entryOpen ? '#fca5a5' : '#86efac', borderRadius: 8, padding: '7px 12px', fontSize: 12, fontWeight: 700, cursor: entryOpenChanging ? 'not-allowed' : 'pointer' }}
               >
                 {entryOpen ? '截止報名' : '開放報名'}
               </button>
             </div>
-            {reauthRequired && mode === 'subscribers_only' && (
+            {(statsReauthRequired || controlReauthRequired) && mode === 'subscribers_only' && (
               <p data-testid="twitch-reauth-prompt" style={{ border: '1px solid rgba(251,191,36,.25)', borderRadius: 8, background: 'rgba(251,191,36,.08)', padding: '8px 10px', fontSize: 12, color: '#fde68a' }}>
                 請重新授權 Twitch
-                <a href={`${apiBaseURL}/api/v1/auth/twitch?redirect_to=%2F`} style={{ marginLeft: 8, color: '#7dd3fc', textDecoration: 'underline' }}>重新授權</a>
+                <a href={`${apiBaseURL}/api/v1/auth/twitch?redirect_to=${encodeURIComponent(window.location.pathname)}`} style={{ marginLeft: 8, color: '#7dd3fc', textDecoration: 'underline' }}>重新授權</a>
               </p>
             )}
             {controlError && (

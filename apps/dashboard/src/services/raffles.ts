@@ -121,7 +121,7 @@ export async function setRaffleEntryOpen(
   entryOpen: boolean,
 ): Promise<Raffle> {
   const { data } = await client.patch<ApiResponse<{ raffle: Raffle }>>(
-    `/api/v1/dashboard/raffles/${raffleId}/entry-open`,
+    `/api/v1/dashboard/raffles/${raffleId}/entry`,
     { entry_open: entryOpen },
   )
   return data.data.raffle
