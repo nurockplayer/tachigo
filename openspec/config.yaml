@@ -1,0 +1,31 @@
+schema: spec-driven
+
+context: |
+  Tachigo is a monorepo for a Twitch extension, dashboard, Go API, and Web3 rewards platform.
+  Backend code lives in services/api and uses Go, Gin, GORM, and PostgreSQL.
+  Frontend apps live in apps/extension and apps/dashboard and use React + TypeScript.
+  Shared API contracts live under packages/shared-types and packages/api-client.
+  Product and architecture docs live under docs/.
+  New feature or behavior-change work must stay aligned to a GitHub source issue, PR scope policy, and OpenSpec change artifacts.
+  Existing autonomous workflow gates use spec-injector local-only evidence; OpenSpec does not replace those gates.
+  AI agents must not add dependencies, run package executors, or commit private/generated tool output without explicit human review.
+
+rules:
+  proposal:
+    - Reference the GitHub source issue.
+    - State observable behavior changes.
+    - Include explicit non-goals.
+    - Identify dependent issues or PRs.
+  design:
+    - List affected code areas.
+    - Explain trade-offs and rollback considerations.
+    - Call out schema, auth, wallet, payments, points ledger, or permission risks when present.
+    - State whether spec-injector or PR gate behavior is affected.
+  tasks:
+    - Use checkboxes that map directly to PR Acceptance Criteria.
+    - Keep each task independently reviewable.
+    - Include validation commands or evidence expectations.
+  specs:
+    - Describe behavior, not implementation details.
+    - Prefer Given/When/Then scenarios.
+    - Do not move proposed behavior into openspec/specs until it is accepted and archived.
