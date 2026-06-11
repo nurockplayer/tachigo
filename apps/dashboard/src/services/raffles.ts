@@ -10,7 +10,7 @@ export interface Raffle {
   user_id: string
   title: string
   status: RaffleStatus
-  source?: 'csv' | 'twitch_api'
+  source?: 'csv' | 'twitch_api' | 'extension_button'
   mode?: RaffleMode
   entry_open?: boolean
   created_at: string

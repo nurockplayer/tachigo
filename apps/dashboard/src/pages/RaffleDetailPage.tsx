@@ -663,6 +663,7 @@ export default function RaffleDetailPage() {
         const result = await getRaffleEntryStats(id, controller.signal)
         if (controller.signal.aborted) return
         setEntryStats(result)
+        setTotalEntries(result.total_joined)
         setStatsReauthRequired(false)
       } catch (error: unknown) {
         if (controller.signal.aborted) return

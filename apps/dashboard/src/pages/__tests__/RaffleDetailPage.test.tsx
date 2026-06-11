@@ -87,6 +87,10 @@ function cleanup(root: Root, container: HTMLDivElement) {
   })
   container.remove()
 }
+function statValue(container: HTMLElement, label: string): string | null {
+  const labelEl = Array.from(container.querySelectorAll('p')).find(p => p.textContent === label)
+  return (labelEl?.nextElementSibling as HTMLElement | null)?.textContent ?? null
+}
 beforeEach(() => {
   vi.spyOn(console, 'error').mockImplementation(() => {})
   vi.mocked(rafflesService.listDraws).mockResolvedValue([])
@@ -353,11 +357,18 @@ describe('RaffleDetailPage — CSV upload', () => {
 describe('RaffleDetailPage — draw button', () => {
   it('calls drawNext when clicked', async () => {
     const drawMock = vi.mocked(rafflesService.drawNext).mockResolvedValue(mockDraw)
+    vi.mocked(rafflesService.getRaffleEntryStats).mockResolvedValue({
+      eligible_count: 1,
+      ineligible_count: 0,
+      ineligible_reasons: {},
+      total_joined: 1,
+    })
     const dp = createMockDataProvider({
       getOne: { raffles: vi.fn().mockResolvedValue(mockRaffle as BaseRecord) },
     })
     const { container, root } = await renderAt('r1', dp)
     await waitFor(() => expect(container.querySelector('[data-testid="draw-btn"]')).toBeTruthy())
+    await waitFor(() => expect((container.querySelector('[data-testid="draw-btn"]') as HTMLButtonElement).disabled).toBe(false))
 
     await act(async () => {
       container.querySelector('[data-testid="draw-btn"]')!.dispatchEvent(new MouseEvent('click', { bubbles: true }))
@@ -645,11 +656,18 @@ describe('RaffleDetailPage — winner modal', () => {
   it('shows winner modal after draw completes', async () => {
     vi.mocked(rafflesService.drawNext).mockResolvedValue(mockDraw)
     vi.mocked(rafflesService.listDraws).mockResolvedValue([mockDraw])
+    vi.mocked(rafflesService.getRaffleEntryStats).mockResolvedValue({
+      eligible_count: 2,
+      ineligible_count: 0,
+      ineligible_reasons: {},
+      total_joined: 2,
+    })
     const dp = createMockDataProvider({
       getOne: { raffles: vi.fn().mockResolvedValue(mockRaffle as BaseRecord) },
     })
     const { container, root } = await renderAt('r1', dp)
     await waitFor(() => expect(container.querySelector('[data-testid="draw-btn"]')).toBeTruthy())
+    await waitFor(() => expect((container.querySelector('[data-testid="draw-btn"]') as HTMLButtonElement).disabled).toBe(false))
 
     await act(async () => {
       container.querySelector('[data-testid="draw-btn"]')!.dispatchEvent(new MouseEvent('click', { bubbles: true }))
@@ -662,11 +680,18 @@ describe('RaffleDetailPage — winner modal', () => {
   it('closes modal when 繼續抽獎 button clicked', async () => {
     vi.mocked(rafflesService.drawNext).mockResolvedValue(mockDraw)
     vi.mocked(rafflesService.listDraws).mockResolvedValue([mockDraw])
+    vi.mocked(rafflesService.getRaffleEntryStats).mockResolvedValue({
+      eligible_count: 2,
+      ineligible_count: 0,
+      ineligible_reasons: {},
+      total_joined: 2,
+    })
     const dp = createMockDataProvider({
       getOne: { raffles: vi.fn().mockResolvedValue(mockRaffle as BaseRecord) },
     })
     const { container, root } = await renderAt('r1', dp)
     await waitFor(() => expect(container.querySelector('[data-testid="draw-btn"]')).toBeTruthy())
+    await waitFor(() => expect((container.querySelector('[data-testid="draw-btn"]') as HTMLButtonElement).disabled).toBe(false))
 
     await act(async () => {
       container.querySelector('[data-testid="draw-btn"]')!.dispatchEvent(new MouseEvent('click', { bubbles: true }))
@@ -730,6 +755,25 @@ describe('RaffleDetailPage functional layer', () => {
 
     await waitFor(() => expect(container.querySelector('[data-testid="twitch-reauth-prompt"]')?.textContent).toContain('請重新授權 Twitch'))
     expect(container.querySelector('[data-testid="twitch-reauth-prompt"] a')?.getAttribute('href')).toContain('/api/v1/auth/twitch')
+    cleanup(root, container)
+  })
+
+  it('syncs total entries and remaining count from entry stats', async () => {
+    vi.mocked(rafflesService.listDraws).mockResolvedValue([mockDraw, { ...mockDraw, id: 'd2' }])
+    vi.mocked(rafflesService.getRaffleEntryStats).mockResolvedValue({
+      eligible_count: 8,
+      ineligible_count: 2,
+      ineligible_reasons: {},
+      total_joined: 10,
+    })
+    const dp = createMockDataProvider({
+      getOne: { raffles: vi.fn().mockResolvedValue({ ...mockRaffle, mode: 'public', entry_open: true } as BaseRecord) },
+    })
+    const { container, root } = await renderAt('r1', dp)
+
+    await waitFor(() => expect(container.querySelector('[data-testid="entry-stats-panel"]')).toBeTruthy())
+    await waitFor(() => expect(statValue(container, '匯入人數')).toBe('10'))
+    expect(statValue(container, '剩餘')).toBe('8')
     cleanup(root, container)
   })
 })
