@@ -776,4 +776,67 @@ describe('RaffleDetailPage functional layer', () => {
     expect(statValue(container, '剩餘')).toBe('8')
     cleanup(root, container)
   })
+
+  it('entry-open toggle 403 sets controlReauthRequired and shows re-auth prompt', async () => {
+    vi.mocked(rafflesService.setRaffleEntryOpen).mockRejectedValue({
+      response: { status: 403, data: { error: 'insufficient_scope' } },
+    })
+    const dp = createMockDataProvider({
+      getOne: { raffles: vi.fn().mockResolvedValue({ ...mockRaffle, mode: 'subscribers_only', entry_open: false } as BaseRecord) },
+    })
+    const { container, root } = await renderAt('r1', dp)
+    await waitFor(() => expect(container.querySelector('[data-testid="entry-open-toggle"]')).toBeTruthy())
+    expect(container.querySelector('[data-testid="twitch-reauth-prompt"]')).toBeFalsy()
+
+    await act(async () => {
+      container.querySelector('[data-testid="entry-open-toggle"]')!
+        .dispatchEvent(new MouseEvent('click', { bubbles: true }))
+    })
+
+    await waitFor(() => expect(container.querySelector('[data-testid="twitch-reauth-prompt"]')?.textContent).toContain('請重新授權 Twitch'))
+    cleanup(root, container)
+  })
+
+  it('disables mode radios while modeChanging and entry-open button while entryOpenChanging', async () => {
+    let resolveMode: (value: rafflesService.Raffle) => void = () => {}
+    vi.mocked(rafflesService.setRaffleMode).mockImplementation(() => new Promise<rafflesService.Raffle>((resolve) => { resolveMode = resolve }))
+    let resolveEntryOpen: (value: rafflesService.Raffle) => void = () => {}
+    vi.mocked(rafflesService.setRaffleEntryOpen).mockImplementation(() => new Promise<rafflesService.Raffle>((resolve) => { resolveEntryOpen = resolve }))
+
+    const dp = createMockDataProvider({
+      getOne: { raffles: vi.fn().mockResolvedValue({ ...mockRaffle, mode: 'public', entry_open: false } as BaseRecord) },
+    })
+    const { container, root } = await renderAt('r1', dp)
+    await waitFor(() => expect(container.querySelector('[data-testid="raffle-mode-subscribers"]')).toBeTruthy())
+
+    const publicRadio = container.querySelector('[data-testid="raffle-mode-public"]') as HTMLInputElement
+    const subscribersRadio = container.querySelector('[data-testid="raffle-mode-subscribers"]') as HTMLInputElement
+    const entryToggle = container.querySelector('[data-testid="entry-open-toggle"]') as HTMLButtonElement
+
+    await act(async () => {
+      subscribersRadio.dispatchEvent(new MouseEvent('click', { bubbles: true }))
+    })
+    await waitFor(() => expect(subscribersRadio.disabled).toBe(true))
+    expect(publicRadio.disabled).toBe(true)
+    expect(entryToggle.disabled).toBe(false)
+
+    await act(async () => {
+      resolveMode({ ...mockRaffle, mode: 'subscribers_only' })
+    })
+    await waitFor(() => expect(subscribersRadio.disabled).toBe(false))
+
+    await act(async () => {
+      entryToggle.dispatchEvent(new MouseEvent('click', { bubbles: true }))
+    })
+    await waitFor(() => expect(entryToggle.disabled).toBe(true))
+    expect(subscribersRadio.disabled).toBe(false)
+    expect(publicRadio.disabled).toBe(false)
+
+    await act(async () => {
+      resolveEntryOpen({ ...mockRaffle, mode: 'subscribers_only', entry_open: true })
+    })
+    await waitFor(() => expect(entryToggle.disabled).toBe(false))
+
+    cleanup(root, container)
+  })
 })
