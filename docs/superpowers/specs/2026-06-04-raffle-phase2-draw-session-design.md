@@ -35,7 +35,7 @@ Issue #234 提出 Campaign 多場抽獎層設計，但確認需求後，Phase 2 
 
 ### 狀態機
 
-```
+```text
 [idle]
   ↓ Raffle 狀態為 active，PrizeTiers 存在
 [round_ready]  ── 顯示當前 tier 名稱、獎項說明、本輪名額
@@ -68,7 +68,7 @@ Issue #234 提出 Campaign 多場抽獎層設計，但確認需求後，Phase 2 
 
 不新增端點，全部使用現有：
 
-```
+```text
 POST /api/v1/dashboard/raffles/:id/tiers/:tier_id/draw   ← drawFromTier
 GET  /api/v1/dashboard/raffles/:id/tiers                 ← listPrizeTiers（取得 tiers + drawn_count）
 GET  /api/v1/dashboard/raffles/:id/draws                 ← listDraws（session_complete 時取完整名單）

@@ -330,6 +330,44 @@ it('最後一輪結束後顯示完成畫面', async () => {
   expect(screen.getByTestId('session-complete')).toBeInTheDocument()
 })
 
+it('winner_count: 2 的輪次：第一次抽完按鈕顯示「繼續抽本輪」，第二次抽完才顯示完成', async () => {
+  const twoWinnerTier: RafflePrizeTier[] = [
+    { id: 't1', raffle_id: 'r1', name: '一等獎', prize_description: 'Switch', winner_count: 2, drawn_count: 0, position: 0, created_at: '' },
+  ]
+  const mockEntry = { id: 'e1', raffle_id: 'r1', twitch_login: 'viewer1', display_name: 'Viewer One', created_at: '' }
+  vi.mocked(rafflesService.drawFromTier)
+    .mockResolvedValueOnce({
+      id: 'd1', raffle_id: 'r1', entry_id: 'e1',
+      claim_token: '', claim_expires_at: '', drawn_at: '',
+      entry: mockEntry,
+      prize_tier_id: 't1',
+    } as any)
+    .mockResolvedValueOnce({
+      id: 'd2', raffle_id: 'r1', entry_id: 'e2',
+      claim_token: '', claim_expires_at: '', drawn_at: '',
+      entry: { ...mockEntry, id: 'e2', twitch_login: 'viewer2', display_name: 'Viewer Two' },
+      prize_tier_id: 't1',
+    } as any)
+
+  render(<RaffleDrawSession raffleId="r1" tiers={twoWinnerTier} />)
+
+  // 第一次抽
+  fireEvent.click(screen.getByTestId('draw-round-button'))
+  await waitFor(() => expect(screen.getByTestId('next-round-button').textContent).toContain('繼續抽本輪'))
+
+  // 點「繼續抽本輪」→ 回到 round_ready
+  fireEvent.click(screen.getByTestId('next-round-button'))
+  await waitFor(() => expect(screen.getByTestId('draw-round-button')).not.toBeNull())
+
+  // 第二次抽
+  fireEvent.click(screen.getByTestId('draw-round-button'))
+  await waitFor(() => expect(screen.getByTestId('next-round-button').textContent).toContain('完成抽獎'))
+
+  // 點「完成抽獎」→ session_complete
+  fireEvent.click(screen.getByTestId('next-round-button'))
+  expect(screen.getByTestId('session-complete')).not.toBeNull()
+})
+
 it('API 失敗時顯示錯誤訊息，回到 round_ready', async () => {
   vi.mocked(rafflesService.drawFromTier).mockRejectedValueOnce(new Error('network error'))
 
@@ -362,7 +400,7 @@ beforeEach(() => {
 cd apps/dashboard && npx vitest run src/components/raffle/__tests__/RaffleDrawSession.test.tsx
 ```
 
-預期：PASS（6 tests）。
+預期：PASS（7 tests）。
 
 - [ ] **Step 3：Commit**
 
@@ -405,18 +443,21 @@ import { RaffleDrawSession } from '@/components/raffle/RaffleDrawSession'
 
 不修改或刪除現有的 prize-tiers-section（draft 狀態仍需要管理 UI）。
 
-- [ ] **Step 3：在現有 prize-tiers-section 加 active 狀態隱藏**
+- [ ] **Step 3：將現有 prize-tiers-section 改為只在 draft 狀態顯示**
 
-找到 `data-testid="prize-tiers-section"` 外層 `<div>` 的開頭，將原本的顯示條件由：
+由於 Step 2 已讓 `RaffleDrawSession` 在 `active` 狀態顯示，原本只在 `active` 顯示的 prize-tiers-section（獎項層管理 UI）改為只在 `draft` 狀態顯示，避免兩個區塊同時出現。
+
+找到 `data-testid="prize-tiers-section"` 外層 `<div>` 的條件渲染，將：
+
 ```tsx
-{(effectiveStatus === 'active' || effectiveStatus === 'draft') && (
+{effectiveStatus === 'active' && (
 ```
-改為（若原本無條件顯示，則包上）：
+
+改為：
+
 ```tsx
 {effectiveStatus === 'draft' && (
 ```
-
-> 若原本就有條件包住整段，只改判斷式。若整段無條件渲染，則在外層加 `{effectiveStatus === 'draft' && ( ... )}`。
 
 - [ ] **Step 4：確認 TypeScript 無錯誤**
 
