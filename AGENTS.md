@@ -152,6 +152,17 @@ PR Diff 大小規則詳見 [CLAUDE.md](CLAUDE.md)（conventions.md 的 PR Diff �
 - TypeScript migration 後，source / config / tooling / test scripts 一律使用 TypeScript（`.ts` / `.tsx`），不得新增 `.js` / `.jsx` / `.mjs` / `.cjs`。需要直接執行 Node TypeScript script 時，依情境使用 `node --experimental-strip-types --no-warnings path/to/script.ts`。
 - 例外只限高層次既有類型：lockfiles、generated build output、archived historical docs、以及明確標示的 test fixtures。
 
+### OpenSpec SDD Workflow
+
+新 feature 或 behavior change 預設使用 OpenSpec 作為 proposal / specs / design / tasks 的 implementation source of truth。完整規範見 [docs/ai/openspec-workflow.md](docs/ai/openspec-workflow.md)。
+
+- 先確認 GitHub source issue，再建立 `openspec/changes/<change-id>/`；PR body 的 `Source of truth` 必須同時指向 issue 與 OpenSpec change path。
+- OpenSpec change 至少包含 `.openspec.yaml`、`proposal.md`、`design.md`、`tasks.md`、以及 `specs/<domain>/spec.md` delta specs。
+- 實作只能對齊 `tasks.md` 與 delta specs；OpenSpec artifacts 不授權擴張 issue scope。
+- `openspec/specs/**` 只放已採納的 living behavior；proposal 尚未完成前不得直接寫入 main specs。
+- OpenSpec 不取代 `spec-injector`；autonomous / Codex workflow 仍遵守 `docs/ai/autonomous-pr-gates.md` 的 local-only `spec workflow-check` gate。
+- 不得自行安裝 OpenSpec CLI 或提交未 review generated output；若本機沒有 `/opsx:*` 或 `openspec` 指令，可用人工 artifacts fallback，但仍要保留完整 change 結構與 PR evidence。
+
 ### Autonomous Worker Profiles
 
 使用者提到 Autonomous、AWP、Hybrid AWP、Codex autonomous workflow，或要求搭配 `spec-injector` 做 autonomous issue-first work 時，第一步先讀 [docs/ai/autonomous-bootstrap.md](docs/ai/autonomous-bootstrap.md)。這份文件是單一啟動入口；讀完後再依它展開必要文件、spec-injector start / commit / merge gate、routing plan 與 closeout。

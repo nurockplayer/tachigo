@@ -54,6 +54,11 @@ node_modules/
 .go-build-cache/
 .wrangler/
 kg/generated/*.json
+.openspec/
+openspec/.cache/
+openspec/**/.cache/
+openspec/**/private/
+openspec/**/task-package/
 
 # IDE
 .vscode/

@@ -3,7 +3,7 @@ title: 來源索引
 sidebar_position: 5
 status: active
 owner: engineering
-last_reviewed: 2026-05-13
+last_reviewed: 2026-06-11
 source_of_truth: true
 code_areas:
   - docs
@@ -29,6 +29,7 @@ related_repos:
 | `docs/ai/` | 既有 AI 協作指南與 agent-facing 文件 | `<topic>.md` |
 | `docs/superpowers/specs/` | 已確認或待確認的設計規格；proposal 不得自動視為 implementation source of truth | `YYYY-MM-DD-<topic>-design.md` |
 | `docs/superpowers/plans/` | 實作前計畫與完成後的執行紀錄 | `YYYY-MM-DD-<feature>.md` |
+| `openspec/` | OpenSpec SDD living specs 與 proposed changes；新 feature / behavior change 的 proposal / specs / design / tasks source of truth | `changes/<change-id>/...`、`specs/<domain>/spec.md` |
 | `plans/` | repo 既有工作計畫或執行紀錄 | `<feature-slug>.md` |
 
 ## 核心 Source of Truth
@@ -48,6 +49,13 @@ related_repos:
 | [tokenomics.md](/tachigo/tokenomics) | `$TACHI` 平台幣經濟模型 |
 | [uuid-v7.md](/tachigo/uuid-v7) | UUID 版本策略 |
 | [watch-to-points-design.md](/tachigo/watch-to-points-design) | Watch-to-points 已完成設計 |
+
+## AI / Workflow Source of Truth
+
+| 文件 | 定位 |
+|---|---|
+| [openspec-workflow.md](/tachigo/ai/openspec-workflow) | OpenSpec SDD 標準工作流；新 feature / behavior change 的 proposal、specs、design、tasks 規範 |
+| [autonomous-bootstrap.md](/tachigo/ai/autonomous-bootstrap) | Hybrid AWP / spec-injector 啟動入口；不取代 OpenSpec feature specs |
 
 ## 進行中計畫與提案
 
