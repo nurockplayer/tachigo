@@ -1,7 +1,7 @@
 # Raffle Phase 2 — 逐輪抽獎模式 設計文件
 
 **日期**：2026-06-04
-**關聯 issue**：[#234](https://github.com/nurockplayer/tachigo/issues/234)
+**關聯 issue**：原始討論 [#234](https://github.com/nurockplayer/tachigo/issues/234)（已收斂為本設計，Campaign 層不另行實作）；實作追蹤 [#1043](https://github.com/nurockplayer/tachigo/issues/1043)
 **狀態**：待實作
 
 ---

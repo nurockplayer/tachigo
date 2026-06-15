@@ -67,7 +67,7 @@ cd apps/dashboard && npx tsc --noEmit
 git add apps/dashboard/src/services/raffles.ts
 git commit -m "feat: add position field to RafflePrizeTier interface
 
-refs #234"
+refs #1043"
 ```
 
 ---
@@ -252,7 +252,7 @@ git add apps/dashboard/src/components/raffle/RaffleDrawSession.tsx \
         apps/dashboard/src/components/raffle/__tests__/RaffleDrawSession.test.tsx
 git commit -m "feat: add RaffleDrawSession round_ready state
 
-refs #234"
+refs #1043"
 ```
 
 ---
@@ -370,7 +370,7 @@ cd apps/dashboard && npx vitest run src/components/raffle/__tests__/RaffleDrawSe
 git add apps/dashboard/src/components/raffle/__tests__/RaffleDrawSession.test.tsx
 git commit -m "test: add RaffleDrawSession draw flow and round progression tests
 
-refs #234"
+refs #1043"
 ```
 
 ---
@@ -484,7 +484,7 @@ git add apps/dashboard/src/pages/RaffleDetailPage.tsx \
         apps/dashboard/src/pages/__tests__/RaffleDetailPage.test.tsx
 git commit -m "feat: integrate RaffleDrawSession into RaffleDetailPage for active state
 
-refs #234"
+refs #1043"
 ```
 
 ---
