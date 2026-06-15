@@ -36,9 +36,9 @@ describe('RaffleDrawSession', () => {
       claim_token: '', claim_expires_at: '', drawn_at: '',
       entry: { id: 'e1', raffle_id: 'r1', twitch_login: 'viewer1', display_name: 'Viewer One', created_at: '' },
       prize_tier_id: 't1',
-    } as any)
+    })
 
-    const { container: _container } = render(<RaffleDrawSession raffleId="r1" tiers={mockTiers} />)
+    render(<RaffleDrawSession raffleId="r1" tiers={mockTiers} />)
     fireEvent.click(screen.getByTestId('draw-round-button'))
 
     await waitFor(() => {
@@ -54,7 +54,7 @@ describe('RaffleDrawSession', () => {
       claim_token: '', claim_expires_at: '', drawn_at: '',
       entry: { id: 'e1', raffle_id: 'r1', twitch_login: 'viewer1', display_name: 'Viewer One', created_at: '' },
       prize_tier_id: 't1',
-    } as any)
+    })
 
     render(<RaffleDrawSession raffleId="r1" tiers={mockTiers} />)
     fireEvent.click(screen.getByTestId('draw-round-button'))
@@ -74,7 +74,7 @@ describe('RaffleDrawSession', () => {
       claim_token: '', claim_expires_at: '', drawn_at: '',
       entry: { id: 'e1', raffle_id: 'r1', twitch_login: 'winner', display_name: 'Winner', created_at: '' },
       prize_tier_id: 't1',
-    } as any)
+    })
 
     render(<RaffleDrawSession raffleId="r1" tiers={singleTier} />)
     fireEvent.click(screen.getByTestId('draw-round-button'))
@@ -95,13 +95,13 @@ describe('RaffleDrawSession', () => {
         claim_token: '', claim_expires_at: '', drawn_at: '',
         entry: mockEntry,
         prize_tier_id: 't1',
-      } as any)
+      })
       .mockResolvedValueOnce({
         id: 'd2', raffle_id: 'r1', entry_id: 'e2',
         claim_token: '', claim_expires_at: '', drawn_at: '',
         entry: { ...mockEntry, id: 'e2', twitch_login: 'viewer2', display_name: 'Viewer Two' },
         prize_tier_id: 't1',
-      } as any)
+      })
 
     render(<RaffleDrawSession raffleId="r1" tiers={twoWinnerTier} />)
 
