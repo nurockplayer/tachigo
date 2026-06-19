@@ -1,3 +1,8 @@
 schema: spec-driven
 issue: "https://github.com/nurockplayer/tachigo/issues/1039"
-status: proposed
+status: archived
+accepted_pr: "https://github.com/nurockplayer/tachigo/pull/1040"
+merged_at: "2026-06-15T12:51:29Z"
+archived_at: "2026-06-18"
+living_specs:
+  - openspec/specs/workflow/spec.md
