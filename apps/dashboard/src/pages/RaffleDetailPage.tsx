@@ -2,8 +2,9 @@ import { useOne } from '@refinedev/core'
 import { useCallback, useEffect, useRef, useState } from 'react'
 import { useNavigate, useParams } from 'react-router'
 import { Skeleton } from '@/components/ui/skeleton'
-import { activateRaffle, completeRaffle, createPrizeTier, deletePrizeTier, drawFromTier, drawNext, importCSV, listDraws, listPrizeTiers, setDiscordWebhook } from '@/services/raffles'
-import type { Raffle, RaffleDraw, RafflePrizeTier, RaffleStatus } from '@/services/raffles'
+import { apiBaseURL } from '@/services/api'
+import { activateRaffle, completeRaffle, createPrizeTier, deletePrizeTier, drawFromTier, drawNext, getRaffleEntryStats, importCSV, listDraws, listPrizeTiers, setDiscordWebhook, setRaffleEntryOpen, setRaffleMode } from '@/services/raffles'
+import type { Raffle, RaffleDraw, RaffleEntryStats, RaffleMode, RafflePrizeTier, RaffleStatus } from '@/services/raffles'
 import gachaBg from '../assets/raffle-bg.jpg.png'
 
 const OCEAN_KEYFRAMES = `
@@ -17,11 +18,10 @@ const OCEAN_KEYFRAMES = `
   90%{transform:translateX(3px)}
 }
 @keyframes oceanPopout {
-  0%{transform:translateX(-50%) translateY(0) scale(0);opacity:0}
-  25%{transform:translateX(-50%) translateY(0) scale(1.4);opacity:1}
-  60%{transform:translateX(-50%) translateY(38px) scale(1.1);opacity:1}
-  85%{transform:translateX(-50%) translateY(70px) scale(.8);opacity:.6}
-  100%{transform:translateX(-50%) translateY(100px) scale(0);opacity:0}
+  0%{transform:translateX(-50%) translateY(34px) scale(.3);opacity:0}
+  45%{transform:translateX(-50%) translateY(-16px) scale(1.3);opacity:1}
+  72%{transform:translateX(-50%) translateY(6px) scale(1.05);opacity:1}
+  100%{transform:translateX(-50%) translateY(0) scale(1);opacity:1}
 }
 @keyframes oceanTwinkle {
   0%,100%{opacity:1;transform:scale(1)}
@@ -50,6 +50,33 @@ const OCEAN_KEYFRAMES = `
 @keyframes oceanLiveDot {
   0%,100%{opacity:1}
   50%{opacity:.25}
+}
+@keyframes oceanGoldBurst {
+  0%{transform:translate(-50%,50%) scale(.2);opacity:0}
+  35%{transform:translate(-50%,50%) scale(1.5);opacity:1}
+  100%{transform:translate(-50%,50%) scale(2.6);opacity:0}
+}
+@keyframes oceanGoldRayRotate {
+  0%{transform:translate(-50%,50%) rotate(0deg) scale(.7);opacity:0}
+  30%{opacity:1}
+  100%{transform:translate(-50%,50%) rotate(220deg) scale(1.3);opacity:0}
+}
+@keyframes oceanCapsuleHalfTop {
+  0%{transform:translate(-50%,0) rotate(0deg);opacity:1}
+  100%{transform:translate(-130%,-46px) rotate(-65deg);opacity:0}
+}
+@keyframes oceanCapsuleHalfBottom {
+  0%{transform:translate(-50%,0) rotate(0deg);opacity:1}
+  100%{transform:translate(30%,40px) rotate(65deg);opacity:0}
+}
+@keyframes oceanGoldSparkle {
+  0%{transform:scale(0);opacity:0}
+  40%{transform:scale(1.3);opacity:1}
+  100%{transform:scale(.2);opacity:0}
+}
+@keyframes oceanGoldGlowPulse {
+  0%,100%{opacity:.5;transform:scale(1)}
+  50%{opacity:.85;transform:scale(1.08)}
 }
 `
 
@@ -92,6 +119,36 @@ function formatRelativeTime(dateStr: string): string {
   if (mins < 60) return `${mins} 分鐘前`
 
   return date.toLocaleString('zh-TW')
+}
+
+function isInsufficientScopeError(error: unknown): boolean {
+  const response = (error as { response?: { status?: number; data?: unknown } })?.response
+  if (response?.status !== 403) return false
+  if (typeof response.data === 'string') return response.data.includes('insufficient_scope')
+  return JSON.stringify(response?.data ?? '').includes('insufficient_scope')
+}
+
+const EXCLUDED_REASON_LABELS: Record<string, string> = {
+  not_subscriber: '非訂閱者',
+  duplicate: '重複報名',
+  already_drawn: '已中獎',
+  missing_twitch_id: '缺少 Twitch ID',
+  missing_subscription: '缺少訂閱紀錄',
+  subscription_expired: '訂閱已失效',
+  subscription_inactive: '訂閱未啟用',
+  banned: '已封鎖',
+  not_following: '未追蹤',
+  manual_exclusion: '手動排除',
+  invalid_entry: '報名資料無效',
+  missing_display_name: '缺少顯示名稱',
+  outside_entry_window: '不在報名時間內',
+  raffle_completed: '活動已結束',
+  raffle_not_active: '活動尚未啟用',
+  unknown_viewer: '未知觀眾',
+}
+
+function formatExcludedReason(reason: string): string {
+  return EXCLUDED_REASON_LABELS[reason] ?? reason
 }
 
 function StatCard({
@@ -397,12 +454,89 @@ function DiscordWebhookPanel({ raffleId }: { raffleId: string }) {
   )
 }
 
+function CapsuleOpenBurst({ color }: { color: string | null }) {
+  const sparkleCount = 10
+  const haloColor = color ?? 'linear-gradient(135deg,#fde68a,#f59e0b)'
+  const ballBottom = '22%'
+  const ballRadius = 22
+  // 球體裂開的接縫位於球心，也就是底邊往上半徑的高度 — 特效以此為中心施放
+  const seam = `calc(${ballBottom} + ${ballRadius}px)`
+  return (
+    <div data-testid="capsule-open-burst" style={{ position: 'absolute', inset: 0, pointerEvents: 'none' }}>
+      {/* 放射狀金色光暈爆發（從裂開接縫正中央炸開） */}
+      <div
+        style={{
+          position: 'absolute', bottom: seam, left: '50%',
+          width: 150, height: 150, borderRadius: '50%',
+          background: 'radial-gradient(circle, rgba(255,255,255,1) 0%, rgba(255,244,214,.85) 32%, rgba(251,191,36,.6) 56%, rgba(251,191,36,0) 76%)',
+          animation: 'oceanGoldBurst .8s ease-out forwards',
+        }}
+      />
+      {/* 旋轉光芒環 */}
+      <div
+        style={{
+          position: 'absolute', bottom: seam, left: '50%',
+          width: 210, height: 210, borderRadius: '50%',
+          background: 'conic-gradient(from 0deg, rgba(255,238,180,0) 0deg, rgba(255,238,180,.85) 14deg, rgba(255,238,180,0) 30deg, rgba(255,238,180,0) 110deg, rgba(255,238,180,.75) 124deg, rgba(255,238,180,0) 142deg, rgba(255,238,180,0) 230deg, rgba(255,238,180,.8) 244deg, rgba(255,238,180,0) 262deg)',
+          animation: 'oceanGoldRayRotate 1s ease-out forwards',
+        }}
+      />
+      {/* 彈出來的扭蛋本體沿著球心接縫裂開成上下兩半（沿用同一顆球的顏色，疊上金色光澤） */}
+      <div
+        style={{
+          position: 'absolute', bottom: seam, left: '50%',
+          width: ballRadius * 2, height: ballRadius, borderRadius: `${ballRadius}px ${ballRadius}px 0 0`,
+          background: `linear-gradient(180deg,rgba(255,250,235,.7),rgba(255,250,235,0) 65%), ${haloColor}`,
+          border: '1.5px solid rgba(255,255,255,.6)', borderBottom: 'none',
+          boxShadow: '0 0 26px rgba(255,225,140,1), inset 0 6px 12px rgba(255,250,235,.8)',
+          animation: 'oceanCapsuleHalfTop .6s ease-out forwards',
+        }}
+      />
+      <div
+        style={{
+          position: 'absolute', bottom: ballBottom, left: '50%',
+          width: ballRadius * 2, height: ballRadius, borderRadius: `0 0 ${ballRadius}px ${ballRadius}px`,
+          background: `linear-gradient(0deg,rgba(255,250,235,.7),rgba(255,250,235,0) 65%), ${haloColor}`,
+          border: '1.5px solid rgba(255,255,255,.6)', borderTop: 'none',
+          boxShadow: '0 0 26px rgba(255,225,140,1), inset 0 -6px 12px rgba(255,250,235,.8)',
+          animation: 'oceanCapsuleHalfBottom .6s ease-out forwards',
+        }}
+      />
+      {/* 散落的金色粒子（從接縫處向外飛散） */}
+      {Array.from({ length: sparkleCount }).map((_, i) => {
+        const angle = (i / sparkleCount) * Math.PI * 2
+        const dist = 46 + (i % 3) * 16
+        const x = Math.cos(angle) * dist
+        const y = Math.sin(angle) * dist * .65
+        return (
+          <div
+            key={i}
+            style={{
+              position: 'absolute',
+              bottom: `calc(${seam} - ${y}px)`,
+              left: `calc(50% + ${x}px)`,
+              width: 5, height: 5, borderRadius: '50%',
+              background: 'radial-gradient(circle,#fffceb,#fbbf24)',
+              boxShadow: '0 0 8px rgba(251,191,36,.95)',
+              animation: `oceanGoldSparkle .8s ease-out ${i * 0.04}s forwards`,
+            }}
+          />
+        )
+      })}
+    </div>
+  )
+}
+
 interface OceanGachaMachineProps {
   shaking: boolean
   popBallColor: string | null
+  opening: boolean
+  modalWinner: string | null
+  modalPrize: { name: string; description: string } | null
+  onCloseModal: () => void
 }
 
-function OceanGachaMachine({ shaking, popBallColor }: OceanGachaMachineProps) {
+function OceanGachaMachine({ shaking, popBallColor, opening, modalWinner, modalPrize, onCloseModal }: OceanGachaMachineProps) {
   return (
     <div style={{ position: 'relative', width: '100%' }}>
       <img
@@ -417,7 +551,7 @@ function OceanGachaMachine({ shaking, popBallColor }: OceanGachaMachineProps) {
           animation: shaking ? 'oceanShake .5s ease-in-out' : undefined,
         }}
       />
-      {popBallColor !== null && (
+      {popBallColor !== null && !opening && (
         <div
           style={{
             position: 'absolute',
@@ -429,11 +563,18 @@ function OceanGachaMachine({ shaking, popBallColor }: OceanGachaMachineProps) {
             boxShadow: '0 0 24px rgba(255,220,60,.95),inset 4px 4px 9px rgba(255,255,255,.3)',
             bottom: '22%',
             left: '50%',
-            animation: 'oceanPopout 1.2s cubic-bezier(.22,.68,0,1.15) forwards',
+            animation: 'oceanPopout .7s cubic-bezier(.22,.68,0,1.15) forwards',
             pointerEvents: 'none',
           }}
         />
       )}
+      {opening && <CapsuleOpenBurst color={popBallColor} />}
+      <PrizeRevealModal
+        winner={modalWinner}
+        prizeName={modalPrize?.name}
+        prizeDescription={modalPrize?.description}
+        onClose={onCloseModal}
+      />
     </div>
   )
 }
@@ -494,13 +635,15 @@ function ChatPanel() {
   )
 }
 
-interface WinnerModalProps {
-  name: string | null
+interface PrizeRevealModalProps {
+  winner: string | null
+  prizeName?: string
+  prizeDescription?: string
   onClose: () => void
 }
 
-function WinnerModal({ name, onClose }: WinnerModalProps) {
-  if (name === null) return null
+function PrizeRevealModal({ winner, prizeName, prizeDescription, onClose }: PrizeRevealModalProps) {
+  if (winner === null) return null
   return (
     <div
       onClick={onClose}
@@ -509,6 +652,7 @@ function WinnerModal({ name, onClose }: WinnerModalProps) {
         display: 'flex', alignItems: 'center', justifyContent: 'center',
         background: 'rgba(0,0,0,.65)',
         backdropFilter: 'blur(4px)',
+        borderRadius: 12,
         animation: 'oceanModalIn .4s ease forwards',
       }}
     >
@@ -527,7 +671,13 @@ function WinnerModal({ name, onClose }: WinnerModalProps) {
       >
         <div style={{ fontSize: 52, marginBottom: 10 }}>🎉</div>
         <div style={{ fontSize: 13, color: 'rgba(148,210,255,.6)', letterSpacing: '.1em', marginBottom: 8 }}>恭喜中獎！</div>
-        <div style={{ fontSize: 'clamp(24px,4vw,38px)', fontWeight: 900, textShadow: '0 0 20px rgba(56,189,248,.9)' }}>{name}</div>
+        {prizeName && (
+          <div style={{ fontSize: 16, fontWeight: 700, color: '#fde68a', marginBottom: 4 }}>{prizeName}</div>
+        )}
+        {prizeDescription && (
+          <div style={{ fontSize: 12, color: 'rgba(253,230,138,.7)', marginBottom: 8 }}>{prizeDescription}</div>
+        )}
+        <div style={{ fontSize: 'clamp(24px,4vw,38px)', fontWeight: 900, textShadow: '0 0 20px rgba(56,189,248,.9)' }}>{winner}</div>
         <button
           onClick={onClose}
           style={{
@@ -566,7 +716,9 @@ export default function RaffleDetailPage() {
   const [activateError, setActivateError] = useState<string | null>(null)
   const [shaking, setShaking] = useState(false)
   const [popBallColor, setPopBallColor] = useState<string | null>(null)
+  const [opening, setOpening] = useState(false)
   const [modalWinner, setModalWinner] = useState<string | null>(null)
+  const [modalPrize, setModalPrize] = useState<{ name: string; description: string } | null>(null)
   const [tiers, setTiers] = useState<RafflePrizeTier[]>([])
   const [tierDrawing, setTierDrawing] = useState<Record<string, boolean>>({})
   const [tierExhausted, setTierExhausted] = useState<Record<string, boolean>>({})
@@ -574,6 +726,20 @@ export default function RaffleDetailPage() {
   const [newTier, setNewTier] = useState({ name: '', prize_description: '', winner_count: 1 })
   const [addingTier, setAddingTier] = useState(false)
   const [addTierError, setAddTierError] = useState<string | null>(null)
+  const [modeOverride, setModeOverride] = useState<RaffleMode | null>(null)
+  const [entryOpenOverride, setEntryOpenOverride] = useState<boolean | null>(null)
+  const [entryStats, setEntryStats] = useState<RaffleEntryStats | null>(null)
+  const [statsReauthRequired, setStatsReauthRequired] = useState(false)
+  const [controlReauthRequired, setControlReauthRequired] = useState(false)
+  const [controlError, setControlError] = useState<string | null>(null)
+  const [modeChanging, setModeChanging] = useState(false)
+  const [entryOpenChanging, setEntryOpenChanging] = useState(false)
+
+  const modeRequestSeq = useRef(0)
+  const entryOpenRequestSeq = useRef(0)
+
+  const mode: RaffleMode = modeOverride ?? raffle?.mode ?? 'public'
+  const entryOpen: boolean = entryOpenOverride ?? raffle?.entry_open ?? false
 
   const pendingTimers = useRef<number[]>([])
 
@@ -606,6 +772,43 @@ export default function RaffleDetailPage() {
 
   useEffect(() => {
     if (!raffleId) return
+    const id = raffleId
+    const controller = new AbortController()
+
+    let inFlight = false
+
+    async function fetchEntryStats() {
+      if (inFlight) return
+      inFlight = true
+      try {
+        const result = await getRaffleEntryStats(id, controller.signal)
+        if (controller.signal.aborted) return
+        setEntryStats(result)
+        setTotalEntries(result.total_joined)
+        setStatsReauthRequired(false)
+      } catch (error: unknown) {
+        if (controller.signal.aborted) return
+        if (mode === 'subscribers_only' && isInsufficientScopeError(error)) {
+          setStatsReauthRequired(true)
+        }
+      } finally {
+        inFlight = false
+      }
+    }
+
+    void fetchEntryStats()
+    const timerId = window.setInterval(() => {
+      void fetchEntryStats()
+    }, 10000)
+
+    return () => {
+      window.clearInterval(timerId)
+      controller.abort()
+    }
+  }, [mode, raffleId])
+
+  useEffect(() => {
+    if (!raffleId) return
     const initialLoadId = window.setTimeout(() => {
       void fetchDraws()
       void fetchTiers()
@@ -625,18 +828,76 @@ export default function RaffleDetailPage() {
     }
   }, [effectiveStatus, fetchDraws, fetchTiers, raffleId])
 
+  async function handleModeChange(nextMode: RaffleMode) {
+    if (!raffleId || nextMode === mode || modeChanging) return
+    setModeChanging(true)
+    setControlError(null)
+    const seq = ++modeRequestSeq.current
+    try {
+      await setRaffleMode(raffleId, nextMode)
+      if (modeRequestSeq.current !== seq) return
+      setModeOverride(nextMode)
+      setControlReauthRequired(false)
+    } catch (error: unknown) {
+      if (modeRequestSeq.current !== seq) return
+      if (nextMode === 'subscribers_only' && isInsufficientScopeError(error)) {
+        setControlReauthRequired(true)
+      } else {
+        setControlError('切換報名資格失敗，請稍後再試')
+      }
+    } finally {
+      setModeChanging(false)
+    }
+  }
+
+  async function handleEntryOpenToggle() {
+    if (!raffleId || entryOpenChanging) return
+    setEntryOpenChanging(true)
+    const nextEntryOpen = !entryOpen
+    setControlError(null)
+    const seq = ++entryOpenRequestSeq.current
+    try {
+      await setRaffleEntryOpen(raffleId, nextEntryOpen)
+      if (entryOpenRequestSeq.current !== seq) return
+      setEntryOpenOverride(nextEntryOpen)
+      setControlReauthRequired(false)
+    } catch (error: unknown) {
+      if (entryOpenRequestSeq.current !== seq) return
+      if (mode === 'subscribers_only' && isInsufficientScopeError(error)) {
+        setControlReauthRequired(true)
+      } else {
+        setControlError('切換報名狀態失敗，請稍後再試')
+      }
+    } finally {
+      setEntryOpenChanging(false)
+    }
+  }
+
   async function handleDraw() {
-    if (!raffleId || drawing) return
+    if (!raffleId || drawing || modalWinner !== null) return
     setDrawing(true)
 
     setShaking(true)
     pendingTimers.current.push(window.setTimeout(() => setShaking(false), 550))
 
+    const popDelay = 350
+    const openDelay = 950
+    const revealDelay = 1650
+
     pendingTimers.current.push(window.setTimeout(() => {
       const color = BALL_COLORS[Math.floor(Math.random() * BALL_COLORS.length)]
       setPopBallColor(color)
-      pendingTimers.current.push(window.setTimeout(() => setPopBallColor(null), 1200))
-    }, 400))
+    }, popDelay))
+
+    const openTimerId = window.setTimeout(() => setOpening(true), openDelay)
+    pendingTimers.current.push(openTimerId)
+
+    function finishDraw() {
+      window.clearTimeout(openTimerId)
+      setOpening(false)
+      setPopBallColor(null)
+      setDrawing(false)
+    }
 
     try {
       await drawNext(raffleId)
@@ -646,20 +907,24 @@ export default function RaffleDetailPage() {
         : null
       if (latest) {
         const name = latest.entry.display_name || latest.entry.twitch_login
+        const prize = latest.prize_tier
+          ? { name: latest.prize_tier.name, description: latest.prize_tier.prize_description }
+          : null
         pendingTimers.current.push(window.setTimeout(() => {
           setModalWinner(name)
-          setDrawing(false)
-        }, 900))
+          setModalPrize(prize)
+          finishDraw()
+        }, revealDelay))
       } else {
-        setDrawing(false)
+        finishDraw()
       }
       setExhausted(false)
     } catch (error: unknown) {
+      finishDraw()
       if (error && typeof error === 'object' && 'response' in error) {
         const response = (error as { response?: { status?: number } }).response
         if (response?.status === 409) setExhausted(true)
       }
-      setDrawing(false)
     }
   }
 
@@ -778,6 +1043,78 @@ export default function RaffleDetailPage() {
             onSuccess={(result) => { setTotalEntries(prev => (prev ?? 0) + result.imported); setExhausted(false) }}
           />
 
+          <section data-testid="raffle-entry-controls" style={{ border: '1px solid rgba(80,160,255,.18)', borderRadius: 10, background: 'rgba(255,255,255,.035)', padding: 12, display: 'flex', flexDirection: 'column', gap: 10 }}>
+            <div style={{ display: 'flex', flexWrap: 'wrap', justifyContent: 'space-between', gap: 10, alignItems: 'center' }}>
+              <div style={{ display: 'flex', flexDirection: 'column', gap: 6 }}>
+                <span style={{ fontSize: 11, color: 'rgba(148,210,255,.6)', letterSpacing: '.06em' }}>報名資格</span>
+                <div style={{ display: 'flex', gap: 10, flexWrap: 'wrap' }}>
+                  <label style={{ display: 'flex', alignItems: 'center', gap: 5, fontSize: 12, color: mode === 'public' ? '#e0f2fe' : 'rgba(148,210,255,.55)' }}>
+                    <input
+                      data-testid="raffle-mode-public"
+                      type="radio"
+                      name="raffle-mode"
+                      value="public"
+                      checked={mode === 'public'}
+                      disabled={modeChanging}
+                      onChange={() => { void handleModeChange('public') }}
+                    />
+                    全體觀眾
+                  </label>
+                  <label style={{ display: 'flex', alignItems: 'center', gap: 5, fontSize: 12, color: mode === 'subscribers_only' ? '#e0f2fe' : 'rgba(148,210,255,.55)' }}>
+                    <input
+                      data-testid="raffle-mode-subscribers"
+                      type="radio"
+                      name="raffle-mode"
+                      value="subscribers_only"
+                      checked={mode === 'subscribers_only'}
+                      disabled={modeChanging}
+                      onChange={() => { void handleModeChange('subscribers_only') }}
+                    />
+                    訂閱者專屬
+                  </label>
+                </div>
+              </div>
+              <button
+                data-testid="entry-open-toggle"
+                onClick={() => { void handleEntryOpenToggle() }}
+                disabled={entryOpenChanging}
+                style={{ border: entryOpen ? '1px solid rgba(248,113,113,.35)' : '1px solid rgba(34,197,94,.35)', background: entryOpen ? 'rgba(248,113,113,.1)' : 'rgba(34,197,94,.1)', color: entryOpen ? '#fca5a5' : '#86efac', borderRadius: 8, padding: '7px 12px', fontSize: 12, fontWeight: 700, cursor: entryOpenChanging ? 'not-allowed' : 'pointer' }}
+              >
+                {entryOpen ? '截止報名' : '開放報名'}
+              </button>
+            </div>
+            {(statsReauthRequired || controlReauthRequired) && mode === 'subscribers_only' && (
+              <p data-testid="twitch-reauth-prompt" style={{ border: '1px solid rgba(251,191,36,.25)', borderRadius: 8, background: 'rgba(251,191,36,.08)', padding: '8px 10px', fontSize: 12, color: '#fde68a' }}>
+                請重新授權 Twitch
+                <a href={`${apiBaseURL}/api/v1/auth/twitch?redirect_to=${encodeURIComponent(window.location.pathname)}`} style={{ marginLeft: 8, color: '#7dd3fc', textDecoration: 'underline' }}>重新授權</a>
+              </p>
+            )}
+            {controlError && (
+              <p data-testid="raffle-entry-controls-error" style={{ fontSize: 11, color: '#f87171' }}>{controlError}</p>
+            )}
+            {entryStats && (
+              <div data-testid="entry-stats-panel" style={{ display: 'grid', gridTemplateColumns: 'repeat(3,1fr)', gap: 8 }}>
+                <div style={{ borderRadius: 8, background: 'rgba(255,255,255,.04)', padding: 8 }}>
+                  <p style={{ fontSize: 10, color: 'rgba(148,210,255,.5)', marginBottom: 3 }}>合格候選人數</p>
+                  <p data-testid="eligible-count" style={{ fontSize: 20, fontWeight: 800, color: '#86efac' }}>{entryStats.eligible_count}</p>
+                </div>
+                <div style={{ borderRadius: 8, background: 'rgba(255,255,255,.04)', padding: 8 }}>
+                  <p style={{ fontSize: 10, color: 'rgba(148,210,255,.5)', marginBottom: 3 }}>排除人數</p>
+                  <p data-testid="excluded-count" style={{ fontSize: 20, fontWeight: 800, color: '#fca5a5' }}>{entryStats.ineligible_count}</p>
+                  <div data-testid="excluded-breakdown" style={{ marginTop: 4, display: 'flex', flexDirection: 'column', gap: 2 }}>
+                    {Object.entries(entryStats.ineligible_reasons).map(([reason, count]) => (
+                      <span key={reason} style={{ fontSize: 10, color: 'rgba(226,232,240,.65)' }}>{formatExcludedReason(reason)} {count} 人</span>
+                    ))}
+                  </div>
+                </div>
+                <div style={{ borderRadius: 8, background: 'rgba(255,255,255,.04)', padding: 8 }}>
+                  <p style={{ fontSize: 10, color: 'rgba(148,210,255,.5)', marginBottom: 3 }}>總報名人數</p>
+                  <p data-testid="total-count" style={{ fontSize: 20, fontWeight: 800, color: '#93c5fd' }}>{entryStats.total_joined}</p>
+                </div>
+              </div>
+            )}
+          </section>
+
           {effectiveStatus === 'draft' && (
             <>
               <button
@@ -842,7 +1179,14 @@ export default function RaffleDetailPage() {
 
         {/* Center: Gacha machine + draw button */}
         <div style={{ flex: 1, minWidth: 0, display: 'flex', flexDirection: 'column', alignItems: 'center', gap: 14 }}>
-          <OceanGachaMachine shaking={shaking} popBallColor={popBallColor} />
+          <OceanGachaMachine
+            shaking={shaking}
+            popBallColor={popBallColor}
+            opening={opening}
+            modalWinner={modalWinner}
+            modalPrize={modalPrize}
+            onCloseModal={() => { setModalWinner(null); setModalPrize(null) }}
+          />
           <button
             data-testid="draw-btn"
             disabled={effectiveStatus === 'completed' || exhausted || remaining === 0 || drawing}
@@ -944,8 +1288,6 @@ export default function RaffleDetailPage() {
           </div>
         </div>
       )}
-
-      <WinnerModal name={modalWinner} onClose={() => setModalWinner(null)} />
     </div>
   )
 }

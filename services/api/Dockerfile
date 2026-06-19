@@ -3,7 +3,7 @@ ARG ATLAS_VERSION=1.2.0
 FROM arigaio/atlas:${ATLAS_VERSION} AS atlas
 
 # ── Dev stage ─────────────────────────────────────────────────────────────────
-FROM golang:1.26.3-alpine AS dev
+FROM golang:1.26.4-alpine AS dev
 
 RUN apk add --no-cache git build-base && \
     go install github.com/air-verse/air@latest && \
@@ -24,7 +24,7 @@ ENTRYPOINT ["/docker-entrypoint.sh"]
 CMD ["air"]
 
 # ── Build stage ───────────────────────────────────────────────────────────────
-FROM golang:1.26.3-alpine AS builder
+FROM golang:1.26.4-alpine AS builder
 
 RUN apk add --no-cache git tzdata
 
