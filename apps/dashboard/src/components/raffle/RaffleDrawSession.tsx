@@ -1,4 +1,4 @@
-import { useState } from 'react'
+import { useMemo, useState } from 'react'
 import type { RaffleDraw, RafflePrizeTier } from '@/services/raffles'
 import { drawFromTier } from '@/services/raffles'
 
@@ -18,7 +18,7 @@ const glass: React.CSSProperties = {
 }
 
 export function RaffleDrawSession({ raffleId, tiers }: Props) {
-  const sorted = [...tiers].sort((a, b) => a.position - b.position)
+  const sorted = useMemo(() => [...tiers].sort((a, b) => a.position - b.position), [tiers])
   const [currentIndex, setCurrentIndex] = useState(0)
   const [phase, setPhase] = useState<SessionPhase>('round_ready')
   const [latestDraw, setLatestDraw] = useState<RaffleDraw | null>(null)
@@ -28,7 +28,7 @@ export function RaffleDrawSession({ raffleId, tiers }: Props) {
   const currentTier = sorted[currentIndex]
 
   async function handleDraw() {
-    if (!currentTier) return
+    if (!currentTier || phase === 'drawing') return
     setPhase('drawing')
     setError(null)
     try {
@@ -48,7 +48,7 @@ export function RaffleDrawSession({ raffleId, tiers }: Props) {
   function handleNext() {
     const localDrawn = localDrawnCounts[currentTier.id] ?? 0
     const needed = currentTier.winner_count
-    if (localDrawn < needed) {
+    if (localDrawn + currentTier.drawn_count < needed) {
       setPhase('round_ready')
       return
     }
@@ -86,7 +86,7 @@ export function RaffleDrawSession({ raffleId, tiers }: Props) {
         {currentTier.prize_description}
       </p>
       <p style={{ fontSize: 11, color: 'rgba(148,210,255,.4)', marginBottom: 16 }}>
-        {(localDrawnCounts[currentTier.id] ?? currentTier.drawn_count)} / {currentTier.winner_count} 人已抽出
+        {(localDrawnCounts[currentTier.id] ?? 0) + currentTier.drawn_count} / {currentTier.winner_count} 人已抽出
       </p>
 
       {phase === 'round_ready' && (
@@ -116,7 +116,7 @@ export function RaffleDrawSession({ raffleId, tiers }: Props) {
           >
             {(() => {
               const localDrawn = localDrawnCounts[currentTier.id] ?? 0
-              if (localDrawn < currentTier.winner_count) return '繼續抽本輪'
+              if (localDrawn + currentTier.drawn_count < currentTier.winner_count) return '繼續抽本輪'
               if (currentIndex + 1 >= totalRounds) return '完成抽獎'
               return '繼續下一輪'
             })()}
