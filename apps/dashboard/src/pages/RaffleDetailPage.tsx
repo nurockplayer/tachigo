@@ -1132,17 +1132,19 @@ export default function RaffleDetailPage() {
 
           <DiscordWebhookPanel raffleId={raffle.id} />
 
-          <DrawControls
-            status={effectiveStatus}
-            exhausted={exhausted || remaining === 0}
-            drawing={drawing}
-            confirmEnd={confirmEnd}
-            ending={ending}
-            onDraw={() => { void handleDraw() }}
-            onRequestEnd={() => setConfirmEnd(true)}
-            onConfirmEnd={() => { void handleConfirmEnd() }}
-            onCancelEnd={() => setConfirmEnd(false)}
-          />
+          {!(effectiveStatus === 'active' && tiers.length > 0) && (
+            <DrawControls
+              status={effectiveStatus}
+              exhausted={exhausted || remaining === 0}
+              drawing={drawing}
+              confirmEnd={confirmEnd}
+              ending={ending}
+              onDraw={() => { void handleDraw() }}
+              onRequestEnd={() => setConfirmEnd(true)}
+              onConfirmEnd={() => { void handleConfirmEnd() }}
+              onCancelEnd={() => setConfirmEnd(false)}
+            />
+          )}
         </div>
       </details>
 
@@ -1188,21 +1190,23 @@ export default function RaffleDetailPage() {
             modalPrize={modalPrize}
             onCloseModal={() => { setModalWinner(null); setModalPrize(null) }}
           />
-          <button
-            data-testid="draw-btn"
-            disabled={effectiveStatus === 'completed' || exhausted || remaining === 0 || drawing}
-            onClick={() => { void handleDraw() }}
-            style={{
-              padding: '13px 60px', borderRadius: 50, border: 'none',
-              background: 'linear-gradient(90deg,#0ea5e9,#2563eb)',
-              color: '#e0f2fe', fontSize: 'clamp(15px,2.2vw,20px)', fontWeight: 900,
-              letterSpacing: '.12em', cursor: 'pointer',
-              boxShadow: '0 0 35px rgba(14,165,233,.75),0 0 70px rgba(14,165,233,.2),0 4px 16px rgba(0,0,0,.5)',
-              opacity: (effectiveStatus === 'completed' || exhausted || remaining === 0 || drawing) ? .5 : 1,
-            }}
-          >
-            {drawing ? '抽獎中...' : '開始抽獎'}
-          </button>
+          {!(effectiveStatus === 'active' && tiers.length > 0) && (
+            <button
+              data-testid="draw-btn"
+              disabled={effectiveStatus === 'completed' || exhausted || remaining === 0 || drawing}
+              onClick={() => { void handleDraw() }}
+              style={{
+                padding: '13px 60px', borderRadius: 50, border: 'none',
+                background: 'linear-gradient(90deg,#0ea5e9,#2563eb)',
+                color: '#e0f2fe', fontSize: 'clamp(15px,2.2vw,20px)', fontWeight: 900,
+                letterSpacing: '.12em', cursor: 'pointer',
+                boxShadow: '0 0 35px rgba(14,165,233,.75),0 0 70px rgba(14,165,233,.2),0 4px 16px rgba(0,0,0,.5)',
+                opacity: (effectiveStatus === 'completed' || exhausted || remaining === 0 || drawing) ? .5 : 1,
+              }}
+            >
+              {drawing ? '抽獎中...' : '開始抽獎'}
+            </button>
+          )}
           <div style={{ fontSize: 11, color: 'rgba(148,210,255,.5)', textAlign: 'center' }}>
             將從參加者中隨機抽出一位幸運觀眾！
           </div>

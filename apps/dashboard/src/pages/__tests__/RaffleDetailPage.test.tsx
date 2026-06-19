@@ -861,6 +861,8 @@ describe('RaffleDetailPage — RaffleDrawSession integration', () => {
     const { container, root } = await renderAt('r1', dp)
     await waitFor(() => expect(container.querySelector('[data-testid="raffle-draw-session"]')).not.toBeNull())
     expect(container.querySelector('[data-testid="prize-tiers-section"]')).toBeNull()
+    expect(container.querySelector('[data-testid="draw-btn"]')).toBeNull()
+    expect(container.querySelector('[data-testid="mgmt-draw-btn"]')).toBeNull()
     cleanup(root, container)
   })
 

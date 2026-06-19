@@ -19,8 +19,12 @@ const glass: React.CSSProperties = {
 
 export function RaffleDrawSession({ raffleId, tiers }: Props) {
   const sorted = useMemo(() => [...tiers].sort((a, b) => a.position - b.position), [tiers])
-  const [currentIndex, setCurrentIndex] = useState(0)
-  const [phase, setPhase] = useState<SessionPhase>('round_ready')
+  const firstPendingIndex = useMemo(
+    () => sorted.findIndex(t => t.drawn_count < t.winner_count),
+    [sorted],
+  )
+  const [currentIndex, setCurrentIndex] = useState(firstPendingIndex === -1 ? 0 : firstPendingIndex)
+  const [phase, setPhase] = useState<SessionPhase>(firstPendingIndex === -1 ? 'session_complete' : 'round_ready')
   const [latestDraw, setLatestDraw] = useState<RaffleDraw | null>(null)
   const [localDrawnCounts, setLocalDrawnCounts] = useState<Record<string, number>>({})
   const [error, setError] = useState<string | null>(null)
@@ -52,7 +56,13 @@ export function RaffleDrawSession({ raffleId, tiers }: Props) {
       setPhase('round_ready')
       return
     }
-    const nextIndex = currentIndex + 1
+    let nextIndex = currentIndex + 1
+    while (
+      nextIndex < sorted.length &&
+      sorted[nextIndex].drawn_count + (localDrawnCounts[sorted[nextIndex].id] ?? 0) >= sorted[nextIndex].winner_count
+    ) {
+      nextIndex += 1
+    }
     if (nextIndex >= sorted.length) {
       setPhase('session_complete')
     } else {
