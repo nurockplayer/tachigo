@@ -56,7 +56,7 @@ export interface RafflePrizeTier {
 - [ ] **Step 3：TypeScript 確認無錯誤**
 
 ```bash
-cd apps/dashboard && npx tsc --noEmit
+pnpm --filter ./apps/dashboard exec tsc --noEmit
 ```
 
 預期：無錯誤輸出。
@@ -111,7 +111,7 @@ describe('RaffleDrawSession', () => {
 - [ ] **Step 2：確認測試失敗**
 
 ```bash
-cd apps/dashboard && npx vitest run src/components/raffle/__tests__/RaffleDrawSession.test.tsx
+pnpm --filter ./apps/dashboard exec vitest run src/components/raffle/__tests__/RaffleDrawSession.test.tsx
 ```
 
 預期：FAIL — `RaffleDrawSession` 不存在。
@@ -121,9 +121,9 @@ cd apps/dashboard && npx vitest run src/components/raffle/__tests__/RaffleDrawSe
 建立 `apps/dashboard/src/components/raffle/RaffleDrawSession.tsx`：
 
 ```tsx
-import { useState } from 'react'
+import { useState, useEffect } from 'react'
 import type { RaffleDraw, RafflePrizeTier } from '@/services/raffles'
-import { drawFromTier } from '@/services/raffles'
+import { drawFromTier, listDraws } from '@/services/raffles'
 
 type SessionPhase = 'round_ready' | 'drawing' | 'round_result' | 'session_complete'
 
@@ -140,14 +140,42 @@ const glass: React.CSSProperties = {
   WebkitBackdropFilter: 'blur(14px)',
 }
 
+function FinalWinnerList({ tiers, draws }: { tiers: RafflePrizeTier[]; draws: RaffleDraw[] }) {
+  return (
+    <div data-testid="final-winner-list" style={{ textAlign: 'left' }}>
+      {tiers.map(tier => {
+        const tierDraws = draws.filter(d => d.prize_tier_id === tier.id)
+        return (
+          <div key={tier.id} style={{ marginBottom: 16 }}>
+            <p style={{ fontSize: 13, fontWeight: 700, color: '#7dd3fc', marginBottom: 6 }}>{tier.name}</p>
+            {tierDraws.map(draw => (
+              <p key={draw.id} style={{ fontSize: 14, color: '#fde68a', marginBottom: 4 }}>
+                {draw.entry.display_name || draw.entry.twitch_login}
+              </p>
+            ))}
+          </div>
+        )
+      })}
+    </div>
+  )
+}
+
 export function RaffleDrawSession({ raffleId, tiers }: Props) {
   const sorted = [...tiers].sort((a, b) => a.position - b.position)
   const [currentIndex, setCurrentIndex] = useState(0)
   const [phase, setPhase] = useState<SessionPhase>('round_ready')
+  const [drawnInCurrentTier, setDrawnInCurrentTier] = useState(0)
   const [latestDraw, setLatestDraw] = useState<RaffleDraw | null>(null)
+  const [allDraws, setAllDraws] = useState<RaffleDraw[]>([])
   const [error, setError] = useState<string | null>(null)
 
   const currentTier = sorted[currentIndex]
+
+  useEffect(() => {
+    if (phase === 'session_complete') {
+      listDraws(raffleId).then(setAllDraws).catch(() => {})
+    }
+  }, [phase, raffleId])
 
   async function handleDraw() {
     if (!currentTier) return
@@ -156,6 +184,7 @@ export function RaffleDrawSession({ raffleId, tiers }: Props) {
     try {
       const draw = await drawFromTier(raffleId, currentTier.id)
       setLatestDraw(draw)
+      setDrawnInCurrentTier(prev => prev + 1)
       setPhase('round_result')
     } catch {
       setError('抽獎失敗，請再試一次')
@@ -164,19 +193,26 @@ export function RaffleDrawSession({ raffleId, tiers }: Props) {
   }
 
   function handleNext() {
+    if (drawnInCurrentTier < currentTier.winner_count) {
+      // 本輪尚未抽滿，留在當前 tier
+      setPhase('round_ready')
+      return
+    }
     const nextIndex = currentIndex + 1
     if (nextIndex >= sorted.length) {
       setPhase('session_complete')
     } else {
       setCurrentIndex(nextIndex)
+      setDrawnInCurrentTier(0)
       setPhase('round_ready')
     }
   }
 
   if (phase === 'session_complete') {
     return (
-      <div data-testid="session-complete" style={{ ...glass, padding: '24px 28px', textAlign: 'center' }}>
-        <p style={{ fontSize: 16, fontWeight: 700, color: '#86efac', marginBottom: 8 }}>🎉 所有輪次抽獎完成</p>
+      <div data-testid="session-complete" style={{ ...glass, padding: '24px 28px' }}>
+        <p style={{ fontSize: 16, fontWeight: 700, color: '#86efac', marginBottom: 16 }}>🎉 所有輪次抽獎完成</p>
+        <FinalWinnerList tiers={sorted} draws={allDraws} />
       </div>
     )
   }
@@ -184,6 +220,9 @@ export function RaffleDrawSession({ raffleId, tiers }: Props) {
   if (!currentTier) return null
 
   const totalRounds = sorted.length
+  const tierComplete = drawnInCurrentTier >= currentTier.winner_count
+  const isLastTier = currentIndex + 1 >= totalRounds
+  const nextLabel = !tierComplete ? '繼續抽本輪' : isLastTier ? '完成抽獎' : '繼續下一輪'
 
   return (
     <div data-testid="raffle-draw-session" style={{ ...glass, padding: '20px 24px' }}>
@@ -198,7 +237,7 @@ export function RaffleDrawSession({ raffleId, tiers }: Props) {
         {currentTier.prize_description}
       </p>
       <p style={{ fontSize: 11, color: 'rgba(148,210,255,.4)', marginBottom: 16 }}>
-        {currentTier.drawn_count} / {currentTier.winner_count} 人已抽出
+        {drawnInCurrentTier} / {currentTier.winner_count} 人已抽出
       </p>
 
       {phase === 'round_ready' && (
@@ -226,7 +265,7 @@ export function RaffleDrawSession({ raffleId, tiers }: Props) {
             onClick={handleNext}
             style={{ background: 'rgba(34,197,94,.15)', border: '1px solid rgba(34,197,94,.3)', color: '#4ade80', borderRadius: 8, padding: '10px 24px', fontSize: 13, fontWeight: 700, cursor: 'pointer' }}
           >
-            {currentIndex + 1 >= totalRounds ? '完成抽獎' : '繼續下一輪'}
+            {nextLabel}
           </button>
         </div>
       )}
@@ -240,7 +279,7 @@ export function RaffleDrawSession({ raffleId, tiers }: Props) {
 - [ ] **Step 4：確認測試通過**
 
 ```bash
-cd apps/dashboard && npx vitest run src/components/raffle/__tests__/RaffleDrawSession.test.tsx
+pnpm --filter ./apps/dashboard exec vitest run src/components/raffle/__tests__/RaffleDrawSession.test.tsx
 ```
 
 預期：PASS（2 tests）。
@@ -397,7 +436,7 @@ beforeEach(() => {
 - [ ] **Step 2：確認測試通過**
 
 ```bash
-cd apps/dashboard && npx vitest run src/components/raffle/__tests__/RaffleDrawSession.test.tsx
+pnpm --filter ./apps/dashboard exec vitest run src/components/raffle/__tests__/RaffleDrawSession.test.tsx
 ```
 
 預期：PASS（7 tests）。
@@ -462,7 +501,7 @@ import { RaffleDrawSession } from '@/components/raffle/RaffleDrawSession'
 - [ ] **Step 4：確認 TypeScript 無錯誤**
 
 ```bash
-cd apps/dashboard && npx tsc --noEmit
+pnpm --filter ./apps/dashboard exec tsc --noEmit
 ```
 
 預期：無錯誤。
@@ -513,7 +552,7 @@ describe('RaffleDrawSession 整合', () => {
 - [ ] **Step 6：跑全部 dashboard 測試**
 
 ```bash
-cd apps/dashboard && npx vitest run
+pnpm --filter ./apps/dashboard exec vitest run
 ```
 
 預期：全部 PASS，無新 failure。
