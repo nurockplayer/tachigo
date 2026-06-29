@@ -39,6 +39,7 @@ export interface RafflePrizeTier {
   prize_description: string
   winner_count: number
   drawn_count: number
+  position: number
   created_at: string
 }
 

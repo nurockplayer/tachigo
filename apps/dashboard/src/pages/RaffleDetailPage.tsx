@@ -1,6 +1,7 @@
 import { useOne } from '@refinedev/core'
 import { useCallback, useEffect, useRef, useState } from 'react'
 import { useNavigate, useParams } from 'react-router'
+import { RaffleDrawSession } from '@/components/raffle/RaffleDrawSession'
 import { Skeleton } from '@/components/ui/skeleton'
 import { apiBaseURL } from '@/services/api'
 import { activateRaffle, completeRaffle, createPrizeTier, deletePrizeTier, drawFromTier, drawNext, getRaffleEntryStats, importCSV, listDraws, listPrizeTiers, setDiscordWebhook, setRaffleEntryOpen, setRaffleMode } from '@/services/raffles'
@@ -1131,17 +1132,19 @@ export default function RaffleDetailPage() {
 
           <DiscordWebhookPanel raffleId={raffle.id} />
 
-          <DrawControls
-            status={effectiveStatus}
-            exhausted={exhausted || remaining === 0}
-            drawing={drawing}
-            confirmEnd={confirmEnd}
-            ending={ending}
-            onDraw={() => { void handleDraw() }}
-            onRequestEnd={() => setConfirmEnd(true)}
-            onConfirmEnd={() => { void handleConfirmEnd() }}
-            onCancelEnd={() => setConfirmEnd(false)}
-          />
+          {!(effectiveStatus === 'active' && tiers.length > 0) && (
+            <DrawControls
+              status={effectiveStatus}
+              exhausted={exhausted || remaining === 0}
+              drawing={drawing}
+              confirmEnd={confirmEnd}
+              ending={ending}
+              onDraw={() => { void handleDraw() }}
+              onRequestEnd={() => setConfirmEnd(true)}
+              onConfirmEnd={() => { void handleConfirmEnd() }}
+              onCancelEnd={() => setConfirmEnd(false)}
+            />
+          )}
         </div>
       </details>
 
@@ -1187,21 +1190,23 @@ export default function RaffleDetailPage() {
             modalPrize={modalPrize}
             onCloseModal={() => { setModalWinner(null); setModalPrize(null) }}
           />
-          <button
-            data-testid="draw-btn"
-            disabled={effectiveStatus === 'completed' || exhausted || remaining === 0 || drawing}
-            onClick={() => { void handleDraw() }}
-            style={{
-              padding: '13px 60px', borderRadius: 50, border: 'none',
-              background: 'linear-gradient(90deg,#0ea5e9,#2563eb)',
-              color: '#e0f2fe', fontSize: 'clamp(15px,2.2vw,20px)', fontWeight: 900,
-              letterSpacing: '.12em', cursor: 'pointer',
-              boxShadow: '0 0 35px rgba(14,165,233,.75),0 0 70px rgba(14,165,233,.2),0 4px 16px rgba(0,0,0,.5)',
-              opacity: (effectiveStatus === 'completed' || exhausted || remaining === 0 || drawing) ? .5 : 1,
-            }}
-          >
-            {drawing ? '抽獎中...' : '開始抽獎'}
-          </button>
+          {!(effectiveStatus === 'active' && tiers.length > 0) && (
+            <button
+              data-testid="draw-btn"
+              disabled={effectiveStatus === 'completed' || exhausted || remaining === 0 || drawing}
+              onClick={() => { void handleDraw() }}
+              style={{
+                padding: '13px 60px', borderRadius: 50, border: 'none',
+                background: 'linear-gradient(90deg,#0ea5e9,#2563eb)',
+                color: '#e0f2fe', fontSize: 'clamp(15px,2.2vw,20px)', fontWeight: 900,
+                letterSpacing: '.12em', cursor: 'pointer',
+                boxShadow: '0 0 35px rgba(14,165,233,.75),0 0 70px rgba(14,165,233,.2),0 4px 16px rgba(0,0,0,.5)',
+                opacity: (effectiveStatus === 'completed' || exhausted || remaining === 0 || drawing) ? .5 : 1,
+              }}
+            >
+              {drawing ? '抽獎中...' : '開始抽獎'}
+            </button>
+          )}
           <div style={{ fontSize: 11, color: 'rgba(148,210,255,.5)', textAlign: 'center' }}>
             將從參加者中隨機抽出一位幸運觀眾！
           </div>
@@ -1221,8 +1226,15 @@ export default function RaffleDetailPage() {
         </div>
       </div>
 
-      {/* Prize Tiers */}
-      {effectiveStatus === 'active' && (
+      {/* Draw Session (active only) */}
+      {effectiveStatus === 'active' && tiers.length > 0 && (
+        <div style={{ maxWidth: 1300, margin: '0 auto 2rem', padding: '0 16px' }}>
+          <RaffleDrawSession raffleId={raffleId ?? ''} tiers={tiers} />
+        </div>
+      )}
+
+      {/* Prize Tiers (draft only) */}
+      {effectiveStatus === 'draft' && (
         <div data-testid="prize-tiers-section" style={{ maxWidth: 1300, margin: '0 auto 2rem', padding: '0 16px' }}>
           <div style={{ ...glassStyle, padding: '16px 20px' }}>
             <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', marginBottom: 12 }}>
