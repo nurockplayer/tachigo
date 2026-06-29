@@ -142,7 +142,7 @@ func (s *ExtensionService) loginOrCreateExtensionUserContext(ctx context.Context
 		return nil, nil, ErrInvalidExtJWT
 	}
 
-	return s.authSvc.upsertOAuthUser(ctx, models.ProviderTwitch, claims.UserID, "", "", nil, nil)
+	return s.authSvc.upsertOAuthUser(ctx, models.ProviderTwitch, claims.UserID, "", "", false, nil, nil)
 }
 
 func (s *ExtensionService) LoginWithExtension(extJWT string) (*models.User, *TokenPair, error) {

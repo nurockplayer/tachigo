@@ -39,6 +39,25 @@
 - 本 PR 明確不做：
   - <!-- 例：不做 future panels / 不做 router / 不做 dashboard UI -->
 
+## OpenSpec SDD
+<!-- 新 feature / behavior change 預設必填；純 typo、metadata、小型 review follow-up 可填 n/a + 理由。 -->
+- OpenSpec change：
+  - <!-- 例：openspec/changes/add-raffle-visibility；若不適用請填 n/a + reason -->
+- Proposal / design / tasks reviewed：
+  - [ ] yes
+  - [ ] no
+  - [ ] n/a，原因：
+- Delta specs included or updated：
+  - [ ] yes
+  - [ ] no
+  - [ ] n/a，原因：
+- Acceptance Criteria 對齊 `tasks.md`：
+  - [ ] yes
+  - [ ] no
+  - [ ] n/a，原因：
+- Archive / sync status：
+  - <!-- 例：pending until merge；synced to openspec/specs/<domain>；n/a + reason -->
+
 ## Delegation Execution Log（非 Codex autonomous PR 可略過）
 <!-- 一般 PR 不需要 worker profile。若是 Codex autonomous PR，請對照 source issue 的 delegation plan，完整填寫實際執行。 -->
 - Source issue delegation plan：

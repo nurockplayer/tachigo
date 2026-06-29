@@ -164,6 +164,20 @@ definitions:
       user_id:
         type: string
     type: object
+  models.CharacterKind:
+    enum:
+    - crab
+    - dolphin
+    - turtle
+    - whale
+    - capybara
+    type: string
+    x-enum-varnames:
+    - CharacterCrab
+    - CharacterDolphin
+    - CharacterTurtle
+    - CharacterWhale
+    - CharacterCapybara
   models.ProviderType:
     enum:
     - twitch
@@ -207,6 +221,8 @@ definitions:
     type: object
   models.User:
     properties:
+      active_character:
+        $ref: '#/definitions/models.CharacterKind'
       addresses:
         items:
           $ref: '#/definitions/models.ShippingAddress'
@@ -229,6 +245,8 @@ definitions:
         type: boolean
       role:
         $ref: '#/definitions/models.UserRole'
+      switch_cooldown_until:
+        type: string
       updated_at:
         type: string
       username:
@@ -456,6 +474,10 @@ paths:
             $ref: '#/definitions/handlers.Response'
         "401":
           description: Unauthorized
+          schema:
+            $ref: '#/definitions/handlers.Response'
+        "409":
+          description: Conflict
           schema:
             $ref: '#/definitions/handlers.Response'
       summary: Google OAuth callback
@@ -722,6 +744,10 @@ paths:
             $ref: '#/definitions/handlers.Response'
         "401":
           description: Unauthorized
+          schema:
+            $ref: '#/definitions/handlers.Response'
+        "409":
+          description: Conflict
           schema:
             $ref: '#/definitions/handlers.Response'
       summary: Twitch OAuth callback
@@ -1179,6 +1205,128 @@ paths:
       summary: Import participants from CSV
       tags:
       - raffles
+  /dashboard/raffles/{id}/entry:
+    patch:
+      consumes:
+      - application/json
+      parameters:
+      - description: Raffle ID
+        in: path
+        name: id
+        required: true
+        type: string
+      - description: entry_open flag
+        in: body
+        name: body
+        required: true
+        schema:
+          properties:
+            entry_open:
+              type: boolean
+          type: object
+      produces:
+      - application/json
+      responses:
+        "200":
+          description: OK
+          schema:
+            $ref: '#/definitions/handlers.Response'
+        "400":
+          description: Bad Request
+          schema:
+            $ref: '#/definitions/handlers.Response'
+        "403":
+          description: Forbidden
+          schema:
+            $ref: '#/definitions/handlers.Response'
+        "404":
+          description: Not Found
+          schema:
+            $ref: '#/definitions/handlers.Response'
+        "409":
+          description: Conflict
+          schema:
+            $ref: '#/definitions/handlers.Response'
+      security:
+      - BearerAuth: []
+      summary: Open or close raffle entry (Dashboard)
+      tags:
+      - raffles
+  /dashboard/raffles/{id}/entry-stats:
+    get:
+      parameters:
+      - description: Raffle ID
+        in: path
+        name: id
+        required: true
+        type: string
+      produces:
+      - application/json
+      responses:
+        "200":
+          description: OK
+          schema:
+            $ref: '#/definitions/handlers.Response'
+        "403":
+          description: Forbidden
+          schema:
+            $ref: '#/definitions/handlers.Response'
+        "404":
+          description: Not Found
+          schema:
+            $ref: '#/definitions/handlers.Response'
+      security:
+      - BearerAuth: []
+      summary: Get entry statistics for a raffle (Dashboard)
+      tags:
+      - raffles
+  /dashboard/raffles/{id}/mode:
+    patch:
+      consumes:
+      - application/json
+      parameters:
+      - description: Raffle ID
+        in: path
+        name: id
+        required: true
+        type: string
+      - description: 'mode: public | subscribers_only'
+        in: body
+        name: body
+        required: true
+        schema:
+          properties:
+            mode:
+              type: string
+          type: object
+      produces:
+      - application/json
+      responses:
+        "200":
+          description: OK
+          schema:
+            $ref: '#/definitions/handlers.Response'
+        "400":
+          description: Bad Request
+          schema:
+            $ref: '#/definitions/handlers.Response'
+        "403":
+          description: Forbidden
+          schema:
+            $ref: '#/definitions/handlers.Response'
+        "404":
+          description: Not Found
+          schema:
+            $ref: '#/definitions/handlers.Response'
+        "409":
+          description: Conflict
+          schema:
+            $ref: '#/definitions/handlers.Response'
+      security:
+      - BearerAuth: []
+      summary: Set raffle mode (Dashboard)
+      tags:
+      - raffles
   /dashboard/raffles/{id}/snapshot:
     post:
       consumes:
@@ -1303,6 +1451,51 @@ paths:
       summary: '[Deprecated] Complete a Bits transaction'
       tags:
       - extension
+  /extension/raffles/{id}/join:
+    post:
+      consumes:
+      - application/json
+      parameters:
+      - description: Raffle ID
+        in: path
+        name: id
+        required: true
+        type: string
+      - description: Extension JWT
+        in: body
+        name: body
+        required: true
+        schema:
+          properties:
+            extension_jwt:
+              type: string
+          type: object
+      produces:
+      - application/json
+      responses:
+        "200":
+          description: OK
+          schema:
+            $ref: '#/definitions/handlers.Response'
+        "400":
+          description: Bad Request
+          schema:
+            $ref: '#/definitions/handlers.Response'
+        "401":
+          description: Unauthorized
+          schema:
+            $ref: '#/definitions/handlers.Response'
+        "403":
+          description: Forbidden
+          schema:
+            $ref: '#/definitions/handlers.Response'
+        "409":
+          description: Conflict
+          schema:
+            $ref: '#/definitions/handlers.Response'
+      summary: Join a raffle from Twitch Extension
+      tags:
+      - raffles
   /extension/raffles/{id}/result:
     get:
       parameters:

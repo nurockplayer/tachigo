@@ -21,6 +21,14 @@ vi.mock('@/services/raffles', async (importOriginal) => {
     createPrizeTier: vi.fn().mockResolvedValue({}),
     deletePrizeTier: vi.fn().mockResolvedValue(undefined),
     drawFromTier: vi.fn().mockResolvedValue({}),
+    setRaffleMode: vi.fn().mockResolvedValue({}),
+    setRaffleEntryOpen: vi.fn().mockResolvedValue({}),
+    getRaffleEntryStats: vi.fn().mockResolvedValue({
+      eligible_count: 0,
+      ineligible_count: 0,
+      ineligible_reasons: {},
+      total_joined: 0,
+    }),
   }
 })
 
@@ -54,6 +62,7 @@ const mockPrizeTier: rafflesService.RafflePrizeTier = {
   prize_description: 'Switch 主機',
   winner_count: 2,
   drawn_count: 0,
+  position: 0,
   created_at: '2026-01-01T00:00:00Z',
 }
 async function renderAt(raffleId: string, dp: ReturnType<typeof createMockDataProvider>) {
@@ -79,6 +88,10 @@ function cleanup(root: Root, container: HTMLDivElement) {
   })
   container.remove()
 }
+function statValue(container: HTMLElement, label: string): string | null {
+  const labelEl = Array.from(container.querySelectorAll('p')).find(p => p.textContent === label)
+  return (labelEl?.nextElementSibling as HTMLElement | null)?.textContent ?? null
+}
 beforeEach(() => {
   vi.spyOn(console, 'error').mockImplementation(() => {})
   vi.mocked(rafflesService.listDraws).mockResolvedValue([])
@@ -91,7 +104,16 @@ beforeEach(() => {
   vi.mocked(rafflesService.createPrizeTier).mockResolvedValue(mockPrizeTier)
   vi.mocked(rafflesService.deletePrizeTier).mockResolvedValue(undefined)
   vi.mocked(rafflesService.drawFromTier).mockResolvedValue(mockDraw)
+  vi.mocked(rafflesService.setRaffleMode).mockResolvedValue(mockRaffle)
+  vi.mocked(rafflesService.setRaffleEntryOpen).mockResolvedValue(mockRaffle)
+  vi.mocked(rafflesService.getRaffleEntryStats).mockResolvedValue({
+    eligible_count: 0,
+    ineligible_count: 0,
+    ineligible_reasons: {},
+    total_joined: 0,
+  })
 })
+
 afterEach(() => {
   vi.restoreAllMocks()
   document.body.innerHTML = ''
@@ -172,24 +194,36 @@ describe('RaffleDetailPage — winner list', () => {
   })
 })
 
+const draftRaffle = { ...mockRaffle, status: 'draft' as const }
+
 describe('RaffleDetailPage — prize tiers', () => {
-  it('hides prize tiers while raffle is still draft', async () => {
+  it('shows prize-tiers-section in draft state', async () => {
     const dp = createMockDataProvider({
       getOne: { raffles: vi.fn().mockResolvedValue(draftRaffle as BaseRecord) },
     })
     const { container, root } = await renderAt('r1', dp)
     await waitFor(() => expect(container.textContent).toContain('春季抽獎'))
-    expect(container.querySelector('[data-testid="prize-tiers-section"]')).toBeFalsy()
+    expect(container.querySelector('[data-testid="prize-tiers-section"]')).not.toBeNull()
     cleanup(root, container)
   })
 
-  it('shows active raffle prize tiers and disables completed tiers', async () => {
+  it('hides prize-tiers-section in active state', async () => {
+    const dp = createMockDataProvider({
+      getOne: { raffles: vi.fn().mockResolvedValue(mockRaffle as BaseRecord) },
+    })
+    const { container, root } = await renderAt('r1', dp)
+    await waitFor(() => expect(container.textContent).toContain('春季抽獎'))
+    expect(container.querySelector('[data-testid="prize-tiers-section"]')).toBeNull()
+    cleanup(root, container)
+  })
+
+  it('shows draft raffle prize tiers and disables completed tiers', async () => {
     vi.mocked(rafflesService.listPrizeTiers).mockResolvedValue([
       mockPrizeTier,
       { ...mockPrizeTier, id: 't2', name: '二等獎', winner_count: 1, drawn_count: 1 },
     ])
     const dp = createMockDataProvider({
-      getOne: { raffles: vi.fn().mockResolvedValue(mockRaffle as BaseRecord) },
+      getOne: { raffles: vi.fn().mockResolvedValue(draftRaffle as BaseRecord) },
     })
     const { container, root } = await renderAt('r1', dp)
     await waitFor(() => expect(container.querySelector('[data-testid="prize-tier-row-t1"]')).toBeTruthy())
@@ -199,9 +233,9 @@ describe('RaffleDetailPage — prize tiers', () => {
     cleanup(root, container)
   })
 
-  it('creates a prize tier from the active raffle panel', async () => {
+  it('creates a prize tier from the draft raffle panel', async () => {
     const dp = createMockDataProvider({
-      getOne: { raffles: vi.fn().mockResolvedValue(mockRaffle as BaseRecord) },
+      getOne: { raffles: vi.fn().mockResolvedValue(draftRaffle as BaseRecord) },
     })
     const { container, root } = await renderAt('r1', dp)
     await waitFor(() => expect(container.querySelector('[data-testid="prize-tier-toggle"]')).toBeTruthy())
@@ -236,7 +270,7 @@ describe('RaffleDetailPage — prize tiers', () => {
 
   it('does not create a prize tier when winner count is empty', async () => {
     const dp = createMockDataProvider({
-      getOne: { raffles: vi.fn().mockResolvedValue(mockRaffle as BaseRecord) },
+      getOne: { raffles: vi.fn().mockResolvedValue(draftRaffle as BaseRecord) },
     })
     const { container, root } = await renderAt('r1', dp)
     await waitFor(() => expect(container.querySelector('[data-testid="prize-tier-toggle"]')).toBeTruthy())
@@ -269,7 +303,7 @@ describe('RaffleDetailPage — prize tiers', () => {
   it('draws and deletes prize tiers through tier actions', async () => {
     vi.mocked(rafflesService.listPrizeTiers).mockResolvedValue([mockPrizeTier])
     const dp = createMockDataProvider({
-      getOne: { raffles: vi.fn().mockResolvedValue(mockRaffle as BaseRecord) },
+      getOne: { raffles: vi.fn().mockResolvedValue(draftRaffle as BaseRecord) },
     })
     const { container, root } = await renderAt('r1', dp)
     await waitFor(() => expect(container.querySelector('[data-testid="prize-tier-draw-t1"]')).toBeTruthy())
@@ -288,8 +322,6 @@ describe('RaffleDetailPage — prize tiers', () => {
     cleanup(root, container)
   })
 })
-
-const draftRaffle = { ...mockRaffle, status: 'draft' as const }
 
 describe('RaffleDetailPage — CSV upload', () => {
   it('shows success message after upload', async () => {
@@ -336,11 +368,18 @@ describe('RaffleDetailPage — CSV upload', () => {
 describe('RaffleDetailPage — draw button', () => {
   it('calls drawNext when clicked', async () => {
     const drawMock = vi.mocked(rafflesService.drawNext).mockResolvedValue(mockDraw)
+    vi.mocked(rafflesService.getRaffleEntryStats).mockResolvedValue({
+      eligible_count: 1,
+      ineligible_count: 0,
+      ineligible_reasons: {},
+      total_joined: 1,
+    })
     const dp = createMockDataProvider({
       getOne: { raffles: vi.fn().mockResolvedValue(mockRaffle as BaseRecord) },
     })
     const { container, root } = await renderAt('r1', dp)
     await waitFor(() => expect(container.querySelector('[data-testid="draw-btn"]')).toBeTruthy())
+    await waitFor(() => expect((container.querySelector('[data-testid="draw-btn"]') as HTMLButtonElement).disabled).toBe(false))
 
     await act(async () => {
       container.querySelector('[data-testid="draw-btn"]')!.dispatchEvent(new MouseEvent('click', { bubbles: true }))
@@ -628,11 +667,18 @@ describe('RaffleDetailPage — winner modal', () => {
   it('shows winner modal after draw completes', async () => {
     vi.mocked(rafflesService.drawNext).mockResolvedValue(mockDraw)
     vi.mocked(rafflesService.listDraws).mockResolvedValue([mockDraw])
+    vi.mocked(rafflesService.getRaffleEntryStats).mockResolvedValue({
+      eligible_count: 2,
+      ineligible_count: 0,
+      ineligible_reasons: {},
+      total_joined: 2,
+    })
     const dp = createMockDataProvider({
       getOne: { raffles: vi.fn().mockResolvedValue(mockRaffle as BaseRecord) },
     })
     const { container, root } = await renderAt('r1', dp)
     await waitFor(() => expect(container.querySelector('[data-testid="draw-btn"]')).toBeTruthy())
+    await waitFor(() => expect((container.querySelector('[data-testid="draw-btn"]') as HTMLButtonElement).disabled).toBe(false))
 
     await act(async () => {
       container.querySelector('[data-testid="draw-btn"]')!.dispatchEvent(new MouseEvent('click', { bubbles: true }))
@@ -645,11 +691,18 @@ describe('RaffleDetailPage — winner modal', () => {
   it('closes modal when 繼續抽獎 button clicked', async () => {
     vi.mocked(rafflesService.drawNext).mockResolvedValue(mockDraw)
     vi.mocked(rafflesService.listDraws).mockResolvedValue([mockDraw])
+    vi.mocked(rafflesService.getRaffleEntryStats).mockResolvedValue({
+      eligible_count: 2,
+      ineligible_count: 0,
+      ineligible_reasons: {},
+      total_joined: 2,
+    })
     const dp = createMockDataProvider({
       getOne: { raffles: vi.fn().mockResolvedValue(mockRaffle as BaseRecord) },
     })
     const { container, root } = await renderAt('r1', dp)
     await waitFor(() => expect(container.querySelector('[data-testid="draw-btn"]')).toBeTruthy())
+    await waitFor(() => expect((container.querySelector('[data-testid="draw-btn"]') as HTMLButtonElement).disabled).toBe(false))
 
     await act(async () => {
       container.querySelector('[data-testid="draw-btn"]')!.dispatchEvent(new MouseEvent('click', { bubbles: true }))
@@ -661,6 +714,166 @@ describe('RaffleDetailPage — winner modal', () => {
       closeBtn!.dispatchEvent(new MouseEvent('click', { bubbles: true }))
     })
     expect(container.textContent).not.toContain('恭喜中獎')
+    cleanup(root, container)
+  })
+})
+
+describe('RaffleDetailPage functional layer', () => {
+  it('mode switch calls setRaffleMode and updates UI', async () => {
+    const modeMock = vi.mocked(rafflesService.setRaffleMode).mockResolvedValue({ ...mockRaffle, mode: 'subscribers_only' })
+    const dp = createMockDataProvider({
+      getOne: { raffles: vi.fn().mockResolvedValue({ ...mockRaffle, mode: 'public', entry_open: false } as BaseRecord) },
+    })
+    const { container, root } = await renderAt('r1', dp)
+    await waitFor(() => expect(container.querySelector('[data-testid="raffle-mode-subscribers"]')).toBeTruthy())
+
+    const subscribers = container.querySelector('[data-testid="raffle-mode-subscribers"]') as HTMLInputElement
+    await act(async () => {
+      subscribers.dispatchEvent(new MouseEvent('click', { bubbles: true }))
+    })
+
+    await waitFor(() => expect(modeMock).toHaveBeenCalledWith('r1', 'subscribers_only'))
+    expect(subscribers.checked).toBe(true)
+    cleanup(root, container)
+  })
+
+  it('entry open/close button calls setRaffleEntryOpen and reflects state', async () => {
+    const entryOpenMock = vi.mocked(rafflesService.setRaffleEntryOpen).mockResolvedValue({ ...mockRaffle, entry_open: true })
+    const dp = createMockDataProvider({
+      getOne: { raffles: vi.fn().mockResolvedValue({ ...mockRaffle, mode: 'public', entry_open: false } as BaseRecord) },
+    })
+    const { container, root } = await renderAt('r1', dp)
+    await waitFor(() => expect(container.querySelector('[data-testid="entry-open-toggle"]')?.textContent).toContain('開放報名'))
+
+    await act(async () => {
+      container.querySelector('[data-testid="entry-open-toggle"]')!
+        .dispatchEvent(new MouseEvent('click', { bubbles: true }))
+    })
+
+    await waitFor(() => expect(entryOpenMock).toHaveBeenCalledWith('r1', true))
+    expect(container.querySelector('[data-testid="entry-open-toggle"]')?.textContent).toContain('截止報名')
+    cleanup(root, container)
+  })
+
+  it('subscribers_only + 403 insufficient_scope shows re-auth prompt', async () => {
+    vi.mocked(rafflesService.getRaffleEntryStats).mockRejectedValue({
+      response: { status: 403, data: { error: 'insufficient_scope' } },
+    })
+    const dp = createMockDataProvider({
+      getOne: { raffles: vi.fn().mockResolvedValue({ ...mockRaffle, mode: 'subscribers_only', entry_open: false } as BaseRecord) },
+    })
+    const { container, root } = await renderAt('r1', dp)
+
+    await waitFor(() => expect(container.querySelector('[data-testid="twitch-reauth-prompt"]')?.textContent).toContain('請重新授權 Twitch'))
+    expect(container.querySelector('[data-testid="twitch-reauth-prompt"] a')?.getAttribute('href')).toContain('/api/v1/auth/twitch')
+    cleanup(root, container)
+  })
+
+  it('syncs total entries and remaining count from entry stats', async () => {
+    vi.mocked(rafflesService.listDraws).mockResolvedValue([mockDraw, { ...mockDraw, id: 'd2' }])
+    vi.mocked(rafflesService.getRaffleEntryStats).mockResolvedValue({
+      eligible_count: 8,
+      ineligible_count: 2,
+      ineligible_reasons: {},
+      total_joined: 10,
+    })
+    const dp = createMockDataProvider({
+      getOne: { raffles: vi.fn().mockResolvedValue({ ...mockRaffle, mode: 'public', entry_open: true } as BaseRecord) },
+    })
+    const { container, root } = await renderAt('r1', dp)
+
+    await waitFor(() => expect(container.querySelector('[data-testid="entry-stats-panel"]')).toBeTruthy())
+    await waitFor(() => expect(statValue(container, '匯入人數')).toBe('10'))
+    expect(statValue(container, '剩餘')).toBe('8')
+    cleanup(root, container)
+  })
+
+  it('entry-open toggle 403 sets controlReauthRequired and shows re-auth prompt', async () => {
+    vi.mocked(rafflesService.setRaffleEntryOpen).mockRejectedValue({
+      response: { status: 403, data: { error: 'insufficient_scope' } },
+    })
+    const dp = createMockDataProvider({
+      getOne: { raffles: vi.fn().mockResolvedValue({ ...mockRaffle, mode: 'subscribers_only', entry_open: false } as BaseRecord) },
+    })
+    const { container, root } = await renderAt('r1', dp)
+    await waitFor(() => expect(container.querySelector('[data-testid="entry-open-toggle"]')).toBeTruthy())
+    expect(container.querySelector('[data-testid="twitch-reauth-prompt"]')).toBeFalsy()
+
+    await act(async () => {
+      container.querySelector('[data-testid="entry-open-toggle"]')!
+        .dispatchEvent(new MouseEvent('click', { bubbles: true }))
+    })
+
+    await waitFor(() => expect(container.querySelector('[data-testid="twitch-reauth-prompt"]')?.textContent).toContain('請重新授權 Twitch'))
+    cleanup(root, container)
+  })
+
+  it('disables mode radios while modeChanging and entry-open button while entryOpenChanging', async () => {
+    let resolveMode: (value: rafflesService.Raffle) => void = () => {}
+    vi.mocked(rafflesService.setRaffleMode).mockImplementation(() => new Promise<rafflesService.Raffle>((resolve) => { resolveMode = resolve }))
+    let resolveEntryOpen: (value: rafflesService.Raffle) => void = () => {}
+    vi.mocked(rafflesService.setRaffleEntryOpen).mockImplementation(() => new Promise<rafflesService.Raffle>((resolve) => { resolveEntryOpen = resolve }))
+
+    const dp = createMockDataProvider({
+      getOne: { raffles: vi.fn().mockResolvedValue({ ...mockRaffle, mode: 'public', entry_open: false } as BaseRecord) },
+    })
+    const { container, root } = await renderAt('r1', dp)
+    await waitFor(() => expect(container.querySelector('[data-testid="raffle-mode-subscribers"]')).toBeTruthy())
+
+    const publicRadio = container.querySelector('[data-testid="raffle-mode-public"]') as HTMLInputElement
+    const subscribersRadio = container.querySelector('[data-testid="raffle-mode-subscribers"]') as HTMLInputElement
+    const entryToggle = container.querySelector('[data-testid="entry-open-toggle"]') as HTMLButtonElement
+
+    await act(async () => {
+      subscribersRadio.dispatchEvent(new MouseEvent('click', { bubbles: true }))
+    })
+    await waitFor(() => expect(subscribersRadio.disabled).toBe(true))
+    expect(publicRadio.disabled).toBe(true)
+    expect(entryToggle.disabled).toBe(false)
+
+    await act(async () => {
+      resolveMode({ ...mockRaffle, mode: 'subscribers_only' })
+    })
+    await waitFor(() => expect(subscribersRadio.disabled).toBe(false))
+
+    await act(async () => {
+      entryToggle.dispatchEvent(new MouseEvent('click', { bubbles: true }))
+    })
+    await waitFor(() => expect(entryToggle.disabled).toBe(true))
+    expect(subscribersRadio.disabled).toBe(false)
+    expect(publicRadio.disabled).toBe(false)
+
+    await act(async () => {
+      resolveEntryOpen({ ...mockRaffle, mode: 'subscribers_only', entry_open: true })
+    })
+    await waitFor(() => expect(entryToggle.disabled).toBe(false))
+
+    cleanup(root, container)
+  })
+})
+
+describe('RaffleDetailPage — RaffleDrawSession integration', () => {
+  it('shows raffle-draw-session when status is active and tiers exist', async () => {
+    vi.mocked(rafflesService.listPrizeTiers).mockResolvedValue([mockPrizeTier])
+    const dp = createMockDataProvider({
+      getOne: { raffles: vi.fn().mockResolvedValue(mockRaffle as BaseRecord) },
+    })
+    const { container, root } = await renderAt('r1', dp)
+    await waitFor(() => expect(container.querySelector('[data-testid="raffle-draw-session"]')).not.toBeNull())
+    expect(container.querySelector('[data-testid="prize-tiers-section"]')).toBeNull()
+    expect(container.querySelector('[data-testid="draw-btn"]')).toBeNull()
+    expect(container.querySelector('[data-testid="mgmt-draw-btn"]')).toBeNull()
+    cleanup(root, container)
+  })
+
+  it('shows prize-tiers-section and no raffle-draw-session when status is draft and tiers exist', async () => {
+    vi.mocked(rafflesService.listPrizeTiers).mockResolvedValue([mockPrizeTier])
+    const dp = createMockDataProvider({
+      getOne: { raffles: vi.fn().mockResolvedValue(draftRaffle as BaseRecord) },
+    })
+    const { container, root } = await renderAt('r1', dp)
+    await waitFor(() => expect(container.querySelector('[data-testid="prize-tiers-section"]')).not.toBeNull())
+    expect(container.querySelector('[data-testid="raffle-draw-session"]')).toBeNull()
     cleanup(root, container)
   })
 })

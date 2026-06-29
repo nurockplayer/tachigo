@@ -15,6 +15,7 @@ import (
 
 type RaffleHandler struct {
 	raffleSvc *services.RaffleService
+	extSvc    *services.ExtensionService
 }
 
 const (
@@ -22,8 +23,8 @@ const (
 	maxRaffleCSVImportRequestBytes = maxRaffleCSVFileBytes + 64*1024
 )
 
-func NewRaffleHandler(svc *services.RaffleService) *RaffleHandler {
-	return &RaffleHandler{raffleSvc: svc}
+func NewRaffleHandler(svc *services.RaffleService, extSvc *services.ExtensionService) *RaffleHandler {
+	return &RaffleHandler{raffleSvc: svc, extSvc: extSvc}
 }
 
 // ── Dashboard endpoints (JWT + RoleStreamer) ──────────────────────────────────
@@ -763,6 +764,154 @@ func (h *RaffleHandler) DrawFromTier(c *gin.Context) {
 	created(c, gin.H{"draw": draw})
 }
 
+// SetMode godoc
+// @Summary      Set raffle mode (Dashboard)
+// @Tags         raffles
+// @Security     BearerAuth
+// @Accept       json
+// @Produce      json
+// @Param        id    path  string  true  "Raffle ID"
+// @Param        body  body  object{mode=string}  true  "mode: public | subscribers_only"
+// @Success      200  {object}  Response
+// @Failure      400  {object}  Response
+// @Failure      403  {object}  Response
+// @Failure      404  {object}  Response
+// @Failure      409  {object}  Response
+// @Router       /dashboard/raffles/{id}/mode [patch]
+func (h *RaffleHandler) SetMode(c *gin.Context) {
+	claims := middleware.MustClaims(c)
+	userID, err := uuid.Parse(claims.UserID)
+	if err != nil {
+		badRequest(c, "invalid user id")
+		return
+	}
+	raffleID, err := uuid.Parse(c.Param("id"))
+	if err != nil {
+		badRequest(c, "invalid raffle id")
+		return
+	}
+	var body struct {
+		Mode models.RaffleMode `json:"mode" binding:"required"`
+	}
+	if err := c.ShouldBindJSON(&body); err != nil {
+		badRequest(c, err.Error())
+		return
+	}
+	if body.Mode != models.RaffleModePublic && body.Mode != models.RaffleModeSubscribers {
+		badRequest(c, "mode must be 'public' or 'subscribers_only'")
+		return
+	}
+	raffle, err := h.raffleSvc.SetModeContext(c.Request.Context(), raffleID, userID, body.Mode)
+	if err != nil {
+		switch {
+		case errors.Is(err, services.ErrRaffleNotFound):
+			notFound(c, err.Error())
+		case errors.Is(err, services.ErrRaffleForbidden):
+			c.JSON(http.StatusForbidden, Response{Success: false, Error: err.Error()})
+		case errors.Is(err, services.ErrRaffleNotDraft):
+			conflict(c, err.Error())
+		default:
+			log.Printf("SetMode: %v", err)
+			internal(c)
+		}
+		return
+	}
+	ok(c, gin.H{"raffle": raffle})
+}
+
+// SetEntryOpen godoc
+// @Summary      Open or close raffle entry (Dashboard)
+// @Tags         raffles
+// @Security     BearerAuth
+// @Accept       json
+// @Produce      json
+// @Param        id    path  string  true  "Raffle ID"
+// @Param        body  body  object{entry_open=bool}  true  "entry_open flag"
+// @Success      200  {object}  Response
+// @Failure      400  {object}  Response
+// @Failure      403  {object}  Response
+// @Failure      404  {object}  Response
+// @Failure      409  {object}  Response
+// @Router       /dashboard/raffles/{id}/entry [patch]
+func (h *RaffleHandler) SetEntryOpen(c *gin.Context) {
+	claims := middleware.MustClaims(c)
+	userID, err := uuid.Parse(claims.UserID)
+	if err != nil {
+		badRequest(c, "invalid user id")
+		return
+	}
+	raffleID, err := uuid.Parse(c.Param("id"))
+	if err != nil {
+		badRequest(c, "invalid raffle id")
+		return
+	}
+	var body struct {
+		EntryOpen *bool `json:"entry_open"`
+	}
+	if err := c.ShouldBindJSON(&body); err != nil {
+		badRequest(c, err.Error())
+		return
+	}
+	if body.EntryOpen == nil {
+		badRequest(c, "entry_open is required")
+		return
+	}
+	raffle, err := h.raffleSvc.SetEntryOpenContext(c.Request.Context(), raffleID, userID, *body.EntryOpen)
+	if err != nil {
+		switch {
+		case errors.Is(err, services.ErrRaffleNotFound):
+			notFound(c, err.Error())
+		case errors.Is(err, services.ErrRaffleForbidden):
+			c.JSON(http.StatusForbidden, Response{Success: false, Error: err.Error()})
+		case errors.Is(err, services.ErrRaffleNotActive):
+			conflict(c, err.Error())
+		default:
+			log.Printf("SetEntryOpen: %v", err)
+			internal(c)
+		}
+		return
+	}
+	ok(c, gin.H{"raffle": raffle})
+}
+
+// GetEntryStats godoc
+// @Summary      Get entry statistics for a raffle (Dashboard)
+// @Tags         raffles
+// @Security     BearerAuth
+// @Produce      json
+// @Param        id  path  string  true  "Raffle ID"
+// @Success      200  {object}  Response
+// @Failure      403  {object}  Response
+// @Failure      404  {object}  Response
+// @Router       /dashboard/raffles/{id}/entry-stats [get]
+func (h *RaffleHandler) GetEntryStats(c *gin.Context) {
+	claims := middleware.MustClaims(c)
+	userID, err := uuid.Parse(claims.UserID)
+	if err != nil {
+		badRequest(c, "invalid user id")
+		return
+	}
+	raffleID, err := uuid.Parse(c.Param("id"))
+	if err != nil {
+		badRequest(c, "invalid raffle id")
+		return
+	}
+	stats, err := h.raffleSvc.GetEntryStatsContext(c.Request.Context(), raffleID, userID)
+	if err != nil {
+		switch {
+		case errors.Is(err, services.ErrRaffleNotFound):
+			notFound(c, err.Error())
+		case errors.Is(err, services.ErrRaffleForbidden):
+			c.JSON(http.StatusForbidden, Response{Success: false, Error: err.Error()})
+		default:
+			log.Printf("GetEntryStats: %v", err)
+			internal(c)
+		}
+		return
+	}
+	ok(c, gin.H{"stats": stats})
+}
+
 // GetResult godoc
 // @Summary      Get drawn winners for a raffle (Extension)
 // @Tags         raffles
@@ -796,4 +945,68 @@ func (h *RaffleHandler) GetResult(c *gin.Context) {
 		views[i].Entry.DisplayName = d.Entry.DisplayName
 	}
 	ok(c, gin.H{"draws": views})
+}
+
+// Join godoc
+// @Summary      Join a raffle from Twitch Extension
+// @Tags         raffles
+// @Accept       json
+// @Produce      json
+// @Param        id   path string true "Raffle ID"
+// @Param        body body object{extension_jwt=string} true "Extension JWT"
+// @Success      200  {object}  Response
+// @Failure      400  {object}  Response
+// @Failure      401  {object}  Response
+// @Failure      403  {object}  Response
+// @Failure      409  {object}  Response
+// @Router       /extension/raffles/{id}/join [post]
+func (h *RaffleHandler) Join(c *gin.Context) {
+	raffleID, err := uuid.Parse(c.Param("id"))
+	if err != nil {
+		badRequest(c, "invalid raffle id")
+		return
+	}
+
+	var body struct {
+		ExtensionJWT string `json:"extension_jwt" binding:"required"`
+	}
+	if err := c.ShouldBindJSON(&body); err != nil {
+		badRequest(c, err.Error())
+		return
+	}
+	if h.extSvc == nil {
+		internal(c)
+		return
+	}
+	claims, err := h.extSvc.VerifyExtJWT(body.ExtensionJWT)
+	if err != nil {
+		unauthorized(c, "invalid extension jwt")
+		return
+	}
+
+	entry, err := h.raffleSvc.JoinRaffle(c.Request.Context(), raffleID, claims.UserID)
+	if err != nil {
+		switch {
+		case errors.Is(err, services.ErrEntryNotOpen):
+			badRequest(c, "raffle entry not open")
+		case errors.Is(err, services.ErrAlreadyJoined):
+			conflict(c, "already joined")
+		case errors.Is(err, services.ErrNotSubscriber):
+			c.JSON(http.StatusForbidden, gin.H{
+				"success": false,
+				"error":   "not a subscriber",
+				"code":    "not_subscriber",
+				"data":    gin.H{"entry": entry},
+			})
+		case errors.Is(err, services.ErrRaffleNotFound), errors.Is(err, services.ErrViewerNotLinked):
+			notFound(c, "not found")
+		case errors.Is(err, services.ErrTwitchTokenMissing), errors.Is(err, services.ErrTwitchInsufficientScope):
+			badRequest(c, err.Error())
+		default:
+			log.Printf("raffle join: %v", err)
+			internal(c)
+		}
+		return
+	}
+	ok(c, gin.H{"entry": entry})
 }

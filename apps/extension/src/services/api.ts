@@ -316,22 +316,13 @@ export async function claimPoints(amount = 0): Promise<TachiBalanceResponse> {
 export async function redeemCoupon(
   couponId: string,
   amount: number,
-  token: string,
 ): Promise<RedeemCouponResponse> {
   try {
     const { data } = await runWithAuthRecovery((config) =>
       client.post<{ success: boolean; data: RedeemCouponResponse }>(
         '/spend/redeem',
         { coupon_id: couponId, amount },
-        {
-          ...config,
-          headers: client.defaults.headers.common.Authorization
-            ? config?.headers
-            : {
-                ...config?.headers,
-                Authorization: `Bearer ${token}`,
-              },
-        },
+        config,
       ),
     )
     return data.data
@@ -394,4 +385,23 @@ export async function getRaffleResult(raffleId: string): Promise<RaffleResultDra
     `/api/v1/extension/raffles/${raffleId}/result`,
   )
   return data.data.draws
+}
+
+/**
+ * Join a raffle as the currently authenticated Extension viewer.
+ * Always resolves (never throws); returns the HTTP status code so callers
+ * can switch on 200 (joined), 403 (not eligible), 409 (already joined).
+ * Network errors and unexpected failures return status 500.
+ */
+export async function joinRaffle(raffleId: string): Promise<{ status: number }> {
+  try {
+    await client.post(`/api/v1/extension/raffles/${raffleId}/join`)
+    return { status: 200 }
+  } catch (err) {
+    // err.response is undefined on network errors; fall back to 500.
+    if (axios.isAxiosError(err)) {
+      return { status: err.response?.status ?? 500 }
+    }
+    return { status: 500 }
+  }
 }

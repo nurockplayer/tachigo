@@ -16,8 +16,9 @@ const (
 	RaffleStatusActive    RaffleStatus = "active"
 	RaffleStatusCompleted RaffleStatus = "completed"
 
-	RaffleSourceCSV       RaffleSource = "csv"
-	RaffleSourceTwitchAPI RaffleSource = "twitch_api"
+	RaffleSourceCSV             RaffleSource = "csv"
+	RaffleSourceTwitchAPI       RaffleSource = "twitch_api"
+	RaffleSourceExtensionButton RaffleSource = "extension_button"
 
 	RaffleModePublic      RaffleMode = "public"
 	RaffleModeSubscribers RaffleMode = "subscribers_only"

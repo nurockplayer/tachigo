@@ -139,6 +139,20 @@
       }
     }
   },
+  "settings": {
+    "eyebrow": "控制面板",
+    "title": "設定",
+    "language": "語言",
+    "sound": "音效",
+    "effects": "特效",
+    "hud": "HUD",
+    "screen": "畫面",
+    "screenModes": {
+      "compact": "精簡",
+      "focus": "專注"
+    },
+    "back": "返回"
+  },
   "raffle_result": {
     "title": "抽獎結果",
     "loading": "載入中...",

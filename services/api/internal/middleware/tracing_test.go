@@ -154,7 +154,7 @@ func attrsToString(attrs []attribute.KeyValue) string {
 	for _, attr := range attrs {
 		b.WriteString(string(attr.Key))
 		b.WriteByte('=')
-		b.WriteString(attr.Value.Emit())
+		b.WriteString(attr.Value.String())
 		b.WriteByte(' ')
 	}
 	return b.String()

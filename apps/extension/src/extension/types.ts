@@ -26,6 +26,15 @@ export interface HudDemoState {
   chatCount: number
 }
 
+export type ScreenMode = 'compact' | 'focus'
+
+export interface SettingsState {
+  soundEnabled: boolean
+  effectsEnabled: boolean
+  hudVisible: boolean
+  screenMode: ScreenMode
+}
+
 export type CouponRedeemResult = 'success' | 'insufficient' | 'already_redeemed'
 
 export interface DemoState {
@@ -34,6 +43,7 @@ export interface DemoState {
   hud: HudDemoState
   tcgBalance: number
   redeemedCouponIds: string[]
+  settings: SettingsState
 }
 
 export const defaultHudDemoState: HudDemoState = {
@@ -45,12 +55,20 @@ export const defaultHudDemoState: HudDemoState = {
   chatCount: 0,
 }
 
+export const defaultSettingsState: SettingsState = {
+  soundEnabled: true,
+  effectsEnabled: true,
+  hudVisible: true,
+  screenMode: 'compact',
+}
+
 export const defaultDemoState: DemoState = {
   language: 'en',
   flags: { ...defaultNavigationFlags },
   hud: { ...defaultHudDemoState },
   tcgBalance: 0,
   redeemedCouponIds: [],
+  settings: { ...defaultSettingsState },
 }
 
 function createDefaultHudDemoState(): HudDemoState {
@@ -63,6 +81,7 @@ export function createDefaultDemoState(): DemoState {
     flags: { ...defaultDemoState.flags },
     hud: createDefaultHudDemoState(),
     redeemedCouponIds: [...defaultDemoState.redeemedCouponIds],
+    settings: { ...defaultDemoState.settings },
   }
 }
 
@@ -122,6 +141,25 @@ export function sanitizeNavigationFlags(value: unknown): NavigationFlags {
   }
 }
 
+export function sanitizeSettingsState(value: unknown): SettingsState {
+  if (!value || typeof value !== 'object') {
+    return { ...defaultSettingsState }
+  }
+
+  const candidate = value as Partial<SettingsState>
+
+  return {
+    soundEnabled:
+      typeof candidate.soundEnabled === 'boolean' ? candidate.soundEnabled : defaultSettingsState.soundEnabled,
+    effectsEnabled:
+      typeof candidate.effectsEnabled === 'boolean' ? candidate.effectsEnabled : defaultSettingsState.effectsEnabled,
+    hudVisible: typeof candidate.hudVisible === 'boolean' ? candidate.hudVisible : defaultSettingsState.hudVisible,
+    screenMode: candidate.screenMode === 'focus' || candidate.screenMode === 'compact'
+      ? candidate.screenMode
+      : defaultSettingsState.screenMode,
+  }
+}
+
 export function sanitizeDemoState(value: unknown): DemoState {
   if (!value || typeof value !== 'object') {
     return createDefaultDemoState()
@@ -144,5 +182,6 @@ export function sanitizeDemoState(value: unknown): DemoState {
     hud: sanitizeHudDemoState(candidate.hud),
     tcgBalance,
     redeemedCouponIds: [...redeemedCouponIds],
+    settings: sanitizeSettingsState(candidate.settings),
   }
 }

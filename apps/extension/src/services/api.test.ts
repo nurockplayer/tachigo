@@ -446,6 +446,96 @@ test('getCurrentAccount fetches the current account profile through auth recover
   )
 })
 
+test('redeemCoupon refreshes the Tachigo token without sending the extension JWT as bearer auth', async () => {
+  let redeemAttempts = 0
+
+  await withApiServer(
+    (requests) => async (req, res) => {
+      const body = await readJsonBody(req)
+      requests.push({
+        method: req.method ?? 'GET',
+        url: req.url ?? '/',
+        authorization: req.headers.authorization,
+        body,
+      })
+
+      if (req.method === 'POST' && req.url === '/api/v1/extension/auth/login') {
+        res.writeHead(200, { 'Content-Type': 'application/json' })
+        res.end(JSON.stringify({ success: true, data: { tokens: { access_token: 'tachigo-access-token' } } }))
+        return
+      }
+
+      if (req.method === 'POST' && req.url === '/spend/redeem') {
+        redeemAttempts += 1
+        if (redeemAttempts === 1) {
+          res.writeHead(401, { 'Content-Type': 'application/json' })
+          res.end(JSON.stringify({ success: false, error: 'missing tachigo token' }))
+          return
+        }
+
+        res.writeHead(200, { 'Content-Type': 'application/json' })
+        res.end(JSON.stringify({ success: true, data: { balance: 90, voucher_code: 'ABC' } }))
+        return
+      }
+
+      res.writeHead(404, { 'Content-Type': 'application/json' })
+      res.end(JSON.stringify({ success: false, error: 'not found' }))
+    },
+    async (baseUrl, requests) => {
+      const originalBaseUrl = process.env.VITE_TACHIGO_API_URL
+      process.env.VITE_TACHIGO_API_URL = baseUrl
+
+      try {
+        vi.resetModules()
+        const api = await import('./api.ts')
+
+        api.setExtensionJwtForRecovery('extension-jwt')
+        const result = await api.redeemCoupon('tachiya95', 10)
+
+        assert.deepEqual(result, { balance: 90, voucher_code: 'ABC' })
+        assert.deepEqual(
+          requests.map(({ method, url, authorization, body }) => ({
+            method,
+            url,
+            authorization,
+            body,
+          })),
+          [
+            {
+              method: 'POST',
+              url: '/spend/redeem',
+              authorization: undefined,
+              body: { coupon_id: 'tachiya95', amount: 10 },
+            },
+            {
+              method: 'POST',
+              url: '/api/v1/extension/auth/login',
+              authorization: undefined,
+              body: { extension_jwt: 'extension-jwt' },
+            },
+            {
+              method: 'POST',
+              url: '/spend/redeem',
+              authorization: 'Bearer tachigo-access-token',
+              body: { coupon_id: 'tachiya95', amount: 10 },
+            },
+          ],
+        )
+        assert.equal(
+          requests.some(({ authorization }) => authorization === 'Bearer extension-jwt'),
+          false,
+        )
+      } finally {
+        if (originalBaseUrl === undefined) {
+          delete process.env.VITE_TACHIGO_API_URL
+        } else {
+          process.env.VITE_TACHIGO_API_URL = originalBaseUrl
+        }
+      }
+    },
+  )
+})
+
 test('sendHeartbeat re-authenticates after 401 and falls back to previous balance when balance read fails', async () => {
   let heartbeatAttempts = 0
 

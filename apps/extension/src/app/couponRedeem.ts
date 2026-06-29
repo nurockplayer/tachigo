@@ -11,7 +11,7 @@ type CouponRedeemDeps = {
   setTcgBalance: (balance: number) => void
   setVoucherCodes: (updater: (currentCodes: Record<string, string>) => Record<string, string>) => void
   setRedeemedCouponIds: (couponIds: string[]) => void
-  redeemCouponFn?: (couponId: string, amount: number, token: string) => Promise<RedeemCouponResponse>
+  redeemCouponFn?: (couponId: string, amount: number) => Promise<RedeemCouponResponse>
 }
 
 function isInsufficientFundsError(error: unknown) {
@@ -41,7 +41,7 @@ export async function executeCouponRedeem({
   }
 
   try {
-    const result = await redeemCouponFn(couponId, cost, jwt)
+    const result = await redeemCouponFn(couponId, cost)
     redeemedCouponIdsRef.current = [...redeemedCouponIdsRef.current, couponId]
     setTcgBalance(result.balance)
     setVoucherCodes((currentCodes) => ({

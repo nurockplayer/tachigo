@@ -13,12 +13,14 @@ test('sanitizeDemoState returns fresh default objects instead of shared referenc
   first.hud.points = 99
   first.redeemedCouponIds.push('coupon-1')
   first.flags.hasCompletedLogin = true
+  first.settings.soundEnabled = false
 
   const second = types.sanitizeDemoState(null)
 
   assert.notEqual(first, second)
   assert.notEqual(first.hud, second.hud)
   assert.notEqual(first.flags, second.flags)
+  assert.notEqual(first.settings, second.settings)
   assert.deepEqual(second, {
     language: 'en',
     flags: {
@@ -36,6 +38,12 @@ test('sanitizeDemoState returns fresh default objects instead of shared referenc
     },
     tcgBalance: 0,
     redeemedCouponIds: [],
+    settings: {
+      soundEnabled: true,
+      effectsEnabled: true,
+      hudVisible: true,
+      screenMode: 'compact',
+    },
   })
 })
 
@@ -71,6 +79,27 @@ test('sanitizeDemoState ignores legacy screen state', async () => {
   const types = await importTypesModule()
   const result = types.sanitizeDemoState({ screen: 'raffle' })
   assert.equal('screen' in result, false)
+})
+
+test('sanitizeDemoState sanitizes extension settings and rejects unknown screen modes', async () => {
+  const types = await importTypesModule()
+
+  assert.deepEqual(
+    types.sanitizeDemoState({
+      settings: {
+        soundEnabled: false,
+        effectsEnabled: 'yes',
+        hudVisible: false,
+        screenMode: 'cinema',
+      },
+    }).settings,
+    {
+      soundEnabled: false,
+      effectsEnabled: true,
+      hudVisible: false,
+      screenMode: 'compact',
+    },
+  )
 })
 
 test('sanitizeHudDemoState normalizes negative zero to positive zero', async () => {

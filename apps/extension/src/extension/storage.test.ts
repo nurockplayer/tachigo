@@ -6,6 +6,13 @@ import type { DemoState } from './types.ts'
 const STORAGE_KEY = 'tachigo.sidepanel.app-state.v3'
 const LEGACY_STORAGE_KEY = 'tachigo.sidepanel.demo-state.v2'
 
+const EXPECTED_DEFAULT_SETTINGS = {
+  soundEnabled: true,
+  effectsEnabled: true,
+  hudVisible: true,
+  screenMode: 'compact',
+} as const
+
 const EXPECTED_DEFAULT_DEMO_STATE: DemoState = {
   language: 'en',
   flags: {
@@ -23,6 +30,7 @@ const EXPECTED_DEFAULT_DEMO_STATE: DemoState = {
   },
   tcgBalance: 0,
   redeemedCouponIds: [],
+  settings: { ...EXPECTED_DEFAULT_SETTINGS },
 }
 
 type ChromeStorageCallbacks = {
@@ -132,6 +140,12 @@ test('loadDemoState returns sanitized chrome storage state without reading local
         },
         tcgBalance: -9,
         redeemedCouponIds: ['coupon-1', 7, 'coupon-2'],
+        settings: {
+          soundEnabled: false,
+          effectsEnabled: 1,
+          hudVisible: false,
+          screenMode: 'cinema',
+        },
       },
     }),
   })
@@ -156,6 +170,11 @@ test('loadDemoState returns sanitized chrome storage state without reading local
     },
     tcgBalance: 0,
     redeemedCouponIds: ['coupon-1', 'coupon-2'],
+    settings: {
+      ...EXPECTED_DEFAULT_SETTINGS,
+      soundEnabled: false,
+      hudVisible: false,
+    },
   })
   assert.equal(localStorage.reads, 0)
 })
@@ -181,6 +200,7 @@ test('loadDemoState falls back to legacy localStorage state when chrome storage 
     },
     tcgBalance: 12,
     redeemedCouponIds: ['bundle-120'],
+    settings: { ...EXPECTED_DEFAULT_SETTINGS },
   })
 
   const storage = await importStorageModule()
@@ -202,6 +222,7 @@ test('loadDemoState falls back to legacy localStorage state when chrome storage 
     },
     tcgBalance: 12,
     redeemedCouponIds: ['bundle-120'],
+    settings: { ...EXPECTED_DEFAULT_SETTINGS },
   })
   assert.equal(localStorage.reads, 2)
 })
@@ -289,6 +310,7 @@ test('loadDemoState migrates true v2 screen payloads into v3 state shape', async
     },
     tcgBalance: 20,
     redeemedCouponIds: ['tachiya-95'],
+    settings: { ...EXPECTED_DEFAULT_SETTINGS },
   }
   assert.deepEqual(migratedState, expectedState)
   assert.deepEqual(chromeStoredValue, expectedState)
@@ -328,6 +350,12 @@ test('saveDemoState falls back to localStorage when chrome storage write fails',
     },
     tcgBalance: 5,
     redeemedCouponIds: ['tachiya-95'],
+    settings: {
+      soundEnabled: false,
+      effectsEnabled: true,
+      hudVisible: true,
+      screenMode: 'focus',
+    },
   })
 
   assert.equal(localStorage.writes, 1)
@@ -348,6 +376,12 @@ test('saveDemoState falls back to localStorage when chrome storage write fails',
     },
     tcgBalance: 5,
     redeemedCouponIds: ['tachiya-95'],
+    settings: {
+      soundEnabled: false,
+      effectsEnabled: true,
+      hudVisible: true,
+      screenMode: 'focus',
+    },
   })
 })
 
@@ -381,6 +415,12 @@ test('saveDemoState mirrors state to localStorage after a successful chrome stor
     },
     tcgBalance: 5,
     redeemedCouponIds: ['tachiya-95'],
+    settings: {
+      soundEnabled: false,
+      effectsEnabled: true,
+      hudVisible: true,
+      screenMode: 'focus',
+    },
   })
 
   const expectedState = {
@@ -400,6 +440,12 @@ test('saveDemoState mirrors state to localStorage after a successful chrome stor
     },
     tcgBalance: 5,
     redeemedCouponIds: ['tachiya-95'],
+    settings: {
+      soundEnabled: false,
+      effectsEnabled: true,
+      hudVisible: true,
+      screenMode: 'focus',
+    },
   }
 
   assert.deepEqual(chromeStoredValue, expectedState)

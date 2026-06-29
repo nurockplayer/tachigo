@@ -139,6 +139,20 @@
       }
     }
   },
+  "settings": {
+    "eyebrow": "Control Deck",
+    "title": "Settings",
+    "language": "Language",
+    "sound": "Sound",
+    "effects": "Effects",
+    "hud": "HUD",
+    "screen": "Screen",
+    "screenModes": {
+      "compact": "Compact",
+      "focus": "Focus"
+    },
+    "back": "Back"
+  },
   "raffle_result": {
     "title": "RAFFLE RESULTS",
     "loading": "LOADING...",

@@ -10,6 +10,7 @@
 | `docs/history/` | 已完成的一次性遷移、盤點、整理或決策紀錄 | `YYYY-MM-DD-<topic>.md` |
 | `docs/ai/` | 既有 AI 協作指南與 agent-facing 文件 | `<topic>.md` |
 | `docs/superpowers/` | 既有 Superpowers specs / plans 歷史文件 | 維持既有日期命名 |
+| `openspec/` | OpenSpec SDD living specs 與 proposed changes；新 feature / behavior change 的 proposal / specs / design / tasks source of truth | `changes/<change-id>/...`、`specs/<domain>/spec.md` |
 | `plans/` | 實作前計畫與完成後的執行紀錄 | `<feature-slug>.md` |
 
 ## Root Source Of Truth
@@ -28,6 +29,13 @@
 | [`tokenomics.md`](tokenomics.md) | `$TACHI` 平台幣經濟模型 |
 | [`uuid-v7.md`](uuid-v7.md) | UUID 版本策略 |
 | [`watch-to-points-design.md`](watch-to-points-design.md) | Watch-to-points 已完成設計 |
+
+## AI / Workflow Source Of Truth
+
+| 文件 | 定位 |
+|---|---|
+| [`ai/openspec-workflow.md`](ai/openspec-workflow.md) | OpenSpec SDD 標準工作流；新 feature / behavior change 的 proposal、specs、design、tasks 規範 |
+| [`ai/autonomous-bootstrap.md`](ai/autonomous-bootstrap.md) | Hybrid AWP / spec-injector 啟動入口；不取代 OpenSpec feature specs |
 
 ## Active Plans / Proposals
 
