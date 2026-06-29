@@ -45,6 +45,7 @@ jobs:
       - uses: actions/checkout@34e114876b0b11c390a56381ad16ebd13914f8d5 # v4
         with:
           fetch-depth: 0
+          persist-credentials: false
 
       - name: Validate deploy SHA
         env:
@@ -113,6 +114,7 @@ jobs:
       - uses: actions/checkout@34e114876b0b11c390a56381ad16ebd13914f8d5 # v4
         with:
           ref: ${{ inputs.deploy_sha }}
+          persist-credentials: false
 
       - name: Build backend image
         env:
@@ -193,6 +195,7 @@ jobs:
       - uses: actions/checkout@34e114876b0b11c390a56381ad16ebd13914f8d5 # v4
         with:
           ref: ${{ inputs.deploy_sha }}
+          persist-credentials: false
 
       - name: Build dashboard image
         run: docker compose build dashboard

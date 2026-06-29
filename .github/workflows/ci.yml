@@ -200,7 +200,7 @@ jobs:
             const dependsOnMatch = body.match(/Depends on PR[：:]\s*(.+)/i)
             const dependsOnRaw = dependsOnMatch?.[1]?.trim()
             const dependsOnNone = dependsOnRaw?.toLowerCase() === 'none'
-            const dependsOnPrMatch = dependsOnRaw?.match(/^#(\d+)$/)
+            const dependsOnPrMatch = dependsOnRaw?.match(/^#(\d+)/)
             const extractPrBodySection = (heading) => {
               const escapedHeading = heading.replace(/[.*+?^${}()|[\]\\]/g, '\\$&')
               const match = body.match(new RegExp(
