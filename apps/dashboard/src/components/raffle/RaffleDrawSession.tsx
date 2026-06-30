@@ -1,6 +1,6 @@
-import { useMemo, useState } from 'react'
+import { useCallback, useEffect, useMemo, useState } from 'react'
 import type { RaffleDraw, RafflePrizeTier } from '@/services/raffles'
-import { drawFromTier } from '@/services/raffles'
+import { drawFromTier, listDraws } from '@/services/raffles'
 
 type SessionPhase = 'round_ready' | 'drawing' | 'round_result' | 'session_complete'
 
@@ -17,6 +17,26 @@ const glass: React.CSSProperties = {
   WebkitBackdropFilter: 'blur(14px)',
 }
 
+function FinalWinnerList({ tiers, draws }: { tiers: RafflePrizeTier[]; draws: RaffleDraw[] }) {
+  return (
+    <div data-testid="final-winner-list" style={{ textAlign: 'left' }}>
+      {tiers.map(tier => {
+        const tierDraws = draws.filter(d => d.prize_tier_id === tier.id)
+        return (
+          <div key={tier.id} data-testid={`final-winner-tier-${tier.id}`} style={{ marginBottom: 16 }}>
+            <p style={{ fontSize: 13, fontWeight: 700, color: '#7dd3fc', marginBottom: 6 }}>{tier.name}</p>
+            {tierDraws.map(draw => (
+              <p key={draw.id} style={{ fontSize: 14, color: '#fde68a', marginBottom: 4 }}>
+                {draw.entry.display_name || draw.entry.twitch_login}
+              </p>
+            ))}
+          </div>
+        )
+      })}
+    </div>
+  )
+}
+
 export function RaffleDrawSession({ raffleId, tiers }: Props) {
   const sorted = useMemo(() => [...tiers].sort((a, b) => a.position - b.position), [tiers])
   const firstPendingIndex = useMemo(
@@ -28,6 +48,8 @@ export function RaffleDrawSession({ raffleId, tiers }: Props) {
   const [latestDraw, setLatestDraw] = useState<RaffleDraw | null>(null)
   const [localDrawnCounts, setLocalDrawnCounts] = useState<Record<string, number>>({})
   const [error, setError] = useState<string | null>(null)
+  const [allDraws, setAllDraws] = useState<RaffleDraw[]>([])
+  const [winnerListStatus, setWinnerListStatus] = useState<'loading' | 'ready' | 'error'>('loading')
 
   const currentTier = sorted[currentIndex]
 
@@ -71,10 +93,45 @@ export function RaffleDrawSession({ raffleId, tiers }: Props) {
     }
   }
 
+  const fetchFinalDraws = useCallback(async () => {
+    setWinnerListStatus('loading')
+    try {
+      const draws = await listDraws(raffleId)
+      setAllDraws(draws)
+      setWinnerListStatus('ready')
+    } catch {
+      setWinnerListStatus('error')
+    }
+  }, [raffleId])
+
+  useEffect(() => {
+    if (phase !== 'session_complete') return
+    const id = window.setTimeout(() => {
+      void fetchFinalDraws()
+    }, 0)
+    return () => window.clearTimeout(id)
+  }, [phase, fetchFinalDraws])
+
   if (phase === 'session_complete') {
     return (
       <div data-testid="session-complete" style={{ ...glass, padding: '24px 28px', textAlign: 'center' }}>
-        <p style={{ fontSize: 16, fontWeight: 700, color: '#86efac', marginBottom: 8 }}>🎉 所有輪次抽獎完成</p>
+        <p style={{ fontSize: 16, fontWeight: 700, color: '#86efac', marginBottom: 16 }}>🎉 所有輪次抽獎完成</p>
+        {winnerListStatus === 'loading' && (
+          <p data-testid="winner-list-loading" style={{ fontSize: 13, color: 'rgba(148,210,255,.6)' }}>載入得獎名單中...</p>
+        )}
+        {winnerListStatus === 'error' && (
+          <div data-testid="winner-list-error">
+            <p style={{ fontSize: 13, color: '#f87171', marginBottom: 10 }}>得獎名單載入失敗</p>
+            <button
+              data-testid="retry-winner-list-button"
+              onClick={() => { void fetchFinalDraws() }}
+              style={{ background: 'rgba(248,113,113,.15)', border: '1px solid rgba(248,113,113,.3)', color: '#f87171', borderRadius: 8, padding: '8px 20px', fontSize: 13, fontWeight: 700, cursor: 'pointer' }}
+            >
+              重試
+            </button>
+          </div>
+        )}
+        {winnerListStatus === 'ready' && <FinalWinnerList tiers={sorted} draws={allDraws} />}
       </div>
     )
   }
