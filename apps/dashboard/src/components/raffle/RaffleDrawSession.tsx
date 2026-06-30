@@ -105,9 +105,11 @@ export function RaffleDrawSession({ raffleId, tiers }: Props) {
   }, [raffleId])
 
   useEffect(() => {
-    if (phase === 'session_complete') {
+    if (phase !== 'session_complete') return
+    const id = window.setTimeout(() => {
       void fetchFinalDraws()
-    }
+    }, 0)
+    return () => window.clearTimeout(id)
   }, [phase, fetchFinalDraws])
 
   if (phase === 'session_complete') {
