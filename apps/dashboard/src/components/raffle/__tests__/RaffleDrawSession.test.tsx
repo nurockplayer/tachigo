@@ -6,6 +6,7 @@ import * as rafflesService from '@/services/raffles'
 
 vi.mock('@/services/raffles', () => ({
   drawFromTier: vi.fn(),
+  listDraws: vi.fn(),
 }))
 
 const mockTiers: RafflePrizeTier[] = [
@@ -15,6 +16,7 @@ const mockTiers: RafflePrizeTier[] = [
 
 beforeEach(() => {
   vi.clearAllMocks()
+  vi.mocked(rafflesService.listDraws).mockResolvedValue([])
 })
 
 describe('RaffleDrawSession', () => {
@@ -132,5 +134,48 @@ describe('RaffleDrawSession', () => {
       expect(screen.getByTestId('draw-round-button')).not.toBeNull()
       expect(container.textContent).toContain('抽獎失敗，請再試一次')
     })
+  })
+
+  it('全部輪次抽完後，依輪次分組顯示完整得獎名單', async () => {
+    const completedTiers: RafflePrizeTier[] = [
+      { id: 't1', raffle_id: 'r1', name: '一等獎', prize_description: 'Switch', winner_count: 1, drawn_count: 1, position: 0, created_at: '' },
+      { id: 't2', raffle_id: 'r1', name: '二等獎', prize_description: 'AirPods', winner_count: 2, drawn_count: 2, position: 1, created_at: '' },
+    ]
+    vi.mocked(rafflesService.listDraws).mockResolvedValueOnce([
+      {
+        id: 'd1', raffle_id: 'r1', entry_id: 'e1',
+        claim_token: '', claim_expires_at: '', drawn_at: '',
+        entry: { id: 'e1', raffle_id: 'r1', twitch_login: 'viewer1', display_name: 'Winner One', created_at: '' },
+        prize_tier_id: 't1',
+      },
+      {
+        id: 'd2', raffle_id: 'r1', entry_id: 'e2',
+        claim_token: '', claim_expires_at: '', drawn_at: '',
+        entry: { id: 'e2', raffle_id: 'r1', twitch_login: 'viewer2', display_name: 'Winner Two', created_at: '' },
+        prize_tier_id: 't2',
+      },
+      {
+        id: 'd3', raffle_id: 'r1', entry_id: 'e3',
+        claim_token: '', claim_expires_at: '', drawn_at: '',
+        entry: { id: 'e3', raffle_id: 'r1', twitch_login: 'viewer3', display_name: 'Winner Three', created_at: '' },
+        prize_tier_id: 't2',
+      },
+    ])
+
+    render(<RaffleDrawSession raffleId="r1" tiers={completedTiers} />)
+
+    await waitFor(() => {
+      expect(screen.getByTestId('final-winner-list')).not.toBeNull()
+    })
+
+    const tier1Group = screen.getByTestId('final-winner-tier-t1')
+    expect(tier1Group.textContent).toContain('一等獎')
+    expect(tier1Group.textContent).toContain('Winner One')
+    expect(tier1Group.textContent).not.toContain('Winner Two')
+
+    const tier2Group = screen.getByTestId('final-winner-tier-t2')
+    expect(tier2Group.textContent).toContain('二等獎')
+    expect(tier2Group.textContent).toContain('Winner Two')
+    expect(tier2Group.textContent).toContain('Winner Three')
   })
 })
