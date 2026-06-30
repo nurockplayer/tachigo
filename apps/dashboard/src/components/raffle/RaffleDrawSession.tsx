@@ -117,6 +117,18 @@ export function RaffleDrawSession({ raffleId, tiers }: Props) {
         {winnerListStatus === 'loading' && (
           <p data-testid="winner-list-loading" style={{ fontSize: 13, color: 'rgba(148,210,255,.6)' }}>載入得獎名單中...</p>
         )}
+        {winnerListStatus === 'error' && (
+          <div data-testid="winner-list-error">
+            <p style={{ fontSize: 13, color: '#f87171', marginBottom: 10 }}>得獎名單載入失敗</p>
+            <button
+              data-testid="retry-winner-list-button"
+              onClick={() => { void fetchFinalDraws() }}
+              style={{ background: 'rgba(248,113,113,.15)', border: '1px solid rgba(248,113,113,.3)', color: '#f87171', borderRadius: 8, padding: '8px 20px', fontSize: 13, fontWeight: 700, cursor: 'pointer' }}
+            >
+              重試
+            </button>
+          </div>
+        )}
         {winnerListStatus === 'ready' && <FinalWinnerList tiers={sorted} draws={allDraws} />}
       </div>
     )

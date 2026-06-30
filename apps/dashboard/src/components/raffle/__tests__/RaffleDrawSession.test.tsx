@@ -178,4 +178,34 @@ describe('RaffleDrawSession', () => {
     expect(tier2Group.textContent).toContain('Winner Two')
     expect(tier2Group.textContent).toContain('Winner Three')
   })
+
+  it('listDraws 失敗時顯示錯誤訊息與重試按鈕，重試成功後顯示名單', async () => {
+    const completedTiers: RafflePrizeTier[] = [
+      { id: 't1', raffle_id: 'r1', name: '唯一獎', prize_description: '', winner_count: 1, drawn_count: 1, position: 0, created_at: '' },
+    ]
+    vi.mocked(rafflesService.listDraws)
+      .mockRejectedValueOnce(new Error('network error'))
+      .mockResolvedValueOnce([
+        {
+          id: 'd1', raffle_id: 'r1', entry_id: 'e1',
+          claim_token: '', claim_expires_at: '', drawn_at: '',
+          entry: { id: 'e1', raffle_id: 'r1', twitch_login: 'winner', display_name: 'Winner', created_at: '' },
+          prize_tier_id: 't1',
+        },
+      ])
+
+    render(<RaffleDrawSession raffleId="r1" tiers={completedTiers} />)
+
+    await waitFor(() => {
+      expect(screen.getByTestId('winner-list-error')).not.toBeNull()
+    })
+    expect(screen.queryByTestId('final-winner-list')).toBeNull()
+
+    fireEvent.click(screen.getByTestId('retry-winner-list-button'))
+
+    await waitFor(() => {
+      expect(screen.getByTestId('final-winner-list')).not.toBeNull()
+    })
+    expect(screen.getByTestId('final-winner-tier-t1').textContent).toContain('Winner')
+  })
 })
