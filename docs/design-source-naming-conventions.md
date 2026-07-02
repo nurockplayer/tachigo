@@ -26,7 +26,8 @@ Out of scope:
 
 ## 1. Core Naming Rule
 
-Use English, lowercase, and kebab-case for engineering-facing files and folders.
+Use English, lowercase, and kebab-case for engineering-facing asset files,
+design/prototype asset files, and their folders.
 
 Good:
 
@@ -38,9 +39,6 @@ login-background.svg
 character-select-bg.png
 crab-say-hi-loop.mp4
 crab-mining-loop.mp4
-claim-panel.tsx
-character-select-screen.tsx
-login-screen.tsx
 ```
 
 Avoid:
@@ -54,7 +52,9 @@ openart-02177936768261700000000000000000000ffffc0a869babb58fb.mp4
 final_final_真的最後.mp4
 ```
 
-Kebab-case is preferred because it is safer for URLs, imports, build tools, Chrome extension paths, and cross-platform file systems.
+Kebab-case is preferred for these assets because it is safer for URLs, imports,
+build tools, Chrome extension paths, and cross-platform file systems. Existing
+production React component files follow the convention in section 11.
 
 ## 2. Local Workspace Folders
 
@@ -248,7 +248,7 @@ Only commit final assets or intentionally reviewed prototypes.
 When assets become part of the production extension, prefer:
 
 ```text
-apps/extension/public/assets/
+apps/extension/src/assets/
   brand/
     tachigo-logo.svg
     tachigo-wordmark.svg
@@ -291,18 +291,19 @@ apps/extension/public/assets/
 
 Large videos and large raster images should use Git LFS.
 
-Recommended LFS patterns:
+The production extension currently tracks these LFS patterns:
 
 ```text
-apps/extension/public/assets/**/*.mp4
-apps/extension/public/assets/**/*.mov
-apps/extension/public/assets/**/*.webm
-apps/extension/public/assets/**/*.gif
-apps/extension/public/assets/**/*.png
-apps/extension/public/assets/**/*.jpg
-apps/extension/public/assets/**/*.jpeg
-design/prototypes/**/*.mp4
+apps/extension/src/assets/**/*.png
+apps/extension/src/assets/**/*.jpg
+apps/extension/src/assets/**/*.jpeg
+apps/extension/src/assets/**/*.webp
+apps/extension/src/assets/**/*.gif
+design/prototypes/chrome-extension/**/*.mp4
 ```
+
+Production extension videos under `apps/extension/src/assets/` require a
+separate `.gitattributes` follow-up before they are added.
 
 SVG files usually stay in normal Git because they are text-based and easier to diff.
 
@@ -310,26 +311,20 @@ Small UI icons should usually be SVG and should not use Git LFS.
 
 ## 11. Component and Screen Naming
 
-For React component files, use kebab-case file names:
+Current production React component files use PascalCase file names:
 
 ```text
-login-screen.tsx
-character-select-screen.tsx
-crab-say-hi-screen.tsx
-claim-panel.tsx
-balance-display.tsx
-icon-button.tsx
+LoginScreen.tsx
+ClaimPanel.tsx
+LoadingScreen.tsx
 ```
 
-Inside the file, React component names should use PascalCase:
+Inside the file, React component names also use PascalCase:
 
 ```text
 LoginScreen
-CharacterSelectScreen
-CrabSayHiScreen
 ClaimPanel
-BalanceDisplay
-IconButton
+LoadingScreen
 ```
 
 ## 12. Codex Working Rule
@@ -343,7 +338,7 @@ apps/extension/
 For production asset updates, it should work inside:
 
 ```text
-apps/extension/public/assets/
+apps/extension/src/assets/
 ```
 
 For design prototype review, it may work inside:
