@@ -156,15 +156,15 @@ for route-level role matrices that can be expressed with lightweight stubs.
 Handler-specific tests remain the right place for ownership, tenant isolation,
 and implemented behavior that needs real database fixtures.
 
-Current #646 coverage status:
+Current #646 coverage status (last refreshed 2026-05-31):
 
 | Surface | Regression status |
 |---|---|
-| Dashboard role gates | Centralized matrix rows exist for streamer creation, streamer listing, and channel config read. Additional dashboard routes still need route-level or ownership rows. |
-| Agency management | Legacy RBAC tests cover parts of the create, detail, settings, streamer listing, and setup resend behavior. The centralized matrix target is all route-level agency role gates, with ownership checks staying in handler-specific tests. |
-| Event and admin stubs | Legacy RBAC tests cover current 501-after-authorization behavior. They should move into centralized matrix rows as the #646 harness expands. |
-| Ownership and cross-tenant behavior | Covered in focused handler tests for some handlers. #646 remains open until all protected surfaces have explicit own-resource, other-resource, managed, and unmanaged cases where applicable. |
-| Coverage gate for newly protected routes | Not yet enforced. Future route additions should fail CI when they lack a corresponding matrix or handler-specific ownership test. |
+| Dashboard role gates | Centralized matrix rows cover the dashboard protected stubs registered by `newRBACTestEnv`, including streamer creation, streamer listing, and channel config read. Implemented dashboard handler behavior still belongs in focused handler tests. |
+| Agency management | Centralized route-level rows cover the lightweight agency protected stubs, while focused handler tests cover implemented agency ownership behavior such as create, detail, settings, streamer listing, and setup resend paths. |
+| Event and admin stubs | Centralized matrix rows cover the current 501-after-authorization behavior for event/admin stubs, including unauthenticated, wrong-role, and allowed-role cases. |
+| Ownership and cross-tenant behavior | Focused handler tests remain the source for own-resource, other-resource, managed, and unmanaged scenarios because they need real database fixtures and handler-specific enumeration behavior. |
+| Coverage gate for newly protected routes | `TestRBACMatrix_CoversAllProtectedStubRoutes` enforces that protected stubs registered by `newRBACTestEnv` have centralized matrix rows. This gate intentionally does not scan the full production router; newly implemented protected routes should add either centralized stub coverage or focused handler-specific ownership tests. |
 
 ## Change Guardrails
 

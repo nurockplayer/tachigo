@@ -10,6 +10,7 @@
 | `docs/history/` | 已完成的一次性遷移、盤點、整理或決策紀錄 | `YYYY-MM-DD-<topic>.md` |
 | `docs/ai/` | 既有 AI 協作指南與 agent-facing 文件 | `<topic>.md` |
 | `docs/superpowers/` | 既有 Superpowers specs / plans 歷史文件 | 維持既有日期命名 |
+| `openspec/` | OpenSpec SDD living specs 與 proposed changes；新 feature / behavior change 的 proposal / specs / design / tasks source of truth | `changes/<change-id>/...`、`specs/<domain>/spec.md` |
 | `plans/` | 實作前計畫與完成後的執行紀錄 | `<feature-slug>.md` |
 
 ## Root Source Of Truth
@@ -30,12 +31,20 @@
 | [`uuid-v7.md`](uuid-v7.md) | UUID 版本策略 |
 | [`watch-to-points-design.md`](watch-to-points-design.md) | Watch-to-points 已完成設計 |
 
+## AI / Workflow Source Of Truth
+
+| 文件 | 定位 |
+|---|---|
+| [`ai/openspec-workflow.md`](ai/openspec-workflow.md) | OpenSpec SDD 標準工作流；新 feature / behavior change 的 proposal、specs、design、tasks 規範 |
+| [`ai/autonomous-bootstrap.md`](ai/autonomous-bootstrap.md) | Hybrid AWP / spec-injector 啟動入口；不取代 OpenSpec feature specs |
+
 ## Active Plans / Proposals
 
 | 文件 | 定位 |
 |---|---|
 | [`atlas-migration-plan.md`](atlas-migration-plan.md) | #463 Atlas migration 拆分實作計畫；不得單獨視為已完成狀態 |
 | [`atlas-schema-reconciliation.md`](atlas-schema-reconciliation.md) | #463 baseline 前 schema reconciliation evidence / procedure |
+| [`deploy-workflow-planning.md`](deploy-workflow-planning.md) | #212 deploy workflow planning；正式 workflow 實作拆到 #1020 |
 | [`non-web3-launch-readiness.md`](non-web3-launch-readiness.md) | 暫時捨棄 Web3 上鏈部分後的上線距離、Codex 自動化能力與真人介入層級 snapshot |
 | [`openapi-codegen-flow.md`](openapi-codegen-flow.md) | #401 OpenAPI → TypeScript contracts / codegen rollout 計畫 |
 

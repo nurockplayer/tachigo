@@ -617,7 +617,7 @@ jobs:
       - name: Set up Go
         uses: actions/setup-go@4a3601121dd01d1626a1e23e37211e3254c1c06c # v6
         with:
-          go-version: 1.26.3
+          go-version: 1.26.4
 
       - name: Install scanner tools
         run: |
@@ -713,7 +713,7 @@ jobs:
     name: Frontend LFS assets
     if: >-
       (github.event_name == 'workflow_dispatch' && inputs.validate_frontend_lfs_assets == true) ||
-      (github.event_name == 'pull_request' && github.base_ref == 'main' && github.head_ref == 'develop' && github.event.pull_request.number != 974)
+      (github.event_name == 'pull_request' && github.base_ref == 'main' && github.head_ref == 'develop')
     runs-on: ubuntu-latest
     steps:
       - uses: actions/checkout@34e114876b0b11c390a56381ad16ebd13914f8d5 # v4

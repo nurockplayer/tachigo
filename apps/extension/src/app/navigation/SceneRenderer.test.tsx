@@ -2,7 +2,7 @@
 import { afterEach, beforeAll, expect, test, vi } from 'vitest'
 import { cleanup, fireEvent, render, screen } from '@testing-library/react'
 
-import { defaultHudDemoState } from '../../extension/types'
+import { defaultHudDemoState, defaultSettingsState } from '../../extension/types'
 import '../../i18n'
 import { NavigationProvider } from './NavigationProvider'
 import { SceneRenderer } from './SceneRenderer'
@@ -14,6 +14,10 @@ vi.mock('../components/LoginScreen', () => ({
       mock login
     </button>
   ),
+}))
+
+vi.mock('../components/MarioHUD', () => ({
+  MarioHUD: () => <div data-testid="mock-mario-hud">mock hud</div>,
 }))
 
 function StateProbe() {
@@ -28,6 +32,16 @@ function StateProbe() {
         {state.scene}:{String(state.flags.hasCompletedLogin)}
       </output>
     </>
+  )
+}
+
+function MiningProbe() {
+  const { goScene } = useNavigation()
+
+  return (
+    <button type="button" onClick={() => goScene('mining')}>
+      go mining
+    </button>
   )
 }
 
@@ -71,4 +85,22 @@ test('marks login as complete before entering loading scene', () => {
   fireEvent.click(screen.getByRole('button', { name: 'mock login' }))
 
   expect(screen.getByLabelText('navigation state').textContent).toBe('loading:true')
+})
+
+test('hides the mining hud when hudVisible is disabled', () => {
+  render(
+    <NavigationProvider>
+      <SceneRenderer
+        hudState={defaultHudDemoState}
+        settings={{ ...defaultSettingsState, hudVisible: false }}
+        onHudStateChange={() => undefined}
+      />
+      <MiningProbe />
+    </NavigationProvider>,
+  )
+
+  fireEvent.click(screen.getByRole('button', { name: 'go mining' }))
+
+  expect(screen.queryByTestId('mock-mario-hud')).toBeNull()
+  expect(screen.getByText('HUD Hidden')).toBeTruthy()
 })

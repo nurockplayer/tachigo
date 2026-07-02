@@ -4,8 +4,10 @@ import { useTranslation } from 'react-i18next'
 import { loadDemoState, saveDemoState } from '../extension/storage'
 import {
   defaultDemoState,
+  defaultSettingsState,
   normalizeAppLanguage,
   type HudDemoState,
+  type SettingsState,
 } from '../extension/types'
 import type { NavigationFlags } from './navigation/types'
 import type { AppLanguage } from '../i18n'
@@ -40,6 +42,7 @@ export default function App() {
   const [hudState, setHudState] = useState<HudDemoState>(defaultDemoState.hud)
   const [tcgBalance, setTcgBalance] = useState(defaultDemoState.tcgBalance)
   const [redeemedCouponIds, setRedeemedCouponIds] = useState<string[]>(defaultDemoState.redeemedCouponIds)
+  const [settings, setSettings] = useState<SettingsState>(defaultSettingsState)
   const [voucherCodes, setVoucherCodes] = useState<Record<string, string>>({})
   const [currentRaffleId, setCurrentRaffleId] = useState('')
   const tcgBalanceRef = useRef(defaultDemoState.tcgBalance)
@@ -60,6 +63,7 @@ export default function App() {
         tcgBalanceRef.current = storedState.tcgBalance
         setRedeemedCouponIds(storedState.redeemedCouponIds)
         redeemedCouponIdsRef.current = [...storedState.redeemedCouponIds]
+        setSettings(storedState.settings)
 
         const targetLanguage = normalizeAppLanguage(storedState.language)
         setCurrentLanguage(targetLanguage)
@@ -97,13 +101,14 @@ export default function App() {
         hud: hudState,
         tcgBalance,
         redeemedCouponIds,
+        settings,
       }).catch((error: unknown) => {
         console.warn('Failed to persist extension demo state', error)
       })
     }, 120)
 
     return () => window.clearTimeout(persistTimer)
-  }, [currentLanguage, flags, hudState, isHydrated, redeemedCouponIds, tcgBalance])
+  }, [currentLanguage, flags, hudState, isHydrated, redeemedCouponIds, settings, tcgBalance])
 
   useEffect(() => {
     if (!isHydrated) {
@@ -181,6 +186,7 @@ export default function App() {
         hudState={hudState}
         isPopupMode={isPopupMode}
         redeemedCouponIds={redeemedCouponIds}
+        settings={settings}
         tcgBalance={tcgBalance}
         voucherCodes={voucherCodes}
         onChangeLanguage={handleLanguageChange}
@@ -190,6 +196,7 @@ export default function App() {
         onFlagsChange={setFlags}
         onHudStateChange={setHudState}
         onOpenPopupMode={openPopupMode}
+        onSettingsChange={setSettings}
       />
     </NavigationProvider>
   )
@@ -202,6 +209,7 @@ interface AppShellProps {
   hudState: HudDemoState
   isPopupMode: boolean
   redeemedCouponIds: string[]
+  settings: SettingsState
   tcgBalance: number
   voucherCodes: Record<string, string>
   onChangeLanguage: (language: AppLanguage) => void
@@ -211,6 +219,7 @@ interface AppShellProps {
   onFlagsChange: Dispatch<SetStateAction<NavigationFlags>>
   onHudStateChange: Dispatch<SetStateAction<HudDemoState>>
   onOpenPopupMode: () => void
+  onSettingsChange: Dispatch<SetStateAction<SettingsState>>
 }
 
 function AppShell({
@@ -220,6 +229,7 @@ function AppShell({
   hudState,
   isPopupMode,
   redeemedCouponIds,
+  settings,
   tcgBalance,
   voucherCodes,
   onChangeLanguage,
@@ -229,6 +239,7 @@ function AppShell({
   onFlagsChange,
   onHudStateChange,
   onOpenPopupMode,
+  onSettingsChange,
 }: AppShellProps) {
   const { state, setFlag } = useNavigation()
   const showOnboarding = shouldShowOnboarding(state.scene, state.flags)
@@ -263,7 +274,10 @@ function AppShell({
           width: 'min(100%, 430px)',
           minWidth: 320,
           minHeight: 600,
-          height: 'min(720px, calc(100vh - 104px))',
+          height:
+            settings.screenMode === 'focus'
+              ? 'min(820px, calc(100vh - 40px))'
+              : 'min(720px, calc(100vh - 104px))',
           borderRadius: 12,
           overflow: 'hidden',
           border: '1px solid rgba(255,255,255,0.07)',
@@ -272,14 +286,18 @@ function AppShell({
           position: 'relative',
         }}
       >
-        <SceneRenderer hudState={hudState} onHudStateChange={onHudStateChange} />
+        <SceneRenderer hudState={hudState} settings={settings} onHudStateChange={onHudStateChange} />
         <OverlayHost
           cpcBalance={hudState.points}
+          currentLanguage={currentLanguage}
           tcgBalance={tcgBalance}
           redeemedCouponIds={redeemedCouponIds}
+          settings={settings}
           voucherCodes={voucherCodes}
+          onChangeLanguage={onChangeLanguage}
           onClaim={onClaim}
           onCouponRedeem={onCouponRedeem}
+          onSettingsChange={onSettingsChange}
         />
         {showOnboarding ? <OnboardingOverlay onComplete={completeOnboarding} /> : null}
       </div>

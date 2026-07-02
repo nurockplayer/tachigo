@@ -57,7 +57,7 @@ async function readJsonBody(req: http.IncomingMessage): Promise<unknown> {
   return JSON.parse(Buffer.concat(chunks).toString('utf8'))
 }
 
-test('redeemCoupon unwraps nested ok() response data', async () => {
+test('redeemCoupon unwraps nested ok() response data without injecting the extension JWT', async () => {
   await withApiServer(
     (requests) => async (req, res) => {
       const body = await readJsonBody(req)
@@ -90,7 +90,7 @@ test('redeemCoupon unwraps nested ok() response data', async () => {
       try {
         vi.resetModules()
         const api = await import('../src/services/api.ts')
-        const result = await api.redeemCoupon('tachiya-95', 18, 'coupon-jwt-token')
+        const result = await api.redeemCoupon('tachiya-95', 18)
 
         assert.deepEqual(result, { balance: 24, voucher_code: 'REAL-VOUCHER-24' })
         assert.deepEqual(
@@ -104,7 +104,7 @@ test('redeemCoupon unwraps nested ok() response data', async () => {
             {
               method: 'POST',
               url: '/spend/redeem',
-              authorization: 'Bearer coupon-jwt-token',
+              authorization: undefined,
               body: { coupon_id: 'tachiya-95', amount: 18 },
             },
           ],

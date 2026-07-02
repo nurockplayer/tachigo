@@ -48,6 +48,17 @@ TypeScript migration 後，source / config / tooling / test scripts 一律使用
 
 例外只限高層次既有類型：lockfiles、generated build output、archived historical docs、以及明確標示的 test fixtures。
 
+### OpenSpec SDD
+
+新 feature 或 behavior change 預設先走 OpenSpec SDD。Claude Code / Codex 在實作前應讀 [docs/ai/openspec-workflow.md](docs/ai/openspec-workflow.md)，並確認：
+
+- GitHub source issue 已存在。
+- `openspec/changes/<change-id>/proposal.md`、`design.md`、`tasks.md` 與 delta specs 已對齊 issue scope。
+- PR body 的 `Source of truth` 指向 issue 與 OpenSpec change path，Acceptance Criteria 對齊 `tasks.md`。
+- 若本機支援 OPSX，優先使用 `/opsx:propose`、`/opsx:apply`、`/opsx:sync`、`/opsx:archive`；若沒有工具，允許人工建立 artifacts，但不得省略 `.openspec.yaml`。
+- 不得自行安裝 OpenSpec CLI、使用 package executor、或提交 private context / cache / task package / 未 review generated output。
+- OpenSpec 不取代 autonomous `spec-injector` local-only gates；需要 autonomous workflow 時仍先讀 [docs/ai/autonomous-bootstrap.md](docs/ai/autonomous-bootstrap.md)。
+
 若使用者授權 autonomous product work，Codex / Claude 應採用 [docs/ai/codex-autonomous-workflow.md](docs/ai/codex-autonomous-workflow.md) 的 Worker Profiles、issue-first、review gate、CodeRabbit fallback 與 PR Scope Police 合約。
 
 Autonomous Worker Profiles 的 follow-up 改善以「約 40% infra 本質複雜、約 60% 工作流自己製造摩擦」為基準：infra 複雜度用固定 readback 與 gate 管住；流程摩擦要靠 `ops_spark` routing、review closeout evidence、subagent lifecycle cleanup、issue-first planning 與 follow-up split 降低。

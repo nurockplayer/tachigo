@@ -3,14 +3,25 @@ import client from '@/services/api'
 type ApiResponse<T> = { success: boolean; data: T }
 
 export type RaffleStatus = 'draft' | 'active' | 'completed'
+export type RaffleMode = 'public' | 'subscribers_only'
 
 export interface Raffle {
   id: string
   user_id: string
   title: string
   status: RaffleStatus
+  source?: 'csv' | 'twitch_api' | 'extension_button'
+  mode?: RaffleMode
+  entry_open?: boolean
   created_at: string
   updated_at: string
+}
+
+export interface RaffleEntryStats {
+  eligible_count: number
+  ineligible_count: number
+  ineligible_reasons: Record<string, number>
+  total_joined: number
 }
 
 export interface RaffleEntry {
@@ -28,6 +39,7 @@ export interface RafflePrizeTier {
   prize_description: string
   winner_count: number
   drawn_count: number
+  position: number
   created_at: string
 }
 
@@ -92,6 +104,39 @@ export async function activateRaffle(raffleId: string): Promise<Raffle> {
     undefined,
   )
   return data.data.raffle
+}
+
+export async function setRaffleMode(
+  raffleId: string,
+  mode: RaffleMode,
+): Promise<Raffle> {
+  const { data } = await client.patch<ApiResponse<{ raffle: Raffle }>>(
+    `/api/v1/dashboard/raffles/${raffleId}/mode`,
+    { mode },
+  )
+  return data.data.raffle
+}
+
+export async function setRaffleEntryOpen(
+  raffleId: string,
+  entryOpen: boolean,
+): Promise<Raffle> {
+  const { data } = await client.patch<ApiResponse<{ raffle: Raffle }>>(
+    `/api/v1/dashboard/raffles/${raffleId}/entry`,
+    { entry_open: entryOpen },
+  )
+  return data.data.raffle
+}
+
+export async function getRaffleEntryStats(
+  raffleId: string,
+  signal?: AbortSignal,
+): Promise<RaffleEntryStats> {
+  const { data } = await client.get<ApiResponse<{ stats: RaffleEntryStats }>>(
+    `/api/v1/dashboard/raffles/${raffleId}/entry-stats`,
+    { signal },
+  )
+  return data.data.stats
 }
 
 export async function completeRaffle(raffleId: string): Promise<void> {

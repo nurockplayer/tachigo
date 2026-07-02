@@ -106,6 +106,39 @@ func TestMigrationDirectoryAtlasChecksumIsCurrent(t *testing.T) {
 	}
 }
 
+func TestMigration023AddsOceanCharacterSchema(t *testing.T) {
+	_, file, _, ok := runtime.Caller(0)
+	if !ok {
+		t.Fatal("resolve current test file")
+	}
+
+	path := filepath.Join(filepath.Dir(file), "..", "..", "migrations", "023_user_characters_streamer_familiarity.sql")
+	body, err := os.ReadFile(path)
+	if err != nil {
+		t.Fatalf("read migration: %v", err)
+	}
+
+	sql := string(body)
+	for _, want := range []string{
+		"ADD COLUMN IF NOT EXISTS active_character",
+		"ADD COLUMN IF NOT EXISTS switch_cooldown_until",
+		"conrelid = 'users'::regclass",
+		"CREATE TABLE IF NOT EXISTS user_characters",
+		"chk_user_characters_character",
+		"chk_user_characters_stage",
+		"chk_user_characters_xp",
+		"idx_user_characters_user_character",
+		"CREATE TABLE IF NOT EXISTS streamer_familiarities",
+		"chk_streamer_familiarities_watch_seconds",
+		"idx_streamer_familiarities_user_channel",
+		"REFERENCES users(id) ON DELETE CASCADE",
+	} {
+		if !strings.Contains(sql, want) {
+			t.Fatalf("migration 023 missing %q", want)
+		}
+	}
+}
+
 func TestBackfillStreamerAgencyUserID_SingleAgencyChannel(t *testing.T) {
 	db := newAgencyMigrationTestDB(t)
 

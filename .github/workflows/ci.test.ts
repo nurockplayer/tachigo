@@ -35,6 +35,10 @@ const codeRabbitConfigPath = path.join(repoRoot, '.coderabbit.yaml')
 const claudePath = path.join(repoRoot, 'CLAUDE.md')
 const claudeConventionsPath = path.join(repoRoot, '.claude', 'rules', 'conventions.md')
 const prScopePolicyPath = path.join(repoRoot, 'docs', 'pr-scope-policy.md')
+const docsReadmePath = path.join(repoRoot, 'docs', 'README.md')
+const docsSourceIndexPath = path.join(repoRoot, 'docs', 'dev-portal', 'source-index.md')
+const openspecWorkflowPath = path.join(repoRoot, 'docs', 'ai', 'openspec-workflow.md')
+const openspecConfigPath = path.join(repoRoot, 'openspec', 'config.yaml')
 const dependabotPolicyPath = path.join(repoRoot, 'docs', 'dependabot-update-policy.md')
 const securityScannerEvaluationPath = path.join(repoRoot, 'docs', 'security-scanner-evaluation.md')
 const contractsGasSnapshotPolicyPath = path.join(repoRoot, 'docs', 'contracts-gas-snapshot-policy.md')
@@ -823,7 +827,7 @@ test('frontend CI job runs the frontend test command', async () => {
   )
 })
 
-test('frontend LFS asset validation skips only the authorized #974 release exception', async () => {
+test('frontend LFS asset validation is release or manual opt-in only', async () => {
   const parsedWorkflow = parseYaml(workflowPath)
   const workflow = await readFile(workflowPath, 'utf8')
   const workflowDispatchInput = parsedWorkflow.on.workflow_dispatch.inputs.validate_frontend_lfs_assets
@@ -836,7 +840,7 @@ test('frontend LFS asset validation skips only the authorized #974 release excep
   assert.equal(job.name, 'Frontend LFS assets')
   assert.equal(
     job.if,
-    "(github.event_name == 'workflow_dispatch' && inputs.validate_frontend_lfs_assets == true) || (github.event_name == 'pull_request' && github.base_ref == 'main' && github.head_ref == 'develop' && github.event.pull_request.number != 974)",
+    "(github.event_name == 'workflow_dispatch' && inputs.validate_frontend_lfs_assets == true) || (github.event_name == 'pull_request' && github.base_ref == 'main' && github.head_ref == 'develop')",
   )
   assert.equal(job.needs, undefined)
   assert.equal(
@@ -1418,6 +1422,31 @@ test('AWP v2 docs wire AGENTS and PR scope policy to autonomous evidence gates a
   assert.match(autonomousPrGates, /#664/)
   assert.match(prScopePolicy, /status \/ ref/)
   assert.match(prScopePolicy, /threshold calibration ledger/i)
+})
+
+test('OpenSpec SDD workflow is wired into agent docs, PR template, and docs indexes', async () => {
+  const agents = await readFile(path.join(repoRoot, 'AGENTS.md'), 'utf8')
+  const claude = await readFile(claudePath, 'utf8')
+  const prTemplate = await readFile(prTemplatePath, 'utf8')
+  const docsReadme = await readFile(docsReadmePath, 'utf8')
+  const docsSourceIndex = await readFile(docsSourceIndexPath, 'utf8')
+  const openspecWorkflow = await readFile(openspecWorkflowPath, 'utf8')
+  const openspecConfig = await readFile(openspecConfigPath, 'utf8')
+
+  assert.match(agents, /OpenSpec SDD Workflow/)
+  assert.match(agents, /docs\/ai\/openspec-workflow\.md/)
+  assert.match(claude, /OpenSpec SDD/)
+  assert.match(claude, /\/opsx:propose/)
+  assert.match(prTemplate, /## OpenSpec SDD/)
+  assert.match(prTemplate, /OpenSpec change：/)
+  assert.match(prTemplate, /Acceptance Criteria 對齊 `tasks\.md`/)
+  assert.match(docsReadme, /`openspec\/`/)
+  assert.match(docsReadme, /ai\/openspec-workflow\.md/)
+  assert.match(docsSourceIndex, /OpenSpec SDD/)
+  assert.match(openspecWorkflow, /\/opsx:propose → \/opsx:apply → \/opsx:sync → \/opsx:archive/)
+  assert.match(openspecWorkflow, /spec-injector/)
+  assert.match(openspecConfig, /schema: spec-driven/)
+  assert.match(openspecConfig, /OpenSpec does not replace those gates/)
 })
 
 test('Scope Police stays out of spec workflow-check internals and threshold metrics', async () => {
@@ -2515,7 +2544,7 @@ test('backend security scanner job installs pinned staticcheck and govulncheck',
   assert.equal(job.name, 'Backend security scanners')
   assert.equal(job.env.STATICCHECK_VERSION, 'v0.7.0')
   assert.equal(job.env.GOVULNCHECK_VERSION, 'v1.3.0')
-  assert.match(jobBlock, /go-version: 1\.26\.3/)
+  assert.match(jobBlock, /go-version: 1\.26\.4/)
   assert.match(jobBlock, /go install honnef\.co\/go\/tools\/cmd\/staticcheck@\$STATICCHECK_VERSION/)
   assert.match(jobBlock, /go install golang\.org\/x\/vuln\/cmd\/govulncheck@\$GOVULNCHECK_VERSION/)
   assert.match(jobBlock, /working-directory: services\/api\n\s+run: staticcheck \.\/\.\.\./)
