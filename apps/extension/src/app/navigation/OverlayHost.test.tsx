@@ -4,7 +4,6 @@ import '../../i18n'
 import { useState } from 'react'
 import { afterEach, expect, test, vi } from 'vitest'
 import { cleanup, fireEvent, render, screen, waitFor } from '@testing-library/react'
-
 import { NavigationProvider } from './NavigationProvider'
 import { OverlayHost } from './OverlayHost'
 import { useNavigation } from './useNavigation'
@@ -55,6 +54,9 @@ function Harness({
     <>
       <button type="button" onClick={() => pushOverlay({ kind: 'menu' })}>
         open menu
+      </button>
+      <button type="button" onClick={() => pushOverlay({ kind: 'shop' })}>
+        open shop
       </button>
       <output aria-label="top overlay">{topOverlay}</output>
       <OverlayHost
@@ -143,6 +145,29 @@ test('account overlay renders an error state when the current account fetch fail
 
   expect((await screen.findByRole('alert')).textContent).toContain('Could not load account')
   expect(screen.getAllByRole('button', { name: 'Close' }).length).toBeGreaterThan(0)
+})
+
+test('shop opens category cards before entering the coupon market', () => {
+  render(
+    <NavigationProvider>
+      <Harness />
+    </NavigationProvider>,
+  )
+
+  fireEvent.click(screen.getByRole('button', { name: 'open shop' }))
+
+  expect(screen.getByLabelText('top overlay').textContent).toBe('shop')
+  expect(screen.getByRole('heading', { name: 'Choose a reward shelf' })).toBeTruthy()
+  expect(screen.queryByRole('button', { name: 'REDEEM' })).toBeNull()
+
+  fireEvent.click(screen.getByRole('button', { name: 'Tachiya Coupon' }))
+
+  expect(screen.getByText('COUPON MARKET')).toBeTruthy()
+  expect(screen.getByRole('button', { name: 'REDEEM' })).toBeTruthy()
+
+  fireEvent.click(screen.getByRole('button', { name: '‹ BACK' }))
+
+  expect(screen.getByLabelText('top overlay').textContent).toBe('none')
 })
 
 test('settings panel toggles persisted sound and hud preferences', () => {
