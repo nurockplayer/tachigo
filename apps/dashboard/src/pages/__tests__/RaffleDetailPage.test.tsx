@@ -268,6 +268,30 @@ describe('RaffleDetailPage — prize tiers', () => {
     cleanup(root, container)
   })
 
+  it('limits prize tier description length and shows character count', async () => {
+    const dp = createMockDataProvider({
+      getOne: { raffles: vi.fn().mockResolvedValue(draftRaffle as BaseRecord) },
+    })
+    const { container, root } = await renderAt('r1', dp)
+    await waitFor(() => expect(container.querySelector('[data-testid="prize-tier-toggle"]')).toBeTruthy())
+
+    await act(async () => {
+      container.querySelector('[data-testid="prize-tier-toggle"]')!
+        .dispatchEvent(new MouseEvent('click', { bubbles: true }))
+    })
+
+    const description = container.querySelector('[data-testid="prize-tier-description"]') as HTMLInputElement
+    expect(description.maxLength).toBe(100)
+
+    await act(async () => {
+      description.value = 'abc'
+      description.dispatchEvent(new Event('input', { bubbles: true }))
+    })
+
+    expect(container.textContent).toContain('3/100')
+    cleanup(root, container)
+  })
+
   it('does not create a prize tier when winner count is empty', async () => {
     const dp = createMockDataProvider({
       getOne: { raffles: vi.fn().mockResolvedValue(draftRaffle as BaseRecord) },
@@ -366,6 +390,27 @@ describe('RaffleDetailPage — CSV upload', () => {
 })
 
 describe('RaffleDetailPage — draw button', () => {
+  it('shows no-tier fallback hint when active raffle has no prize tiers', async () => {
+    vi.mocked(rafflesService.listPrizeTiers).mockResolvedValue([])
+    const dp = createMockDataProvider({
+      getOne: { raffles: vi.fn().mockResolvedValue(mockRaffle as BaseRecord) },
+    })
+    const { container, root } = await renderAt('r1', dp)
+    await waitFor(() => expect(container.querySelector('[data-testid="no-tier-fallback-hint"]')).toBeTruthy())
+    cleanup(root, container)
+  })
+
+  it('hides no-tier fallback hint when active raffle has prize tiers', async () => {
+    vi.mocked(rafflesService.listPrizeTiers).mockResolvedValue([mockPrizeTier])
+    const dp = createMockDataProvider({
+      getOne: { raffles: vi.fn().mockResolvedValue(mockRaffle as BaseRecord) },
+    })
+    const { container, root } = await renderAt('r1', dp)
+    await waitFor(() => expect(container.querySelector('[data-testid="raffle-draw-session"]')).toBeTruthy())
+    expect(container.querySelector('[data-testid="no-tier-fallback-hint"]')).toBeNull()
+    cleanup(root, container)
+  })
+
   it('calls drawNext when clicked', async () => {
     const drawMock = vi.mocked(rafflesService.drawNext).mockResolvedValue(mockDraw)
     vi.mocked(rafflesService.getRaffleEntryStats).mockResolvedValue({
@@ -601,6 +646,16 @@ describe('RaffleDetailPage — activate button', () => {
     })
     const { container, root } = await renderAt('r1', dp)
     await waitFor(() => expect(container.querySelector('[data-testid="activate-btn"]')).toBeTruthy())
+    cleanup(root, container)
+  })
+
+  it('shows activate tier hint when status is draft', async () => {
+    const draftRaffle = { ...mockRaffle, status: 'draft' as const }
+    const dp = createMockDataProvider({
+      getOne: { raffles: vi.fn().mockResolvedValue(draftRaffle as BaseRecord) },
+    })
+    const { container, root } = await renderAt('r1', dp)
+    await waitFor(() => expect(container.querySelector('[data-testid="activate-tier-hint"]')).toBeTruthy())
     cleanup(root, container)
   })
 
