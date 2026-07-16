@@ -147,7 +147,7 @@ func New(
 
 	// ── Claim endpoints ───────────────────────────────────────────────────
 	// GET is public; POST requires the winner's JWT.
-	v1.GET("/claim/:token", raffleH.GetClaim)
+	v1.GET("/claim/:token", publicRateLimit("raffle_claim_get"), raffleH.GetClaim)
 	claimAuth := v1.Group("/claim")
 	claimAuth.Use(middleware.JWTAuth(authSvc))
 	{

@@ -672,9 +672,10 @@ func TestPublicEndpointRateLimits(t *testing.T) {
 	env := newRouterTestEnv(t)
 
 	tests := []struct {
-		name string
-		path string
-		body string
+		name   string
+		method string
+		path   string
+		body   string
 	}{
 		{
 			name: "register",
@@ -716,12 +717,21 @@ func TestPublicEndpointRateLimits(t *testing.T) {
 			path: "/api/v1/extension/bits/complete",
 			body: `{}`,
 		},
+		{
+			name:   "raffle claim lookup",
+			method: http.MethodGet,
+			path:   "/api/v1/claim/nonexistent-token",
+		},
 	}
 
 	for _, tt := range tests {
 		t.Run(tt.name, func(t *testing.T) {
+			method := tt.method
+			if method == "" {
+				method = http.MethodPost
+			}
 			for i := 0; i < 70; i++ {
-				req := httptest.NewRequest(http.MethodPost, tt.path, strings.NewReader(tt.body))
+				req := httptest.NewRequest(method, tt.path, strings.NewReader(tt.body))
 				req.Header.Set("Content-Type", "application/json")
 				rec := httptest.NewRecorder()
 				env.router.ServeHTTP(rec, req)
