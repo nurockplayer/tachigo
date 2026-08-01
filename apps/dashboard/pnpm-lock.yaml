@@ -30,8 +30,8 @@ importers:
         specifier: ^4.3.0
         version: 4.3.0
       axios:
-        specifier: ^1.16.1
-        version: 1.16.1
+        specifier: ^1.18.0
+        version: 1.18.1
       class-variance-authority:
         specifier: ^0.7.1
         version: 0.7.1
@@ -83,7 +83,7 @@ importers:
         version: 10.5.0(postcss@8.5.13)
       axios-mock-adapter:
         specifier: ^2.1.0
-        version: 2.1.0(axios@1.16.1)
+        version: 2.1.0(axios@1.18.1)
       eslint:
         specifier: ^10.3.0
         version: 10.4.0(jiti@2.7.0)
@@ -840,8 +840,8 @@ packages:
     peerDependencies:
       axios: '>= 0.17.0'
 
-  axios@1.16.1:
-    resolution: {integrity: sha512-caYkukvroVPO8KrzuJEb50Hm07KwfBZPEC3VeFHTsqWHvKTsy54hjJz9BS/cdaypROE2rH6xvm9mHX4fgWkr3A==}
+  axios@1.18.1:
+    resolution: {integrity: sha512-3nTvFlvpn9Zu/RkHUqtc7/+al4UpRW5az71ap5zccp6e8RAYEzhMTecX8Dz1wWDYrPpUoB1HAQEGEAEvUr7S9g==}
 
   balanced-match@4.0.4:
     resolution: {integrity: sha512-BLrgEcRTwX2o6gGxGOCNyMvGSp35YofuYzw9h1IMTRmKqttAZZVU67bdb9Pr2vUHA8+j3i2tJfjO6C6+4myGTA==}
@@ -2122,7 +2122,7 @@ snapshots:
   '@refinedev/simple-rest@6.0.1(@refinedev/core@5.0.12(@tanstack/react-query@5.100.6(react@19.2.5))(@types/react-dom@19.2.3(@types/react@19.2.14))(@types/react@19.2.14)(react-dom@19.2.5(react@19.2.5))(react@19.2.5))':
     dependencies:
       '@refinedev/core': 5.0.12(@tanstack/react-query@5.100.6(react@19.2.5))(@types/react-dom@19.2.3(@types/react@19.2.14))(@types/react@19.2.14)(react-dom@19.2.5(react@19.2.5))(react@19.2.5)
-      axios: 1.16.1
+      axios: 1.18.1
       query-string: 7.1.3
     transitivePeerDependencies:
       - debug
@@ -2491,13 +2491,13 @@ snapshots:
       postcss: 8.5.13
       postcss-value-parser: 4.2.0
 
-  axios-mock-adapter@2.1.0(axios@1.16.1):
+  axios-mock-adapter@2.1.0(axios@1.18.1):
     dependencies:
-      axios: 1.16.1
+      axios: 1.18.1
       fast-deep-equal: 3.1.3
       is-buffer: 2.0.5
 
-  axios@1.16.1:
+  axios@1.18.1:
     dependencies:
       follow-redirects: 1.16.0
       form-data: 4.0.5
