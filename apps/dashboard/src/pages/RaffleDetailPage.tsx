@@ -1118,6 +1118,9 @@ export default function RaffleDetailPage() {
 
           {effectiveStatus === 'draft' && (
             <>
+              <p data-testid="activate-tier-hint" style={{ fontSize: 11, color: 'rgba(148,210,255,.45)', textAlign: 'center', marginBottom: 6 }}>
+                若需分獎項逐輪抽出，請先在下方設定獎項再開始。
+              </p>
               <button
                 data-testid="activate-btn"
                 disabled={activating}
@@ -1191,7 +1194,13 @@ export default function RaffleDetailPage() {
             onCloseModal={() => { setModalWinner(null); setModalPrize(null) }}
           />
           {!(effectiveStatus === 'active' && tiers.length > 0) && (
-            <button
+            <>
+              {effectiveStatus === 'active' && tiers.length === 0 && (
+                <p data-testid="no-tier-fallback-hint" style={{ fontSize: 11, color: 'rgba(148,210,255,.45)', textAlign: 'center', marginBottom: 6 }}>
+                  未設定獎項，使用一般隨機抽獎。
+                </p>
+              )}
+              <button
               data-testid="draw-btn"
               disabled={effectiveStatus === 'completed' || exhausted || remaining === 0 || drawing}
               onClick={() => { void handleDraw() }}
@@ -1205,7 +1214,8 @@ export default function RaffleDetailPage() {
               }}
             >
               {drawing ? '抽獎中...' : '開始抽獎'}
-            </button>
+              </button>
+            </>
           )}
           <div style={{ fontSize: 11, color: 'rgba(148,210,255,.5)', textAlign: 'center' }}>
             將從參加者中隨機抽出一位幸運觀眾！
@@ -1256,7 +1266,10 @@ export default function RaffleDetailPage() {
                 </div>
                 <div style={{ display: 'flex', flexDirection: 'column', gap: 3 }}>
                   <label style={{ fontSize: 10, color: 'rgba(148,210,255,.6)' }}>獎品描述</label>
-                  <input data-testid="prize-tier-description" value={newTier.prize_description} onInput={e => setNewTier(p => ({ ...p, prize_description: (e.target as HTMLInputElement).value }))} onChange={e => setNewTier(p => ({ ...p, prize_description: e.target.value }))} placeholder="例：Switch 主機" style={{ background: 'rgba(255,255,255,.07)', border: '1px solid rgba(80,160,255,.25)', borderRadius: 5, color: '#e0f2fe', fontSize: 12, padding: '5px 8px' }} />
+                  <input data-testid="prize-tier-description" maxLength={100} value={newTier.prize_description} onInput={e => setNewTier(p => ({ ...p, prize_description: (e.target as HTMLInputElement).value }))} onChange={e => setNewTier(p => ({ ...p, prize_description: e.target.value }))} placeholder="例：Switch 主機" style={{ background: 'rgba(255,255,255,.07)', border: '1px solid rgba(80,160,255,.25)', borderRadius: 5, color: '#e0f2fe', fontSize: 12, padding: '5px 8px' }} />
+                  <span style={{ fontSize: 10, color: 'rgba(148,210,255,.35)' }}>
+                    {newTier.prize_description.length}/100
+                  </span>
                 </div>
                 <div style={{ display: 'flex', flexDirection: 'column', gap: 3 }}>
                   <label style={{ fontSize: 10, color: 'rgba(148,210,255,.6)' }}>抽幾人</label>

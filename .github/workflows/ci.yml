@@ -200,7 +200,7 @@ jobs:
             const dependsOnMatch = body.match(/Depends on PR[：:]\s*(.+)/i)
             const dependsOnRaw = dependsOnMatch?.[1]?.trim()
             const dependsOnNone = dependsOnRaw?.toLowerCase() === 'none'
-            const dependsOnPrMatch = dependsOnRaw?.match(/^#(\d+)$/)
+            const dependsOnPrMatch = dependsOnRaw?.match(/^#(\d+)/)
             const extractPrBodySection = (heading) => {
               const escapedHeading = heading.replace(/[.*+?^${}()|[\]\\]/g, '\\$&')
               const match = body.match(new RegExp(
@@ -258,8 +258,7 @@ jobs:
               /^\.github\/workflows\/ci\.yml$/,
             ]
             const ciWorkflowPaths = [
-              /^\.github\/workflows\/ci\.yml$/,
-              /^\.github\/workflows\/ci\.test\.ts$/,
+              /^\.github\/workflows\//,
             ]
             const dockerComposePaths = [/^docker-compose(?:\..+)?\.ya?ml$/]
             const frontendWorkspacePaths = [
@@ -617,7 +616,7 @@ jobs:
       - name: Set up Go
         uses: actions/setup-go@4a3601121dd01d1626a1e23e37211e3254c1c06c # v6
         with:
-          go-version: 1.26.4
+          go-version: 1.26.5
 
       - name: Install scanner tools
         run: |

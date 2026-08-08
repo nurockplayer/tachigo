@@ -1,0 +1,255 @@
+name: Staged Deploy
+
+on:
+  workflow_dispatch:
+    inputs:
+      target:
+        description: "Deployment target"
+        required: true
+        type: choice
+        options:
+          - staging-api
+          - staging-dashboard
+          - production-api
+          - production-dashboard
+      deploy_sha:
+        description: "Exact git commit SHA to deploy"
+        required: true
+        type: string
+      confirm_production:
+        description: "Required for production targets"
+        required: false
+        type: boolean
+        default: false
+
+permissions:
+  contents: read
+
+concurrency:
+  group: staged-deploy-${{ inputs.target }}
+  cancel-in-progress: false
+
+env:
+  FORCE_JAVASCRIPT_ACTIONS_TO_NODE24: true
+
+jobs:
+  preflight:
+    timeout-minutes: 5
+    name: Deploy preflight
+    runs-on: ubuntu-latest
+    outputs:
+      is_api: ${{ steps.classify.outputs.is_api }}
+      is_dashboard: ${{ steps.classify.outputs.is_dashboard }}
+      is_production: ${{ steps.classify.outputs.is_production }}
+    steps:
+      - uses: actions/checkout@34e114876b0b11c390a56381ad16ebd13914f8d5 # v4
+        with:
+          fetch-depth: 0
+          persist-credentials: false
+
+      - name: Validate deploy SHA
+        env:
+          DEPLOYMENT_SHA: ${{ inputs.deploy_sha }}
+        run: |
+          case "$DEPLOYMENT_SHA" in
+            [0-9a-f][0-9a-f][0-9a-f][0-9a-f][0-9a-f][0-9a-f][0-9a-f][0-9a-f][0-9a-f][0-9a-f][0-9a-f][0-9a-f][0-9a-f][0-9a-f][0-9a-f][0-9a-f][0-9a-f][0-9a-f][0-9a-f][0-9a-f][0-9a-f][0-9a-f][0-9a-f][0-9a-f][0-9a-f][0-9a-f][0-9a-f][0-9a-f][0-9a-f][0-9a-f][0-9a-f][0-9a-f][0-9a-f][0-9a-f][0-9a-f][0-9a-f][0-9a-f][0-9a-f][0-9a-f][0-9a-f])
+              ;;
+            *)
+              echo "deploy_sha must be a full 40-character lowercase commit SHA" >&2
+              exit 1
+              ;;
+          esac
+          git cat-file -e "$DEPLOYMENT_SHA^{commit}"
+
+      - name: Enforce production confirmation
+        if: startsWith(inputs.target, 'production-') && inputs.confirm_production != true
+        run: |
+          echo "Production deploys require confirm_production=true and GitHub Environment approval." >&2
+          exit 1
+
+      - name: Classify deployment target
+        id: classify
+        run: |
+          case "${{ inputs.target }}" in
+            staging-api|production-api)
+              echo "is_api=true" >> "$GITHUB_OUTPUT"
+              echo "is_dashboard=false" >> "$GITHUB_OUTPUT"
+              ;;
+            staging-dashboard|production-dashboard)
+              echo "is_api=false" >> "$GITHUB_OUTPUT"
+              echo "is_dashboard=true" >> "$GITHUB_OUTPUT"
+              ;;
+          esac
+          case "${{ inputs.target }}" in
+            production-*)
+              echo "is_production=true" >> "$GITHUB_OUTPUT"
+              ;;
+            *)
+              echo "is_production=false" >> "$GITHUB_OUTPUT"
+              ;;
+          esac
+
+      - name: Write preflight summary
+        env:
+          DEPLOYMENT_SHA: ${{ inputs.deploy_sha }}
+        run: |
+          {
+            echo "## Deploy preflight"
+            echo ""
+            echo "- Target: ${{ inputs.target }}"
+            echo "- Deployment SHA: $DEPLOYMENT_SHA"
+            echo "- Production: ${{ steps.classify.outputs.is_production }}"
+            echo "- Approval gate: GitHub Environment ${{ inputs.target }}"
+          } >> "$GITHUB_STEP_SUMMARY"
+
+  backend-api:
+    timeout-minutes: 30
+    name: Backend API deploy
+    needs: [preflight]
+    if: needs.preflight.outputs.is_api == 'true'
+    runs-on: ubuntu-latest
+    environment:
+      name: ${{ inputs.target }}
+    steps:
+      - uses: actions/checkout@34e114876b0b11c390a56381ad16ebd13914f8d5 # v4
+        with:
+          ref: ${{ inputs.deploy_sha }}
+          persist-credentials: false
+
+      - name: Build backend image
+        env:
+          DEPLOYMENT_SHA: ${{ inputs.deploy_sha }}
+        run: docker build -t "tachigo-api:${DEPLOYMENT_SHA}" services/api
+
+      - name: Apply Atlas migrations
+        env:
+          ATLAS_DATABASE_URL: ${{ secrets.ATLAS_DATABASE_URL }}
+          DEPLOYMENT_SHA: ${{ inputs.deploy_sha }}
+        run: |
+          : "${ATLAS_DATABASE_URL:?ATLAS_DATABASE_URL environment secret is required}"
+          set +e
+          docker run --rm \
+            -e ATLAS_DATABASE_URL="$ATLAS_DATABASE_URL" \
+            "tachigo-api:${DEPLOYMENT_SHA}" \
+            atlas migrate apply --dir file://migrations --url "$ATLAS_DATABASE_URL"
+          migration_exit=$?
+          set -e
+          if [ "$migration_exit" -eq 0 ]; then
+            echo "MIGRATION_STATUS=applied" >> "$GITHUB_ENV"
+          else
+            echo "MIGRATION_STATUS=failed" >> "$GITHUB_ENV"
+            exit "$migration_exit"
+          fi
+
+      - name: Record backend deployment handoff
+        env:
+          DEPLOYMENT_SHA: ${{ inputs.deploy_sha }}
+        run: |
+          {
+            echo "## Backend deployment handoff"
+            echo ""
+            echo "- Built image: tachigo-api:$DEPLOYMENT_SHA"
+            echo "- Migration status: $MIGRATION_STATUS"
+            echo "- Environment: ${{ inputs.target }}"
+            echo ""
+            echo "Deploy the built image to the approved container target before smoke readback."
+            echo "This workflow intentionally does not accept arbitrary deploy commands from secrets."
+          } >> "$GITHUB_STEP_SUMMARY"
+
+      - name: Run staging API smoke readback
+        if: inputs.target == 'staging-api'
+        env:
+          STAGING_API_BASE_URL: ${{ vars.STAGING_API_BASE_URL }}
+          STAGING_AUTH_BEARER_TOKEN: ${{ secrets.STAGING_AUTH_BEARER_TOKEN }}
+          DEPLOYMENT_SHA: ${{ inputs.deploy_sha }}
+        run: infra/scripts/backend-staging-smoke.sh
+
+      - name: Run production API smoke readback
+        if: inputs.target == 'production-api'
+        env:
+          PRODUCTION_API_BASE_URL: ${{ vars.PRODUCTION_API_BASE_URL }}
+          PRODUCTION_AUTH_BEARER_TOKEN: ${{ secrets.PRODUCTION_AUTH_BEARER_TOKEN }}
+          DEPLOYMENT_SHA: ${{ inputs.deploy_sha }}
+        run: |
+          : "${PRODUCTION_API_BASE_URL:?PRODUCTION_API_BASE_URL environment variable is required}"
+          : "${PRODUCTION_AUTH_BEARER_TOKEN:?PRODUCTION_AUTH_BEARER_TOKEN environment secret is required}"
+          base_url="${PRODUCTION_API_BASE_URL%/}"
+          printf 'deployment_sha=%s\n' "$DEPLOYMENT_SHA"
+          printf 'migration_status=%s\n' "$MIGRATION_STATUS"
+          curl -fsS "$base_url/health" >/tmp/production-health.json
+          curl -fsS "$base_url/readyz" >/tmp/production-readyz.json
+          curl -fsS \
+            -H "Authorization: Bearer ${PRODUCTION_AUTH_BEARER_TOKEN}" \
+            "$base_url/api/v1/users/me" >/tmp/production-users-me.json
+          printf 'production api smoke passed\n'
+
+  dashboard:
+    timeout-minutes: 30
+    name: Dashboard deploy
+    needs: [preflight]
+    if: needs.preflight.outputs.is_dashboard == 'true'
+    runs-on: ubuntu-latest
+    environment:
+      name: ${{ inputs.target }}
+    steps:
+      - uses: actions/checkout@34e114876b0b11c390a56381ad16ebd13914f8d5 # v4
+        with:
+          ref: ${{ inputs.deploy_sha }}
+          persist-credentials: false
+
+      - name: Build dashboard image
+        run: docker compose build dashboard
+
+      - name: Build dashboard artifact
+        env:
+          DASHBOARD_API_URL: ${{ vars.DASHBOARD_API_URL }}
+        run: |
+          : "${DASHBOARD_API_URL:?DASHBOARD_API_URL environment variable is required}"
+          docker rm -f tachigo-dashboard-package >/dev/null 2>&1 || true
+          trap 'docker rm -f tachigo-dashboard-package >/dev/null 2>&1 || true' EXIT
+          docker compose run \
+            --name tachigo-dashboard-package \
+            --no-deps \
+            -e VITE_TACHIGO_API_URL="$DASHBOARD_API_URL" \
+            dashboard sh -lc 'pnpm build && pnpm package:readback'
+          rm -rf apps/dashboard/dist
+          docker cp tachigo-dashboard-package:/app/dist apps/dashboard/dist
+          docker rm -f tachigo-dashboard-package >/dev/null
+
+      - name: Record dashboard deployment handoff
+        env:
+          DEPLOYMENT_SHA: ${{ inputs.deploy_sha }}
+          DASHBOARD_API_URL: ${{ vars.DASHBOARD_API_URL }}
+          CLOUDFLARE_PAGES_PROJECT: ${{ vars.CLOUDFLARE_PAGES_PROJECT }}
+          DASHBOARD_PUBLIC_URL: ${{ vars.DASHBOARD_PUBLIC_URL }}
+        run: |
+          : "${DASHBOARD_API_URL:?DASHBOARD_API_URL environment variable is required}"
+          : "${CLOUDFLARE_PAGES_PROJECT:?CLOUDFLARE_PAGES_PROJECT environment variable is required}"
+          : "${DASHBOARD_PUBLIC_URL:?DASHBOARD_PUBLIC_URL environment variable is required}"
+          {
+            echo "## Dashboard deployment handoff"
+            echo ""
+            echo "- Deployment SHA: $DEPLOYMENT_SHA"
+            echo "- Dashboard API URL: $DASHBOARD_API_URL"
+            echo "- Artifact: apps/dashboard/dist"
+            echo "- Cloudflare Pages project: $CLOUDFLARE_PAGES_PROJECT"
+            echo "- Public URL: $DASHBOARD_PUBLIC_URL"
+            echo ""
+            echo "Upload apps/dashboard/dist to the approved Cloudflare Pages project for this environment."
+            echo "This workflow intentionally avoids adding a new third-party deploy action until maintainers approve the Cloudflare credential path."
+          } >> "$GITHUB_STEP_SUMMARY"
+
+      - name: Record dashboard smoke readback contract
+        env:
+          DEPLOYMENT_SHA: ${{ inputs.deploy_sha }}
+          DASHBOARD_PUBLIC_URL: ${{ vars.DASHBOARD_PUBLIC_URL }}
+        run: |
+          : "${DASHBOARD_PUBLIC_URL:?DASHBOARD_PUBLIC_URL environment variable is required}"
+          {
+            echo "## Dashboard smoke readback contract"
+            echo ""
+            echo "- Public URL: ${DASHBOARD_PUBLIC_URL%/}"
+            echo "- Deployment SHA: $DEPLOYMENT_SHA"
+            echo "- Run the dashboard smoke readback only after the manual Cloudflare Pages upload reports this deployment SHA."
+            echo "- Verify the public page loads and references bundled assets from apps/dashboard/dist."
+          } >> "$GITHUB_STEP_SUMMARY"

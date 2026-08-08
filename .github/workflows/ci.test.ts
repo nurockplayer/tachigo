@@ -31,6 +31,7 @@ const closeIssueOnDevelopMergeWorkflowPath = path.join(currentDir, 'close-issue-
 const dependencyInventoryWorkflowPath = path.join(currentDir, 'dependency-inventory.yml')
 const notifyRebaseNeededWorkflowPath = path.join(currentDir, 'notify-rebase-needed.yml')
 const releasePrWorkflowPath = path.join(currentDir, 'release-pr.yml')
+const deployWorkflowPath = path.join(currentDir, 'deploy.yml')
 const codeRabbitConfigPath = path.join(repoRoot, '.coderabbit.yaml')
 const claudePath = path.join(repoRoot, 'CLAUDE.md')
 const claudeConventionsPath = path.join(repoRoot, '.claude', 'rules', 'conventions.md')
@@ -2223,8 +2224,8 @@ test('docs/template-only PRs skip heavy product CI in CI scope router', async ()
   )
   assert.match(
     workflow,
-    /\^\\.github\\\/workflows\\\/ci\\.yml\$/,
-    'ci.yml changes must request backend integration validation',
+    /\^\\.github\\\/workflows\\\//,
+    'workflow file changes must request full CI validation',
   )
 })
 
@@ -2301,11 +2302,17 @@ test('CI scope router emits full CI outputs for workflow file PRs', async () => 
     prOverrides: { title: '[infra] Update CI regression coverage' },
     files: [{ filename: '.github/workflows/ci.test.ts', additions: 8, deletions: 2, status: 'modified' }],
   })
+  const deployWorkflow = await runCiScopeGateWorkflow({
+    prOverrides: { title: '[infra] Add staged deploy workflow' },
+    files: [{ filename: '.github/workflows/deploy.yml', additions: 80, deletions: 0, status: 'added' }],
+  })
 
   assert.deepEqual(ciRuntime.outputs, fullOutputs)
   assert.deepEqual(ciRegression.outputs, fullOutputs)
+  assert.deepEqual(deployWorkflow.outputs, fullOutputs)
   assert.equal(ciRuntime.notices.some((notice) => notice.includes('Skipping heavy')), false)
   assert.equal(ciRegression.notices.some((notice) => notice.includes('Skipping heavy')), false)
+  assert.equal(deployWorkflow.notices.some((notice) => notice.includes('Skipping heavy')), false)
 })
 
 test('CI scope router keeps workflow PRs in full CI when later checked acceptance criteria start with Normal', async () => {
@@ -2544,7 +2551,7 @@ test('backend security scanner job installs pinned staticcheck and govulncheck',
   assert.equal(job.name, 'Backend security scanners')
   assert.equal(job.env.STATICCHECK_VERSION, 'v0.7.0')
   assert.equal(job.env.GOVULNCHECK_VERSION, 'v1.3.0')
-  assert.match(jobBlock, /go-version: 1\.26\.4/)
+  assert.match(jobBlock, /go-version: 1\.26\.5/)
   assert.match(jobBlock, /go install honnef\.co\/go\/tools\/cmd\/staticcheck@\$STATICCHECK_VERSION/)
   assert.match(jobBlock, /go install golang\.org\/x\/vuln\/cmd\/govulncheck@\$GOVULNCHECK_VERSION/)
   assert.match(jobBlock, /working-directory: services\/api\n\s+run: staticcheck \.\/\.\.\./)
@@ -2961,6 +2968,93 @@ test('release PR workflow marks generated release PRs as R4 risk', async () => {
   assert.match(jobBlock, /- \[ \] R2 frontend behavior/)
   assert.match(jobBlock, /- \[ \] R3 backend \/ API behavior/)
   assert.match(jobBlock, /- \[x\] R4 auth \/ permissions \/ security \/ schema \/ migration \/ secrets \/ payments \/ wallet \/ workflow \/ release/)
+})
+
+test('staged deploy workflow is manual-only and requires production confirmation', async () => {
+  const workflow = await readFile(deployWorkflowPath, 'utf8')
+  const parsedWorkflow = parseYaml(deployWorkflowPath)
+  const targetInput = parsedWorkflow.on.workflow_dispatch.inputs.target
+  const confirmProductionInput = parsedWorkflow.on.workflow_dispatch.inputs.confirm_production
+  const preflightBlock = workflowJobBlock(workflow, 'preflight')
+
+  assert.equal(parsedWorkflow.name, 'Staged Deploy')
+  assert.deepEqual(Object.keys(parsedWorkflow.on), ['workflow_dispatch'])
+  assert.equal(parsedWorkflow.permissions.contents, 'read')
+  assert.equal(parsedWorkflow.permissions['pull-requests'], undefined)
+  assert.equal(parsedWorkflow.permissions.actions, undefined)
+  assert.equal(parsedWorkflow.concurrency.group, 'staged-deploy-${{ inputs.target }}')
+  assert.equal(targetInput.type, 'choice')
+  assert.deepEqual(targetInput.options, [
+    'staging-api',
+    'staging-dashboard',
+    'production-api',
+    'production-dashboard',
+  ])
+  assert.equal(parsedWorkflow.on.workflow_dispatch.inputs.deploy_sha.required, true)
+  assert.equal(confirmProductionInput.type, 'boolean')
+  assert.equal(confirmProductionInput.default, false)
+  assert.match(preflightBlock, pinnedActionRef('actions/checkout', 'v4'))
+  assert.match(preflightBlock, /deploy_sha must be a full 40-character lowercase commit SHA/)
+  assert.match(preflightBlock, /confirm_production=true/)
+  assert.match(preflightBlock, /GitHub Environment approval/)
+  assert.doesNotMatch(workflow, /pull_request:/)
+  assert.doesNotMatch(workflow, /push:/)
+  assert.doesNotMatch(workflow, /schedule:/)
+  assert.doesNotMatch(workflow, /auto-ready/)
+})
+
+test('staged deploy workflow keeps deploy jobs behind environment gates', async () => {
+  const workflow = await readFile(deployWorkflowPath, 'utf8')
+  const parsedWorkflow = parseYaml(deployWorkflowPath)
+  const backendJob = parsedWorkflow.jobs['backend-api']
+  const dashboardJob = parsedWorkflow.jobs.dashboard
+  const backendBlock = workflowJobBlock(workflow, 'backend-api')
+  const dashboardBlock = workflowJobBlock(workflow, 'dashboard')
+
+  assert.equal(backendJob.environment.name, '${{ inputs.target }}')
+  assert.equal(dashboardJob.environment.name, '${{ inputs.target }}')
+  assert.equal(backendJob.needs[0], 'preflight')
+  assert.equal(dashboardJob.needs[0], 'preflight')
+  assert.equal(backendJob.if, "needs.preflight.outputs.is_api == 'true'")
+  assert.equal(dashboardJob.if, "needs.preflight.outputs.is_dashboard == 'true'")
+  assert.match(backendBlock, pinnedActionRef('actions/checkout', 'v4'))
+  assert.match(dashboardBlock, pinnedActionRef('actions/checkout', 'v4'))
+  assert.match(backendBlock, /ref: \$\{\{ inputs\.deploy_sha \}\}/)
+  assert.match(dashboardBlock, /ref: \$\{\{ inputs\.deploy_sha \}\}/)
+})
+
+test('staged deploy workflow preserves backend migration and smoke contracts', async () => {
+  const workflow = await readFile(deployWorkflowPath, 'utf8')
+  const backendBlock = workflowJobBlock(workflow, 'backend-api')
+
+  assert.match(backendBlock, /docker build -t "tachigo-api:\$\{DEPLOYMENT_SHA\}" services\/api/)
+  assert.match(backendBlock, /ATLAS_DATABASE_URL environment secret is required/)
+  assert.match(backendBlock, /atlas migrate apply --dir file:\/\/migrations --url "\$ATLAS_DATABASE_URL"/)
+  assert.match(backendBlock, /MIGRATION_STATUS=applied/)
+  assert.match(backendBlock, /MIGRATION_STATUS=failed/)
+  assert.match(backendBlock, /infra\/scripts\/backend-staging-smoke\.sh/)
+  assert.match(backendBlock, /PRODUCTION_API_BASE_URL environment variable is required/)
+  assert.match(backendBlock, /PRODUCTION_AUTH_BEARER_TOKEN environment secret is required/)
+  assert.match(backendBlock, /Deploy the built image to the approved container target before smoke readback/)
+  assert.doesNotMatch(backendBlock, /BACKEND_DEPLOY_COMMAND/)
+})
+
+test('staged deploy workflow preserves dashboard artifact and smoke contracts', async () => {
+  const workflow = await readFile(deployWorkflowPath, 'utf8')
+  const dashboardBlock = workflowJobBlock(workflow, 'dashboard')
+
+  assert.match(dashboardBlock, /docker compose build dashboard/)
+  assert.match(dashboardBlock, /DASHBOARD_API_URL environment variable is required/)
+  assert.match(dashboardBlock, /-e VITE_TACHIGO_API_URL="\$DASHBOARD_API_URL"/)
+  assert.match(dashboardBlock, /dashboard sh -lc 'pnpm build && pnpm package:readback'/)
+  assert.doesNotMatch(dashboardBlock, /pnpm package:production/)
+  assert.match(dashboardBlock, /docker cp tachigo-dashboard-package:\/app\/dist apps\/dashboard\/dist/)
+  assert.match(dashboardBlock, /CLOUDFLARE_PAGES_PROJECT environment variable is required/)
+  assert.match(dashboardBlock, /DASHBOARD_PUBLIC_URL environment variable is required/)
+  assert.match(dashboardBlock, /Upload apps\/dashboard\/dist to the approved Cloudflare Pages project/)
+  assert.match(dashboardBlock, /This workflow intentionally avoids adding a new third-party deploy action/)
+  assert.match(dashboardBlock, /Run the dashboard smoke readback only after the manual Cloudflare Pages upload reports this deployment SHA/)
+  assert.doesNotMatch(dashboardBlock, /curl -fsS/)
 })
 
 test('release cadence documentation matches the automated gate', async () => {
